@@ -71,3 +71,4 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - o4a-ohua-backend
+    - hspec
