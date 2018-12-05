@@ -42,7 +42,7 @@ packages:
   extra-dep: true
 - location:
     git: https://github.com/sertel/one-for-all
-    commit: cd5d2953f80789eb52866e3bb57f6231439870f0
+    commit: 5da7a5bcbeb86ca98531904d08531722708537ae
   extra-dep: true
 
 # Dependency packages to be pulled from upstream that are not in the resolver

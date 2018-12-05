@@ -14,6 +14,7 @@ genCode graph = do
 genArcs :: OC.OutGraph -> O4A.Expr
 genArcs (OC.OutGraph operators arcs _) =
     let localArcs = filter isNotEnvArc arcs
+     -- FIXME Why is this supposed to be a monad?
      in do outArcs <- [genOutArcVariable x operators | x <- localArcs]
            inArcs <- [genInArcVariable x | x <- localArcs]
            undefined
