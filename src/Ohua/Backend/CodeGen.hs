@@ -8,18 +8,44 @@ import qualified One4All.Lang as O4A
 
 genCode :: OC.OutGraph -> O4A.Expr
 genCode graph = do
-    arcCode <- genArcs graph
+    let arcCode = genArcs graph
     arcCode
 
 -- arc generation
+createArcs :: [(O4A.Var, O4A.Var)] -> O4A.Expr
+createArcs ((inp, out):xs) =
+    O4A.Let
+        (O4A.V "chan")
+        (O4A.Apply (O4A.Binding (O4A.V "channel")) (O4A.Lit O4A.UnitLit))
+        (O4A.Let
+             out
+             (O4A.Apply
+                  (O4A.Binding (O4A.V "nth"))
+                  (O4A.Apply
+                       (O4A.Lit (O4A.IntegerLit 0))
+                       (O4A.Binding (O4A.V "chan"))))
+             (O4A.Let
+                  inp
+                  (O4A.Apply
+                       (O4A.Binding (O4A.V "nth"))
+                       (O4A.Apply
+                            (O4A.Lit (O4A.IntegerLit 0))
+                            (O4A.Binding (O4A.V "chan"))))
+                  (createArcs xs)))
+--     [o4a| let chan = channel () in
+--           let $out = nth 0 chan in
+--           let $inp = nth 1 chan in $tree
+--       |]
+--       where tree = createArcs xs
+createArcs [] = O4A.Binding (O4A.V "toBeCompleted")
+
 genArcs :: OC.OutGraph -> O4A.Expr
 genArcs (OC.OutGraph operators arcs _) =
     let localArcs = filter isNotEnvArc arcs
      -- FIXME Why is this supposed to be a monad?
-     in do outArcs <- [genOutArcVariable x | x <- localArcs]
-           inArcs <- [genInArcVariable x | x <- localArcs]
-           undefined
-  -- TODO: continue here! write arc generation
+     in do let outArcs = [genOutArcVariable x | x <- localArcs]
+           let inArcs = [genInArcVariable x | x <- localArcs]
+           createArcs $ zip inArcs outArcs
 
 isNotEnvArc :: OC.Arc envExpr -> Bool
 isNotEnvArc (OC.Arc _ (OC.LocalSource _)) = True
