@@ -13,10 +13,12 @@ import Ohua.Backend.Util
 
 createArcs :: [(O4A.Var, O4A.Var)] -> O4A.Expr
 createArcs ((inp, out):xs) =
-    [o4a| let chan = channel () in
-          let $var:out = nth 0 chan in
-          let $var:inp = nth 1 chan in $expr:tree
-      |]
+    [o4a|
+        let chan = channel () in
+        let $var:out = nth 0 chan in
+        let $var:inp = nth 1 chan in
+         tree
+    |]
   where
     tree = createArcs xs
 createArcs [] = O4A.Binding (O4A.V "toBeCompleted")
