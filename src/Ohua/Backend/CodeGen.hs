@@ -1,3 +1,5 @@
+{-# LANGUAGE QuasiQuotes #-}
+
 module Ohua.Backend.CodeGen where
 
 import Universum
@@ -5,6 +7,7 @@ import Universum
 import qualified Ohua.DFGraph as OC
 import qualified Ohua.Types as OT
 import qualified One4All.Lang as O4A
+import One4All.Quote
 
 genCode :: OC.OutGraph -> O4A.Expr
 genCode graph = do
@@ -14,29 +17,12 @@ genCode graph = do
 -- arc generation
 createArcs :: [(O4A.Var, O4A.Var)] -> O4A.Expr
 createArcs ((inp, out):xs) =
-    O4A.Let
-        (O4A.V "chan")
-        (O4A.Apply (O4A.Binding (O4A.V "channel")) (O4A.Lit O4A.UnitLit))
-        (O4A.Let
-             out
-             (O4A.Apply
-                  (O4A.Binding (O4A.V "nth"))
-                  (O4A.Apply
-                       (O4A.Lit (O4A.IntegerLit 0))
-                       (O4A.Binding (O4A.V "chan"))))
-             (O4A.Let
-                  inp
-                  (O4A.Apply
-                       (O4A.Binding (O4A.V "nth"))
-                       (O4A.Apply
-                            (O4A.Lit (O4A.IntegerLit 0))
-                            (O4A.Binding (O4A.V "chan"))))
-                  (createArcs xs)))
---     [o4a| let chan = channel () in
---           let $out = nth 0 chan in
---           let $inp = nth 1 chan in $tree
---       |]
---       where tree = createArcs xs
+    [o4a| let chan = channel () in
+          let $var:out = nth 0 chan in
+          let $var:inp = nth 1 chan in $expr:tree
+      |]
+  where
+    tree = createArcs xs
 createArcs [] = O4A.Binding (O4A.V "toBeCompleted")
 
 genArcs :: OC.OutGraph -> O4A.Expr
