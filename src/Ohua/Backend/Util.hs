@@ -6,6 +6,18 @@ import qualified Ohua.DFGraph as OC
 import qualified Ohua.Types as OT
 import qualified One4All.Lang as O4A
 
+getInArcs :: OT.FnId -> [OC.Arc envArc] -> [OC.Arc envArc]
+getInArcs op arcs = filter (\(OC.Arc (OC.Target id _) _) -> id == op) arcs
+
+getOutArcs :: OT.FnId -> [OC.Arc envArc] -> [OC.Arc envArc]
+getOutArcs op arcs =
+    filter
+        (\(OC.Arc _ src) ->
+             case src of
+                 (OC.LocalSource (OC.Target id _)) -> id == op
+                 (OC.EnvSource _) -> False)
+        arcs
+
 getOpId :: OC.Source envExpr -> OT.FnId
 getOpId (OC.LocalSource (OC.Target id _)) = id
 getOpId (OC.EnvSource id) = undefined
