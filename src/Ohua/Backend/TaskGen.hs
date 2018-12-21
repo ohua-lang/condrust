@@ -16,12 +16,37 @@ genTasks :: OC.OutGraph -> O4A.Expr
 -- TODO: filter for sfns here
 genTasks (OC.OutGraph ops arcs retArc) = undefined
 
-genTask :: OT.FnId -> OC.OutGraph -> O4A.Expr
-genTask id (OC.OutGraph ops arcs retArc) = do
+genTask :: OC.Operator -> OC.OutGraph -> O4A.Expr
+genTask (OC.Operator id binding) (OC.OutGraph ops arcs retArc)
+    -- generate a list of input arc names for the current sfn and zip the
+    -- variable names with the original arcs, also locate the ctrl port if there
+    -- is any
+ = do
     let inArcs = genInArcList id arcs
     let zippedInArcs = onDemandClone (zip (getInArcs id arcs) inArcs)
-  -- TODO: Continue here: Apply onDemandClone and build the task
-    O4A.Binding (O4A.V "foo")
+    let ctrlPort = findControlInput id arcs
+    -- generate a list of output arcs and fold them into a o4a expr
+    let outArcs = genOutArcList id arcs
+    let sendTree = generateSend outArcs arcs id (OC.operator retArc)
+    -- construct sfn invocation and stitch together all parts
+    let sf = OT.unwrap (OT.qbName binding)
+    let drainArcs = map snd (filter (\(arc, _) -> isNotEnvArc arc) zippedInArcs)
+    let drainInpTree = generateRecv drainArcs
+    let callArgs =
+            foldr
+                (\num tree ->
+                     let var = "inp" ++ show num
+                      in [o4a| inp tree |])
+                -- TODO: Needs start expr to fold on right here
+                ([0 .. (length drainArcs)] :: [Int])
+    let sfnCall = [o4a| let result = sf callArgs in sendTree |]
+    if length drainArcs > 0
+        then case ctrlPort of
+                 Just port -> O4A.Binding (O4A.V "foo")
+                 Nothing -> O4A.Binding (O4A.V "foo")
+        else case ctrlPort of
+                 Just port -> O4A.Binding (O4A.V "foo")
+                 Nothing -> O4A.Binding (O4A.V "foo")
 
 -- TODO: this function shall convert the list and add cloning to env arcs as needed
 onDemandClone :: [(OC.Arc envExpr, O4A.Var)] -> [(OC.Arc envExpr, O4A.Expr)]
@@ -61,3 +86,17 @@ generateSend (out:outs) (a:arcs) opId finalId =
              let r = nth idx resClone in
              let s = send out in tree |]
         (OC.EnvSource _) -> undefined
+
+-- |Takes a list of arc name variables and wraps each one into a `recv`
+-- instruction to pull on each arc and stitches all expressions together into a
+-- single expr
+generateRecv :: [O4A.Expr] -> O4A.Expr
+generateRecv arcs =
+    foldr
+        (\(num, arc) tree ->
+             let var = "inp" ++ show num
+              in [o4a| let $var:var = recv arc in
+                     tree |])
+        (O4A.Binding (O4A.V "toBeCompleted"))
+        (zip [0 ..] arcs :: [(Int, O4A.Expr)])
+generateRecv [] = (O4A.Binding (O4A.V "toBeCompleted"))

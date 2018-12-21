@@ -30,10 +30,6 @@ genArcs (OC.OutGraph operators arcs _) =
            let inArcs = [genInArcVariable x | x <- localArcs]
            createArcs $ zip inArcs outArcs
 
-isNotEnvArc :: OC.Arc envExpr -> Bool
-isNotEnvArc (OC.Arc _ (OC.LocalSource _)) = True
-isNotEnvArc (OC.Arc _ (OC.EnvSource _)) = False
-
 genOutArcVariable :: OC.Arc envExpr -> O4A.Var
 genOutArcVariable (OC.Arc target src) =
     let out_port = genOutArcVariable' (getOpId src) (getOutIdxFromSrc src)

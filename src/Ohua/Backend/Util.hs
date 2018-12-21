@@ -26,6 +26,10 @@ getOutIdxFromSrc :: OC.Source envExpr -> Int
 getOutIdxFromSrc (OC.LocalSource (OC.Target _ idx)) = idx
 getOutIdxFromSrc (OC.EnvSource idx) = undefined
 
+isNotEnvArc :: OC.Arc envExpr -> Bool
+isNotEnvArc (OC.Arc _ (OC.LocalSource _)) = True
+isNotEnvArc (OC.Arc _ (OC.EnvSource _)) = False
+
 isFinalBinding :: O4A.Var -> Bool
 isFinalBinding (O4A.V "toBeCompleted") = True
 isFinalBinding _ = False
