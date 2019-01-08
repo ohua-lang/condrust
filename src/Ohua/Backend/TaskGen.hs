@@ -11,10 +11,14 @@ import One4All.Quote
 
 import Ohua.Backend.ArcGen (genInArcVariable, genOutArcVariable)
 import Ohua.Backend.Util
+  -- TODO: does the expr insertion work that way?
 
 genTasks :: OC.OutGraph -> O4A.Expr
 -- TODO: filter for sfns here
-genTasks (OC.OutGraph ops arcs retArc) = undefined
+genTasks graph = do
+    let tasks = map ((\graph op -> genTask op graph) graph) (OC.operators graph)
+    -- TODO: build task list!
+    O4A.Binding (O4A.V "todo")
 
 genTask :: OC.Operator -> OC.OutGraph -> O4A.Expr
 genTask (OC.Operator id binding) (OC.OutGraph ops arcs retArc)
@@ -23,7 +27,7 @@ genTask (OC.Operator id binding) (OC.OutGraph ops arcs retArc)
     -- is any
  = do
     let inArcs = genInArcList id arcs
-    let zippedInArcs = onDemandClone (zip (getInArcs id arcs) inArcs)
+    let zippedInArcs = zip (getInArcs id arcs) inArcs
     let ctrlPort = findControlInput id arcs
     -- generate a list of output arcs and fold them into a o4a expr
     let outArcs = genOutArcList id arcs
@@ -32,25 +36,23 @@ genTask (OC.Operator id binding) (OC.OutGraph ops arcs retArc)
     let sf = OT.unwrap (OT.qbName binding)
     let drainArcs = map snd (filter (\(arc, _) -> isNotEnvArc arc) zippedInArcs)
     let drainInpTree = generateRecv drainArcs
+    let varInitial = "inp" ++ show (length drainArcs)
     let callArgs =
             foldr
                 (\num tree ->
                      let var = "inp" ++ show num
-                      in [o4a| inp tree |])
-                -- TODO: Needs start expr to fold on right here
-                ([0 .. (length drainArcs)] :: [Int])
+                      in [o4a| var tree |])
+                [o4a| varInitial |]
+                ([0 .. ((length drainArcs))] :: [Int])
     let sfnCall = [o4a| let result = sf callArgs in sendTree |]
     if length drainArcs > 0
+      -- TODO: Translate all branches by coming up with a solution for `loop`!
         then case ctrlPort of
                  Just port -> O4A.Binding (O4A.V "foo")
-                 Nothing -> O4A.Binding (O4A.V "foo")
+                 Nothing -> sfnCall
         else case ctrlPort of
                  Just port -> O4A.Binding (O4A.V "foo")
-                 Nothing -> O4A.Binding (O4A.V "foo")
-
--- TODO: this function shall convert the list and add cloning to env arcs as needed
-onDemandClone :: [(OC.Arc envExpr, O4A.Var)] -> [(OC.Arc envExpr, O4A.Expr)]
-onDemandClone = undefined
+                 Nothing -> sfnCall
 
 genInArcList :: OT.FnId -> [OC.Arc envExpr] -> [O4A.Var]
 -- TODO: environment variables handling as in `generate_in_arcs_vec`
@@ -90,7 +92,7 @@ generateSend (out:outs) (a:arcs) opId finalId =
 -- |Takes a list of arc name variables and wraps each one into a `recv`
 -- instruction to pull on each arc and stitches all expressions together into a
 -- single expr
-generateRecv :: [O4A.Expr] -> O4A.Expr
+generateRecv :: [O4A.Var] -> O4A.Expr
 generateRecv arcs =
     foldr
         (\(num, arc) tree ->
@@ -98,5 +100,5 @@ generateRecv arcs =
               in [o4a| let $var:var = recv arc in
                      tree |])
         (O4A.Binding (O4A.V "toBeCompleted"))
-        (zip [0 ..] arcs :: [(Int, O4A.Expr)])
+        (zip [0 ..] arcs :: [(Int, O4A.Var)])
 generateRecv [] = (O4A.Binding (O4A.V "toBeCompleted"))
