@@ -6,18 +6,10 @@ extra-deps:
   - git: https://github.com/ohua-dev/ohua-core
     commit: d499652f022be7dc5e1fc58df70949313cacebda
     subdirs: [core]
-  - git: https://github.com/ohua-dev/alang-clike-parser
-    commit: 6d4c3d2433c3686928f608b0c84a8ad130884f08
-  - git: https://github.com/ohua-dev/alang-sexpr-parser
-    commit: fdc81f8c8c2fef63e7a306c2a323e3919b0d88ca
-  - git: https://github.com/ohua-dev/alang-ml-parser
-    commit: ffb856ac7f60e83689324f8d6b8334bb8f898159
+  - git: https://github.com/sertel/alang-go-parser
+    commit: b4286cef82a7290a5767f18572bdb6673812e6ad
 
 flags:
-  ohuac:
-    with-clike-parser: yes
-    with-sexpr-parser: yes
-    with-ml-parser: yes
   ohua-core:
     debug: true
 extra-package-dbs: []

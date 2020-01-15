@@ -2,8 +2,8 @@ name: ohuac
 version: '0.3.0'
 category: Devel
 author: Sebastian Ertel, Justus Adam
-maintainer: dev@justus.science
-copyright: © 2017, 2018 Sebastian Ertel, Justus Adam
+maintainer: sebastian.ertel@gmail.com
+copyright: © 2017, 2018, 2020 Sebastian Ertel, Justus Adam
 license: OtherLicense
 github: ohua-dev/ohuac
 extra-source-files:
@@ -59,25 +59,7 @@ library:
   - containers
   - casing
   - language-java
-  when:
-    - condition: flag(with-clike-parser)
-      dependencies:
-      - alang-clike-parser
-      cpp-options:
-      - -DWITH_CLIKE_PARSER=1
-    - condition: flag(with-sexpr-parser)
-      dependencies:
-      - alang-sexpr-parser
-      cpp-options:
-      - -DWITH_SEXPR_PARSER=1
-    - condition: flag(with-ml-parser)
-      dependencies:
-      - alang-ml-parser
-      cpp-options:
-      - -DWITH_ML_PARSER=1
-    - condition: flag(with-stdlib)
-      cpp-options:
-      - -DWITH_STDLIB=1
+  - alang-go-parser
 executables:
   ohuac:
     main: Main.hs
@@ -96,22 +78,6 @@ executables:
     - -Wincomplete-uni-patterns
     - -Wredundant-constraints
 
-flags:
-  with-sexpr-parser:
-    default: true
-    manual: false
-  with-clike-parser:
-    default: true
-    manual: false
-  with-ml-parser:
-    default: true
-    manual: false
-  with-stdlib:
-    default: true
-    manual: false
-    description:
-      Compile and embed the standard library (needs `with-ml-parser` to be
-      enabled)
 tests:
   ohua-standalone-test:
     main: Spec.hs

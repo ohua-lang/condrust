@@ -23,30 +23,22 @@ import Ohua.Unit
 import Ohua.ALang.PPrint
 import Ohua.Serialize.JSON ()
 
-#ifdef WITH_SEXPR_PARSER
-import qualified Ohua.Compat.SExpr.Lexer         as SLex
-import qualified Ohua.Compat.SExpr.Parser        as SParse
-#endif
-#ifdef WITH_CLIKE_PARSER
-import qualified Ohua.Compat.Clike.Parser        as CParse
-import qualified Ohua.Compat.Clike.Types         as CTy
-#endif
-#ifdef WITH_ML_PARSER
-import qualified Ohua.Compat.ML.Parser as MLParse
-#endif
+-- #ifdef WITH_SEXPR_PARSER
+-- import qualified Ohua.Compat.SExpr.Lexer         as SLex
+-- import qualified Ohua.Compat.SExpr.Parser        as SParse
+-- #endif
+-- #ifdef WITH_CLIKE_PARSER
+import qualified Ohua.Compat.Go.Parser        as GoParse
+import qualified Ohua.Compat.Go.Types         as GoTy
+-- #endif
 
 type LParser = L.ByteString -> (Maybe TyAnnMap, RawNamespace)
 
 definedLangs :: [(Text, Text, LParser)]
 definedLangs =
-#ifdef WITH_SEXPR_PARSER
-    ( ".ohuas"
-    , "S-Expression frontend for the algorithm language"
-    , (Nothing, ) . SParse.parseNS . SLex.tokenize) :
-#endif
-#ifdef WITH_CLIKE_PARSER
-    ( ".ohuac"
-    , "C/Rust-like frontent for the algorithm language"
+-- #ifdef WITH_CLIKE_PARSER
+    ( ".go"
+    , "Go frontent for the algorithm language"
     , let reNS ::
                  Namespace (Annotated (FunAnn (TyExpr SomeBinding)) Fr.Expr)
               -> (Maybe TyAnnMap, RawNamespace)
@@ -60,16 +52,9 @@ definedLangs =
                            ((bnd, tyAnn), (bnd, expr)))
                       (HM.toList $ ns ^. decls)
           remMutAnn = decls . each . annotation %~ fmap (view value)
-       in reNS . remMutAnn . CParse.parseNS) :
-#endif
-#ifdef WITH_ML_PARSER
-    ( ".ohuaml"
-    , "ML-style frontend for ALang"
-    , (Nothing, ) . MLParse.parseMod
-    ) :
-#endif
+       in reNS . remMutAnn . GoParse.parseNS) :
+-- #endif
     []
-
 
 
 getParser :: Text -> L.ByteString -> (Maybe TyAnnMap, RawNamespace)
@@ -360,15 +345,15 @@ typeFormatterHelper moduleSeparator tupleConstructor = go []
       where
         arglist = T.intercalate "," l
 
-#if WITH_CLIKE_PARSER
-formatRustType :: TyExpr SomeBinding -> Text
-formatRustType = typeFormatterHelper "::" CTy.tupleConstructor
-#endif
+-- #if WITH_CLIKE_PARSER
+-- formatRustType :: TyExpr SomeBinding -> Text
+-- formatRustType = typeFormatterHelper "::" CTy.tupleConstructor
+-- #endif
 type LangFormatter = TyExpr SomeBinding -> Text
 
 langs :: [(Text, LangFormatter)]
 langs =
-#if WITH_CLIKE_PARSER
-  ("rust", formatRustType) :
-#endif
+-- #if WITH_CLIKE_PARSER
+--   ("rust", formatRustType) :
+-- #endif
   []

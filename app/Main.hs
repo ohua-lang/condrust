@@ -21,7 +21,6 @@ import Ohua.ALang.Lang
 import Ohua.Frontend.NS
 import Ohua.CodeGen.Iface
 import qualified Ohua.CodeGen.JSONObject as JSONGen
-import qualified Ohua.CodeGen.SimpleJavaClass as JavaGen
 import Ohua.Compile
 import Ohua.Compile.Configuration
 import Ohua.Standalone
@@ -55,11 +54,9 @@ data CommonCmdOpts = CommonCmdOpts
 
 data CodeGenSelection
     = JsonGraph
-    | SimpleJavaClass
     deriving (Read, Show, Bounded, Enum)
 
 selectionToGen :: CodeGenSelection -> CodeGen
-selectionToGen SimpleJavaClass = JavaGen.generate
 selectionToGen JsonGraph = JSONGen.generate
 
 -- The following splice generates the following two conversions from the
@@ -68,7 +65,7 @@ selectionToGen JsonGraph = JSONGen.generate
 -- readCodeGen :: (IsString s, IsString err, Eq s) => s -> Either err CodeGenSelection
 -- showCodeGen :: IsString s => CodeGenSelection -> s
 $(let codeGenStrings =
-          [('JsonGraph, "json-graph"), ('SimpleJavaClass, "simple-java-class")]
+          [('JsonGraph, "json-graph")]
       (readClauses, showClauses) =
           unzip
               [ ( Clause
