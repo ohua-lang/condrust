@@ -11,13 +11,54 @@ This source code is licensed under the terms described in the associated LICENSE
 
 This "transformation" loads algorithms from other modules, imported via import statements,
 as top-level algos into the current namespace.
-It is only somewhat a transformation because it does alter any expression. But this is only the case,
+It is only somewhat a transformation because it does not alter any expression. But this is only the case,
 because we chose to represent the list of top-level algos in terms of a hash map. Normally, all would form
 one big expression.
+
+The following is the interface that a parser needs to adhere to:
+Symbols need to be fully qualified.
+That means code like this:
+@
+import "bla/some"
+some.ns.foo()
+@
+must be turned into
+@
+import "bla/some/ns" "foo" <-- Qualified Binding
+foo()
+ ^
+ |
+  - Qualified Binding (inside a function literal)
+@
+This makes the rest of the compilation straight forward and disambiuates:
+@
+state.foo()
+@
+from
+@
+foo()
+@
+in languages such as Go or Java.
 
 -}
 
 module Ohua.Compile.Transform.Load where
+
+import qualified Data.HashMap.Strict as HM
+import Ohua.Parser.Common as P
+
+definedLangs :: [(Text, Text, P.Parser)]
+definedLangs =
+    ( ".go"
+    , "Go frontend for the algorithm language",
+    parseGo) :
+    []
+
+getParser :: Text -> P.Parser
+getParser ext
+    | Just a <- find ((== ext) . view _1) definedLangs = a ^. _3
+    | otherwise =
+        error $ "No parser defined for files with extension '" <> ext <> "'"
 
 -- | Loads the content of an algo file and parses its contents into a (parser-representation) namespace.
 -- To prevent namespace clashes, the algo (foo) is always registered as:
@@ -51,3 +92,32 @@ findSourceFile modname = do
     asFile = toString $ T.intercalate "/" $ map unwrap $ unwrap modname
     extensions = map (^. _1) definedLangs
 
+-- | Finds the source from an NSRef, loads it into a (parser-representation) 
+--   namespace and resolves it by loading its dependencies
+loadModule :: CompM m => NSRef -> m P.Namespace
+loadModule = readAndParse =<< findSourceFile
+
+type CompilationScope = Set.HashSet NSRef
+
+-- | This function recurses until it managed to load all dependencies into 
+--   the current namespace.
+loadDeps :: CompM m => CompilationScope -> P.Namespace -> m (HM.HashMap Binding Expression)
+loadDeps scope currentNs = do
+    let registry' = registerAlgosIntoNS HM.empty currentNs
+    modules <- forM scope loadModule
+    let registry'' = foldl registerAlgos registry' modules
+    return registry''
+    where
+        registerAlgosInNs :: HM.HashMap Binding Expression -> P.Namespace -> HM.HashMap Binding Expression
+        registerAlgosInNs registry ns = 
+            foldl 
+                (\reg algo -> 
+                    HM.insert 
+                        (QualifiedBinding ns^.name (algo^.algoName))
+                        (algo^.algoCode) 
+                        reg)
+                registry
+                $ ns^.algos
+
+load :: CompM m => CompilationScope -> NSRef -> m (P.Namespace, HM.HashMap Binding Expression)
+load scope = (loadDeps algoImports) =<< loadModule 
