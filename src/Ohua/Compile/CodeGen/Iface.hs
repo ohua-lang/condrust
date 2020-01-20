@@ -36,13 +36,9 @@ data CodeGenData = CodeGenData
   , funs :: [Fun]
   } deriving (Eq, Show, Generic)
 
--- FIXME I'm sure the below is also entirely unnecessary.
-type NameSuggester = Text
-
 type CodeGen
-     = forall m. ( MonadReader CodeGenOpts m
-                 , MonadError Text m
-                 , MonadLogger m
-                 , MonadIO m
+     = forall m. ( --MonadReader CodeGenOpts m,
+                 MonadError Text m
+                , MonadLoggerIO m
                  ) =>
-                     CodeGenData -> m (NameSuggester, LByteString)
+                     CodeGenData -> m LByteString

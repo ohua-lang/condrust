@@ -78,7 +78,6 @@ type Transformation = Namespace
 
 type FileRef = Text
 
-
 gatherDeps :: CompM m => IORef ModMap -> [NSRef] -> m IFaceDefs
 gatherDeps tracker namespaces = do
     mods <- mapConcurrently (registerAndLoad tracker) namespaces
@@ -256,12 +255,15 @@ ohuacCompilation expr =
                     of
                 Lambda "_" body -> body
                 e -> e
-        sfDeps = gatherSFDeps expr
+        sfDeps = gatherSFDeps expr -- FIXME probably not needed anymore
         (mainArity, completeExpr) = mainToEnv expr in 
     completeExpr
 
 ohuaCoreCompilation :: 
-    (MonadError Error m, MonadLoggerIO m) => StageHandling -> Bool -> Expression -> m OutGraph
+    ( MonadError Error m
+    , MonadLoggerIO m
+    , MonadReader (StageHandling, Bool) m ) 
+    => StageHandling -> Bool -> Expression -> m OutGraph
 ohuaCoreCompilation stageHandlings tailRecSupport =
     OhuaCore.compile
         (def 
@@ -270,26 +272,46 @@ ohuaCoreCompilation stageHandlings tailRecSupport =
         (def {passAfterDFLowering = cleanUnits})
 
 compileExpr :: 
-    (MonadError Error m, MonadLoggerIO m) => StageHandling -> Bool -> Expression -> m OutGraph
+    ( MonadError Error m
+    , MonadLoggerIO m
+    , MonadReader (StageHandling, Bool) m ) 
+    => Imports -> Expression -> m OutGraph
 compileExpr sh tailRec expr = 
+    loadDepsAndResolve 
     ohuaCoreCompilation sh tailRec =<< ohuacCompilation expr
 
-compile :: [Expression] -> m [OutGraph]
-compile exprs = mapM compileExpr 
+package ::
+    ( MonadError Error m
+    , MonadLoggerIO m
+    , MonadReader (StageHandling, Bool, CodeGenSelection) m ) 
+    => NSRef -> Imports -> [(Algo, OutGraph)] -> m L.ByteString
+package nsName sfImports algos = do
+    codegen <- selectionToGen <$> _3 ^. ask
+    codegen
+        CodeGenData
+            { namespace = nsName
+            , sfDependencies = Set.fromList sfImports
+            , funs = flip map algos $\(algo, gr) -> 
+                Fun 
+                    { graph = gr
+                    , annotations = algo ^. algoTyAnn
+                    , name = algo ^. algoName
+                    } 
+            }
 
-package :: [OutGraph] -> CodeGenData
-package outGraphs = map 
-    (nameSuggest, code) <-
-        flip runReaderT CodeGenOpts $
-        selectionToGen
-            outputFormat
-            CodeGenData
-                { graph = gr
-                , entryPointArity = mainArity
-                , sfDependencies = sfDeps
-                , annotations = mainAnns
-                , entryPointName = entrypoint
-                , entryPointNamespace = rawMainMod ^. name
-                }
-    return code
+compile :: 
+    ( MonadError Error m
+    , MonadLoggerIO m
+    , MonadReader (StageHandling, Bool, CodeGenSelection) m ) 
+    => FileRef -> FileRef -> m ()
+compile inFile outFile = do
+    ns <- readAndParse inFile
+    algoImports = filter () -- TODO
+    compiledAlgos <-
+        mapM 
+            (\algo -> (algo, compileExpr algoImports $ algo ^. algoCode)) 
+            ns ^. algos 
+    packaged <- package compiledAlgos
+    L.writeFile packaged
+    logInfoN $ "Code written to '" <> outFile <> "'"
 

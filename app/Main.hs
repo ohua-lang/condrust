@@ -27,11 +27,6 @@ import Ohua.Standalone
 import Ohua.Stage (knownStages)
 import Ohua.Unit
 
--- TODO remove this. This info should always be available in the output.
--- newtype DumpOpts = DumpOpts
---     { dumpLang :: LangFormatter
---     }
-
 data BuildOpts = BuildOpts
     { outputFormat :: CodeGenSelection
     , stageHandlingOpt :: StageHandling
@@ -40,12 +35,10 @@ data BuildOpts = BuildOpts
 
 data Command
     = Build CommonCmdOpts BuildOpts
-    -- | DumpType CommonCmdOpts DumpOpts
     | ShowVersion
 
 data CommonCmdOpts = CommonCmdOpts
     { inputModuleFile :: Text
-    -- , entrypoint :: Binding
     , outputPath :: Maybe Text
     , logLevel :: LogLevel
     }
@@ -58,54 +51,8 @@ data CodeGenSelection
 selectionToGen :: CodeGenSelection -> CodeGen
 selectionToGen JsonGraph = JSONGen.generate
 
--- The following splice generates the following two conversions from the
--- 'codeGenStrings' list
---
--- readCodeGen :: (IsString s, IsString err, Eq s) => s -> Either err CodeGenSelection
--- showCodeGen :: IsString s => CodeGenSelection -> s
-$(let codeGenStrings =
-          [('JsonGraph, "json-graph")]
-      (readClauses, showClauses) =
-          unzip
-              [ ( Clause
-                      [LitP $ StringL strRep]
-                      (NormalB $ ConE 'Right `AppE` ConE constr)
-                      []
-                , Clause [ConP constr []] (NormalB $ LitE $ StringL strRep) [])
-              | (constr, strRep) <- codeGenStrings
-              ]
-      showN = mkName "showCodeGen"
-      readN = mkName "readCodeGen"
-      strVar = mkName "str"
-      errMgs =
-          "Unrecognized code gen type. Valid options: " ++
-          intercalate ", " (map snd codeGenStrings)
-      varIsStr var = ConT ''IsString `AppT` VarT var
-      strVarIsString = varIsStr strVar
-      errVar = mkName "err"
-   in pure
-          [ SigD showN $
-            ForallT [PlainTV strVar] [strVarIsString] $
-            ArrowT `AppT` ConT ''CodeGenSelection `AppT` VarT strVar
-          , FunD showN showClauses
-          , SigD readN $
-            ForallT
-                [PlainTV strVar, PlainTV errVar]
-                [strVarIsString, ConT ''Eq `AppT` VarT strVar, varIsStr errVar] $
-            ArrowT `AppT` VarT strVar `AppT`
-            (ConT ''Either `AppT` VarT errVar `AppT` ConT ''CodeGenSelection)
-          , FunD
-                readN
-                (readClauses ++
-                 [ Clause
-                       [WildP]
-                       (NormalB $ ConE 'Left `AppE` LitE (StringL errMgs))
-                       []
-                 ])
-          ])
-
-(-<.>) :: Text -> Text -> Text
-p1 -<.> p2 = toText $ toString p1 FP.-<.> toString p2
+-- (-<.>) :: Text -> Text -> Text
+-- p1 -<.> p2 = toText $ toString p1 FP.-<.> toString p2
 
 runCompM :: LogLevel -> ExceptT Text (LoggingT IO) a -> IO a
 runCompM targetLevel c =
@@ -117,9 +64,9 @@ runCompM targetLevel c =
         logErrorN message
         exitFailure
 
--- the main arguments of the compiler are:
+-- TODO the main arguments of the compiler are:
 -- - the file to be compiled
--- -I the set of "include paths"
+-- -I the set of "include paths". in our case: these are file references to "Ohua" source files.
 
 main :: IO ()
 main = do
@@ -130,116 +77,84 @@ main = do
             putStrLn
                 ("Compiled at " <>
                  $(LitE . StringL . show <$> liftIO getCurrentTime) :: Text)
-        -- DumpType common@CommonCmdOpts {..} (DumpOpts format) ->
-        --     withCommonSetup common $ \_ mainAnns _ getMain ->
-        --         case mainAnns of
-        --             Nothing ->
-        --                 throwError "No annotations present for the module"
-        --             Just m -> do
-        --                 FunAnn args ret <- getMain m
-        --                 let outPath =
-        --                         fromMaybe
-        --                             (inputModuleFile -<.> "type-dump")
-        --                             outputPath
-        --                 liftIO $
-        --                     L.writeFile (toString outPath) $
-        --                     encode $
-        --                     object
-        --                         [ "arguments" A..= map format args
-        --                         , "return" A..= format ret
-        --                         ]
-        --                 logInfoN $
-        --                     "Wrote a type dump of '" <> unwrap entrypoint <>
-        --                     "' from '" <>
-        --                     inputModuleFile <>
-        --                     "' to '" <>
-        --                     outPath <>
-        --                     ("'" :: Text)
         Build common@CommonCmdOpts {..} BuildOpts { outputFormat
                                                   , stageHandlingOpt
                                                   , extraFeatures
                                                   } ->
-            withCommonSetup common -- $ \modTracker mainAnns rawMainMod getMain -> do
-            $ \modTracker mainAnns rawMainMod -> do
-                -- FIXME this code also does not belong here. it is essentially the compilation flow
-                --       and should therefore be inside the lib.
-                mainMod <-
-                    registerAnd modTracker (rawMainMod ^. name) $
-                    loadDepsAndResolve modTracker rawMainMod
-                -- we always compile all the code in the file now.
-                -- expr' <- getMain $ mainMod ^. decls
+            runCompM loglevel 
+                $ runReaderT 
+                    ( stageHandlingOpt
+                    , ("tail-recursion" `elem` extraFeatures)
+                    , outputFormat
+                    ) 
+                    $ compile 
+            -- withCommonSetup common -- $ \modTracker mainAnns rawMainMod getMain -> do
+            -- $ \modTracker mainAnns rawMainMod -> do
+            --     -- FIXME this code also does not belong here. it is essentially the compilation flow
+            --     --       and should therefore be inside the lib.
+            --     mainMod <-
+            --         registerAnd modTracker (rawMainMod ^. name) $
+            --         loadDepsAndResolve modTracker rawMainMod
+            --     -- we always compile all the code in the file now.
+            --     -- expr' <- getMain $ mainMod ^. decls
 
-                -- What is the problem in the below code??? Why is this case statement needed?
-                -- Seems like a trivial transformation.
-                let expr =
-                        case expr'
-                               -- FIXME this is technically not correct for edge cases
-                              of
-                            Lambda "_" body -> body
-                            e -> e
-                let sfDeps = gatherSFDeps expr
-                let (mainArity, completeExpr) = mainToEnv expr
-                gr <-
-                    compile
-                        (def & stageHandling .~ stageHandlingOpt &
-                         transformRecursiveFunctions .~
-                         ("tail-recursion" `elem` extraFeatures))
-                        (def {passAfterDFLowering = cleanUnits})
-                        completeExpr
-                (nameSuggest, code) <-
-                    flip runReaderT CodeGenOpts $
-                    selectionToGen
-                        outputFormat
-                        CodeGenData
-                            { graph = gr
-                            , entryPointArity = mainArity
-                            , sfDependencies = sfDeps
-                            , annotations = mainAnns
-                            , entryPointName = entrypoint
-                            , entryPointNamespace = rawMainMod ^. name
-                            }
-                let outputPath0 = fromMaybe nameSuggest outputPath
-                liftIO $
-                    createDirectoryIfMissing
-                        True
-                        (FP.takeDirectory $ toString outputPath0)
-                liftIO $ L.writeFile (toString outputPath0) code
-                logInfoN $
-                    "Compiled '" <> unwrap entrypoint <> "' from '" <>
-                    inputModuleFile <>
-                    "' to " <>
-                    showCodeGen outputFormat
-                logInfoN $ "Code written to '" <> outputPath0 <> "'"
+            --     -- What is the problem in the below code??? Why is this case statement needed?
+            --     -- Seems like a trivial transformation.
+            --     let expr =
+            --             case expr'
+            --                    -- FIXME this is technically not correct for edge cases
+            --                   of
+            --                 Lambda "_" body -> body
+            --                 e -> e
+            --     let sfDeps = gatherSFDeps expr
+            --     let (mainArity, completeExpr) = mainToEnv expr
+            --     gr <-
+            --         compile
+            --             (def & stageHandling .~ stageHandlingOpt &
+            --              transformRecursiveFunctions .~
+            --              ("tail-recursion" `elem` extraFeatures))
+            --             (def {passAfterDFLowering = cleanUnits})
+            --             completeExpr
+            --     (nameSuggest, code) <-
+            --         flip runReaderT CodeGenOpts $
+            --         selectionToGen
+            --             outputFormat
+            --             CodeGenData
+            --                 { graph = gr
+            --                 , entryPointArity = mainArity
+            --                 , sfDependencies = sfDeps
+            --                 , annotations = mainAnns
+            --                 , entryPointName = entrypoint
+            --                 , entryPointNamespace = rawMainMod ^. name
+            --                 }
+            --     let outputPath0 = fromMaybe nameSuggest outputPath
+            --     liftIO $
+            --         createDirectoryIfMissing
+            --             True
+            --             (FP.takeDirectory $ toString outputPath0)
+            --     liftIO $ L.writeFile (toString outputPath0) code
+            --     logInfoN $
+            --         "Compiled '" <> unwrap entrypoint <> "' from '" <>
+            --         inputModuleFile <>
+            --         "' to " <>
+            --         showCodeGen outputFormat
+            --     logInfoN $ "Code written to '" <> outputPath0 <> "'"
   where
-    withCommonSetup ::
-           (m ~ ExceptT Text (LoggingT IO))
-        => CommonCmdOpts
-        -> (IORef ModMap -> Maybe TyAnnMap -> RawNamespace -> (forall map. ( Ixed map
-                                                                           , Index map ~ Binding
-                                                                           ) =>
-                                                                               map -> m (IxValue map)) -> m a)
-        -> IO a
-    withCommonSetup CommonCmdOpts {..} f =
-        runCompM logLevel $ do
-            -- this is the call into the library to load the requested file for compilation
-            (mainAnns, rawMainMod) <- readAndParse inputModuleFile
-            -- FIXME this code should be in the lib
-            modTracker <- newIORef mempty
-            -- this is an error message to cover the case that a requested method does not exist for compilation
-            -- we always compile everything now. so this should really not be needed anymore.
-            -- let getMain ::
-            --            (Ixed m, Index m ~ Binding, MonadError Error mo)
-            --         => m
-            --         -> mo (IxValue m)
-            --     getMain m =
-            --         case m ^? ix entrypoint of
-            --             Nothing ->
-            --                 throwError $
-            --                 "Module does not define specified entry point '" <>
-            --                 unwrap entrypoint <>
-            --                 "'"
-            --             Just x -> pure x
-            f modTracker mainAnns rawMainMod --getMain
+    -- withCommonSetup ::
+    --        (m ~ ExceptT Text (LoggingT IO))
+    --     => CommonCmdOpts
+    --     -> (IORef ModMap -> Maybe TyAnnMap -> RawNamespace -> (forall map. ( Ixed map
+    --                                                                        , Index map ~ Binding
+    --                                                                        ) =>
+    --                                                                            map -> m (IxValue map)) -> m a)
+    --     -> IO a
+    -- withCommonSetup CommonCmdOpts {..} f =
+    --     runCompM logLevel $ do
+    --         -- this is the call into the library to load the requested file for compilation
+    --         (mainAnns, rawMainMod) <- readAndParse inputModuleFile
+    --         -- FIXME this code should be in the lib
+    --         modTracker <- newIORef mempty
+    --         f modTracker mainAnns rawMainMod
     odef =
         info
             (helper <*> optsParser)
@@ -252,11 +167,6 @@ main = do
                   fillSep
                       (punctuate comma $
                        map (squotes . text . toString . view _1) definedLangs)))
-    -- dumpOpts =
-    --     DumpOpts <$>
-    --     argument
-    --         (maybeReader $ flip lookup langs . toText . map C.toLower)
-    --         (metavar "LANG" <> help "Language format for the types")
     buildOpts =
         BuildOpts <$>
         O.option

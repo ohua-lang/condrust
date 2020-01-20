@@ -1,3 +1,16 @@
+{-|
+
+Module      : $Header$
+Description : This backend just dumps the results to a JSON file.
+Copyright   : (c) Sebastian Ertel 2020. All Rights Reserved.
+License     : OtherLicense
+Maintainer  : sebastian.ertel@gmail.com
+Stability   : experimental
+Portability : portable
+This source code is licensed under the terms described in the associated LICENSE.TXT file
+
+-}
+
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Ohua.Compile.CodeGen.JSONObject where
 
@@ -18,7 +31,5 @@ instance ToJSON CodeGenData where
 instance FromJSON CodeGenData where
     parseJSON = genericParseJSON defaultOptions
 
-
 generate :: Text -> CodeGen
-generate fileName cgdf =
-    pure (unwrap $ fileName, encode cgdf)
+generate = pure . encode
