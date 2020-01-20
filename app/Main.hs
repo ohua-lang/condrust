@@ -25,28 +25,27 @@ import Ohua.Compile
 import Ohua.Compile.Configuration
 import Ohua.Standalone
 import Ohua.Stage (knownStages)
-import Ohua.Stdlib (stdlib)
 import Ohua.Unit
 
-newtype DumpOpts = DumpOpts
-    { dumpLang :: LangFormatter
-    }
+-- TODO remove this. This info should always be available in the output.
+-- newtype DumpOpts = DumpOpts
+--     { dumpLang :: LangFormatter
+--     }
 
 data BuildOpts = BuildOpts
     { outputFormat :: CodeGenSelection
-    , useStdlib :: Bool
     , stageHandlingOpt :: StageHandling
     , extraFeatures :: HS.HashSet Feature
     }
 
 data Command
     = Build CommonCmdOpts BuildOpts
-    | DumpType CommonCmdOpts DumpOpts
+    -- | DumpType CommonCmdOpts DumpOpts
     | ShowVersion
 
 data CommonCmdOpts = CommonCmdOpts
     { inputModuleFile :: Text
-    , entrypoint :: Binding
+    -- , entrypoint :: Binding
     , outputPath :: Maybe Text
     , logLevel :: LogLevel
     }
@@ -118,6 +117,10 @@ runCompM targetLevel c =
         logErrorN message
         exitFailure
 
+-- the main arguments of the compiler are:
+-- - the file to be compiled
+-- -I the set of "include paths"
+
 main :: IO ()
 main = do
     opts <- execParser odef
@@ -127,42 +130,47 @@ main = do
             putStrLn
                 ("Compiled at " <>
                  $(LitE . StringL . show <$> liftIO getCurrentTime) :: Text)
-        DumpType common@CommonCmdOpts {..} (DumpOpts format) ->
-            withCommonSetup common $ \_ mainAnns _ getMain ->
-                case mainAnns of
-                    Nothing ->
-                        throwError "No annotations present for the module"
-                    Just m -> do
-                        FunAnn args ret <- getMain m
-                        let outPath =
-                                fromMaybe
-                                    (inputModuleFile -<.> "type-dump")
-                                    outputPath
-                        liftIO $
-                            L.writeFile (toString outPath) $
-                            encode $
-                            object
-                                [ "arguments" A..= map format args
-                                , "return" A..= format ret
-                                ]
-                        logInfoN $
-                            "Wrote a type dump of '" <> unwrap entrypoint <>
-                            "' from '" <>
-                            inputModuleFile <>
-                            "' to '" <>
-                            outPath <>
-                            ("'" :: Text)
+        -- DumpType common@CommonCmdOpts {..} (DumpOpts format) ->
+        --     withCommonSetup common $ \_ mainAnns _ getMain ->
+        --         case mainAnns of
+        --             Nothing ->
+        --                 throwError "No annotations present for the module"
+        --             Just m -> do
+        --                 FunAnn args ret <- getMain m
+        --                 let outPath =
+        --                         fromMaybe
+        --                             (inputModuleFile -<.> "type-dump")
+        --                             outputPath
+        --                 liftIO $
+        --                     L.writeFile (toString outPath) $
+        --                     encode $
+        --                     object
+        --                         [ "arguments" A..= map format args
+        --                         , "return" A..= format ret
+        --                         ]
+        --                 logInfoN $
+        --                     "Wrote a type dump of '" <> unwrap entrypoint <>
+        --                     "' from '" <>
+        --                     inputModuleFile <>
+        --                     "' to '" <>
+        --                     outPath <>
+        --                     ("'" :: Text)
         Build common@CommonCmdOpts {..} BuildOpts { outputFormat
-                                                  , useStdlib
                                                   , stageHandlingOpt
                                                   , extraFeatures
                                                   } ->
-            withCommonSetup common $ \modTracker mainAnns rawMainMod getMain -> do
-                when useStdlib $ void $ insertDirectly modTracker stdlib
+            withCommonSetup common -- $ \modTracker mainAnns rawMainMod getMain -> do
+            $ \modTracker mainAnns rawMainMod -> do
+                -- FIXME this code also does not belong here. it is essentially the compilation flow
+                --       and should therefore be inside the lib.
                 mainMod <-
                     registerAnd modTracker (rawMainMod ^. name) $
                     loadDepsAndResolve modTracker rawMainMod
-                expr' <- getMain $ mainMod ^. decls
+                -- we always compile all the code in the file now.
+                -- expr' <- getMain $ mainMod ^. decls
+
+                -- What is the problem in the below code??? Why is this case statement needed?
+                -- Seems like a trivial transformation.
                 let expr =
                         case expr'
                                -- FIXME this is technically not correct for edge cases
@@ -213,21 +221,25 @@ main = do
         -> IO a
     withCommonSetup CommonCmdOpts {..} f =
         runCompM logLevel $ do
-            modTracker <- newIORef mempty
+            -- this is the call into the library to load the requested file for compilation
             (mainAnns, rawMainMod) <- readAndParse inputModuleFile
-            let getMain ::
-                       (Ixed m, Index m ~ Binding, MonadError Error mo)
-                    => m
-                    -> mo (IxValue m)
-                getMain m =
-                    case m ^? ix entrypoint of
-                        Nothing ->
-                            throwError $
-                            "Module does not define specified entry point '" <>
-                            unwrap entrypoint <>
-                            "'"
-                        Just x -> pure x
-            f modTracker mainAnns rawMainMod getMain
+            -- FIXME this code should be in the lib
+            modTracker <- newIORef mempty
+            -- this is an error message to cover the case that a requested method does not exist for compilation
+            -- we always compile everything now. so this should really not be needed anymore.
+            -- let getMain ::
+            --            (Ixed m, Index m ~ Binding, MonadError Error mo)
+            --         => m
+            --         -> mo (IxValue m)
+            --     getMain m =
+            --         case m ^? ix entrypoint of
+            --             Nothing ->
+            --                 throwError $
+            --                 "Module does not define specified entry point '" <>
+            --                 unwrap entrypoint <>
+            --                 "'"
+            --             Just x -> pure x
+            f modTracker mainAnns rawMainMod --getMain
     odef =
         info
             (helper <*> optsParser)
@@ -240,11 +252,11 @@ main = do
                   fillSep
                       (punctuate comma $
                        map (squotes . text . toString . view _1) definedLangs)))
-    dumpOpts =
-        DumpOpts <$>
-        argument
-            (maybeReader $ flip lookup langs . toText . map C.toLower)
-            (metavar "LANG" <> help "Language format for the types")
+    -- dumpOpts =
+    --     DumpOpts <$>
+    --     argument
+    --         (maybeReader $ flip lookup langs . toText . map C.toLower)
+    --         (metavar "LANG" <> help "Language format for the types")
     buildOpts =
         BuildOpts <$>
         O.option
@@ -262,10 +274,10 @@ main = do
                   "(default: json-graph)") <>
              long "code-gen" <>
              short 'g') <*>
-        O.switch
-            (long "with-stdlib" <>
-             help
-                 "Link the `ohua.std` namespace of higher order functions into the program. (experimental)") <*>
+        -- O.switch
+        --     (long "with-stdlib" <>
+        --      help
+        --          "Link the `ohua.std` namespace of higher order functions into the program. (experimental)") <*>
         ((\stopOn dumpStages sname ->
               ( if sname `HS.member` HS.fromList dumpStages
                     then DumpPretty
@@ -301,11 +313,11 @@ main = do
                        fillSep
                            ("I know about the following stages:" :
                             punctuate comma (map (text . toString) knownStages)))) <>
-             command
-                 "dump-main-type"
-                 (info
-                      (flip DumpType <$> dumpOpts <*> commonOptsParser)
-                      (progDesc "Dump the type of the main function")) <>
+            --  command
+            --      "dump-main-type"
+            --      (info
+            --           (flip DumpType <$> dumpOpts <*> commonOptsParser)
+            --           (progDesc "Dump the type of the main function")) <>
              command
                  "version"
                  (info
@@ -323,6 +335,7 @@ main = do
             (strOption $
              long "output" <> metavar "PATH" <> short 'o' <>
              help
+             -- FIXME fix the description accordingly
                  "Path to write the output to (default: input filename with '.ohuao' extension for 'build' with the JSON format and '.java' with the java format and '.type-dump' for 'dump-main-type')") <*>
         ((\verbose debug ->
               if debug

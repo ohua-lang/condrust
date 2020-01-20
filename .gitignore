@@ -2,3 +2,4 @@
 /.stack-work/
 .vscode
 *.ohuao
+stack.yaml*

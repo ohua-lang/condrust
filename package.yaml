@@ -5,7 +5,7 @@ author: Sebastian Ertel, Justus Adam
 maintainer: sebastian.ertel@gmail.com
 copyright: © 2017, 2018, 2020 Sebastian Ertel, Justus Adam
 license: OtherLicense
-github: ohua-dev/ohuac
+github: sertel/ohuac
 extra-source-files:
 - README.md
 default-extensions:
@@ -49,7 +49,7 @@ dependencies:
 - lens
 - monad-control
 library:
-  source-dirs: src/hs
+  source-dirs: src
   dependencies:
   - async
   - mtl
@@ -58,7 +58,7 @@ library:
   - lifted-async
   - containers
   - casing
-  - language-java
+  - parser-commons
   - alang-go-parser
 executables:
   ohuac:
