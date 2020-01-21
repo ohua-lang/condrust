@@ -43,14 +43,6 @@ data CommonCmdOpts = CommonCmdOpts
     , logLevel :: LogLevel
     }
 
-
-data CodeGenSelection
-    = JsonGraph
-    deriving (Read, Show, Bounded, Enum)
-
-selectionToGen :: CodeGenSelection -> CodeGen
-selectionToGen JsonGraph = JSONGen.generate
-
 -- (-<.>) :: Text -> Text -> Text
 -- p1 -<.> p2 = toText $ toString p1 FP.-<.> toString p2
 
@@ -153,11 +145,6 @@ main = do
                        fillSep
                            ("I know about the following stages:" :
                             punctuate comma (map (text . toString) knownStages)))) <>
-            --  command
-            --      "dump-main-type"
-            --      (info
-            --           (flip DumpType <$> dumpOpts <*> commonOptsParser)
-            --           (progDesc "Dump the type of the main function")) <>
              command
                  "version"
                  (info

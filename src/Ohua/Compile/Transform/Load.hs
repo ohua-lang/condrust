@@ -97,8 +97,6 @@ findSourceFile modname = do
 loadModule :: CompM m => NSRef -> m P.Namespace
 loadModule = readAndParse =<< findSourceFile
 
-type CompilationScope = Set.HashSet NSRef
-
 -- | This function recurses until it managed to load all dependencies into 
 --   the current namespace.
 loadDeps :: CompM m => CompilationScope -> P.Namespace -> m (HM.HashMap Binding Expression)

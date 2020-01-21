@@ -1,9 +1,9 @@
 name: ohuac
 version: '0.3.0'
 category: Devel
-author: Sebastian Ertel, Justus Adam
+author: Sebastian Ertel
 maintainer: sebastian.ertel@gmail.com
-copyright: © 2017, 2018, 2020 Sebastian Ertel, Justus Adam
+copyright: © 2020 Sebastian Ertel
 license: OtherLicense
 github: sertel/ohuac
 extra-source-files:
@@ -60,6 +60,7 @@ library:
   - casing
   - parser-commons
   - alang-go-parser
+  - yaml
 executables:
   ohuac:
     main: Main.hs
