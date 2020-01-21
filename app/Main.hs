@@ -88,73 +88,7 @@ main = do
                     , outputFormat
                     ) 
                     $ compile 
-            -- withCommonSetup common -- $ \modTracker mainAnns rawMainMod getMain -> do
-            -- $ \modTracker mainAnns rawMainMod -> do
-            --     -- FIXME this code also does not belong here. it is essentially the compilation flow
-            --     --       and should therefore be inside the lib.
-            --     mainMod <-
-            --         registerAnd modTracker (rawMainMod ^. name) $
-            --         loadDepsAndResolve modTracker rawMainMod
-            --     -- we always compile all the code in the file now.
-            --     -- expr' <- getMain $ mainMod ^. decls
-
-            --     -- What is the problem in the below code??? Why is this case statement needed?
-            --     -- Seems like a trivial transformation.
-            --     let expr =
-            --             case expr'
-            --                    -- FIXME this is technically not correct for edge cases
-            --                   of
-            --                 Lambda "_" body -> body
-            --                 e -> e
-            --     let sfDeps = gatherSFDeps expr
-            --     let (mainArity, completeExpr) = mainToEnv expr
-            --     gr <-
-            --         compile
-            --             (def & stageHandling .~ stageHandlingOpt &
-            --              transformRecursiveFunctions .~
-            --              ("tail-recursion" `elem` extraFeatures))
-            --             (def {passAfterDFLowering = cleanUnits})
-            --             completeExpr
-            --     (nameSuggest, code) <-
-            --         flip runReaderT CodeGenOpts $
-            --         selectionToGen
-            --             outputFormat
-            --             CodeGenData
-            --                 { graph = gr
-            --                 , entryPointArity = mainArity
-            --                 , sfDependencies = sfDeps
-            --                 , annotations = mainAnns
-            --                 , entryPointName = entrypoint
-            --                 , entryPointNamespace = rawMainMod ^. name
-            --                 }
-            --     let outputPath0 = fromMaybe nameSuggest outputPath
-            --     liftIO $
-            --         createDirectoryIfMissing
-            --             True
-            --             (FP.takeDirectory $ toString outputPath0)
-            --     liftIO $ L.writeFile (toString outputPath0) code
-            --     logInfoN $
-            --         "Compiled '" <> unwrap entrypoint <> "' from '" <>
-            --         inputModuleFile <>
-            --         "' to " <>
-            --         showCodeGen outputFormat
-            --     logInfoN $ "Code written to '" <> outputPath0 <> "'"
   where
-    -- withCommonSetup ::
-    --        (m ~ ExceptT Text (LoggingT IO))
-    --     => CommonCmdOpts
-    --     -> (IORef ModMap -> Maybe TyAnnMap -> RawNamespace -> (forall map. ( Ixed map
-    --                                                                        , Index map ~ Binding
-    --                                                                        ) =>
-    --                                                                            map -> m (IxValue map)) -> m a)
-    --     -> IO a
-    -- withCommonSetup CommonCmdOpts {..} f =
-    --     runCompM logLevel $ do
-    --         -- this is the call into the library to load the requested file for compilation
-    --         (mainAnns, rawMainMod) <- readAndParse inputModuleFile
-    --         -- FIXME this code should be in the lib
-    --         modTracker <- newIORef mempty
-    --         f modTracker mainAnns rawMainMod
     odef =
         info
             (helper <*> optsParser)
@@ -184,10 +118,6 @@ main = do
                   "(default: json-graph)") <>
              long "code-gen" <>
              short 'g') <*>
-        -- O.switch
-        --     (long "with-stdlib" <>
-        --      help
-        --          "Link the `ohua.std` namespace of higher order functions into the program. (experimental)") <*>
         ((\stopOn dumpStages sname ->
               ( if sname `HS.member` HS.fromList dumpStages
                     then DumpPretty
