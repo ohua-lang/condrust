@@ -30,6 +30,8 @@ import Control.Lens (each, view, (%~), (^?), ix)
 import Ohua.ALang.Lang as ALang
 import qualified Ohua.Frontend.Lang as FrLang
 import Ohua.Frontend.NS as NS hiding (Imports)
+import Ohua.DFGraph (OutGraph)
+import Ohua.Compile.Config
 import Ohua.Unit
 import Ohua.ALang.PPrint
 import Ohua.Serialize.JSON ()
@@ -43,13 +45,13 @@ import Ohua.Compile.Types
 ohuacCompilation ::  
     ( MonadError Error m
     , MonadLoggerIO m)
-    => CompilationScope -> Fr.Expression -> m Fr.Expression
+    => CompilationScope -> FrLang.Expr -> m FrLang.Expr
 ohuacCompilation = resolveNS =<< load
 
 ohuaCoreCompilation :: 
     ( MonadError Error m
     , MonadLoggerIO m) 
-    => StageHandling -> Bool -> Fr.Expression -> m OutGraph
+    => StageHandling -> Bool -> FrLang.Expr -> m OutGraph
 ohuaCoreCompilation stageHandlings tailRecSupport = do
     -- this transforms a Frontend expression into an ALang expression
     -- FIXME the interface here is broken. either I give an FrLang expression to core and
@@ -67,7 +69,7 @@ compileExpr ::
     ( MonadError Error m
     , MonadLoggerIO m
     , MonadReader (StageHandling, Bool, CodeGenSelection) m ) 
-    => CompilationScope -> Expression -> m OutGraph
+    => CompilationScope -> FrLang.Expr -> m OutGraph
 compileExpr compScope expr = do
     (sh, tailRec, _) <- ask
     ohuaCoreCompilation sh tailRec =<< ohuacCompilation expr
@@ -103,10 +105,10 @@ compile inFile compScope outFile = do
             (\algo -> (algo, compileExpr compScope $ algo ^. algoCode)) 
             ns ^. algos 
     let sfImports = 
-        flip Set.difference compScope
-        $ Set.fromList
-        $ join
-        $ map (\imp -> map (QualifiedBinding imp^.nsRef) imp^.bindings) ns^.imports 
+            flip Set.difference compScope
+            $ Set.fromList
+            $ join
+            $ map (\imp -> map (QualifiedBinding imp^.nsRef) imp^.bindings) ns^.imports 
     packaged <- package ns^.name sfImports compiledAlgos
     L.writeFile packaged
     logInfoN $ "Code written to '" <> outFile <> "'"

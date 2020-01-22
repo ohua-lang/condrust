@@ -7,7 +7,7 @@ extra-deps:
     commit: d499652f022be7dc5e1fc58df70949313cacebda
     subdirs: [core]
   - git: https://github.com/sertel/alang-go-parser
-    commit: b4286cef82a7290a5767f18572bdb6673812e6ad
+    commit: 0eb0a6e3c64759ed0e1d8fb8124ac09060959348
   - git: https://github.com/sertel/parser-commons
     commit: e0b6a789ec67702ed63aa781ac640873101aba07
 

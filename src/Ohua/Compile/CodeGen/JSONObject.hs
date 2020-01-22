@@ -18,8 +18,28 @@ import Ohua.Prelude
 
 import Data.Aeson
 
-import Ohua.Serialize.JSON ()
-import Ohua.CodeGen.Iface
+import Ohua.Serialize.JSON
+import Ohua.Compile.CodeGen.Iface
+import Ohua.Frontend.NS (FunAnn)
+import Ohua.Types (TyExpr, SomeBinding)
+
+instance ToJSONKey Binding
+instance FromJSONKey Binding
+
+instance ToJSON SomeBinding where
+    toEncoding = genericToEncoding defaultOptions
+instance FromJSON SomeBinding where
+    parseJSON = genericParseJSON defaultOptions
+
+instance ToJSON (TyExpr SomeBinding) where
+    toEncoding = genericToEncoding defaultOptions
+instance FromJSON (TyExpr SomeBinding) where
+    parseJSON = genericParseJSON defaultOptions
+
+instance ToJSON (FunAnn (TyExpr SomeBinding)) where
+    toEncoding = genericToEncoding defaultOptions
+instance FromJSON (FunAnn (TyExpr SomeBinding)) where
+    parseJSON = genericParseJSON defaultOptions
 
 instance ToJSON Fun where
     toEncoding = genericToEncoding defaultOptions
@@ -31,5 +51,5 @@ instance ToJSON CodeGenData where
 instance FromJSON CodeGenData where
     parseJSON = genericParseJSON defaultOptions
 
-generate :: Text -> CodeGen
+generate :: CodeGen
 generate = pure . encode

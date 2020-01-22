@@ -31,20 +31,20 @@ module Ohua.Compile.Config where
 import Ohua.Prelude
 
 import Ohua.Compile.Types
+import Ohua.Frontend.NS (Feature)
+import qualified Ohua.Compile.CodeGen.JSONObject as JSONGen
+import Ohua.Compile.CodeGen.Iface (CodeGen)
 
 import Data.Text (Text)
 import qualified Data.Yaml as Y
 import Data.Yaml (FromJSON(..), (.:))
-import Text.RawString.QQ
 import Data.ByteString (ByteString)
+import qualified Data.HashMap.Strict as HM
 import Control.Applicative
-
-data LogLevel = None | Verbose | Debug
-type Feature = Text
 
 data CodeGenSelection
     = JsonGraph
-    deriving (Read, Show, Bounded, Enum)
+    deriving (Read, Show, Bounded, Enum, Eq)
 
 selectionToGen :: CodeGenSelection -> CodeGen
 selectionToGen JsonGraph = JSONGen.generate
@@ -57,20 +57,25 @@ data DebugOptions = DebugOptions
 passStage = (Don'tDump, False)
 defaultStageHandling = \_ -> passStage
 
+intoLogLevel :: Text -> LogLevel
+intoLogLevel "debug" = LevelDebug	 
+intoLogLevel "info"  = LevelInfo	 
+intoLogLevel "warn"  = LevelWarn	 
+intoLogLevel "error" = LevelError	 
+intoLogLevel         = LevelOther
+
 defaultDebug :: DebugOptions
 defaultDebug = DebugOptions 
-    { loglevel = None
+    { logLevel = LevelWarn
     , stageHandlingOpt = defaultStageHandling
     }
-
-type Feature = Text
 
 data CompilerOptions = CompilerOptions 
     { outputFormat :: CodeGenSelection
     , compilationScope :: CompilationScope
     , extraFeatures :: [Feature]
     , debug :: DebugOptions
-    } deriving (Eq, Show)
+    }
 
 data Files = Files [Text]
 
@@ -78,10 +83,10 @@ data Stage = Stage
     { stage :: Text
     , dump :: Bool
     , abortAfter :: Bool
-    }
+    } deriving (Eq, Show)
 
 data Stages = Stages 
-    { stages :: [Stage] }
+    { stages :: [Stage] } deriving (Eq, Show)
 
 instance FromJSON Stages where
     parseJSON (Y.Object v) = 
@@ -93,19 +98,18 @@ instance FromJSON Stages where
 
 intoStageHandling :: Stages -> StageHandling
 intoStageHandling stages = 
-    let registry = HM.fromList 
-        $ flip map stages 
-        $ \s -> ( stage s
-                , ( if dump s then DumpPretty else Don'tDump
-                  , abortAfter s
-                  )
-                )
-    in $ \stage -> HM.lookupDefault passStage stage registry
+    let registry = 
+            HM.fromList 
+                $ flip map stages 
+                (\s -> ( stage s
+                      , ( if dump s then DumpPretty else Don'tDump, abortAfter s)
+                      ))
+    in \stage -> HM.lookupDefault passStage stage registry
 
 instance FromJSON DebugOptions where
     parseJSON (Y.Object v) = 
         DebugOptions <$>
-        v .:? "log-level" .!= None <*>
+        intoLogLevel (v .:? "log-level" .!= "warn") <*>
         intoStageHandling . (v .:? "core-stages" .! defaultStageHandling)
     parseJSON _ = fail "Expected Object for DebugOptions description"
 
@@ -118,15 +122,15 @@ intoCompilationScope =
         in (fromList $ splitOn "/" path, suffix)
 
 instance FromJSON CompilerOptions where
-  parseJSON (Y.Object v) =
-    CompilerOptions <$>
-    v .:  "output-format" <*>
-    intoCompilationScope . (v .:  "compilation-scope") <*>
-    v .:? "debug" .!= defaultDebug
-  parseJSON _ = fail "Expected Object for Config value"
+    parseJSON (Y.Object v) =
+        CompilerOptions <$>
+        v .:  "output-format" <*>
+        intoCompilationScope . (v .:  "compilation-scope") <*>
+        v .:? "debug" .!= defaultDebug
+    parseJSON _ = fail "Expected Object for Config value"
 
-  defaultCompilerOptions = CompilerOptions JsonGraph HM.empty [] defaultDebug
+defaultCompilerOptions = CompilerOptions JsonGraph HM.empty [] defaultDebug
 
-  loadConfig :: (MonadIO m, MonadError Error m) => Maybe Text -> m CompilerOptions
-  loadConfig Nothing = return defaultCompilerOptions
-  loadConfig Just ref = decodeFileThrow ref
+loadConfig :: (MonadIO m, MonadError Error m) => Maybe Text -> m CompilerOptions
+loadConfig Nothing = return defaultCompilerOptions
+loadConfig Just ref = decodeFileThrow ref

@@ -18,7 +18,13 @@ a function. That is, this transformation does not deal with namespaces or such.
 
 module Ohua.Compile.Transform.Resolve where
 
-import Data.HashMap.Strict as HM
+import Ohua.Prelude
+import Ohua.Parser.Common as P
+import Ohua.Frontend.Lang as FrLang (Expr, ExprF(LitEF))
+
+import Control.Lens (over)
+import qualified Data.HashMap.Strict as HM
+import Data.Functor.Foldable (cata, embed)
 
 -- TODO: It feels to me like this function needs a rewrite. I'm quite sure there was no testing at
 --       all to make sure it works for algorithms from other namespaces.
@@ -50,14 +56,14 @@ import Data.HashMap.Strict as HM
 -- In the form of a qualified binding.
 resolveNS ::
        forall m. (MonadError Error m)
-    => (P.Namespace, HashMap QualifiedBinding Expression)
+    => (P.Namespace, HashMap QualifiedBinding FrLang.Expr)
     -> m P.Namespace
 resolveNS (ns, registry) = return $ over algos (map (over algoCode resolveExpr)) ns
     where 
-        resolveExpr :: Expr -> Expr
+        resolveExpr :: FrLang.Expr -> FrLang.Expr
         resolveExpr = cata $ \exp ->
             case exp of
-                LitEF (FunRefLit (FunRef ref _id) ) | HM.member ref registry ->
-                    HM.get ref registry
+                e@(LitEF (FunRefLit (FunRef ref _id))) ->
+                    HM.lookupDefault (embed e) ref registry
                 e -> embed e
 

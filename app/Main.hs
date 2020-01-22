@@ -20,7 +20,6 @@ import qualified System.FilePath as FP ((-<.>), takeDirectory)
 import Ohua.ALang.Lang
 import Ohua.Frontend.NS
 import Ohua.CodeGen.Iface
-import qualified Ohua.CodeGen.JSONObject as JSONGen
 import Ohua.Compile
 import Ohua.Compile.Config
 import Ohua.Integration.Langs
