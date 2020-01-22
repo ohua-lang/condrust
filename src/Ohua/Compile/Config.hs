@@ -15,6 +15,8 @@ output-format: JsonGraph
 compilation-scope:
 - some/ns/module.go
 - some/other/ns/module.go
+extra-features:
+- tail-rec
 debug:
     - log-level: verbose
     - core-stages: 
@@ -35,12 +37,13 @@ import Ohua.Frontend.NS (Feature)
 import qualified Ohua.Compile.CodeGen.JSONObject as JSONGen
 import Ohua.Compile.CodeGen.Iface (CodeGen)
 
-import Data.Text (Text)
+import Data.Text (Text, unpack)
 import qualified Data.Yaml as Y
-import Data.Yaml (FromJSON(..), (.:))
+import Data.Yaml (FromJSON(..), (.:), (.:?), (.!=), decodeFileThrow)
 import Data.ByteString (ByteString)
 import qualified Data.HashMap.Strict as HM
 import Control.Applicative
+import System.FilePath.Posix (splitDirectories, splitExtension)
 
 data CodeGenSelection
     = JsonGraph
@@ -62,7 +65,7 @@ intoLogLevel "debug" = LevelDebug
 intoLogLevel "info"  = LevelInfo	 
 intoLogLevel "warn"  = LevelWarn	 
 intoLogLevel "error" = LevelError	 
-intoLogLevel         = LevelOther
+intoLogLevel  t      = LevelOther t
 
 defaultDebug :: DebugOptions
 defaultDebug = DebugOptions 
@@ -92,45 +95,46 @@ instance FromJSON Stages where
     parseJSON (Y.Object v) = 
         Stages <$>
         v .:  "stage" <*>
-        v .:? "dump" .!= True <*>
-        v .:? "abort-after" .!= False
+        (v .:? "dump" .!= True) <*>
+        (v .:? "abort-after" .!= False)
     parseJSON _ = fail "Expected Object for stage description."
 
-intoStageHandling :: Stages -> StageHandling
-intoStageHandling stages = 
+intoStageHandling :: Maybe Stages -> StageHandling
+intoStageHandling Nothing   = defaultStageHandling
+intoStageHandling (Just []) = defaultStageHandling
+intoStageHandling (Just s)  = 
     let registry = 
             HM.fromList 
-                $ flip map stages 
+                $ map
                 (\s -> ( stage s
                       , ( if dump s then DumpPretty else Don'tDump, abortAfter s)
                       ))
+                $ stages s
     in \stage -> HM.lookupDefault passStage stage registry
 
 instance FromJSON DebugOptions where
     parseJSON (Y.Object v) = 
         DebugOptions <$>
-        intoLogLevel (v .:? "log-level" .!= "warn") <*>
-        intoStageHandling . (v .:? "core-stages" .! defaultStageHandling)
+        (intoLogLevel <$> (v .:? "log-level" .!= "warn")) <*>
+        (intoStageHandling <$> (v .:? "core-stages"))
     parseJSON _ = fail "Expected Object for DebugOptions description"
 
 intoCompilationScope :: [Text] -> CompilationScope
 intoCompilationScope = 
-    HM.fromList
-    $ flip map 
-    $ \t -> 
-        let (path, suffix) = splitOn "." t
-        in (fromList $ splitOn "/" path, suffix)
+    HM.fromList $ map $ \t -> let (path, suffix) = splitExtension t
+                              in (splitDirectories path, suffix)
 
 instance FromJSON CompilerOptions where
     parseJSON (Y.Object v) =
         CompilerOptions <$>
         v .:  "output-format" <*>
-        intoCompilationScope . (v .:  "compilation-scope") <*>
+        (intoCompilationScope <$> (v .:  "compilation-scope")) <*>
+        v .:? "extra-features" .!= [] <*>
         v .:? "debug" .!= defaultDebug
     parseJSON _ = fail "Expected Object for Config value"
 
 defaultCompilerOptions = CompilerOptions JsonGraph HM.empty [] defaultDebug
 
 loadConfig :: (MonadIO m, MonadError Error m) => Maybe Text -> m CompilerOptions
-loadConfig Nothing = return defaultCompilerOptions
-loadConfig Just ref = decodeFileThrow ref
+loadConfig Nothing    = return defaultCompilerOptions
+loadConfig (Just ref) = decodeFileThrow $ unpack ref
