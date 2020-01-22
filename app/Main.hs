@@ -22,25 +22,19 @@ import Ohua.Frontend.NS
 import Ohua.CodeGen.Iface
 import qualified Ohua.CodeGen.JSONObject as JSONGen
 import Ohua.Compile
-import Ohua.Compile.Configuration
-import Ohua.Standalone
+import Ohua.Compile.Config
+import Ohua.Integration.Langs
 import Ohua.Stage (knownStages)
 import Ohua.Unit
 
-data BuildOpts = BuildOpts
-    { outputFormat :: CodeGenSelection
-    , stageHandlingOpt :: StageHandling
-    , extraFeatures :: HS.HashSet Feature
-    }
-
 data Command
-    = Build CommonCmdOpts BuildOpts
+    = Build CommonCmdOpts
     | ShowVersion
 
 data CommonCmdOpts = CommonCmdOpts
-    { inputModuleFile :: Text
-    , outputPath :: Maybe Text
-    , logLevel :: LogLevel
+    { inputModuleFile :: FileRef
+    , outputPath :: FileRef
+    , config :: Maybe FileRef
     }
 
 -- (-<.>) :: Text -> Text -> Text
@@ -69,17 +63,16 @@ main = do
             putStrLn
                 ("Compiled at " <>
                  $(LitE . StringL . show <$> liftIO getCurrentTime) :: Text)
-        Build common@CommonCmdOpts {..} BuildOpts { outputFormat
-                                                  , stageHandlingOpt
-                                                  , extraFeatures
-                                                  } ->
-            runCompM loglevel 
+        Build common@CommonCmdOpts {..} ->
+            CompilerOptions {..} <- loadConfig config
+            runCompM (logLevel debug)
                 $ runReaderT 
-                    ( stageHandlingOpt
+                    -- TODO just pass in the configuration
+                    ( (stageHandlingOpt debug)
                     , ("tail-recursion" `elem` extraFeatures)
                     , outputFormat
                     ) 
-                    $ compile 
+                    $ compile inputModuleFile compilationScope outputPath
   where
     odef =
         info
@@ -93,58 +86,16 @@ main = do
                   fillSep
                       (punctuate comma $
                        map (squotes . text . toString . view _1) definedLangs)))
-    buildOpts =
-        BuildOpts <$>
-        O.option
-            (eitherReader readCodeGen)
-            (O.value JsonGraph <>
-             helpDoc
-                 (Just $
-                  softStr "Format to emit the generated code in." <//>
-                  "Accepted choices:" <+>
-                  fillSep
-                      (punctuate
-                           comma
-                           (map (text . showCodeGen)
-                                [(minBound :: CodeGenSelection) ..])) </>
-                  "(default: json-graph)") <>
-             long "code-gen" <>
-             short 'g') <*>
-        ((\stopOn dumpStages sname ->
-              ( if sname `HS.member` HS.fromList dumpStages
-                    then DumpPretty
-                    else Don'tDump
-              , stopOn == Just sname)) <$>
-         optional
-             (O.strOption $
-              long "stop-on" <> help "Stop execution after this stage." <>
-              metavar "STAGE") <*>
-         many
-             (O.strOption
-                  (long "dump-stage" <>
-                   help
-                       "Dump the code at this stage. (can be supplied multiple times) The code is dumped to a file called <stage-name>.dump" <>
-                   metavar "STAGE"))) <*>
-        (HS.fromList <$>
-         many
-             (strOption
-                  (short 'f' <> long "feature" <>
-                   help "Enable extra (experimental) features")))
     softStr = fillSep . map text . Str.words
     optsParser =
         hsubparser
             (command
                  "build"
                  (info
-                      (Build <$> commonOptsParser <*> buildOpts)
+                      (Build <$> commonOptsParser)
                       (progDescDoc $
                        Just $
-                       "Build the ohua graph. " <$$> "" <$$>
-                       softStr
-                           "The options --dump-stage and --stop-on pertain to stages. See https://ohua.rtfd.io/en/latest/debugging.html#stages." <$$>
-                       fillSep
-                           ("I know about the following stages:" :
-                            punctuate comma (map (text . toString) knownStages)))) <>
+                       "Build the ohua graph. " <$$> ""))) <>
              command
                  "version"
                  (info
@@ -155,24 +106,10 @@ main = do
         CommonCmdOpts <$>
         argument str (metavar "SOURCE" <> help "Source file to compile") <*>
         argument
-            (eitherReader $ mapLeft toString . make . toText)
-            (metavar "MAIN" <> help "Algorithm that serves as entry point" <>
-             O.value "main") <*>
-        optional
             (strOption $
              long "output" <> metavar "PATH" <> short 'o' <>
-             help
-             -- FIXME fix the description accordingly
-                 "Path to write the output to (default: input filename with '.ohuao' extension for 'build' with the JSON format and '.java' with the java format and '.type-dump' for 'dump-main-type')") <*>
-        ((\verbose debug ->
-              if debug
-                  then LevelDebug
-                  else if verbose
-                           then LevelInfo
-                           else LevelWarn) <$>
-         switch
-             (short 'v' <> long "verbose" <>
-              help "Print more detailed logging messages") <*>
-         switch
-             (long "debug" <>
-              help "Activate all logging messages for debugging purposes."))
+             help "Path to write the output to.") <*>
+        optional
+            (strOption $
+             long "config" <> metavar "PATH" <> short 'c' <>
+             help "Path to the configuration file for the compilation.")

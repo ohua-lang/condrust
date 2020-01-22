@@ -124,3 +124,9 @@ instance FromJSON CompilerOptions where
     intoCompilationScope . (v .:  "compilation-scope") <*>
     v .:? "debug" .!= defaultDebug
   parseJSON _ = fail "Expected Object for Config value"
+
+  defaultCompilerOptions = CompilerOptions JsonGraph HM.empty [] defaultDebug
+
+  loadConfig :: (MonadIO m, MonadError Error m) => Maybe Text -> m CompilerOptions
+  loadConfig Nothing = return defaultCompilerOptions
+  loadConfig Just ref = decodeFileThrow ref

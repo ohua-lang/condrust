@@ -20,16 +20,6 @@ module Ohua.Compile.Transform.Resolve where
 
 import Data.HashMap.Strict as HM
 
--- FIXME where is this needed? how can it be possible that the frontend expression language has these namespaces?
-stdNamespace :: (NSRef, [Binding])
-stdNamespace =
-    ( ["ohua", "lang"]
-    , ["id", "smap", "if"] -- TODO complete list
-     )
-
-primitives :: HM.HashMap Binding Expression
-primitives = HM.fromList []
-
 -- TODO: It feels to me like this function needs a rewrite. I'm quite sure there was no testing at
 --       all to make sure it works for algorithms from other namespaces.
 --       More urgently, we need to define what a namespace reference that a parser returns should look like.

@@ -47,19 +47,6 @@ module Ohua.Compile.Transform.Load where
 import qualified Data.HashMap.Strict as HM
 import Ohua.Parser.Common as P
 
-definedLangs :: [(Text, Text, P.Parser)]
-definedLangs =
-    ( ".go"
-    , "Go frontend for the algorithm language",
-    parseGo) :
-    []
-
-getParser :: Text -> P.Parser
-getParser ext
-    | Just a <- find ((== ext) . view _1) definedLangs = a ^. _3
-    | otherwise =
-        error $ "No parser defined for files with extension '" <> ext <> "'"
-
 -- | Loads the content of an algo file and parses its contents into a (parser-representation) namespace.
 -- To prevent namespace clashes, the algo (foo) is always registered as:
 -- > some/other/ns:foo => expr
