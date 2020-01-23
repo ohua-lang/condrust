@@ -21,6 +21,7 @@ import qualified Data.ByteString.Lazy.Char8 as L
 import Data.Functor.Foldable hiding (fold)
 import qualified Data.HashMap.Strict as HM
 import Data.List (partition)
+import Data.List.NonEmpty as NE (fromList)
 import qualified Data.HashSet as Set
 import qualified Data.Text as T
 import System.Directory
@@ -46,22 +47,16 @@ import Ohua.Parser.Common as P
 
 import Ohua.Compile.Types
 
-ohuacCompilation ::  
-    ( MonadError Error m
-    , MonadLoggerIO m )
-    => CompilationScope -> FrLang.Expr -> m FrLang.Expr
-ohuacCompilation = resolveNS =<< load
+ohuacCompilation :: CompM m => CompilationScope -> FilePath -> m P.Namespace
+ohuacCompilation compScope inFile = resolveNS =<< load compScope inFile
 
-ohuaCoreCompilation :: 
-    ( MonadError Error m
-    , MonadLoggerIO m ) 
-    => StageHandling -> Bool -> FrLang.Expr -> m OutGraph
+ohuaCoreCompilation :: CompM m => StageHandling -> Bool -> FrLang.Expr -> m OutGraph
 ohuaCoreCompilation stageHandlings tailRecSupport expr = do
     -- this transforms a Frontend expression into an ALang expression
     -- FIXME the interface here is broken. either I give an FrLang expression to core and
     --       itself translates it into ALang or FrLang is part of ohuac.
     --       the first version is definitely the better choice.
-    let alangExpr = runGenBndT mempty ((decls . traverse) FrLang.toAlang expr)
+    alangExpr <- runGenBndT mempty $ FrLang.toAlang expr
     OhuaCore.compile
         (def 
             & stageHandling .~ stageHandlings
@@ -69,51 +64,66 @@ ohuaCoreCompilation stageHandlings tailRecSupport expr = do
         (def {OhuaCoreConfig.passAfterDFLowering = cleanUnits})
         alangExpr
 
-compileExpr :: 
-    ( MonadError Error m
-    , MonadLoggerIO m
-    , MonadReader (StageHandling, Bool, CodeGenSelection) m ) 
-    => CompilationScope -> FrLang.Expr -> m OutGraph
-compileExpr compScope expr = do
-    (sh, tailRec, _) <- ask
-    ohuaCoreCompilation sh tailRec =<< ohuacCompilation compScope expr
-
 package ::
-    ( MonadError Error m
-    , MonadLoggerIO m
+    ( CompM m
     , MonadReader (StageHandling, Bool, CodeGenSelection) m ) 
-    => NSRef -> Imports -> [(Algo, OutGraph)] -> m L.ByteString
+    => NSRef -> Set.HashSet QualifiedBinding -> [(Algo, OutGraph)] -> m L.ByteString
 package nsName sfImports algos = do
     codegen <- selectionToGen . (^._3) <$> ask
     codegen
         CodeGenData
             { namespace = nsName
-            , sfDependencies = Set.fromList sfImports
+            , sfDependencies = sfImports
             , funs = flip map algos (\(algo, gr) -> 
                 Fun 
                     { graph = gr
-                    , annotations = algo ^. algoTyAnn
-                    , name = algo ^. algoName
+                    , annotations = algo^.algoTyAnn
+                    , name = algo^.algoName
                     })
             }
 
-compile :: 
-    ( MonadError Error m
-    , MonadLoggerIO m
+compileModule :: 
+    ( CompM m
     , MonadReader (StageHandling, Bool, CodeGenSelection) m ) 
-    => FileRef -> CompilationScope -> FileRef -> m ()
-compile inFile compScope outFile = do
-    ns <- readAndParse inFile
-    compiledAlgos <-
+    => FilePath -> CompilationScope -> m L.ByteString
+compileModule inFile compScope = do
+    (sh, tailRec, _) <- ask
+    ns <- ohuacCompilation compScope inFile
+    compiledAlgos <- 
         mapM 
-            (\algo -> (algo, compileExpr compScope $ algo ^. algoCode)) 
-            ns ^. algos 
-    let sfImports = 
-            flip Set.difference compScope
-            $ Set.fromList
-            $ join
-            $ map (\imp -> map (QualifiedBinding imp^.nsRef) imp^.bindings) ns^.imports 
-    packaged <- package ns^.(NS.name) sfImports compiledAlgos
-    L.writeFile packaged
-    logInfoN $ "Code written to '" <> outFile <> "'"
+            (\algo -> 
+                (algo,) <$> (ohuaCoreCompilation sh tailRec $ algo^.algoCode))
+            $ ns^.algos
+    package (ns^.nsName) (sfImports ns) compiledAlgos
+    where
+        sfImports :: P.Namespace -> Set.HashSet QualifiedBinding 
+        sfImports ns = 
+            let sfs = flip Set.difference (Set.fromList $ HM.keys compScope)
+                    $ Set.fromList
+                    $ join
+                    $ map 
+                        (\imp -> 
+                            -- TODO this conversion is just painful.
+                            --      it feels to me like there are too many types for the same thing:
+                            --      QualifiedBinding vs NSRef vs Import vs ...
+                            let bnds = unwrap $ imp^.nsRef
+                            in map 
+                                (\bnd -> makeThrow $ bnds ++ [bnd]) 
+                                $ imp^.bindings) 
+                        $ ns^.imports 
+            in flip Set.map sfs 
+                $ \nsRef -> let l = NE.fromList $ unwrap nsRef
+                                newNSRef = makeThrow $ init l
+                                bnd = last l
+                            in QualifiedBinding newNSRef bnd
+
+
+compile :: 
+    ( CompM m
+    , MonadReader (StageHandling, Bool, CodeGenSelection) m ) 
+    => FilePath -> CompilationScope -> FilePath -> m ()
+compile inFile compScope outFile = do
+    packaged <- compileModule inFile compScope
+    liftIO $ L.writeFile outFile packaged
+    logInfoN $ "Code written to '" <> T.pack outFile <> "'"
 

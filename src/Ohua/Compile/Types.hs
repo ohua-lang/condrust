@@ -15,20 +15,16 @@ module Ohua.Compile.Types where
 
 import Ohua.Prelude
 
-import Ohua.Frontend.NS (FunAnn)
+import Ohua.Types (Error)
 import Ohua.Frontend.Lang as FrLang
 import Control.Monad.Trans.Control (MonadBaseControl) -- TODO find out if this is really needed
 
-import qualified Data.HashMap.Strict as HM
+import qualified Data.HashMap.Lazy as HM
 
 type CompM m
-     = (MonadIO m, MonadBaseControl IO m, MonadError Error m, MonadLogger m)
-
-type TyAnnMap = HM.HashMap Binding (FunAnn (TyExpr SomeBinding))
+     = (MonadIO m, MonadBaseControl IO m, MonadError Error m, MonadLogger m, MonadLoggerIO m)
 
 type LanguageFileSuffix = Text
--- TODO this needs fixing because the namespace ref does not contain the file type,
---      , e.g., "go", "rs" or "java". We need a way to differentiate here!
 type CompilationScope = HM.HashMap NSRef LanguageFileSuffix
 
 type FileRef = Text

@@ -36,14 +36,16 @@ import Ohua.Compile.Types
 import Ohua.Frontend.NS (Feature)
 import qualified Ohua.Compile.CodeGen.JSONObject as JSONGen
 import Ohua.Compile.CodeGen.Iface (CodeGen)
+import Ohua.Compile.Util (toFilePath)
 
-import qualified Data.Text as T (Text, unpack, pack, append)
+import qualified Data.Text as T (Text, unpack, pack, intercalate)
 import qualified Data.Yaml as Y
 import Data.Yaml (FromJSON(..), (.:), (.:?), (.!=), decodeFileThrow)
 import Data.ByteString (ByteString)
 import qualified Data.HashMap.Strict as HM
 import Control.Applicative
 import System.FilePath.Posix (splitDirectories, splitExtension)
+import System.Directory (doesFileExist)
 
 data CodeGenSelection
     = JsonGraph
@@ -54,7 +56,7 @@ selectionToGen JsonGraph = JSONGen.generate
 
 intoCodeGenSelection :: Text -> CodeGenSelection
 intoCodeGenSelection "json-graph" = JsonGraph
-intoCodeGenSelection t            = error $ T.append "Unknown code gen: " t
+intoCodeGenSelection t            = error $ "Unknown code gen: " <> t
 
 data DebugOptions = DebugOptions 
     { logLevel :: LogLevel
@@ -147,6 +149,18 @@ instance FromJSON CompilerOptions where
 
 defaultCompilerOptions = CompilerOptions JsonGraph HM.empty [] defaultDebug
 
-loadConfig :: (MonadIO m, MonadError Error m) => Maybe T.Text -> m CompilerOptions
+loadConfig :: (MonadIO m, MonadError Error m) => Maybe String -> m CompilerOptions
 loadConfig Nothing    = return defaultCompilerOptions
-loadConfig (Just ref) = decodeFileThrow $ T.unpack ref
+loadConfig (Just ref) = decodeFileThrow ref
+
+validateConfig :: (MonadIO m, MonadError Error m) => CompilerOptions -> m ()
+validateConfig conf = do
+    mapM
+        (\pathAndSuffix -> do
+            let file = toFilePath pathAndSuffix
+            fileExists <- liftIO $ doesFileExist file
+            if fileExists
+            then return ()
+            else throwError $ "Configuration error: Module '" <> show file <> "' does not exist.")
+        $ HM.toList $ compilationScope conf
+    return ()

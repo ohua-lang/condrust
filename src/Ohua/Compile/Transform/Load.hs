@@ -42,7 +42,7 @@ in languages such as Go or Java.
 
 -}
 
-module Ohua.Compile.Transform.Load where
+module Ohua.Compile.Transform.Load (load) where
 
 import Ohua.Prelude
 
@@ -50,6 +50,7 @@ import Ohua.Frontend.Lang as FrLang
 import Ohua.Compile.Types
 import Ohua.Integration.Langs (getParser, definedLangs)
 import Ohua.Parser.Common as P
+import Ohua.Compile.Util (toFilePath)
 
 import qualified Data.HashMap.Strict as HM
 import qualified Data.ByteString.Lazy.Char8 as L
@@ -60,48 +61,32 @@ import System.Directory (doesFileExist)
 -- | Loads the content of an algo file and parses its contents into a (parser-representation) namespace.
 -- To prevent namespace clashes, the algo (foo) is always registered as:
 -- > some/other/ns:foo => expr
-readAndParse ::
-       (MonadLogger m, MonadIO m) => FileRef -> m P.Namespace
-readAndParse filename = do
-    ns <-
-        let strFname = toString filename
-         in getParser (toText $ takeExtension strFname) <$>
-            liftIO (L.readFile strFname)
-    logDebugN $ "Raw parse result for " <> filename
+loadModule :: CompM m => FilePath -> m P.Namespace
+loadModule fileName = do
+    ns <- getParser (toText $ takeExtension fileName) <$> liftIO (L.readFile fileName)
+    logDebugN $ "Raw parse result for " <> show fileName
     logDebugN $ "<Pretty printing not implemented for frontend lang yet>" -- quickRender ns
     logDebugN "With annotations:"
     logDebugN $ show $ map (^. P.algoTyAnn) $ ns ^. P.algos
     pure ns
 
--- FIXME: we stick with the very same extension as the currently used parser has.
---        this will simplify the code below again quite a bit.
-findSourceFile :: (MonadError Error m, MonadIO m) => NSRef -> m FileRef
-findSourceFile modname = do
-    candidates <-
-        filterM (liftIO . doesFileExist) $
-        map ((asFile Path.<.>) . toString) extensions
-    case candidates of
-        [] -> throwError $ "No file found for module " <> show modname
-        [f] -> pure $ toText f
-        files ->
-            throwError $
-            "Found multiple files matching " <> show modname <> ": " <>
-            show files
-  where
-    asFile = toString $ T.intercalate "/" $ map unwrap $ unwrap modname
-    extensions = map (^. _1) definedLangs
+verify :: CompM m => CompilationScope -> P.Namespace -> m ()
+verify compScope ns = do
+    mapM
+        (\imp -> if HM.member (imp^.nsRef) compScope 
+                 then return ()
+                 else throwError $ "No such module registered: " <> show (imp^.nsRef))
+        $ ns^.imports
+    return ()
 
--- | Finds the source from an NSRef, loads it into a (parser-representation) 
---   namespace and resolves it by loading its dependencies
-loadModule :: CompM m => NSRef -> m P.Namespace
-loadModule nsRef = readAndParse =<< findSourceFile nsRef
-
--- | This function recurses until it managed to load all dependencies into 
---   the current namespace.
+-- | This function loads all dependencies into the current namespace.
+--   We currently use a very simple but easily maintainable approach:
+--   Just load all algorithms that exist in the project scope. By using
+--   a lazy hashmap, this should only load the once actually needed.
 loadDeps :: CompM m => CompilationScope -> P.Namespace -> m NamespaceRegistry
 loadDeps scope currentNs = do
     let registry' = registerAlgos HM.empty currentNs
-    modules <- mapM loadModule $ HM.keys scope
+    modules <- mapM (loadModule . toFilePath) $ HM.toList scope
     let registry'' = foldl registerAlgos registry' modules
     return registry''
     where
@@ -116,8 +101,9 @@ loadDeps scope currentNs = do
                 registry
                 $ ns^.algos
 
-load :: CompM m => CompilationScope -> NSRef -> m (P.Namespace, NamespaceRegistry)
-load scope nsRef = do
-    ns       <- loadModule nsRef
+load :: CompM m => CompilationScope -> FilePath -> m (P.Namespace, NamespaceRegistry)
+load scope inFile = do
+    ns       <- loadModule inFile
+    verify scope ns
     registry <- loadDeps scope ns
     return (ns, registry)

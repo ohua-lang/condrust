@@ -16,13 +16,14 @@ module Ohua.Compile.CodeGen.Iface where
 import Ohua.Prelude
 
 import Ohua.Compile.Types
+import Ohua.Frontend.NS (FunAnn)
 import Ohua.DFGraph (OutGraph)
 
 import qualified Data.HashSet as Set
 
 data Fun = Fun 
   { graph :: OutGraph
-  , annotations :: Maybe TyAnnMap
+  , annotations :: FunAnn (TyExpr SomeBinding)
   , name :: Binding
   } deriving (Eq, Show, Generic)
 
