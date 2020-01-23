@@ -16,6 +16,7 @@ module Ohua.Compile.Types where
 import Ohua.Prelude
 
 import Ohua.Frontend.NS (FunAnn)
+import Ohua.Frontend.Lang as FrLang
 import Control.Monad.Trans.Control (MonadBaseControl) -- TODO find out if this is really needed
 
 import qualified Data.HashMap.Strict as HM
@@ -31,3 +32,6 @@ type LanguageFileSuffix = Text
 type CompilationScope = HM.HashMap NSRef LanguageFileSuffix
 
 type FileRef = Text
+
+-- | This registers all algos used in a given namespace with their qualified names.
+type NamespaceRegistry = HM.HashMap QualifiedBinding FrLang.Expr

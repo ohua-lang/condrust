@@ -48,13 +48,14 @@ import Ohua.Prelude
 
 import Ohua.Frontend.Lang as FrLang
 import Ohua.Compile.Types
-import Ohua.Integration.Langs (getParser)
+import Ohua.Integration.Langs (getParser, definedLangs)
 import Ohua.Parser.Common as P
 
 import qualified Data.HashMap.Strict as HM
 import qualified Data.ByteString.Lazy.Char8 as L
 import qualified Data.Text as T
 import System.FilePath as Path ((<.>), takeExtension)
+import System.Directory (doesFileExist)
 
 -- | Loads the content of an algo file and parses its contents into a (parser-representation) namespace.
 -- To prevent namespace clashes, the algo (foo) is always registered as:
@@ -74,7 +75,7 @@ readAndParse filename = do
 
 -- FIXME: we stick with the very same extension as the currently used parser has.
 --        this will simplify the code below again quite a bit.
-findSourceFile :: (MonadError Error m, MonadIO m) => NSRef -> m Text
+findSourceFile :: (MonadError Error m, MonadIO m) => NSRef -> m FileRef
 findSourceFile modname = do
     candidates <-
         filterM (liftIO . doesFileExist) $
@@ -93,27 +94,30 @@ findSourceFile modname = do
 -- | Finds the source from an NSRef, loads it into a (parser-representation) 
 --   namespace and resolves it by loading its dependencies
 loadModule :: CompM m => NSRef -> m P.Namespace
-loadModule = readAndParse =<< findSourceFile
+loadModule nsRef = readAndParse =<< findSourceFile nsRef
 
 -- | This function recurses until it managed to load all dependencies into 
 --   the current namespace.
-loadDeps :: CompM m => CompilationScope -> P.Namespace -> m (HM.HashMap Binding FrLang.Expr)
+loadDeps :: CompM m => CompilationScope -> P.Namespace -> m NamespaceRegistry
 loadDeps scope currentNs = do
-    let registry' = registerAlgosIntoNS HM.empty currentNs
-    modules <- forM scope loadModule
+    let registry' = registerAlgos HM.empty currentNs
+    modules <- mapM loadModule $ HM.keys scope
     let registry'' = foldl registerAlgos registry' modules
     return registry''
     where
-        registerAlgosInNs :: HM.HashMap Binding FrLang.Expr -> P.Namespace -> HM.HashMap Binding FrLang.Expr
-        registerAlgosInNs registry ns = 
+        registerAlgos :: NamespaceRegistry -> P.Namespace -> NamespaceRegistry
+        registerAlgos registry ns = 
             foldl 
                 (\reg algo -> 
                     HM.insert 
-                        (QualifiedBinding ns^.name (algo^.algoName))
+                        (QualifiedBinding (ns^.nsName) (algo^.algoName))
                         (algo^.algoCode) 
                         reg)
                 registry
                 $ ns^.algos
 
-load :: CompM m => CompilationScope -> NSRef -> m (P.Namespace, HM.HashMap Binding FrLang.Expr)
-load scope = (loadDeps scope) =<< loadModule 
+load :: CompM m => CompilationScope -> NSRef -> m (P.Namespace, NamespaceRegistry)
+load scope nsRef = do
+    ns       <- loadModule nsRef
+    registry <- loadDeps scope ns
+    return (ns, registry)

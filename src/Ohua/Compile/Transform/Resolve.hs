@@ -21,6 +21,7 @@ module Ohua.Compile.Transform.Resolve where
 import Ohua.Prelude
 import Ohua.Parser.Common as P
 import Ohua.Frontend.Lang as FrLang (Expr, ExprF(LitEF))
+import Ohua.Compile.Types (NamespaceRegistry)
 
 import Control.Lens (over)
 import qualified Data.HashMap.Strict as HM
@@ -56,7 +57,7 @@ import Data.Functor.Foldable (cata, embed)
 -- In the form of a qualified binding.
 resolveNS ::
        forall m. (MonadError Error m)
-    => (P.Namespace, HashMap QualifiedBinding FrLang.Expr)
+    => (P.Namespace, NamespaceRegistry)
     -> m P.Namespace
 resolveNS (ns, registry) = return $ over algos (map (over algoCode resolveExpr)) ns
     where 

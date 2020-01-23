@@ -31,12 +31,16 @@ import Ohua.ALang.Lang as ALang
 import qualified Ohua.Frontend.Lang as FrLang
 import Ohua.Frontend.NS as NS hiding (Imports)
 import Ohua.DFGraph (OutGraph)
+-- FIXME the namespaces are broken here! this should be: Ohua.Core.Compile
+import qualified Ohua.Compile as OhuaCore (compile)
+import qualified Ohua.Compile.Configuration as OhuaCoreConfig (passAfterDFLowering)
 import Ohua.Compile.Config
+import Ohua.Compile.Transform.Resolve (resolveNS)
+import Ohua.Compile.Transform.Load (load)
+import Ohua.Compile.CodeGen.Iface (CodeGenData(..), Fun(..))
 import Ohua.Unit
 import Ohua.ALang.PPrint
 import Ohua.Serialize.JSON ()
-
-import qualified Ohua.Compat.Go.Parser(parseGo)
 
 import Ohua.Parser.Common as P
 
@@ -44,25 +48,25 @@ import Ohua.Compile.Types
 
 ohuacCompilation ::  
     ( MonadError Error m
-    , MonadLoggerIO m)
+    , MonadLoggerIO m )
     => CompilationScope -> FrLang.Expr -> m FrLang.Expr
 ohuacCompilation = resolveNS =<< load
 
 ohuaCoreCompilation :: 
     ( MonadError Error m
-    , MonadLoggerIO m) 
+    , MonadLoggerIO m ) 
     => StageHandling -> Bool -> FrLang.Expr -> m OutGraph
-ohuaCoreCompilation stageHandlings tailRecSupport = do
+ohuaCoreCompilation stageHandlings tailRecSupport expr = do
     -- this transforms a Frontend expression into an ALang expression
     -- FIXME the interface here is broken. either I give an FrLang expression to core and
     --       itself translates it into ALang or FrLang is part of ohuac.
     --       the first version is definitely the better choice.
-    alangExpr <- runGenBndT mempty ((decls . traverse) Fr.toAlang expr)
+    let alangExpr = runGenBndT mempty ((decls . traverse) FrLang.toAlang expr)
     OhuaCore.compile
         (def 
             & stageHandling .~ stageHandlings
             & transformRecursiveFunctions .~ tailRecSupport)
-        (def {passAfterDFLowering = cleanUnits})
+        (def {OhuaCoreConfig.passAfterDFLowering = cleanUnits})
         alangExpr
 
 compileExpr :: 
@@ -72,7 +76,7 @@ compileExpr ::
     => CompilationScope -> FrLang.Expr -> m OutGraph
 compileExpr compScope expr = do
     (sh, tailRec, _) <- ask
-    ohuaCoreCompilation sh tailRec =<< ohuacCompilation expr
+    ohuaCoreCompilation sh tailRec =<< ohuacCompilation compScope expr
 
 package ::
     ( MonadError Error m
@@ -85,12 +89,12 @@ package nsName sfImports algos = do
         CodeGenData
             { namespace = nsName
             , sfDependencies = Set.fromList sfImports
-            , funs = flip map algos $\(algo, gr) -> 
+            , funs = flip map algos (\(algo, gr) -> 
                 Fun 
                     { graph = gr
                     , annotations = algo ^. algoTyAnn
                     , name = algo ^. algoName
-                    } 
+                    })
             }
 
 compile :: 
@@ -109,7 +113,7 @@ compile inFile compScope outFile = do
             $ Set.fromList
             $ join
             $ map (\imp -> map (QualifiedBinding imp^.nsRef) imp^.bindings) ns^.imports 
-    packaged <- package ns^.name sfImports compiledAlgos
+    packaged <- package ns^.(NS.name) sfImports compiledAlgos
     L.writeFile packaged
     logInfoN $ "Code written to '" <> outFile <> "'"
 

@@ -13,6 +13,10 @@ This source code is licensed under the terms described in the associated LICENSE
 
 module Ohua.Integration.Langs where
 
+import Ohua.Prelude
+import Ohua.Parser.Common as P
+import Ohua.Compat.Go.Parser(parseGo)
+
 definedLangs :: [(Text, Text, P.Parser)]
 definedLangs =
     ( ".go"
