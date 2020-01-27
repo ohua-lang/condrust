@@ -18,8 +18,8 @@ compilation-scope:
 extra-features:
 - tail-rec
 debug:
-    - log-level: verbose
-    - core-stages: 
+    log-level: verbose
+    core-stages: 
         - stage: "before-normalization"
           dump: yes
           abort-after: no
