@@ -31,6 +31,7 @@ debug:
 module Ohua.Compile.Config where
 
 import Ohua.Prelude
+import qualified Prelude as P (Show, show)
 
 import Ohua.Compile.Types
 import Ohua.Frontend.NS (Feature)
@@ -61,7 +62,13 @@ intoCodeGenSelection t            = error $ "Unknown code gen: " <> t
 data DebugOptions = DebugOptions 
     { logLevel :: LogLevel
     , stageHandlingOpt :: StageHandling
-    }
+    } deriving (Show, Eq)
+
+instance P.Show StageHandling where
+    show sh = "\"skipped\"" -- because it is a function
+
+instance Eq StageHandling where
+    (==) a b = True -- Can't check function equality
 
 passStage = (Don'tDump, False)
 defaultStageHandling = \_ -> passStage
@@ -84,7 +91,7 @@ data CompilerOptions = CompilerOptions
     , compilationScope :: CompilationScope
     , extraFeatures :: [Feature]
     , debug :: DebugOptions
-    }
+    } deriving (Show, Eq)
 
 data Files = Files [Text]
 

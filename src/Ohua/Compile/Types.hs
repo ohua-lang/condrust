@@ -27,7 +27,5 @@ type CompM m
 type LanguageFileSuffix = Text
 type CompilationScope = HM.HashMap NSRef LanguageFileSuffix
 
-type FileRef = Text
-
 -- | This registers all algos used in a given namespace with their qualified names.
 type NamespaceRegistry = HM.HashMap QualifiedBinding FrLang.Expr

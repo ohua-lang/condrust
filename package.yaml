@@ -89,3 +89,7 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - base
+    - ohuac
+    - yaml
+    - hspec
+    - raw-strings-qq
