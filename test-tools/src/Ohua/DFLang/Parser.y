@@ -127,7 +127,7 @@ lexer :: (Lexeme -> PM a) -> PM a
 lexer cont = nextToken >>= cont
 
 runPM :: PM a -> Input -> a
-runPM ac bs = either (error . toText) identity $ runAlex bs ac
+runPM ac bs = either (error . toText) id $ runAlex bs ac
 
 parseError :: Lexeme -> PM a
 parseError token = do

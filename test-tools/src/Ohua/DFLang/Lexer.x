@@ -101,7 +101,7 @@ convertId :: ByteString.ByteString -> Binding
 convertId = makeThrow . decodeUtf8
 
 tokenize :: BS.ByteString -> [Lexeme]
-tokenize bs = either (error . toText) identity $ runAlex bs $
+tokenize bs = either (error . toText) id $ runAlex bs $
   let go = alexMonadScan >>= \case EOF -> pure []; tok -> (tok:) <$> go
   in go
 

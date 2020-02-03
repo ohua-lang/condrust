@@ -28,7 +28,7 @@ shouldSatisfyRet action predicate = action >>= (`shouldSatisfy` predicate)
 
 runLowering :: Expression -> IO DFExpr
 runLowering =
-    fmap (either error identity) .
+    fmap (either error id) .
     runSilentLoggingT .
     runFromExpr
         def
