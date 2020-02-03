@@ -8,7 +8,9 @@ packages:
 - ./test-tools
 - ./tests
 
+# FIXME alang-ml-parser also depends on ohua-core. this dependency needs to go away!
+#       one solution would be to have a separate repo for the tests.
 extra-deps: 
   - git: https://github.com/sertel/alang-ml-parser
-    commit:  55afe8e5de0417f6be00ff87586a8436c94529c1
+    commit:  c8d2d5ebccc4a81d7ca64627721fe43fd5c0a695
 
