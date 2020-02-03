@@ -1,15 +1,15 @@
-resolver: lts-12.10
+resolver: lts-14.22 # ghc-8.6.5
 packages:
 - .
 
 extra-deps: 
-  - git: https://github.com/ohua-dev/ohua-core
-    commit: d499652f022be7dc5e1fc58df70949313cacebda
+  - git: https://github.com/sertel/ohua-core
+    commit: 118404f6e7d57f5f602648abfcd7a2b81dced525
     subdirs: [core]
   - git: https://github.com/sertel/alang-go-parser
-    commit: 0eb0a6e3c64759ed0e1d8fb8124ac09060959348
+    commit: dbbc66f9b816a99b55ab85d13bda491ae0c2c307
   - git: https://github.com/sertel/parser-commons
-    commit: e0b6a789ec67702ed63aa781ac640873101aba07
+    commit: 477e53298d3160712f053345152d65e424ea77e6
 
 flags:
   ohua-core:
