@@ -24,7 +24,7 @@ module Ohua.Monad
     , initNameGen
     ) where
 
-import Universum
+import Universum hiding (hPutStr)
 
 import Control.Monad.Logger
 import System.Log.FastLogger (fromLogStr)

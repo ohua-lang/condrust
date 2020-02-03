@@ -1,3 +1,4 @@
+resolver: lts-14.22 # ghc-8.6.5
 flags:
   ohua-core:
     debug: true
@@ -8,7 +9,6 @@ packages:
 - ./tests
 
 extra-deps: 
-  - git: https://github.com/ohua-dev/alang-ml-parser
+  - git: https://github.com/sertel/alang-ml-parser
     commit:  55afe8e5de0417f6be00ff87586a8436c94529c1
 
-resolver: lts-12.6

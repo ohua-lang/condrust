@@ -12,11 +12,10 @@ category: Concurrency
 author:
 - Sebastian Ertel
 - Justus Adam
-maintainer: dev@justus.science
+maintainer: sebastian.ertel@gmail.com
 license: OtherLicense
 license-file: LICENSE
-homepage: https://ohua-dev.github.io/ohua
-github: ohua-dev/ohua-core
+github: sertel/ohua-core
 extra-source-files:
 - cbits/compat.h
 dependencies:
@@ -31,7 +30,7 @@ dependencies:
 - bytestring
 #- deepseq
 - data-default-class
-- universum >= 1.0
+- universum >= 1.0 # on version 1.6.1
 - tardis
 - generic-lens >= 1.0.0.2
 default-extensions:
