@@ -30,7 +30,7 @@ import Control.Lens (each, view, (%~), (^?), ix)
 
 import Ohua.ALang.Lang as ALang
 import qualified Ohua.Frontend.Lang as FrLang
-import Ohua.Frontend.NS as NS hiding (Imports)
+import qualified Ohua.Frontend.NS as NS hiding (Imports)
 import Ohua.DFGraph (OutGraph)
 -- FIXME the namespaces are broken here! this should be: Ohua.Core.Compile
 import qualified Ohua.Compile as OhuaCore (compile)
@@ -68,13 +68,13 @@ package ::
     ( CompM m
     , MonadReader (StageHandling, Bool, CodeGenSelection) m ) 
     => NSRef -> Set.HashSet QualifiedBinding -> [(Algo, OutGraph)] -> m L.ByteString
-package nsName sfImports algos = do
+package ns sfImports compiledAlgos = do
     codegen <- selectionToGen . (^._3) <$> ask
     codegen
         CodeGenData
-            { namespace = nsName
+            { namespace = ns
             , sfDependencies = sfImports
-            , funs = flip map algos (\(algo, gr) -> 
+            , funs = flip map compiledAlgos (\(algo, gr) -> 
                 Fun 
                     { graph = gr
                     , annotations = algo^.algoTyAnn
@@ -112,10 +112,11 @@ compileModule inFile compScope = do
                                 $ imp^.bindings) 
                         $ ns^.imports 
             in flip Set.map sfs 
-                $ \nsRef -> let l = NE.fromList $ unwrap nsRef
-                                newNSRef = makeThrow $ init l
-                                bnd = last l
-                            in QualifiedBinding newNSRef bnd
+                $ \nsReference -> 
+                    let l = NE.fromList $ unwrap nsReference
+                        newNSRef = makeThrow $ init l
+                        bnd = last l
+                    in QualifiedBinding newNSRef bnd
 
 
 compile :: 
