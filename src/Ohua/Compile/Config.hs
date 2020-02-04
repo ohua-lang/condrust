@@ -65,12 +65,15 @@ data DebugOptions = DebugOptions
     } deriving (Show, Eq)
 
 instance P.Show StageHandling where
-    show sh = "\"skipped\"" -- because it is a function
+    show _ = "\"skipped\"" -- because it is a function
 
 instance Eq StageHandling where
-    (==) a b = True -- Can't check function equality
+    (==) _ _ = True -- Can't check function equality
 
+passStage :: (DumpCode, Bool)
 passStage = (Don'tDump, False)
+
+defaultStageHandling :: p -> (DumpCode, Bool)
 defaultStageHandling = \_ -> passStage
 
 intoLogLevel :: Text -> LogLevel
@@ -148,21 +151,22 @@ intoCompilationScope filePaths =
 instance FromJSON CompilerOptions where
     parseJSON (Y.Object v) =
         CompilerOptions <$>
-        (intoCodeGenSelection <$> v .:  "output-format") <*>
+        (intoCodeGenSelection <$> v .:?  "output-format" .!= "json-graph") <*>
         (intoCompilationScope <$> v .:  "compilation-scope") <*>
         v .:? "extra-features" .!= [] <*>
         v .:? "debug" .!= defaultDebug
     parseJSON _ = fail "Expected Object for Config value"
 
+defaultCompilerOptions :: CompilerOptions
 defaultCompilerOptions = CompilerOptions JsonGraph HM.empty [] defaultDebug
 
-loadConfig :: (MonadIO m, MonadError Error m) => Maybe String -> m CompilerOptions
+loadConfig :: (MonadIO m) => Maybe String -> m CompilerOptions
 loadConfig Nothing    = return defaultCompilerOptions
 loadConfig (Just ref) = decodeFileThrow ref
 
 validateConfig :: (MonadIO m, MonadError Error m) => CompilerOptions -> m ()
 validateConfig conf = do
-    mapM
+    mapM_
         (\pathAndSuffix -> do
             let file = toFilePath pathAndSuffix
             fileExists <- liftIO $ doesFileExist file

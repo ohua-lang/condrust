@@ -9,7 +9,7 @@ import qualified Data.HashMap.Strict as HM
 import Text.RawString.QQ (r)
 import Test.Hspec
 
--- parseConfig :: ByteString -> IO C.CompilerOptions
+parseConfig :: ByteString -> IO CompilerOptions
 parseConfig = Y.decodeThrow
 
 main :: IO ()
@@ -39,6 +39,53 @@ main = hspec $
                                                 , (["some","ns","module"],".go")]
                 , extraFeatures = ["tail-rec"]
                 , debug = C.DebugOptions { logLevel = LevelOther "verbose"
+                                        , stageHandlingOpt = C.defaultStageHandling
+                                        }
+                }
+            )
+        it "debug is optional" $
+            parseConfig [r|
+                output-format: json-graph
+                compilation-scope:
+                - some/ns/module.go
+                extra-features:
+                - tail-rec
+            |] >>= (`shouldBe` 
+                C.CompilerOptions 
+                { outputFormat = C.JsonGraph
+                , compilationScope = HM.fromList [ (["some","ns","module"],".go") ]
+                , extraFeatures = ["tail-rec"]
+                , debug = C.DebugOptions { logLevel = LevelWarn
+                                        , stageHandlingOpt = C.defaultStageHandling
+                                        }
+                }
+            )
+        it "output-format is optional" $
+            parseConfig [r|
+                compilation-scope:
+                - some/ns/module.go
+                extra-features:
+                - tail-rec
+            |] >>= (`shouldBe` 
+                C.CompilerOptions 
+                { outputFormat = C.JsonGraph
+                , compilationScope = HM.fromList [ (["some","ns","module"],".go") ]
+                , extraFeatures = ["tail-rec"]
+                , debug = C.DebugOptions { logLevel = LevelWarn
+                                        , stageHandlingOpt = C.defaultStageHandling
+                                        }
+                }
+            )
+        it "extra-features is optional" $
+            parseConfig [r|
+                compilation-scope:
+                - some/ns/module.go
+            |] >>= (`shouldBe` 
+                C.CompilerOptions 
+                { outputFormat = C.JsonGraph
+                , compilationScope = HM.fromList [ (["some","ns","module"],".go") ]
+                , extraFeatures = []
+                , debug = C.DebugOptions { logLevel = LevelWarn
                                         , stageHandlingOpt = C.defaultStageHandling
                                         }
                 }
