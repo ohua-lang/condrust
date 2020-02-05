@@ -107,7 +107,7 @@ instance Arbitrary Expr where
       where
         expr :: Int -> Gen Expr
         expr 0 = Var <$> arbitrary
-        expr n =
+        expr n | n>0 =
             oneof
                 [ liftM3 Let arbitrary nestExpr nestExpr
                 , liftM2 Apply nestExpr nestExpr
