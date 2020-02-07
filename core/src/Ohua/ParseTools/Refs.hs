@@ -19,6 +19,9 @@ ifBuiltin = mkOhuaLangRef "if"
 smapBuiltin :: Expr
 smapBuiltin = mkOhuaLangRef "smap"
 
+seqBuiltin :: Expr
+seqBuiltin = mkOhuaLangRef "seq"
+
 funcTyConRef :: QualifiedBinding
 funcTyConRef = QualifiedBinding ohuaLangNS "->"
 

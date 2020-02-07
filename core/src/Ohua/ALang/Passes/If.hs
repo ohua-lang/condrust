@@ -161,7 +161,7 @@ ifRewrite = rewriteM $ \case
       where
         -- This test needs to improve
         isUnit = unwrap >>> T.isPrefixOf "_"
-    e -> pure Nothing
+    _ -> pure Nothing
 
 #else
 

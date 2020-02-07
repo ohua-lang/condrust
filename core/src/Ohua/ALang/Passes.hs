@@ -35,22 +35,27 @@ import Ohua.ALang.Passes.If
 import Ohua.ALang.Passes.Seq
 import Ohua.ALang.Passes.Smap
 import Ohua.ALang.Passes.Unit
+import Ohua.ALang.Passes.Literal
 import qualified Ohua.ALang.Refs as Refs
 import Ohua.Stage
 
 runCorePasses :: MonadOhua m => Expression -> m Expression
 runCorePasses expr = do
-    let exprE = mkUnitFunctionsExplicit expr
-    stage "unit-transformation" exprE
+    litE <- literalsToFunctions expr
+    stage literalsALang expr
+
+    let exprE = mkUnitFunctionsExplicit litE
+    stage unitFunctionsALang exprE
+
     smapE <- smapRewrite exprE
-    -- traceM $ "after 'smap' pass:\n" <> (show $ prettyExpr smapE)
-    stage "smap-transformation" smapE
+    stage smapTransformationALang smapE
+
     ifE <- ifRewrite smapE
-    -- traceM $ "after 'if' pass:\n" <> (show $ prettyExpr ifE)
-    stage "conditionals-transformation" ifE
+    stage conditionalsTransformationALang ifE
+    
     seqE <- seqRewrite ifE
-    -- traceM $ "after 'seq' pass:\n" <> (show $ prettyExpr seqE)
-    stage "seq-transformation" seqE
+    stage seqTransformationALang seqE
+    
     return seqE
 
 -- | Inline all references to lambdas.

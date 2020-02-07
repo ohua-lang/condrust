@@ -23,7 +23,7 @@ import GHC.Exts
 import Ohua.ALang.Lang hiding (Expr, ExprF)
 import qualified Ohua.ALang.Lang as AL
 import qualified Ohua.ALang.Refs as ARefs
-import Ohua.ParseTools.Refs (ifBuiltin, mkTuple, smapBuiltin)
+import Ohua.ParseTools.Refs (ifBuiltin, mkTuple, smapBuiltin, seqBuiltin)
 
 data Pat
     = VarP Binding
@@ -180,7 +180,7 @@ trans =
         MapEF function coll -> smapBuiltin `Apply` function `Apply` coll
         BindEF ref e -> BindState ref e
         StmtEF e1 cont -> Let "_" e1 cont
-        SeqEF _source _target -> error "Seq not yet implemented"
+        SeqEF source target -> seqBuiltin `Apply` source `Apply` (Lambda "_" target)
         TupEF parts -> foldl Apply (PureFunction mkTuple Nothing) parts
   where
     patToBnd =

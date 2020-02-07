@@ -5,6 +5,7 @@ import Ohua.Prelude
 import qualified Data.Text.Lazy.IO as LT
 import Data.Text.Prettyprint.Doc
 import Data.Text.Prettyprint.Doc.Render.Text
+import Data.Text.Lazy as T (concat, Text)
 
 import Ohua.ALang.PPrint
 
@@ -19,10 +20,16 @@ stage stName code = do
     case dumpInstructions of
         DumpPretty ->
             liftIO $
-            LT.writeFile (toString $ stName <> ".dump") $
-            renderLazy $ layoutSmart ohuaDefaultLayoutOpts $ pretty code
+            LT.writeFile (toString $ stName <> ".dump") $ gen
+        DumpStdOut ->
+            liftIO $
+            LT.putStr $ boundary <> stageHeader <> gen <> boundary
         Don'tDump -> pure ()
     when shouldAbort exitSuccess
+    where
+        gen = renderLazy $ layoutSmart ohuaDefaultLayoutOpts $ pretty code
+        boundary = "\n" <>(T.concat $ take 20 $ repeat ("-"::T.Text)) <> "\n"
+        stageHeader = "stage: " <> fromStrict stName <> "\n\n"
 
 resolvedAlang :: StageName
 resolvedAlang = "alang-resolved"
@@ -48,6 +55,22 @@ customDflang = "dflang-custom"
 coreDflang :: StageName
 coreDflang = "dflang-core"
 
+literalsALang :: StageName
+literalsALang = "alang-literals"
+
+unitFunctionsALang :: StageName
+unitFunctionsALang = "alang-unit-functions"
+
+smapTransformationALang :: StageName
+smapTransformationALang = "alang-smap-transformation"
+
+conditionalsTransformationALang :: StageName
+conditionalsTransformationALang = "alang-condtionals-transformation"
+
+seqTransformationALang :: StageName
+seqTransformationALang = "alang-seq-transformation"
+
+
 knownStages :: [StageName]
 knownStages =
     [ resolvedAlang
@@ -58,4 +81,9 @@ knownStages =
     , initialDflang
     , customDflang
     , coreDflang
+    , literalsALang
+    , unitFunctionsALang
+    , smapTransformationALang
+    , conditionalsTransformationALang
+    , seqTransformationALang
     ]

@@ -58,28 +58,26 @@ lambdaLifting e = do
     return (e'', actuals ++ actuals')
   where
     go :: (Monad m, MonadGenBnd m)
-       => (Expression -> [Expression])
-       -> Expression
-       -> m (Expression, [Expression])
+       => (Expression -> [Expression]) -> Expression -> m (Expression, [Expression])
     go findFreeExprs expr
-        | null actuals = pure (expr, [])
+        | null freeExprs = pure (expr, [])
         | otherwise = do
-            newFormals <- mapM (bindingFromAny) actuals
+            newFormals <- mapM (bindingFromAny) freeExprs
             let rewrittenExp =
                     foldl
-                        (\e (from, to) -> renameExpr from (Var to) e)
-                        b
-                        (zip actuals newFormals)
-            return (mkLambda (formalVars ++ newFormals) rewrittenExp, actuals)
+                        (\newExpr (from, to) -> renameExpr from (Var to) newExpr)
+                        body
+                        (zip freeExprs newFormals)
+            return (mkLambda (formalVars ++ newFormals) rewrittenExp, freeExprs)
       where
-        (formalVars, b) =
+        (formalVars, body) =
             case expr of
                 (Lambda _ _) -> lambdaArgsAndBody expr
-                _ -> ([], expr)
-        actuals = findFreeExprs expr
+                _            -> ([], expr)
+        freeExprs = findFreeExprs expr
         renameExpr from to =
-            rewrite $ \e ->
-                if e == from
+            rewrite $ \expression ->
+                if expression == from
                     then Just to
                     else Nothing
     bindingFromAny (Var v) = generateBindingWith v
