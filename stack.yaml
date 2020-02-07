@@ -4,10 +4,11 @@ packages:
 
 extra-deps: 
   - git: https://github.com/sertel/ohua-core
-    commit: 118404f6e7d57f5f602648abfcd7a2b81dced525
+    commit: 9600303eef3acf0e42aa1957f98654042fef58ba
     subdirs: [core]
+  # - ../ohua-core/core # debugging
   - git: https://github.com/sertel/alang-go-parser
-    commit: dbbc66f9b816a99b55ab85d13bda491ae0c2c307
+    commit: 938dae6929c27069f3065e32e0ac373db5e84e0a
   - git: https://github.com/sertel/parser-commons
     commit: 477e53298d3160712f053345152d65e424ea77e6
 

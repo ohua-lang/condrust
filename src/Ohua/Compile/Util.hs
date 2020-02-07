@@ -15,8 +15,6 @@ module Ohua.Compile.Util where
 
 import Ohua.Prelude
 
-import Ohua.Compile.Types
-
 import qualified Data.Text as T (unpack, pack, intercalate)
 import System.FilePath.Posix (pathSeparator, addExtension)
 

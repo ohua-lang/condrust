@@ -72,7 +72,7 @@ loadModule fileName = do
 
 verify :: CompM m => CompilationScope -> P.Namespace -> m ()
 verify compScope ns = do
-    mapM
+    mapM_
         (\imp -> if HM.member (imp^.nsRef) compScope 
                  then return ()
                  else throwError $ "No such module registered: " <> show (imp^.nsRef))

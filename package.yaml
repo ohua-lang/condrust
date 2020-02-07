@@ -63,8 +63,8 @@ library:
   - yaml
   # see ghcide bug: https://github.com/digital-asset/ghcide/issues/49
   # for now comment those out on commit
-  - hspec
-  - raw-strings-qq
+  # - hspec
+  # - raw-strings-qq
 
 executables:
   ohuac:

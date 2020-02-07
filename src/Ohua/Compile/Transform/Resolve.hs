@@ -62,8 +62,8 @@ resolveNS ::
 resolveNS (ns, registry) = return $ over algos (map (over algoCode resolveExpr)) ns
     where 
         resolveExpr :: FrLang.Expr -> FrLang.Expr
-        resolveExpr = cata $ \exp ->
-            case exp of
+        resolveExpr = cata $ \expr ->
+            case expr of
                 e@(LitEF (FunRefLit (FunRef ref _id))) ->
                     HM.lookupDefault (embed e) ref registry
                 e -> embed e

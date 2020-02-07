@@ -39,8 +39,7 @@ import Ohua.Compile.Config
 import Ohua.Compile.Transform.Resolve (resolveNS)
 import Ohua.Compile.Transform.Load (load)
 import Ohua.Compile.CodeGen.Iface (CodeGenData(..), Fun(..))
-import Ohua.Unit
-import Ohua.ALang.PPrint
+import Ohua.Unit (cleanUnits)
 import Ohua.Serialize.JSON ()
 
 import Ohua.Parser.Common as P
@@ -52,17 +51,33 @@ ohuacCompilation compScope inFile = resolveNS =<< load compScope inFile
 
 ohuaCoreCompilation :: CompM m => StageHandling -> Bool -> FrLang.Expr -> m OutGraph
 ohuaCoreCompilation stageHandlings tailRecSupport expr = do
+    expr' <- prepareRootAlgoVars expr
+    let expr'' = transformFinalUnit expr'
     -- this transforms a Frontend expression into an ALang expression
     -- FIXME the interface here is broken. either I give an FrLang expression to core and
     --       itself translates it into ALang or FrLang is part of ohuac.
-    --       the first version is definitely the better choice.
-    alangExpr <- runGenBndT mempty $ FrLang.toAlang expr
+    --       see ohua-core issue #3
+    alangExpr <- runGenBndT mempty $ FrLang.toAlang expr''
     OhuaCore.compile
         (def 
             & stageHandling .~ stageHandlings
             & transformRecursiveFunctions .~ tailRecSupport)
         (def {OhuaCoreConfig.passAfterDFLowering = cleanUnits})
         alangExpr
+
+-- TODO move these transformations into their own module
+prepareRootAlgoVars :: CompM m => FrLang.Expr -> m FrLang.Expr
+prepareRootAlgoVars (FrLang.LamE vars body) =  go 0 vars body
+  where
+    go i (x:xs) rest =
+        go (i+1) xs $ FrLang.LetE x (FrLang.LitE $ EnvRefLit $ makeThrow i) rest
+    go _ [] rest = return rest
+prepareRootAlgoVars _ = throwError "compiler invariant broken"
+
+transformFinalUnit :: FrLang.Expr -> FrLang.Expr
+transformFinalUnit = cata $ \case
+    FrLang.StmtEF e u@(FrLang.LitE UnitLit) -> FrLang.SeqE e u
+    e -> embed e
 
 package ::
     ( CompM m
