@@ -8,7 +8,7 @@ extra-deps:
     subdirs: [core]
   # - ../ohua-core/core # debugging
   - git: https://github.com/sertel/alang-go-parser
-    commit: 938dae6929c27069f3065e32e0ac373db5e84e0a
+    commit: 4dccc5e7fc17f228ed6805cb3aeb6f16fd981c20 
   - git: https://github.com/sertel/parser-commons
     commit: 477e53298d3160712f053345152d65e424ea77e6
 
