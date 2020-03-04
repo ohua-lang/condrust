@@ -181,4 +181,19 @@ configTests =
                                         }
                 }
             )
-
+        it "log-level read properly" $
+            parseConfig [r|
+                compilation-scope:
+                - some/ns/module.go
+                debug:
+                    log-level: debug
+            |] >>= (`shouldBe` 
+                C.CompilerOptions 
+                { outputFormat = C.JsonGraph
+                , compilationScope = HM.fromList [ (["some","ns","module"],".go") ]
+                , extraFeatures = []
+                , debug = C.DebugOptions { logLevel = LevelDebug
+                                        , stageHandlingOpt = C.defaultStageHandling
+                                        }
+                }
+            )

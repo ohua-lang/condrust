@@ -70,6 +70,9 @@ loadModule fileName = do
     logDebugN $ show $ map (^. P.algoTyAnn) $ ns ^. P.algos
     pure ns
 
+-- FIXME This wants to check whether an import is registered in the global list. 
+--       But this can only be performed the other way around because other imports may refer to functions instead of algos.
+--       So what is this supposed to verify at all???
 verify :: CompM m => CompilationScope -> P.Namespace -> m ()
 verify compScope ns = do
     mapM_
@@ -82,7 +85,7 @@ verify compScope ns = do
 -- | This function loads all dependencies into the current namespace.
 --   We currently use a very simple but easily maintainable approach:
 --   Just load all algorithms that exist in the project scope. By using
---   a lazy hashmap, this should only load the once actually needed.
+--   a lazy hashmap, this should only load the algo once actually needed.
 loadDeps :: CompM m => CompilationScope -> P.Namespace -> m NamespaceRegistry
 loadDeps scope currentNs = do
     let registry' = registerAlgos HM.empty currentNs
@@ -95,7 +98,7 @@ loadDeps scope currentNs = do
             foldl 
                 (\reg algo -> 
                     HM.insert 
-                        (QualifiedBinding (ns^.nsName) (algo^.algoName))
+                        (QualifiedBinding (fromMaybe (makeThrow []) $ ns^.nsName) (algo^.algoName))
                         (algo^.algoCode) 
                         reg)
                 registry
@@ -103,7 +106,11 @@ loadDeps scope currentNs = do
 
 load :: CompM m => CompilationScope -> FilePath -> m (P.Namespace, NamespaceRegistry)
 load scope inFile = do
+    logDebugN $ "Loading module: " <> show inFile <> "..."
     ns       <- loadModule inFile
-    verify scope ns
+    logDebugN $ "Loaded ns: " <> show ns
+    -- verify scope ns
+    logDebugN "Loading dependencies ..."
     registry <- loadDeps scope ns
+    logDebugN $ "compiled ns successfully."
     return (ns, registry)

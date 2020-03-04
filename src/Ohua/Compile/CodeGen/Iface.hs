@@ -28,7 +28,7 @@ data Fun = Fun
   } deriving (Eq, Show, Generic)
 
 data CodeGenData = CodeGenData
-  { namespace :: NSRef
+  { namespace :: Maybe NSRef
   , sfDependencies :: Set.HashSet QualifiedBinding
   , funs :: [Fun]
   } deriving (Eq, Show, Generic)

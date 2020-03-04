@@ -82,7 +82,7 @@ transformFinalUnit = cata $ \case
 package ::
     ( CompM m
     , MonadReader (StageHandling, Bool, CodeGenSelection) m ) 
-    => NSRef -> Set.HashSet QualifiedBinding -> [(Algo, OutGraph)] -> m L.ByteString
+    => Maybe NSRef -> Set.HashSet QualifiedBinding -> [(Algo, OutGraph)] -> m L.ByteString
 package ns sfImports compiledAlgos = do
     codegen <- selectionToGen . (^._3) <$> ask
     codegen
