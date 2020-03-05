@@ -25,6 +25,7 @@ data Fun = Fun
   { graph :: OutGraph
   , annotations :: FunAnn (TyExpr SomeBinding)
   , name :: Binding
+  , visibility :: Maybe Text
   } deriving (Eq, Show, Generic)
 
 data CodeGenData = CodeGenData

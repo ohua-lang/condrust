@@ -94,6 +94,7 @@ package ns sfImports compiledAlgos = do
                     { graph = gr
                     , annotations = algo^.algoTyAnn
                     , name = algo^.algoName
+                    , visibility = algo^.(P.visibility)
                     })
             }
 

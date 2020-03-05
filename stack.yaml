@@ -13,9 +13,9 @@ extra-deps:
   # - git: https://github.com/sertel/alang-rust-parser
   #   commit: 9695c53944f8bbdbc8376cdc8804c2c1516933b8
   - ../alang-rust-parser # debugging
-  # - git: https://github.com/sertel/parser-commons
-  #   commit: bb14d280fbee0a466c1e3855c2cef5fa3b9896ff
-  - ../parser-commons # debugging
+  - git: https://github.com/sertel/parser-commons
+    commit: 9ee38f1493d5092246ed8c3e433a7fcf1a811891
+  # - ../parser-commons # debugging
 
 flags:
   ohua-core:
