@@ -55,10 +55,9 @@ import Data.Functor.Foldable (cata, embed)
 -- The algo is registered with the key 
 -- > some/other/ns:foo
 -- In the form of a qualified binding.
-resolveNS ::
-       forall m. (MonadError Error m)
-    => (P.Namespace, NamespaceRegistry)
-    -> m P.Namespace
+resolveNS :: (MonadError Error m)
+          => (P.Namespace, NamespaceRegistry)
+          -> m P.Namespace
 resolveNS (ns, registry) = return $ over algos (map (over algoCode resolveExpr)) ns
     where 
         resolveExpr :: FrLang.Expr -> FrLang.Expr

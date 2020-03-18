@@ -15,17 +15,18 @@ module Ohua.Integration.Langs where
 
 import Ohua.Prelude
 import Ohua.Parser.Common as P
-import Ohua.Compat.Go.Lib(parseGo)
+-- import Ohua.Compat.Go.Lib(parseGo)
 import Ohua.Compat.Rust.Lib(parseRust)
 
 definedLangs :: [(Text, Text, P.Parser)]
 definedLangs =
-    [( ".go"
-     , "Go frontend for the algorithm language"
-     , parseGo)
-    ,( ".rs"
+    [
+    -- ( ".go"
+    --  , "Go frontend for the algorithm language"
+    --  , parseGo)
+     ( ".rs"
      , "Rust frontend for the algorithm language"
-     , parseRust)
+     , parseRust )
     ]
 
 getParser :: Text -> P.Parser

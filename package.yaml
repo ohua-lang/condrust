@@ -59,7 +59,7 @@ library:
   - containers
   - casing
   - parser-commons
-  - alang-go-parser
+  # - alang-go-parser
   - alang-rust-parser
   - yaml
   # see ghcide bug: https://github.com/digital-asset/ghcide/issues/49

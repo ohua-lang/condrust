@@ -67,7 +67,7 @@ loadModule fileName = do
     logDebugN $ "Raw parse result for " <> show fileName
     logDebugN $ "<Pretty printing not implemented for frontend lang yet>" -- quickRender ns
     logDebugN "With annotations:"
-    logDebugN $ show $ map (^. P.algoTyAnn) $ ns ^. P.algos
+    logDebugN $ show $ map (\(Algo _ t _) -> show t) $ ns ^. P.algos
     pure ns
 
 -- FIXME This wants to check whether an import is registered in the global list. 

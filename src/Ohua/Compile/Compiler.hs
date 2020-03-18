@@ -89,18 +89,17 @@ package ns sfImports compiledAlgos = do
         CodeGenData
             { namespace = ns
             , sfDependencies = sfImports
-            , funs = flip map compiledAlgos (\(algo, gr) -> 
+            , funs = flip map compiledAlgos (\((Algo n t _), gr) -> 
                 Fun 
                     { graph = gr
-                    , annotations = algo^.algoTyAnn
-                    , name = algo^.algoName
-                    , visibility = algo^.(P.visibility)
+                    , annotations = t
+                    , name = n
                     })
             }
 
-compileModule :: 
+compileModule ::
     ( CompM m
-    , MonadReader (StageHandling, Bool, CodeGenSelection) m ) 
+    , MonadReader (StageHandling, Bool, CodeGenSelection) m) 
     => FilePath -> CompilationScope -> m L.ByteString
 compileModule inFile compScope = do
     (sh, tailRec, _) <- ask

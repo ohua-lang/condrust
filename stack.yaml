@@ -7,15 +7,15 @@ extra-deps:
     commit: 9600303eef3acf0e42aa1957f98654042fef58ba
     subdirs: [core]
   # - ../ohua-core/core # debugging
+  # - git: https://github.com/sertel/parser-commons
+  #   commit: 1a08cb9c5caa9b1ba881c6401032bec48d5721fc
+  - ../parser-commons # debugging
   # - git: https://github.com/sertel/alang-go-parser
   #   commit: 4dccc5e7fc17f228ed6805cb3aeb6f16fd981c20 
-  - ../alang-go-parser # debugging
+  # - ../alang-go-parser # debugging
   # - git: https://github.com/sertel/alang-rust-parser
-  #   commit: 9695c53944f8bbdbc8376cdc8804c2c1516933b8
+  #   commit: 3650156caaffd37a876360d388ecb17a55484a91
   - ../alang-rust-parser # debugging
-  - git: https://github.com/sertel/parser-commons
-    commit: 9ee38f1493d5092246ed8c3e433a7fcf1a811891
-  # - ../parser-commons # debugging
 
 flags:
   ohua-core:
