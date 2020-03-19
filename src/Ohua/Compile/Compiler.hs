@@ -92,7 +92,7 @@ package ns sfImports compiledAlgos = do
             , funs = flip map compiledAlgos (\((Algo n t _), gr) -> 
                 Fun 
                     { graph = gr
-                    , annotations = t
+                    , annotation = t
                     , name = n
                     })
             }

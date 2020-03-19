@@ -26,7 +26,7 @@ import Data.Aeson.TH
 data Fun where
   Fun :: BackendSupport a => 
     { graph :: OutGraph
-    , annotations :: Annotated a (FunAnn (TyExpr SomeBinding))
+    , annotation :: Annotated a (FunAnn (TyExpr SomeBinding))
     , name :: Binding
     } 
     -> Fun

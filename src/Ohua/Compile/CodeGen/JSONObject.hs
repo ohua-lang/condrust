@@ -38,25 +38,8 @@ instance ToJSON Fun where
 
     toEncoding (Fun gr annos name) =
         pairs ("graph" .= gr
-                <> "annotations" .= annos
+                <> "annotation" .= annos
                 <> "name" .= name)
-
--- I just could not solve this ambiguity on the type variable 'a'.
--- It might be possible that the GHC really really needs a concrete type at this moment.
--- instance FromJSON Fun where
---     -- parseJSON :: Value -> Parser Fun
---     parseJSON = go
---         where 
---             go :: forall a. BackendSupport a => Value -> Parser Fun
---             go = withObject "Fun" $ \v -> fun -- :: BackendSupport a => OutGraph -> Annotated a (FunAnn (TyExpr SomeBinding)) -> Binding -> Fun)
---                 <$> v .: "graph" -- :: Parser OutGraph)
---                 <*> v `annos` "annotations" -- :: BackendSupport a => Parser (Annotated a (FunAnn (TyExpr SomeBinding))))
---                 <*> v .: "name" -- :: Parser Binding)
---                     where
---                         fun :: OutGraph -> Annotated a (FunAnn (TyExpr SomeBinding)) -> Binding -> Fun
---                         fun = Fun
---                         annos :: Object -> Text -> Parser (Annotated a (FunAnn (TyExpr SomeBinding)))
---                         annos = (.:)
 
 $(deriveToJSON defaultOptions ''CodeGenData)
 -- $(deriveJSON defaultOptions ''CodeGenData)
