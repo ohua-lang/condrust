@@ -38,7 +38,7 @@ instance ToJSON Fun where
 
     toEncoding (Fun gr annos name) =
         pairs ("graph" .= gr
-                <> "annotation" .= annos
+                <> "funDef" .= annos
                 <> "name" .= name)
 
 $(deriveToJSON defaultOptions ''CodeGenData)
