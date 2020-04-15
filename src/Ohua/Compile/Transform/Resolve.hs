@@ -58,13 +58,13 @@ import Data.Functor.Foldable (cata, embed)
 resolveNS :: (MonadError Error m)
           => (P.Namespace, NamespaceRegistry)
           -> m P.Namespace
-resolveNS (ns, registry) = return $ over algos (map (over algoCode resolveExpr)) ns
+resolveNS (ns, registry) = return $ over algos (map (\algo -> (over algoCode (resolveExpr (QualifiedBinding (makeThrow []) $ algo^.algoName)) algo))) ns
     where 
-        resolveExpr :: FrLang.Expr -> FrLang.Expr
-        resolveExpr = cata $ \expr ->
+        resolveExpr :: QualifiedBinding -> FrLang.Expr -> FrLang.Expr
+        resolveExpr current = cata $ \expr ->
             case expr of
-                e@(LitEF (FunRefLit (FunRef ref _id))) ->
+                e@(LitEF (FunRefLit (FunRef ref _id))) | not $ ref == current  ->
                     -- resolve the expression to be spliced in
-                    maybe (embed e) resolveExpr $ HM.lookup ref registry
+                    maybe (embed e) (resolveExpr ref) $ HM.lookup ref registry
                 e -> embed e
 
