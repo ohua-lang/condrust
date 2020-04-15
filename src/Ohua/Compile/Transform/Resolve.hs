@@ -64,6 +64,7 @@ resolveNS (ns, registry) = return $ over algos (map (over algoCode resolveExpr))
         resolveExpr = cata $ \expr ->
             case expr of
                 e@(LitEF (FunRefLit (FunRef ref _id))) ->
-                    HM.lookupDefault (embed e) ref registry
+                    -- resolve the expression to be spliced in
+                    maybe (embed e) resolveExpr $ HM.lookup ref registry
                 e -> embed e
 
