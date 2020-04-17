@@ -30,7 +30,7 @@ recurLowering (DFExpr letExprs returnVar)
                               -- all paths lead to the final recurFun because this is a connected component where
                             -- the recurFun at the very end has the only outgoing arc.
                      findEnd e = findEnd $ allSuccessors e
-                     allSuccessors = head . (flip findUsages rest <=< output)
+                     allSuccessors b = (head b) $ (flip findUsages rest <=< output) b
                      endFunction = findEnd $ allSuccessors recurStart
                      fixRef:cond:recurArgs = callArguments endFunction
                   in recurStart
@@ -45,5 +45,5 @@ recurLowering (DFExpr letExprs returnVar)
                                cond : callArguments recurStart <> recurArgs
                          } :
                      rest
-    head (x:_) = x
-    head _ = error "head"
+     head b (x:_) = x
+     head b _ = error $ "head: unable to find usages for " <> show b
