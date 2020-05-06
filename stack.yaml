@@ -3,10 +3,10 @@ packages:
 - .
 
 extra-deps: 
-  - git: https://github.com/sertel/ohua-core
-    commit: 9600303eef3acf0e42aa1957f98654042fef58ba
-    subdirs: [core]
-  # - ../ohua-core/core # debugging
+  # - git: https://github.com/sertel/ohua-core
+  #   commit: 9600303eef3acf0e42aa1957f98654042fef58ba
+  #   subdirs: [core]
+  - ../ohua-core/core # debugging
   #- git: https://github.com/sertel/parser-commons
   #  commit: 3f12a3dcc1b700b4fbda9b6ca44e5f4f214b4072
   - ../parser-commons # debugging
