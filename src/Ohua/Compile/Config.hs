@@ -152,7 +152,7 @@ instance FromJSON CompilerOptions where
     parseJSON (Y.Object v) =
         CompilerOptions <$>
         (intoCodeGenSelection <$> v .:?  "output-format" .!= "json-graph") <*>
-        (intoCompilationScope <$> v .:  "compilation-scope") <*>
+        (intoCompilationScope <$> v .:?  "compilation-scope" .!= []) <*>
         v .:? "extra-features" .!= [] <*>
         v .:? "debug" .!= defaultDebug
     parseJSON _ = fail "Expected Object for Config value"

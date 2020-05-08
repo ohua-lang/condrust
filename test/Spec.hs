@@ -268,3 +268,32 @@ configTests =
                                         }
                 }
             )
+        it "empty compilation scope" $
+            parseConfig [r|
+                compilation-scope:
+                debug:
+                    log-level: debug
+            |] >>= (`shouldBe` 
+                C.CompilerOptions 
+                { outputFormat = C.JsonGraph
+                , compilationScope = HM.empty
+                , extraFeatures = []
+                , debug = C.DebugOptions { logLevel = LevelDebug
+                                        , stageHandlingOpt = C.defaultStageHandling
+                                        }
+                }
+            )
+        it "no compilation scope" $
+            parseConfig [r|
+                debug:
+                    log-level: debug
+            |] >>= (`shouldBe` 
+                C.CompilerOptions 
+                { outputFormat = C.JsonGraph
+                , compilationScope = HM.empty
+                , extraFeatures = []
+                , debug = C.DebugOptions { logLevel = LevelDebug
+                                        , stageHandlingOpt = C.defaultStageHandling
+                                        }
+                }
+            )
