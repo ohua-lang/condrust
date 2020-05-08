@@ -1,28 +1,38 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes       #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 import Ohua.Prelude
 
 import Ohua.Compile.Config as C
 import Ohua.Compile.Compiler as Comp
 import Ohua.Compile.Util as U
+import Ohua.Compile.Transform.Resolve as R
 import Ohua.Frontend.Lang as FrLang
 import Ohua.DFGraph
 import Ohua.DFLang.Lang
 import Ohua.Stage (coreAlang, normalizedAlang)
+import Ohua.Parser.Common as P
+import Ohua.Frontend.NS (FunAnn(..))
 import qualified Data.Yaml as Y
 import qualified Data.HashMap.Strict as HM
 import Text.RawString.QQ (r)
 import Test.Hspec
 
+
+newtype TestAnn = TestAnn Text deriving (Eq, Generic, Y.ToJSON, Y.FromJSON, Show)
+
+testAnno = Annotated (TestAnn "noise") $ FunAnn [] $ TyRef "()"
+
 main :: IO ()
 main = hspec $
     exprTests >>
-    configTests
+    configTests >>
+    resolveTests
 
 debugStageHandling :: StageName -> (DumpCode, Bool)
-debugStageHandling x | x == normalizedAlang = (DumpStdOut, False)
-debugStageHandling x | x == coreAlang       = (DumpStdOut, False)
+debugStageHandling x | x == normalizedAlang = (DumpPretty, False)
+debugStageHandling x | x == coreAlang       = (DumpPretty, False)
 debugStageHandling _                        = (Don'tDump, False)
 
 compileAndShow :: FrLang.Expr -> IO OutGraph
@@ -32,6 +42,64 @@ compileAndShow expr = do
         -- $ Comp.ohuaCoreCompilation debugStageHandling False expr 
         $ Comp.ohuaCoreCompilation C.defaultStageHandling False expr
     return gr
+
+resolve = (U.runCompM LevelWarn) . R.resolveNS
+
+resolveTests :: SpecWith ()
+resolveTests =
+    describe "ns resolution" $ do
+        it "loading a 'normal' expression" $
+            resolve
+                ( P.Namespace 
+                    (Just ["some_ns"])
+                    [Import (makeThrow ["other_ns"]) ["g"]]
+                    [Algo 
+                        "f"
+                        testAnno
+                        $ LamE ["x"] 
+                            ((LitE $ FunRefLit $ FunRef "other_ns/g" Nothing) `AppE` ["x"])]
+                , HM.fromList
+                    [("other_ns/g", 
+                        (LamE ["y"] 
+                            ((LitE $ FunRefLit $ FunRef (QualifiedBinding (makeThrow []) "h") Nothing) `AppE` ["y"])))]
+                )
+            >>= (`shouldBe`
+                P.Namespace 
+                    (Just ["some_ns"])
+                    [Import (makeThrow ["other_ns"]) ["g"]]
+                    [Algo 
+                        "f"
+                        testAnno
+                        $ LetE 
+                            "other_ns.g" (LamE ["y"] 
+                                            ((LitE $ FunRefLit $ FunRef (QualifiedBinding (makeThrow []) "h") Nothing) `AppE` ["y"]))
+                            $ LamE ["x"] ("other_ns.g" `AppE` ["x"])]
+                )
+        it "loading a recursive expression" $
+            resolve
+                ( P.Namespace 
+                    (Just ["some_ns"])
+                    [Import (makeThrow ["other_ns"]) ["g"]]
+                    [Algo 
+                        "f"
+                        testAnno
+                        $ LamE ["x"] 
+                            ((LitE $ FunRefLit $ FunRef "other_ns/g" Nothing) `AppE` ["x"])]
+                , HM.fromList
+                    [("other_ns/g", 
+                        (LamE ["y"] 
+                            ((LitE $ FunRefLit $ FunRef (QualifiedBinding (makeThrow ["other_ns"]) "g") Nothing) `AppE` ["y"])))]
+                )
+            >>= (`shouldBe`
+                P.Namespace 
+                    (Just ["some_ns"])
+                    [Import (makeThrow ["other_ns"]) ["g"]]
+                    [Algo 
+                        "f"
+                        testAnno
+                        $ LetE "other_ns.g" (LamE ["y"] ("other_ns.g" `AppE` ["y"]))
+                            $ LamE ["x"] ("other_ns.g" `AppE` ["x"])]
+                )
 
 -- TODO maybe this wants to become a test suite that every parser needs to 
 --      pass. it defines the semantics for ALang expressions.

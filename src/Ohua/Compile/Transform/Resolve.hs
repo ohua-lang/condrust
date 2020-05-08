@@ -44,7 +44,7 @@ import qualified Data.Text as T
 --         - Or this?
 --
 --       Or in Rust:
---       use some::other::ns{foo};
+--       use some::other::ns::{foo};
 --      
 --       foo(); <-- This is not a local algo!
 --
@@ -77,12 +77,13 @@ resolveNS (ns, registry) =
             HS.map (\qb ->
                 maybe 
                     HS.empty
-                    (collectAllFunctionRefs $ HM.delete qb available)
+                    (HS.insert qb . collectAllFunctionRefs (HM.delete qb available))
                     $ HM.lookup qb available) . 
             collectFunctionRefs
 
         collectFunctionRefs :: FrLang.Expr -> HS.HashSet QualifiedBinding
-        collectFunctionRefs e = HS.fromList [ref | LitE (FunRefLit (FunRef ref _id)) <- universe e]
+        collectFunctionRefs e =
+            HS.fromList [r | LitE (FunRefLit (FunRef r _)) <- universe e]
         
         pathToVar :: QualifiedBinding -> Binding
         pathToVar (QualifiedBinding ns bnd) = 
@@ -99,22 +100,5 @@ resolveNS (ns, registry) =
         resolveExpr :: FrLang.Expr -> FrLang.Expr
         resolveExpr = cata $ \expr ->
             case expr of
-                LitEF (FunRefLit (FunRef ref _id)) -> VarE $ pathToVar ref
+                LitEF (FunRefLit (FunRef ref _id)) | HM.member ref registry -> VarE $ pathToVar ref
                 e -> embed e
-        
-        -- resolveExpr :: QualifiedBinding -> FrLang.Expr -> FrLang.Expr
-        -- resolveExpr current = cata $ \expr ->
-        --     case expr of
-        --         -- TODO Recursive function support:
-        --         -- Even the recursive resolution of expressions does not work for recursive functions.
-        --         -- More importantly, we can at this point only understand what is a recursive function 
-        --         -- until we spliced it in and resolved into the spliced in expression.
-        --         -- We need to understand here when we are splicing in a recursive function and if so then
-        --         -- we need to splice in this code:
-        --         -- let f = rec_fun_expr in f(...)
-        --         -- We need to make sure that "f" is a unique id though.
-        --         e@(LitEF (FunRefLit (FunRef ref _id))) | not $ ref == current  ->
-        --             -- resolve the expression to be spliced in
-        --             maybe (embed e) (resolveExpr ref) $ HM.lookup ref registry
-        --         e -> embed e
-

@@ -96,6 +96,7 @@ tests:
     dependencies:
     - base
     - ohuac
+    - parser-commons
     - yaml
     - hspec
     - raw-strings-qq
