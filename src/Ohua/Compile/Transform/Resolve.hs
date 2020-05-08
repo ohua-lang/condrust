@@ -21,7 +21,7 @@ module Ohua.Compile.Transform.Resolve where
 import Ohua.Prelude
 
 import Ohua.Parser.Common as P
-import Ohua.Frontend.Lang as FrLang (Expr(LitE, LetE, VarE), Pat(VarP), ExprF(LitEF))
+import Ohua.Frontend.Lang as FrLang (Expr(LitE, LetE, VarE, LamE), Pat(VarP), ExprF(LitEF))
 import Ohua.Compile.Types (NamespaceRegistry)
 
 import Control.Lens (over)
@@ -90,12 +90,16 @@ resolveNS (ns, registry) =
             (makeThrow . (T.intercalate ".")) $ map unwrap $ (unwrap ns) ++ [bnd]
         
         addExpr :: QualifiedBinding -> FrLang.Expr -> FrLang.Expr
-        addExpr bnd = 
+        -- TODO This is an assumption that fails in Ohua.Compile.Compiler.prepareRootAlgoVars
+        --      We should enforce this via the type system rather than a runtime error!
+        addExpr bnd (LamE vars body) = LamE vars $ addExpr bnd body
+        addExpr bnd e = 
             LetE
                 (VarP $ pathToVar bnd)
-                $ fromMaybe 
+                (fromMaybe 
                     (error "impossible") -- the path was originally retrieved from this list
-                    $ HM.lookup bnd registry
+                    $ HM.lookup bnd registry)
+                e
 
         resolveExpr :: FrLang.Expr -> FrLang.Expr
         resolveExpr = cata $ \expr ->
