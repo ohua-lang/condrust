@@ -45,5 +45,5 @@ recurLowering (DFExpr letExprs returnVar)
                                cond : callArguments recurStart <> recurArgs
                          } :
                      rest
-     head b (x:_) = x
-     head b _ = error $ "head: unable to find usages for " <> show b
+    head b (x:_) = x
+    head b _ = error $ "head: unable to find usages for " <> show b
