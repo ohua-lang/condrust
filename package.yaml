@@ -29,6 +29,7 @@ dependencies:
 - universum >= 1.0
 - ohua-core
 - one-for-all
+- language-rust-0.2.0.27
 default-extensions:
 - OverloadedStrings
 - OverloadedLists
@@ -72,3 +73,4 @@ tests:
     dependencies:
     - o4a-ohua-backend
     - hspec
+    - language-rust-0.2.0.27
