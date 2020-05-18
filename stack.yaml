@@ -3,12 +3,8 @@ resolver: lts-14.22 # ghc-8.6.5
 packages:
 - .
 
-
 extra-deps:
   # - git: https://github.com/ohua-dev/ohua-core
   #   commit: 74188db695276d749ea562faa217877b731f722d
   #   subdirs: [core, test-tools]
   - ../ohua-core/core # debugging
-  # - git: https://github.com/sertel/one-for-all
-  #   commit: 68025daf0469c1d386f8c63559d509727dcff24f
-  - ../one-4-all # debugging

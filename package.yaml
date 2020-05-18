@@ -1,9 +1,8 @@
 name:                o4a-ohua-backend
 version:             0.1.0.0
-github:              "ohua-dev/o4a-ohua-backend"
+github:              "sertel/o4a-ohua-backend"
 author:
 - Sebastian Ertel
-- Felix Wittwer
 maintainer:           sebastian.ertel@gmail.com
 license:              OtherLicense
 license-file:         LICENSE.txt
@@ -28,8 +27,9 @@ dependencies:
 - containers
 - universum >= 1.0
 - ohua-core
-- one-for-all
-- language-rust-0.2.0.27
+- monad-control
+- extra
+# - language-rust >= 0.2.0.27
 default-extensions:
 - OverloadedStrings
 - OverloadedLists
@@ -73,4 +73,3 @@ tests:
     dependencies:
     - o4a-ohua-backend
     - hspec
-    - language-rust-0.2.0.27
