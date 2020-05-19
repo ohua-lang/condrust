@@ -29,7 +29,7 @@ dependencies:
 - ohua-core
 - monad-control
 - extra
-# - language-rust >= 0.2.0.27
+- language-rust
 default-extensions:
 - OverloadedStrings
 - OverloadedLists
@@ -73,3 +73,4 @@ tests:
     dependencies:
     - o4a-ohua-backend
     - hspec
+    - language-rust
