@@ -7,15 +7,15 @@ data Var = Var Text deriving (Show, Eq)
 
 data Task expr = Task expr deriving (Show, Eq)
 
-data App 
-  = Stateless QualifiedBinding [Either Var Lit]
-  | Stateful Var QualifiedBinding [Either Var Lit]
+data App expr
+  = Stateless QualifiedBinding [expr]
+  | Stateful Var QualifiedBinding [expr]
   deriving (Show, Eq)
 
 -- This language is intentionally kept very simple and restricted.
 data TCExpr
   = Binding Var
-  | Apply App
+  | Apply (App TCExpr)
   | Lambda [Var]
            TCExpr
   | Let Var

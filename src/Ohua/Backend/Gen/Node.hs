@@ -39,7 +39,7 @@ generateNodesCode graph = toList <$> (mapM generateNodeCode $ letExprs graph)
                         -- is this really always the case? 
                         stateDFVar <- getStateVar s
                         idx <- getIndex stateDFVar e
-                        return $ Let stateVar $ Receive idx (Var $ unwrap stateDFVar))
+                        return $ Let stateVar $ Receive idx $ Var $ unwrap stateDFVar)
                     $ return $ stateArgument e 
             fnCallCode <- 
                 maybeM 
@@ -48,7 +48,7 @@ generateNodesCode graph = toList <$> (mapM generateNodeCode $ letExprs graph)
                     $ return $ stateArgument e
             let callCode = Apply $ fnCallCode
                                     (nodeRef $ functionRef e) 
-                                    $ map (Left . fst) varsAndReceives
+                                    $ map (Binding . fst) varsAndReceives
 
             let resultVar = Var "result"
             -- TODO do we support multiple outputs or is this here because of historical
@@ -69,9 +69,9 @@ generateNodesCode graph = toList <$> (mapM generateNodeCode $ letExprs graph)
         getStateVar (DFVar bnd) = return bnd
         getStateVar (DFEnvVar _) = throwError "Invariant broken: state arg can not be literal!"
 
-        convertDFVar :: DFVar -> Either Var Lit
-        convertDFVar (DFVar bnd) = Left $ Var $ unwrap bnd
-        convertDFVar (DFEnvVar l) = Right l 
+        convertDFVar :: DFVar -> TCExpr
+        convertDFVar (DFVar bnd) = Binding $ Var $ unwrap bnd
+        convertDFVar (DFEnvVar l) = Lit l 
 
         generateReceiveCode :: CompM m => DFVar -> Int -> LetExpr -> m (Var, TCExpr)
         generateReceiveCode (DFVar bnd) callIdx current = do

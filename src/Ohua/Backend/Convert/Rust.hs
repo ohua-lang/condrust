@@ -14,28 +14,28 @@ import Data.Text (unpack)
 
 noSpan = ()
 
-instance ConvertInto (Expr a) where 
+instance ConvertInto (Expr ()) where 
     convertExpr (Binding v) = 
         PathExpr [] Nothing (convertVar v) noSpan
 
-    convertExpr (TCLang.Lit (NumericLit i)) = Rust.Lit $ Int Dec i Unsuffixed
+    convertExpr (TCLang.Lit (NumericLit i)) = Rust.Lit [] (Int Dec i Unsuffixed noSpan) noSpan
     convertExpr (TCLang.Lit UnitLit) = TupExpr [] [] noSpan -- FIXME this means *our* unit, I believe.
     convertExpr (TCLang.Lit (EnvRefLit hostExpr)) = error "Host expression encountered!"
-    convertExpr (TCLang.Lit (FunRef qBnd _)) = PathExpr [] Nothing (convertQualBnd qBnd) noSpan
+    convertExpr (TCLang.Lit (FunRefLit (FunRef qBnd _))) = PathExpr [] Nothing (convertQualBnd qBnd) noSpan
 
     convertExpr (Apply (Stateless bnd args)) =
         Call 
             []
-            (convertExpr $ TCLang.Lit $ FunRef bnd Nothing)
-            (convertArgs args)
+            (convertExpr $ TCLang.Lit $ FunRefLit $ FunRef bnd Nothing)
+            (map convertExpr args)
             noSpan
     convertExpr (Apply (Stateful var (QualifiedBinding _ bnd) args)) =
         MethodCall
             []
-            (convertVar $ Binding var)
-            (mkIdent $ unwrap bnd)
+            (convertExpr $ Binding var)
+            (mkIdent $ unpack $ unwrap bnd)
             Nothing
-            (convertArgs args)
+            (map convertExpr args)
             noSpan
 
     convertExpr (Lambda args expr) = 
@@ -69,8 +69,8 @@ instance ConvertInto (Expr a) where
     
     convertExpr (TCLang.Loop expr) =
         let block = case convertExpr expr of
-                        e@(BlockExpr _ _ _) -> e
-                        e -> BlockExpr [] (Block [Semi e noSpan] Normal noSpan) noSpan
+                        BlockExpr _ b _ -> b
+                        e -> Block [Semi e noSpan] Normal noSpan
         in Rust.Loop [] block Nothing noSpan
 
     convertExpr (Channel numCopies) =
@@ -78,23 +78,23 @@ instance ConvertInto (Expr a) where
             Apply $ 
                 Stateless 
                     (QualifiedBinding (makeThrow ["ohua", "arcs", "Channel"]) "new") 
-                    [TCLang.Lit $ NumericLit numCopies]
+                    [TCLang.Lit $ NumericLit $ fromIntegral numCopies]
     convertExpr (Receive rcvIdx channel) =
         convertExpr $
             Apply $ 
                 Stateful 
                     channel 
                     (QualifiedBinding (makeThrow []) "recv") 
-                    [Right $ TCLang.Lit $ NumericLit rcvIdx]
+                    [TCLang.Lit $ NumericLit $ fromIntegral rcvIdx]
     convertExpr (Send channel d) =
         convertExpr $
             Apply $ 
                 Stateful 
                     channel 
                     (QualifiedBinding (makeThrow []) "send")
-                    [Left d]
+                    [Binding d]
     convertExpr (Run tasks cont) = 
-        let taskInitStmt = [stmt| let mut tasks:Vec<Box<dyn FnOnce() -> Result<(), RunError>+ Send >> = Vec::new(); |]
+        let taskInitStmt = (const noSpan) <$> [stmt| let mut tasks:Vec<Box<dyn FnOnce() -> Result<(), RunError>+ Send >> = Vec::new(); |]
             task = \(Task expr) -> 
                 Apply $
                     Stateless
@@ -114,7 +114,7 @@ mkSimpleBinding bnd =
     IdentP 
         (ByValue Immutable)
         (mkIdent $ unpack bnd)
-        (Just $ Infer noSpan)
+        Nothing
         noSpan
 
 convertQualBnd (QualifiedBinding ns bnd) = 
@@ -126,8 +126,6 @@ convertQualBnd (QualifiedBinding ns bnd) =
         noSpan)
 
 convertVar (Var v) = Path False [PathSegment (mkIdent $ unpack v) Nothing noSpan] noSpan
-
-convertArgs = map (convertExpr . either Binding id)
 
 append stmts cont = 
     case cont of
