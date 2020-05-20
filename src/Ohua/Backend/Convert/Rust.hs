@@ -94,13 +94,13 @@ instance ConvertInto (Expr ()) where
                     (QualifiedBinding (makeThrow []) "send")
                     [Binding d]
     convertExpr (Run tasks cont) = 
-        let taskInitStmt = (const noSpan) <$> [stmt| let mut tasks:Vec<Box<dyn FnOnce() -> Result<(), RunError>+ Send >> = Vec::new(); |]
-            task = \(Task expr) -> 
+        let taskInitStmt = noSpan <$ [stmt| let mut tasks:Vec<Box<dyn FnOnce() -> Result<(), RunError>+ Send >> = Vec::new(); |]
+            task (Task expr) =
                 Apply $
                     Stateless
                         (QualifiedBinding (makeThrow ["Box"]) "new") 
                         [Lambda [] expr]
-            push = \t -> 
+            push t =
                 Apply $
                     Stateful
                         (Var "tasks")
@@ -108,7 +108,7 @@ instance ConvertInto (Expr ()) where
                         [t]
             taskStmts = map (flip Semi noSpan . convertExpr . push . task) tasks
             contStmt = convertExpr cont
-        in flip append contStmt $ [taskInitStmt] ++ taskStmts
+        in flip append contStmt $ taskInitStmt : taskStmts
 
 mkSimpleBinding bnd = 
     IdentP 
@@ -118,12 +118,12 @@ mkSimpleBinding bnd =
         noSpan
 
 convertQualBnd (QualifiedBinding ns bnd) = 
-    (Path 
-        ((length $ unwrap ns) > 0)
+    Path 
+        (not $ null $ unwrap ns)
         (map 
             (\p -> PathSegment (mkIdent $ unpack $ unwrap p) Nothing noSpan)
-            $ (unwrap ns) ++ [bnd])
-        noSpan)
+            $ unwrap ns ++ [bnd])
+        noSpan
 
 convertVar (Var v) = Path False [PathSegment (mkIdent $ unpack v) Nothing noSpan] noSpan
 

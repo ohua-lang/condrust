@@ -1,5 +1,3 @@
-{-# LANGUAGE QuasiQuotes #-}
-
 module Ohua.Backend.Gen.Arc where
 
 import Ohua.Prelude

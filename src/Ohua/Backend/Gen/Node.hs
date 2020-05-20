@@ -13,10 +13,10 @@ import Control.Monad.Extra (maybeM)
 
 
 generateNodesCode :: CompM m => DFExpr -> m [Task TCExpr]
-generateNodesCode graph = toList <$> (mapM generateNodeCode $ letExprs graph)
+generateNodesCode graph = toList <$> mapM generateNodeCode (letExprs graph)
     where 
         generateNodeCode :: CompM m => LetExpr -> m (Task TCExpr)
-        generateNodeCode e@(LetExpr {functionRef=DFFnRef{nodeType=OperatorNode}}) = 
+        generateNodeCode e@LetExpr {functionRef=DFFnRef{nodeType=OperatorNode}} = 
             return $
                 Task $ 
                     Loop $ 
@@ -25,11 +25,11 @@ generateNodesCode graph = toList <$> (mapM generateNodeCode $ letExprs graph)
                                 (nodeRef $ functionRef e)
                                 $ map convertDFVar $ callArguments e
 
-        generateNodeCode e@(LetExpr {functionRef=DFFnRef{nodeType=FunctionNode}}) = do
+        generateNodeCode e@LetExpr {functionRef=DFFnRef{nodeType=FunctionNode}} = do
             varsAndReceives <- mapM 
                                 (\(idx, arg) -> generateReceiveCode arg idx e) 
                                 $ zip [0..] $ callArguments e
-            let receiveCode = \cont -> foldr (\(v,r) c -> Let v r c) cont varsAndReceives
+            let receiveCode cont = foldr (\(v,r) c -> Let v r c) cont varsAndReceives
             let stateVar = Var "state"
             stateReceiveCode <- 
                 maybeM 
@@ -55,7 +55,7 @@ generateNodesCode graph = toList <$> (mapM generateNodeCode $ letExprs graph)
             --      reasons? (It previously was meant for destructuring.)
             sendCode <- case output e of
                             [] -> return $ Lit UnitLit
-                            (x:[]) -> return $ Send (Var $ unwrap x) resultVar
+                            [x] -> return $ Send (Var $ unwrap x) resultVar
                             _ -> throwError "Unsupported: multiple outputs detected."
             return $
                 Task $
@@ -83,7 +83,7 @@ generateNodesCode graph = toList <$> (mapM generateNodeCode $ letExprs graph)
         getIndex bnd current = 
             let usages = findUsages bnd $ letExprs graph
                 indexed = zip usages [0 ..]
-                expr = find ((== (functionRef current)) . functionRef . fst) indexed
+                expr = find ((== functionRef current) . functionRef . fst) indexed
             in case expr of
                     Just e  -> return $ snd e
                     -- This error could be avoided if we started of to construct the code

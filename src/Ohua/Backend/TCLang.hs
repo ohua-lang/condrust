@@ -3,9 +3,9 @@ module Ohua.Backend.TCLang where
 import Ohua.Prelude
 
 
-data Var = Var Text deriving (Show, Eq)
+newtype Var = Var Text deriving (Show, Eq)
 
-data Task expr = Task expr deriving (Show, Eq)
+newtype Task expr = Task expr deriving (Show, Eq)
 
 data App expr
   = Stateless QualifiedBinding [expr]
