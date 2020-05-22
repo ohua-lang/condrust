@@ -1,0 +1,62 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.31.2.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: b06c23d0d3e43c62196e474eb616c2d5592b2c7aa22f821fa052004c68eeee71
+
+name:           ohua-frontend
+version:        0.1.0.0
+description:    Please see the README on GitHub at <https://github.com/githubuser/ohua-frontend#readme>
+homepage:       https://github.com/githubuser/ohua-frontend#readme
+bug-reports:    https://github.com/githubuser/ohua-frontend/issues
+author:         Author name here
+maintainer:     example@example.com
+copyright:      2020 Author name here
+license:        BSD3
+license-file:   LICENSE
+build-type:     Simple
+extra-source-files:
+    README.md
+    ChangeLog.md
+
+source-repository head
+  type: git
+  location: https://github.com/githubuser/ohua-frontend
+
+library
+  exposed-modules:
+      Lib
+  other-modules:
+      Paths_ohua_frontend
+  hs-source-dirs:
+      src
+  build-depends:
+      base >=4.7 && <5
+  default-language: Haskell2010
+
+executable ohua-frontend-exe
+  main-is: Main.hs
+  other-modules:
+      Paths_ohua_frontend
+  hs-source-dirs:
+      app
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >=4.7 && <5
+    , ohua-frontend
+  default-language: Haskell2010
+
+test-suite ohua-frontend-test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Paths_ohua_frontend
+  hs-source-dirs:
+      test
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >=4.7 && <5
+    , ohua-frontend
+  default-language: Haskell2010
