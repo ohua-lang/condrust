@@ -5,5 +5,8 @@ import Ohua.Prelude
 import Ohua.Frontend.Types
 import Ohua.Frontend.Lang as FrLang
 
-class ConvertFrom a where
-    convertFrom :: CompM m => a -> m FrLang.Expr
+class ConvertExpr a where
+    convertExpr :: CompM m => a -> m FrLang.Expr
+
+class ConvertPat a where
+    convertPat :: CompM m => a -> m FrLang.Pat
