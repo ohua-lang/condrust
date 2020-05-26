@@ -4,7 +4,7 @@ packages:
 - .
 
 extra-deps:
-  # - git: https://github.com/ohua-dev/ohua-core
+  # - git: https://github.com/sertel/ohua-core
   #   commit: 74188db695276d749ea562faa217877b731f722d
   #   subdirs: [core, test-tools]
   - ../ohua-core/core # debugging

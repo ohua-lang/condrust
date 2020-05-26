@@ -4,16 +4,16 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b06c23d0d3e43c62196e474eb616c2d5592b2c7aa22f821fa052004c68eeee71
+-- hash: 29044a73a2e4e964034a667b78ed3ccf0f206b1258a855805f80c70acd5586ee
 
 name:           ohua-frontend
 version:        0.1.0.0
-description:    Please see the README on GitHub at <https://github.com/githubuser/ohua-frontend#readme>
-homepage:       https://github.com/githubuser/ohua-frontend#readme
-bug-reports:    https://github.com/githubuser/ohua-frontend/issues
-author:         Author name here
-maintainer:     example@example.com
-copyright:      2020 Author name here
+description:    Please see the README on GitHub at <https://github.com/sertel/ohua-frontend#readme>
+homepage:       https://github.com/sertel/ohua-frontend#readme
+bug-reports:    https://github.com/sertel/ohua-frontend/issues
+author:         Sebastian Ertel
+maintainer:     sebastian.ertel@gmail.com
+copyright:      2020 Sebastian Ertel
 license:        BSD3
 license-file:   LICENSE
 build-type:     Simple
@@ -23,29 +23,34 @@ extra-source-files:
 
 source-repository head
   type: git
-  location: https://github.com/githubuser/ohua-frontend
+  location: https://github.com/sertel/ohua-frontend
 
 library
   exposed-modules:
-      Lib
+      Ohua.Frontend.Convert
+      Ohua.Frontend.Convert.Rust
+      Ohua.Frontend.Lang
+      Ohua.Frontend.Lower
+      Ohua.Frontend.Transform
+      Ohua.Frontend.Types
   other-modules:
       Paths_ohua_frontend
   hs-source-dirs:
       src
+  default-extensions: OverloadedStrings OverloadedLists MultiParamTypeClasses FunctionalDependencies TypeFamilies GADTs FlexibleContexts FlexibleInstances TypeSynonymInstances LambdaCase TupleSections BangPatterns ExplicitForAll ScopedTypeVariables DefaultSignatures DeriveFunctor DeriveFoldable DeriveTraversable DeriveGeneric PatternSynonyms NamedFieldPuns RecordWildCards ConstraintKinds StandaloneDeriving NoImplicitPrelude RankNTypes ViewPatterns
   build-depends:
-      base >=4.7 && <5
-  default-language: Haskell2010
-
-executable ohua-frontend-exe
-  main-is: Main.hs
-  other-modules:
-      Paths_ohua_frontend
-  hs-source-dirs:
-      app
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
-  build-depends:
-      base >=4.7 && <5
-    , ohua-frontend
+      base >=4.8 && <5
+    , containers
+    , extra
+    , language-rust
+    , lens
+    , monad-control
+    , mtl
+    , ohua-core
+    , recursion-schemes
+    , text
+    , universum >=1.0
+    , unordered-containers
   default-language: Haskell2010
 
 test-suite ohua-frontend-test
@@ -55,8 +60,21 @@ test-suite ohua-frontend-test
       Paths_ohua_frontend
   hs-source-dirs:
       test
+  default-extensions: OverloadedStrings OverloadedLists MultiParamTypeClasses FunctionalDependencies TypeFamilies GADTs FlexibleContexts FlexibleInstances TypeSynonymInstances LambdaCase TupleSections BangPatterns ExplicitForAll ScopedTypeVariables DefaultSignatures DeriveFunctor DeriveFoldable DeriveTraversable DeriveGeneric PatternSynonyms NamedFieldPuns RecordWildCards ConstraintKinds StandaloneDeriving NoImplicitPrelude RankNTypes ViewPatterns
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
+      base >=4.8 && <5
+    , containers
+    , extra
+    , hspec
+    , language-rust
+    , lens
+    , monad-control
+    , mtl
+    , ohua-core
     , ohua-frontend
+    , recursion-schemes
+    , text
+    , universum >=1.0
+    , unordered-containers
   default-language: Haskell2010

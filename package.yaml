@@ -20,7 +20,7 @@ extra-source-files:
 description:         Please see the README on GitHub at <https://github.com/sertel/ohua-frontend#readme>
 
 dependencies:
-- base >= 4.7 && < 5
+- base >= 4.8 && < 5
 - text
 - mtl
 - containers
@@ -29,6 +29,9 @@ dependencies:
 - monad-control
 - extra
 - language-rust
+- lens
+- recursion-schemes
+- unordered-containers
 
 default-extensions:
 - OverloadedStrings
@@ -72,4 +75,4 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - ohua-frontend
-    -hspec
+    - hspec
