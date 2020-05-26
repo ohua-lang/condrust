@@ -3,9 +3,13 @@ module Ohua.Frontend.Convert.Rust where
 import Ohua.Prelude
 
 import Ohua.Frontend.Convert
+import Ohua.Frontend.Types
 import Ohua.Frontend.Lang as FrLang
 import Language.Rust.Syntax as Rust
 import Language.Rust.Data.Ident
+import Data.Text
+
+import qualified Prelude as P
 
 
 instance ConvertExpr (Rust.Expr a) where 
@@ -19,23 +23,23 @@ instance ConvertExpr (Rust.Expr a) where
     convertExpr e@Call{} = throwError $ "Currently, we do not support attributes on function calls.\n" <> show e
     convertExpr (MethodCall [] receiver method Nothing args _) = do
         receiver' <- convertExpr receiver
-        let method' = convertExpr method
+        method' <- convertExpr method
         args' <- mapM convertExpr args
-        return (BindE receiver' method') `AppE` args
+        return $ BindE receiver' method' `AppE` args'
     convertExpr e@(MethodCall [] _ _ (Just _) _ _) = throwError $ "Currently, we do not support type parameters for function calls. Your best shot: wrap the call into a function.\n" <> show e
     convertExpr e@MethodCall{} = throwError $ "Currently, we do not support attributes on method calls.\n" <> show e
-    convertExpr (TupExp [] vars _) = do
-        vars' <- mapM converFrom vars
+    convertExpr (TupExpr [] vars _) = do
+        vars' <- mapM convertExpr vars
         return $ TupE vars'
     convertExpr e@TupExpr{} = throwError $ "Currently, we do not support attributes on tuple exressions.\n" <> show e
     convertExpr (Binary [] op left right _) = do
-        let op' = convertExpr op
+        op' <- convertExpr op
         left' <- convertExpr left
         right' <- convertExpr right
         return $ op' `AppE` [left', right']
     convertExpr e@Binary{} = throwError $ "Currently, we do not support attributes on binary operations.\n" <> show e
     convertExpr (Unary [] op arg _) = do
-        let op' = convertExpr op
+        op' <- convertExpr op
         arg' <- convertExpr arg
         return $ op' `AppE` [arg']
     convertExpr e@Unary{} = throwError $ "Currently, we do not support attributes on unary operations.\n" <> show e
@@ -46,29 +50,34 @@ instance ConvertExpr (Rust.Expr a) where
     convertExpr (If [] expr trueBlock falseBlock _) = do
         expr' <- convertExpr expr
         trueBlock' <- convertExpr trueBlock
-        falseBlock' <- maybe (return $ FrLang.Lit UnitLit) convertExpr falseBlock
+        falseBlock' <- maybe (return $ FrLang.LitE UnitLit) convertExpr falseBlock
         return $ IfE expr' trueBlock' falseBlock'
     convertExpr e@If{} = throwError $ "Currently, we do not support attributes on conditional expressions.\n" <> show e
     convertExpr e@IfLet{} = throwError $ "Currently, we do not support if-let expressions. Please file a bug if you feel that this is dearly needed.\n" <> show e
     convertExpr (While [] cond block Nothing _) = do
-        expr' <- convertExpr expr
+        cond' <- convertExpr cond
         block' <- convertExpr block
+        let loopLambdaRef = "while_loop_body"
+        let recur = IfE 
+                        cond' 
+                        (VarE loopLambdaRef `AppE` [])
+                        $ LitE UnitLit
         return $ 
             -- FIXME proper name generation needed here!
-            LetE (VarE "while_loop_body") (Lambda [] $ StmtE block' $ Lit UnitLit)
-                $ IfE expr' 
-                    (VarE "while_loop_body" `AppE` [])
-                    (Lit UnitLit)
+            LetE 
+                (VarP loopLambdaRef)
+                (LamE [] $ StmtE block' recur)
+                recur
     convertExpr e@(While [] _ _ (Just _) _) = throwError $ "Currently, we do not support loop labels.\n" <> show e
     convertExpr e@While{} = throwError $ "Currently, we do not support attributes on while loops.\n" <> show e
     convertExpr e@WhileLet{} = throwError $ "Currently, we do not support if-let expressions. Please file a bug if you feel that this is dearly needed.\n" <> show e
     convertExpr (ForLoop [] pat dataExpr body Nothing _) = do
-        pat' <- convertExpr pat
+        pat' <- convertPat pat
         dataExpr' <- convertExpr dataExpr
         body' <- convertExpr body
         return $
-            mapE
-                (LambdaE [pat'] body)
+            MapE
+                (LamE [pat'] body')
                 dataExpr'
     convertExpr e@(ForLoop [] _ _ _ (Just _) _) = throwError $ "Currently, we do not support loop labels.\n" <> show e
     convertExpr e@ForLoop{} = throwError "Currently, we do not support attributes on for loops.\n" <> show e
@@ -78,7 +87,7 @@ instance ConvertExpr (Rust.Expr a) where
         -- FIXME We are again dropping the type info here which may later on be needed in the code gen.
         args' <- mapM convertPat args
         body' <- convertExpr body
-        return $ LambdaE args' body'
+        return $ LamE args' body'
     convertExpr e@(Closure _ _ _ (FnDecl _ _ True _) _ _) = throwError $ "Currently, we do not support variadic argument lists. \n" <> show e
     convertExpr e@(Closure _ Immovable _ _ _ _) = throwError $ "Currently, we do not support immovable closures. \n" <> show e
     convertExpr e@(Closure _ _ Ref _ _ _) = throwError $ "Currently, we do not support closures that capture environment variables by reference. \n" <> show e
@@ -101,7 +110,7 @@ instance ConvertExpr (Rust.Expr a) where
     convertExpr e@Continue{} = throwError $ "Currently, we do not support 'continue' expressions. Please reformulate the loop. \n" <> show e
     convertExpr e@Ret{} = throwError $ "Currently, we do not support 'return' expressions. Please reformulate into an expression without a semicolon. \n" <> show e
     convertExpr e@MacExpr{} = throwError $ "Currently, we do not support macro invocations. \n" <> show e
-    convertExpr e@StructExpr{} = throwError $ "Currently, we do not support struct literal expressions. Please use a function.\n" <> show e
+    convertExpr e@Struct{} = throwError $ "Currently, we do not support struct literal expressions. Please use a function.\n" <> show e
     convertExpr e@Repeat{} = throwError $ "Currently, we do not support array construction expressions. Please use a function.\n" <> show e
     convertExpr e@ParenExpr{} = throwError $ "Impossible per documentation of language-rust.\n" <> show e
     convertExpr e@Try{} = throwError $ "Currently, we do not support error handling expressions. Please use a function.\n" <> show e
@@ -110,11 +119,13 @@ instance ConvertExpr (Rust.Expr a) where
 instance ConvertExpr (Path a) where
     -- This needs context information to distinguish a path from a variable.
     -- A transformation is performing this disambiguation later on.
-    convertExpr (Path _ [segment] _) = return $ VarE $ Binding $ convertSegment segment
-    convertExpr (Path _ segments _) = do 
-        segments' <- mapM convertSegment segments
-        let (x:revPath) = reverse segments'
-        return $ Lit $ FunRefLit $ FunRef (QualifiedBinding (makeThrow $ reverse revPath) x) Nothing
+    convertExpr (Path _ segments _) = 
+        case segments of 
+            [segment] -> return $ VarE $ Binding $ convertSegment segment
+            segs -> do 
+                segments' <- mapM convertSegment segments
+                let (x:revPath) = P.reverse segments'
+                return $ Lit $ FunRefLit $ FunRef (QualifiedBinding (makeThrow $ P.reverse revPath) x) Nothing
         where 
             convertSegment (PathSegment Ident{name=n} Nothing _) = return $ pack n
             convertSegment e@PathSegment{} = throwError "Currently, we do not support type parameters in paths.\n" <> show e
@@ -126,28 +137,21 @@ instance ConvertExpr (Block a) where
     convertExpr b@(Block _ Unsafe _) = throwError $ "Currently, we do not support unsafe blocks.\n" <> show b
     convertExpr (Block stmts Normal _) = 
         foldM 
-            (\stmt cont -> (\e -> e cont) <$> convertStmt stmt) 
+            (\cont stmt -> (\e -> e cont) <$> convertStmt stmt) 
             (LitE UnitLit) 
-            $ reverse stmts
-    
-    convertStmt :: CompM m => Stmt a -> m (FrLang.Expr -> FrLang.Expr)
-    convertStmt (Local pat _ (Just e) [] _) = do
-        pat' <- convertPat pat
-        e' <- convertExpr e
-        return $ LetE pat' e'
-    convertStmt s@(Local pat _ Nothing _ _) = throwError $ "Variables bind values and as such they need to be initialized. \n" <> show s
-    convertStmt s@Local{} = throwError $ "Currently, we do not support attributes on local bindings.\n" <> show s
-    convertStmt s@ItemStmt = throwError $ "Currently, we do not support item statements.\n" <> show s
-    convertStmt (NoSemi e _) = const <$> convertExpr e
-    convertStmt (Semi e _) = StmtE <$> convertExpr e
-    convertStmt s@MacStmt{} = throwError $ "Currently, we do not support macro calls.\n" <> show s
-
-instance ConvertExpr (Stmt a) where
-    -- FIXME type information is lost here
-    convertExpr (Local pat _ (Just e) [] _) = do
-        pat' <- convertPat pat
-        e' <- convertExpr e
-        return 
+            $ P.reverse stmts
+        where
+            convertStmt :: CompM m => Stmt a -> m (FrLang.Expr -> FrLang.Expr)
+            convertStmt (Local pat _ (Just e) [] _) = do
+                pat' <- convertPat pat
+                e' <- convertExpr e
+                return $ LetE pat' e'
+            convertStmt s@(Local pat _ Nothing _ _) = throwError $ "Variables bind values and as such they need to be initialized. \n" <> show s
+            convertStmt s@Local{} = throwError $ "Currently, we do not support attributes on local bindings.\n" <> show s
+            convertStmt s@ItemStmt{} = throwError $ "Currently, we do not support item statements.\n" <> show s
+            convertStmt (NoSemi e _) = const <$> convertExpr e
+            convertStmt (Semi e _) = StmtE <$> convertExpr e
+            convertStmt s@MacStmt{} = throwError $ "Currently, we do not support macro calls.\n" <> show s
 
 instance ConvertPat (Rust.Pat a) where
     convertPat (WildP _) = return $ VarP $ Binding "_"
@@ -159,7 +163,7 @@ instance ConvertPat (Rust.Pat a) where
     convertPat p@StructP{} = throwError $ "Currently, we do not support struct patterns: " <> show p <> ". Please use a function."
     convertPat p@TupleStructP{} = throwError $ "Currently, we do not support tuple struct patterns: " <> show p <> ". Please use a function."
     convertPat p@PathP{} = throwError $ "Currently, we do not support path patterns: " <> show p <> ". Please use a function."
-    convertPat (TupleP patterns Nothing _) = return $ TupP <$> mapM converPat patterns
+    convertPat (TupleP patterns Nothing _) = return $ TupP <$> mapM convertPat patterns
     convertPat p@TupleP{} = throwError $ "Currently, we do not support .. patterns: " <> show p <> "."
     convertPat p@BoxP{} = throwError $ "Currently, we do not support box patterns: " <> show p <> ". Please use a function."
     convertPat p@RefP{} = throwError $ seqParProgNote <> "\n" <> show p
@@ -205,10 +209,10 @@ instance ConvertExpr UnOp where
     convertExpr Not   = toExpr "!"
     convertExpr Neg   = toExpr "-"
 
-toExpr op = return $ Lit $ FunRefLit $ FunRef (QualifiedBinding (makeThrow []) op) Nothing
+toExpr op = return $ LitE $ FunRefLit $ FunRef (QualifiedBinding (makeThrow []) op) Nothing
 
 instance ConvertExpr (Rust.Lit a) where
-    convertExpr (Int Dec i _ _) = return $ FrLang.Lit $ NumericLit i
+    convertExpr (Int Dec i _ _) = return $ LitE $ NumericLit i
     convertExpr _ = throwError "Currently, we miss proper support for literals. This is a TODO. Please file a bug."
 
 seqParProgNote = "In a sequential program, memory management can be performed at compile-time via the borrowing concept. For a parallel program, this is not easily possible anymore. You will have to move your memory management from compile-time to runtime, i.e., from references to std::sync::Arc. Currently, we do not perform this conversion."
