@@ -114,7 +114,8 @@ SimpleExp
 
 Exp :: { Exp }
     : Exp SimpleExp             { Apply $1 $2 }
-    | 'λ' many1(Pat) '->' Exp   { foldr (\e cont -> Lambda e cont) $4 $2 }
+    | 'λ' or(UnitP, many1(Pat)) '->' Exp   
+                                { foldr (\e cont -> Lambda e cont) $4 $ either id toList $2 }
     | let Let in Exp            { $2 $4 }
     | if Exp then Exp else Exp  { ifBuiltin `Apply` $2 `Apply` $4 `Apply` $6 }
     | Exp ';' Exp               { Let "_" $1 $3 }
@@ -131,6 +132,9 @@ LetRhs
                                         \a -> if null xs 
                                             then a 
                                             else foldr (\x' cont -> Lambda x' cont) a xs) }
+
+UnitP
+    : '('')'                    { [] }
 
 Pat :: { Binding }
     : id                        { $1 }

@@ -222,26 +222,3 @@ spec = do
                 flip (runFromBindings def) mempty
         in
             (===) <$> run (ensureFinalLet' a) <*> run ( ensureFinalLet'' a )
-    describe "removing destructuring" $ do
-        let mkNth0 objBnd i total =
-                PureFunction ALangRefs.nth Nothing `Apply` Lit (NumericLit i) `Apply`
-                Lit (NumericLit total) `Apply`
-                Var objBnd
-            runRemDestr = pure
-        it "removes destructuring from lets" $
-            let objBnd = "d"
-                mkNth = mkNth0 objBnd
-             in runRemDestr [embedALang| let (a, b, c) = x in y |] `shouldReturn`
-                Let
-                    objBnd
-                    "x"
-                    (Let "a" (mkNth 0 3) $
-                     Let "b" (mkNth 1 3) $ Let "c" (mkNth 2 3) "y")
-        it "removes destructuring from lambdas" $
-            let objBnd = "d"
-                mkNth = mkNth0 objBnd
-             in runRemDestr [embedALang| \(a, b, c) -> y |] `shouldReturn`
-                Lambda
-                    objBnd
-                    (Let "a" (mkNth 0 3) $
-                     Let "b" (mkNth 1 3) $ Let "c" (mkNth 2 3) "y")
