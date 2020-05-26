@@ -5,25 +5,19 @@ import Ohua.Prelude hiding (lift)
 import Language.Haskell.TH.Quote
 import Language.Haskell.TH.Syntax (lift)
 import qualified Data.ByteString.Lazy.Char8 as LB
+import qualified Data.HashSet as HS
 
+import Ohua.ALang.Lang
 import Ohua.ALang.PPrint (Pretty, pretty)
-import Ohua.Frontend.Lang
+import qualified Ohua.ALang.Parser as ParseALang
 import qualified Ohua.DFLang.Parser as ParseDFLang
-import qualified Ohua.Compat.ML.Parser as ParseALang
 
 import qualified Prelude (show)
 
 embedALang :: QuasiQuoter
 embedALang =
     QuasiQuoter
-        { quoteExp =
-              \e -> do
-                  let olang = ParseALang.parseExp $ LB.pack e
-                  let names = definedBindings olang
-                  alang <-
-                      fmap (either error id) $
-                      runExceptT $ runGenBndT names $ toAlang olang
-                  lift alang
+        { quoteExp = lift . ParseALang.parseExp . LB.pack
         , quotePat = notDefined
         , quoteType = notDefined
         , quoteDec = notDefined

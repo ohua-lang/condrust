@@ -13,7 +13,6 @@ import Test.QuickCheck
 import Ohua.ALang.Lang
 import Ohua.DFGraph
 import Ohua.DFLang.Lang
-import Ohua.Frontend.NS
 
 genFromMake :: (HasCallStack, Make t, Arbitrary (SourceType t)) => Gen t
 genFromMake =
@@ -121,22 +120,6 @@ instance Arbitrary Expr where
     shrink (Apply a b) = a : b : [Apply a' b' | (a', b') <- shrink (a, b)]
     shrink (Lambda a b) = b : map (Lambda a) (shrink b)
     shrink _ = []
-
-instance Arbitrary a => Arbitrary (Namespace a) where
-    arbitrary = do
-        n <- arbitrary
-        algoImports0 <- arbitrary
-        sfImports0 <- arbitrary
-        decls0 <- arbitrary
-        pure $
-            (emptyNamespace n :: Namespace ()) & algoImports .~ algoImports0 &
-            sfImports .~ sfImports0 &
-            decls .~ HM.fromList decls0
-    shrink ns = do
-        (ai, si, de) <-
-            shrink (ns ^. algoImports, ns ^. sfImports, HM.toList $ ns ^. decls)
-        pure $
-            ns & algoImports .~ ai & sfImports .~ si & decls .~ HM.fromList de
 
 instance Arbitrary DFExpr where
     arbitrary = DFExpr <$> arbitrary <*> arbitrary

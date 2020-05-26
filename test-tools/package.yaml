@@ -22,7 +22,6 @@ dependencies:
 - data-default-class
 - universum >= 1.0
 - ohua-core
-- alang-ml-parser
 - QuickCheck
 - array
 - template-haskell

@@ -4,7 +4,6 @@ module Ohua.ALang.PPrint
     ( Pretty(pretty)
     , prettyExpr
     , prettyLit
-    , prettyNS
     , quickRender
     , ohuaDefaultLayoutOpts
     ) where
@@ -19,7 +18,6 @@ import Data.Text.Prettyprint.Doc
 import Data.Text.Prettyprint.Doc.Render.Text
 
 import Ohua.ALang.Lang
-import Ohua.Frontend.NS
 
 afterLetIndent :: Int
 afterLetIndent = 0
@@ -128,25 +126,3 @@ instance Pretty Lit where
 instance Pretty SomeBinding where
     pretty (Qual q) = pretty q
     pretty (Unqual b) = pretty b
-
-
-prettyNS :: (decl -> Doc a) -> Namespace decl -> Doc a
-prettyNS prettyDecl ns =
-    vsep $
-    ("module" <+> pretty (ns ^. name)) :
-    "" :
-    map (prettyImport "algo") (ns ^. algoImports) <>
-    map (prettyImport "sf") (ns ^. sfImports) <>
-    ["", ""] <>
-    intersperse "" (map prettyDecl0 (HM.toList $ ns ^. decls))
-  where
-    prettyImport ty (nsref, bnds) =
-        "import" <+>
-        ty <+> fillBreak 10 (pretty nsref) <+> align (tupled (map pretty bnds))
-    prettyDecl0 (bnd, expr) =
-        "let" <+>
-        align (hang afterLetIndent $ sep [pretty bnd <+> "=", prettyDecl expr]) <>
-        ";;"
-
-instance Pretty decl => Pretty (Namespace decl) where
-    pretty = prettyNS pretty

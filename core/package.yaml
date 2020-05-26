@@ -100,8 +100,6 @@ library:
   - Ohua.DFLang.PPrint
   - Ohua.DFGraph
   - Ohua.DFGraph.Show
-  - Ohua.Frontend.Lang
-  - Ohua.Frontend.NS
   - Ohua.Serialize.JSON
   - Ohua.Stage
   - Ohua.Util
