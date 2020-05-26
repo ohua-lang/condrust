@@ -12,7 +12,7 @@ import Data.Text
 import qualified Prelude as P
 
 
-instance ConvertExpr (Rust.Expr a) where 
+instance (Show a) => ConvertExpr (Rust.Expr a) where 
     convertExpr e@Box{} = throwError $ "Currently, we do not support the construction of boxed values. Please do so in a function." <> show e
     convertExpr e@InPlace{} = throwError $ "Currently, we do not support in-place expressions.\n" <> show e
     convertExpr e@Vec{} = throwError $ "Currently, we do not support array expressions. Please do so in a function.\n" <> show e
@@ -21,9 +21,9 @@ instance ConvertExpr (Rust.Expr a) where
         args' <- mapM convertExpr args
         return $ fun' `AppE` args'
     convertExpr e@Call{} = throwError $ "Currently, we do not support attributes on function calls.\n" <> show e
-    convertExpr (MethodCall [] receiver method Nothing args _) = do
+    convertExpr (MethodCall [] receiver Ident{name=method} Nothing args _) = do
         receiver' <- convertExpr receiver
-        method' <- convertExpr method
+        let method' = LitE $ FunRefLit $ FunRef (QualifiedBinding (makeThrow []) $ fromString method) Nothing
         args' <- mapM convertExpr args
         return $ BindE receiver' method' `AppE` args'
     convertExpr e@(MethodCall [] _ _ (Just _) _ _) = throwError $ "Currently, we do not support type parameters for function calls. Your best shot: wrap the call into a function.\n" <> show e
@@ -80,7 +80,7 @@ instance ConvertExpr (Rust.Expr a) where
                 (LamE [pat'] body')
                 dataExpr'
     convertExpr e@(ForLoop [] _ _ _ (Just _) _) = throwError $ "Currently, we do not support loop labels.\n" <> show e
-    convertExpr e@ForLoop{} = throwError "Currently, we do not support attributes on for loops.\n" <> show e
+    convertExpr e@ForLoop{} = throwError $ "Currently, we do not support attributes on for loops.\n" <> show e
     convertExpr e@Loop{} = throwError $ "Currently, we do not support conditionless loops. Please file a bug if you feel that this is dearly needed.\n" <> show e
     convertExpr e@Match{} = throwError $ "Currently, we do not support match expressions. Please file a bug if you feel that this is dearly needed.\n" <> show e
     convertExpr (Closure [] Movable Value (FnDecl args _ False _) body _) = do
@@ -101,7 +101,6 @@ instance ConvertExpr (Rust.Expr a) where
     convertExpr e@TupField{} = throwError $ "Currently, we do not support tuple field expressions. Please use a function. \n" <> show e
     convertExpr e@Index{} = throwError $ "Currently, we do not support indexing expressions. Please use a function. \n" <> show e
     convertExpr e@Range{} = throwError $ "Currently, we do not support range expressions. Please use a function. \n" <> show e
-    convertExpr e@Index{} = throwError $ "Currently, we do not support indexing expressions. Please use a function. \n" <> show e
     convertExpr (PathExpr [] Nothing path _) = convertExpr path
     convertExpr e@(PathExpr [] (Just _) _ _) = throwError $ "Currently, we do not support paths to 'self', i.e., compilation of 'impl' functions. \n" <> show e
     convertExpr e@PathExpr{} = throwError $ "Currently, we do not support attributes on path expressions.\n" <> show e
@@ -116,21 +115,21 @@ instance ConvertExpr (Rust.Expr a) where
     convertExpr e@Try{} = throwError $ "Currently, we do not support error handling expressions. Please use a function.\n" <> show e
     convertExpr e@Yield{} = throwError $ "Currently, we do not support generator/yield expressions. Please use a function.\n" <> show e
 
-instance ConvertExpr (Path a) where
+instance (Show a) => ConvertExpr (Path a) where
     -- This needs context information to distinguish a path from a variable.
     -- A transformation is performing this disambiguation later on.
     convertExpr (Path _ segments _) = 
         case segments of 
-            [segment] -> return $ VarE $ Binding $ convertSegment segment
+            [segment] -> VarE . fromString <$> convertSegment segment
             segs -> do 
                 segments' <- mapM convertSegment segments
                 let (x:revPath) = P.reverse segments'
-                return $ Lit $ FunRefLit $ FunRef (QualifiedBinding (makeThrow $ P.reverse revPath) x) Nothing
+                return $ LitE $ FunRefLit $ FunRef (QualifiedBinding (makeThrow $ P.map fromString $ P.reverse revPath) $ fromString x) Nothing
         where 
-            convertSegment (PathSegment Ident{name=n} Nothing _) = return $ pack n
-            convertSegment e@PathSegment{} = throwError "Currently, we do not support type parameters in paths.\n" <> show e
+            convertSegment (PathSegment Ident{name=n} Nothing _) = return n
+            convertSegment e@PathSegment{} = throwError $ "Currently, we do not support type parameters in paths.\n" <> show e
 
-instance ConvertExpr (Block a) where
+instance (Show a) => ConvertExpr (Block a) where
     convertExpr (Block [] _ _) = return $ LitE UnitLit
     -- TODO extend this into a higher-order function "unsafe" that we can leverage in our compiler
     --      to separate safe from unsafe parts of a program.
@@ -153,9 +152,9 @@ instance ConvertExpr (Block a) where
             convertStmt (Semi e _) = StmtE <$> convertExpr e
             convertStmt s@MacStmt{} = throwError $ "Currently, we do not support macro calls.\n" <> show s
 
-instance ConvertPat (Rust.Pat a) where
-    convertPat (WildP _) = return $ VarP $ Binding "_"
-    convertPat (IdentP (ByValue Immutable) Ident{name=n, raw=False} Nothing _) = return $ VarP $ Binding n
+instance (Show a) => ConvertPat (Rust.Pat a) where
+    convertPat (WildP _) = return $ VarP $ fromString "_"
+    convertPat (IdentP (ByValue Immutable) Ident{name=n, raw=False} Nothing _) = return $ VarP $ fromString n
     convertPat p@(IdentP _ Ident{raw=True} _ _) = throwError $ "Qualified identifiers in a pattern are currently not supported. Pattern: " <> show p
     convertPat p@(IdentP _ _ (Just _) _) = throwError $ "Currently, we do not support nested patterns: " <> show p 
     convertPat p@(IdentP (ByValue Mutable) _ _ _) = throwError $ seqParProgNote <> "\n" <> show p
@@ -163,7 +162,7 @@ instance ConvertPat (Rust.Pat a) where
     convertPat p@StructP{} = throwError $ "Currently, we do not support struct patterns: " <> show p <> ". Please use a function."
     convertPat p@TupleStructP{} = throwError $ "Currently, we do not support tuple struct patterns: " <> show p <> ". Please use a function."
     convertPat p@PathP{} = throwError $ "Currently, we do not support path patterns: " <> show p <> ". Please use a function."
-    convertPat (TupleP patterns Nothing _) = return $ TupP <$> mapM convertPat patterns
+    convertPat (TupleP patterns Nothing _) = TupP <$> mapM convertPat patterns
     convertPat p@TupleP{} = throwError $ "Currently, we do not support .. patterns: " <> show p <> "."
     convertPat p@BoxP{} = throwError $ "Currently, we do not support box patterns: " <> show p <> ". Please use a function."
     convertPat p@RefP{} = throwError $ seqParProgNote <> "\n" <> show p
@@ -172,7 +171,7 @@ instance ConvertPat (Rust.Pat a) where
     convertPat p@SliceP{} = throwError $  "Currently, we do not support slice patterns: " <> show p <> ". Please use a function."
     convertPat p@MacP{} = throwError $  "Currently, we do not support patterns resulting from macro expansion: " <> show p <> ". Please use a function."
 
-instance ConvertPat (Arg a) where
+instance (Show a) => ConvertPat (Arg a) where
     -- FIXME We certainly should have a way to attach (type) information to our expressions/patterns
     convertPat (Arg (Just p) _ _) = convertPat p
     convertPat a@(Arg Nothing _ _) = throwError $ "Currently, we require a name for each argument, not only its type. If this is a type definition in your code, then please file a bug.\n" <> show a
@@ -211,7 +210,7 @@ instance ConvertExpr UnOp where
 
 toExpr op = return $ LitE $ FunRefLit $ FunRef (QualifiedBinding (makeThrow []) op) Nothing
 
-instance ConvertExpr (Rust.Lit a) where
+instance (Show a) => ConvertExpr (Rust.Lit a) where
     convertExpr (Int Dec i _ _) = return $ LitE $ NumericLit i
     convertExpr _ = throwError "Currently, we miss proper support for literals. This is a TODO. Please file a bug."
 
