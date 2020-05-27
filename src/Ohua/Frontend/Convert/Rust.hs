@@ -177,12 +177,6 @@ instance (Show a) => ConvertPat (Arg a) where
     convertPat a@(Arg Nothing _ _) = throwError $ "Currently, we require a name for each argument, not only its type. If this is a type definition in your code, then please file a bug.\n" <> show a
     convertPat a = throwError $ "Currently, we do not support self arguments. \n" <> show a
 
--- instance ConvertExpr Ident where
---     convertExpr Ident{name=n, raw=False} = return $ Lit $ FunRefLit $ FunRef (QualifiedBinding (makeThrow []) $ pack n) Nothing
---     -- TODO it seems we need a context here to understand the QualifiedPath.
---     --      the question is whether we really need this???
---     convertExpr Ident{name=n, raw=True} = undefined 
-
 instance ConvertExpr BinOp where
     convertExpr AddOp = toExpr "+"
     convertExpr SubOp = toExpr "-"
