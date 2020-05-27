@@ -10,14 +10,15 @@
 
 import Ohua.Prelude
 
-import qualified Data.Text as T
+-- import qualified Data.Text as T
 import Test.Hspec
 
 import Ohua.Frontend.Lang
+import Ohua.Frontend.Lower
 import Ohua.ALang.Lang
 import qualified Ohua.ALang.Refs as ALangRefs
-import Ohua.Test
-import Ohua.Types.Arbitrary ()
+
+import qualified Data.HashSet as HS
 
 
 main :: IO ()
@@ -27,7 +28,11 @@ main = hspec $
                 PureFunction ALangRefs.nth Nothing `Apply` Lit (NumericLit i) `Apply`
                 Lit (NumericLit total) `Apply`
                 Var objBnd
-            runRemDestr = pure
+            runRemDestr = 
+                (either (error . show) id <$>) . 
+                runExceptT . 
+                runGenBndT (HS.fromList ["a", "b", "c"]) . 
+                toAlang
         it "removes destructuring from lets" $
             let objBnd = "d"
                 mkNth = mkNth0 objBnd
@@ -41,7 +46,7 @@ main = hspec $
         it "removes destructuring from lambdas" $
             let objBnd = "d"
                 mkNth = mkNth0 objBnd
-             in runRemDestr (LamE ["a", "b", "c"] "y") -- [embedALang| \(a, b, c) -> y |] 
+             in runRemDestr (LamE [["a", "b", "c"]] "y") -- [embedALang| \(a, b, c) -> y |] 
                 `shouldReturn`
                 Lambda
                     objBnd
