@@ -2,20 +2,23 @@ resolver: lts-14.22 # ghc-8.6.5
 packages:
 - .
 
-extra-deps: 
+extra-deps:
+  #- git: https://github.com/sertel/ohua-frontend
+  #  commit: ???
+  - ../ohua-frontend # debugging
   # - git: https://github.com/sertel/ohua-core
   #   commit: 9600303eef3acf0e42aa1957f98654042fef58ba
   #   subdirs: [core]
   - ../ohua-core/core # debugging
-  #- git: https://github.com/sertel/parser-commons
-  #  commit: 3f12a3dcc1b700b4fbda9b6ca44e5f4f214b4072
-  - ../parser-commons # debugging
-  # - git: https://github.com/sertel/alang-go-parser
-  #   commit: 4dccc5e7fc17f228ed6805cb3aeb6f16fd981c20 
-  # - ../alang-go-parser # debugging
-  #- git: https://github.com/sertel/alang-rust-parser
-  #  commit: 7416c2be834b508d9bb44a908dcaee28f0f64f3b
-  - ../alang-rust-parser # debugging
+  #- git: https://github.com/sertel/ohua-backend
+  #  commit: ???
+  - ../ohua-backend # debugging
+
+  ### integration deps:
+  # - language-rust-0.2.0.27@sha256:d96ec43076689ca8932a78b523b668de30a6b1f3b4fb6386017732028e591da7,6835
+  - git: https://github.com/harpocrates/language-rust
+    commit: 9d509c450d009cc99f1180b3f2f30247dfb1cfce
+
 
 flags:
   ohua-core:

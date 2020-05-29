@@ -42,11 +42,9 @@ import Ohua.Compile.CodeGen.Iface (CodeGenData(..), Fun(..))
 import Ohua.Unit (cleanUnits)
 import Ohua.Serialize.JSON ()
 
-import Ohua.Parser.Common as P
+import Ohua.Compile.Types as T
 
-import Ohua.Compile.Types
-
-ohuacCompilation :: CompM m => CompilationScope -> FilePath -> m P.Namespace
+ohuacCompilation :: CompM m => CompilationScope -> FilePath -> m T.Namespace
 ohuacCompilation compScope inFile = resolveNS =<< load compScope inFile
 
 ohuaCoreCompilation :: CompM m => StageHandling -> Bool -> FrLang.Expr -> m OutGraph
@@ -103,12 +101,16 @@ compileModule ::
     => FilePath -> CompilationScope -> m L.ByteString
 compileModule inFile compScope = do
     (sh, tailRec, _) <- ask
-    ns <- ohuacCompilation compScope inFile
+    -- composition:
+    -- frontend
+    (ctxt, ns) <- ohuacCompilation compScope inFile
+    -- middle end
     compiledAlgos <- 
         mapM 
             (\algo -> 
-                (algo,) <$> (ohuaCoreCompilation sh tailRec $ algo^.algoCode))
+                (algo,) <$> ohuaCoreCompilation sh tailRec  (algo^.algoCode))
             $ ns^.algos
+    -- backend -> TODO pass ctxt to backend
     package (ns^.nsName) (sfImports ns) compiledAlgos
     where
         sfImports :: P.Namespace -> Set.HashSet QualifiedBinding 

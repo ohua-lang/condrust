@@ -20,9 +20,8 @@ module Ohua.Compile.Transform.Resolve where
 
 import Ohua.Prelude
 
-import Ohua.Parser.Common as P
 import Ohua.Frontend.Lang as FrLang (Expr(LitE, LetE, VarE, LamE), Pat(VarP), ExprF(LitEF))
-import Ohua.Compile.Types (NamespaceRegistry)
+import Ohua.Compile.Types
 
 import Control.Lens (over)
 import qualified Data.HashMap.Strict as HM
@@ -62,7 +61,7 @@ resolveNS :: (MonadError Error m)
           => (P.Namespace, NamespaceRegistry)
           -> m P.Namespace
 resolveNS (ns, registry) = 
-    return $ over algos (map (\algo -> (over algoCode work algo))) ns
+    return $ over algos (map (over algoCode work)) ns
     where
         work :: FrLang.Expr -> FrLang.Expr
         work e = 
@@ -87,7 +86,7 @@ resolveNS (ns, registry) =
         
         pathToVar :: QualifiedBinding -> Binding
         pathToVar (QualifiedBinding ns bnd) = 
-            (makeThrow . (T.intercalate ".")) $ map unwrap $ (unwrap ns) ++ [bnd]
+            (makeThrow . T.intercalate ".") $ map unwrap $ unwrap ns ++ [bnd]
         
         addExpr :: QualifiedBinding -> FrLang.Expr -> FrLang.Expr
         -- TODO This is an assumption that fails in Ohua.Compile.Compiler.prepareRootAlgoVars
@@ -102,7 +101,6 @@ resolveNS (ns, registry) =
                 e
 
         resolveExpr :: FrLang.Expr -> FrLang.Expr
-        resolveExpr = cata $ \expr ->
-            case expr of
-                LitEF (FunRefLit (FunRef ref _id)) | HM.member ref registry -> VarE $ pathToVar ref
-                e -> embed e
+        resolveExpr = cata $ \case
+            LitEF (FunRefLit (FunRef ref _id)) | HM.member ref registry -> VarE $ pathToVar ref
+            e -> embed e
