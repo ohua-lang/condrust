@@ -1,4 +1,4 @@
-module Ohua.Backend.TCLang where
+module Ohua.Backend.Lang where
 
 import Ohua.Prelude
 

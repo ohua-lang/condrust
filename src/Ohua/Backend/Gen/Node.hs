@@ -5,7 +5,7 @@ import Ohua.Prelude
 import Ohua.DFLang.Lang
 import Ohua.DFLang.Util
 import Ohua.DFGraph
-import Ohua.Backend.TCLang
+import Ohua.Backend.Lang
 import Ohua.Backend.Types
 
 import Data.Maybe

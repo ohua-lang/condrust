@@ -6,7 +6,7 @@ import qualified Ohua.DFGraph as OC
 import Ohua.DFLang.Lang
 import Ohua.DFLang.Util
 
-import Ohua.Backend.TCLang
+import Ohua.Backend.Lang
 import Ohua.Backend.Types
 
 

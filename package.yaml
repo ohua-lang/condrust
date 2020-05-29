@@ -1,6 +1,6 @@
-name:                o4a-ohua-backend
+name:                ohua-backend
 version:             0.1.0.0
-github:              "sertel/o4a-ohua-backend"
+github:              "sertel/ohua-backend"
 author:
 - Sebastian Ertel
 maintainer:           sebastian.ertel@gmail.com
@@ -18,7 +18,7 @@ extra-source-files:
 # To avoid duplicated efforts in documentation and dealing with the
 # complications of embedding Haddock markup inside cabal files, it is
 # common to point users to the README.md file.
-description:         Please see the README on GitHub at <https://github.com/ohua-dev/o4a-ohua-backend#readme>
+description:         Please see the README on GitHub at <https://github.com/sertel/ohua-backend#readme>
 
 dependencies:
 - base >= 4.7 && < 5

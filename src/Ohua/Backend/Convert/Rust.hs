@@ -5,7 +5,7 @@ module Ohua.Backend.Convert.Rust where
 import Ohua.Prelude
 
 import Ohua.Backend.Convert
-import Ohua.Backend.TCLang as TCLang
+import Ohua.Backend.Lang as TCLang
 import Language.Rust.Syntax as Rust
 import Language.Rust.Quote
 import Language.Rust.Data.Ident
@@ -13,6 +13,13 @@ import Language.Rust.Data.Ident
 import Data.Text (unpack)
 
 noSpan = ()
+
+instance ConvertInto (Block ()) where
+    convertExpr expr = 
+        let expr' = convertExpr expr :: (Expr ())
+        in case expr' of
+            BlockExpr _ block _ -> block
+            _ -> error $ "Expression is not a block!\n " <> show expr
 
 instance ConvertInto (Expr ()) where 
     convertExpr (Binding v) = 

@@ -3,7 +3,7 @@ module Ohua.Backend.Gen.Graph where
 import Ohua.Prelude
 
 import Ohua.DFLang.Lang
-import Ohua.Backend.TCLang 
+import Ohua.Backend.Lang 
 import Ohua.Backend.Gen.Arc 
 import Ohua.Backend.Gen.Node
 import Ohua.Backend.Types
