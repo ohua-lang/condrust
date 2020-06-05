@@ -6,6 +6,8 @@ import Ohua.Frontend.Convert as FC
 import Ohua.Backend.Convert as BC
 import Ohua.Frontend.Lang as FrLang
 import Ohua.Compile.Types
+import Ohua.Frontend.Convert.Rust
+import Ohua.Backend.Convert.Rust
 
 import Language.Rust.Syntax hiding (Rust)
 import Language.Rust.Data.Ident
@@ -13,6 +15,7 @@ import Language.Rust.Parser ( parse' , Span )
 import Language.Rust.Data.InputStream
 import Language.Rust.Pretty ( pretty' )
 import Data.Text.Prettyprint.Doc
+import Data.Text.Prettyprint.Doc.Render.Text
 
 import qualified Data.HashMap.Lazy as HM
 import System.FilePath ((</>), splitDirectories, dropExtension)
@@ -58,9 +61,11 @@ instance Integration Rust where
                 (:|[]) . flip Alias (toBinding alias) . makeThrow . (prefix <>) <$> toBindings path
             extractImports prefix u@(UseTreeSimple _ Nothing _) = 
                 throwError $ "Empty 'use' detected. Impossible: This program certainly does not pass 'rustc'." <> show u
-            extractImports prefix (UseTreeSimple path Nothing _) = do
-                (x:xs) <- reverse <$> toBindings path
-                return (Full (makeThrow $ reverse xs) x :| [])
+            extractImports prefix u@(UseTreeSimple path Nothing _) = do
+                bnds <- reverse <$> toBindings path
+                case bnds of
+                    [] -> throwError $ "Empty 'use' path detected. Impossible: This program certainly does not pass 'rustc'." <> show u
+                    (x:xs) ->  return (Full (makeThrow $ reverse xs) x :| [])
             extractImports prefix (UseTreeGlob path _) = 
                 (:|[]) . Glob . makeThrow . (prefix <>)<$> toBindings path
             extractImports prefix u@(UseTreeNested path nesteds _) = do
@@ -86,18 +91,19 @@ instance Integration Rust where
 
     -- | This is a single file backend.
     -- FIXME The type class does not define the dependency properly via its type.
-    backend _ Rust = error "This is simply a weakness in the interface! It should not be possible to call this function without calling 'frontend'. This is always a bug. Please report."
+    backend _ Rust = throwError "This is simply a weakness in the interface! It should not be possible to call this function without calling 'frontend'. This is always a bug. Please report."
     backend algos (Module (path, SourceFile modName atts items)) =
         let algos' = HM.fromList $ map (\(Algo name expr) -> (name, expr)) algos
             src    = SourceFile modName atts $ map (replaceAlgo algos') items
             render = encodeUtf8 . renderLazy . layoutSmart defaultLayoutOptions . pretty'
-        in [render $ src <> "\n"]
+            path' = path -- TODO verify this!
+        in return (path', render $ src <> "\n") :| []
         where
             replaceAlgo algos = \case
                     f@(Fn atts vis ident decl s c abi gen _ span) ->
                         case HM.lookup (toBinding ident) algos of
                             Just algo -> 
-                                Fn atts vis ident decl s c abi gen (BC.convertExpr algo) span
+                                Fn atts vis ident decl s c abi gen (span <$ (BC.convertExpr algo :: Block ())) span
                             Nothing -> f
                     i -> i
 
