@@ -48,8 +48,6 @@ import Ohua.Prelude
 
 import Ohua.Frontend.Lang as FrLang
 import Ohua.Compile.Types
-import Ohua.Integration.Langs (getParser, definedLangs)
-import Ohua.Parser.Common as P
 import Ohua.Compile.Util (toFilePath)
 
 import qualified Data.HashMap.Strict as HM
@@ -58,59 +56,47 @@ import qualified Data.Text as T
 import System.FilePath as Path ((<.>), takeExtension)
 import System.Directory (doesFileExist)
 
--- | Loads the content of an algo file and parses its contents into a (parser-representation) namespace.
--- To prevent namespace clashes, the algo (foo) is always registered as:
--- > some/other/ns:foo => expr
-loadModule :: CompM m => FilePath -> m P.Namespace
-loadModule fileName = do
-    ns <- getParser (toText $ takeExtension fileName) <$> liftIO (L.readFile fileName)
-    logDebugN $ "Raw parse result for " <> show fileName
-    logDebugN $ "<Pretty printing not implemented for frontend lang yet>" -- quickRender ns
-    logDebugN "With annotations:"
-    logDebugN $ show $ map (\(Algo _ t _) -> show t) $ ns ^. P.algos
-    pure ns
 
 -- FIXME This wants to check whether an import is registered in the global list. 
 --       But this can only be performed the other way around because other imports may refer to functions instead of algos.
 --       So what is this supposed to verify at all???
-verify :: CompM m => CompilationScope -> P.Namespace -> m ()
-verify compScope ns = do
-    mapM_
-        (\imp -> if HM.member (imp^.nsRef) compScope 
-                 then return ()
-                 else throwError $ "No such module registered: " <> show (imp^.nsRef))
-        $ ns^.imports
-    return ()
+-- verify :: CompM m => CompilationScope -> Namespace FrLang.Expr -> m ()
+-- verify compScope ns =
+--     mapM_
+--         (\imp -> if HM.member (imp^.nsRef) compScope 
+--                  then return ()
+--                  else throwError $ "No such module registered: " <> show (imp^.nsRef))
+--         $ ns^.imports
 
 -- | This function loads all dependencies into the current namespace.
 --   We currently use a very simple but easily maintainable approach:
 --   Just load all algorithms that exist in the project scope. By using
 --   a lazy hashmap, this should only load the algo once actually needed.
-loadDeps :: CompM m => CompilationScope -> P.Namespace -> m NamespaceRegistry
-loadDeps scope currentNs = do
+loadDeps :: (CompM m, Integration lang) => lang -> CompilationScope -> Namespace FrLang.Expr -> m NamespaceRegistry
+loadDeps lang scope currentNs = do
     let registry' = registerAlgos HM.empty currentNs
-    modules <- mapM (loadModule . toFilePath) $ HM.toList scope
+    modules <- mapM (\path -> snd <$> frontend (toFilePath path) lang) $ HM.toList scope
     let registry'' = foldl registerAlgos registry' modules
     return registry''
     where
-        registerAlgos :: NamespaceRegistry -> P.Namespace -> NamespaceRegistry
+        registerAlgos :: NamespaceRegistry -> Namespace FrLang.Expr -> NamespaceRegistry
         registerAlgos registry ns = 
             foldl 
                 (\reg algo -> 
                     HM.insert 
-                        (QualifiedBinding (fromMaybe (makeThrow []) $ ns^.nsName) (algo^.algoName))
+                        (QualifiedBinding (ns^.nsName) (algo^.algoName))
                         (algo^.algoCode) 
                         reg)
                 registry
                 $ ns^.algos
 
-load :: CompM m => CompilationScope -> FilePath -> m (P.Namespace, NamespaceRegistry)
-load scope inFile = do
+load :: (CompM m, Integration lang) => lang -> CompilationScope -> FilePath -> m (lang, (Namespace FrLang.Expr, NamespaceRegistry))
+load lang scope inFile = do
     logDebugN $ "Loading module: " <> show inFile <> "..."
-    ns       <- loadModule inFile
+    (ctxt, ns) <- frontend inFile lang
     logDebugN $ "Loaded ns: " <> show ns
     -- verify scope ns
     logDebugN "Loading dependencies ..."
-    registry <- loadDeps scope ns
-    logDebugN $ "compiled ns successfully."
-    return (ns, registry)
+    registry <- loadDeps lang scope ns
+    logDebugN "compiled ns successfully."
+    return (ctxt, (ns, registry))

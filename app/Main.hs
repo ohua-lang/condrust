@@ -39,8 +39,8 @@ main = do
             runCompM (logLevel debug)
                 $ flip runReaderT 
                     -- TODO just pass in the configuration
-                    ( (stageHandlingOpt debug)
-                    , ("tail-recursion" `elem` extraFeatures)
+                    ( stageHandlingOpt debug
+                    , "tail-recursion" `elem` extraFeatures
                     , outputFormat
                     ) 
                     $ compile inputModuleFile compilationScope outputPath

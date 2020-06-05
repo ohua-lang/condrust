@@ -10,7 +10,8 @@ Portability : portable
 This source code is licensed under the terms described in the associated LICENSE.TXT file
 
 -}
-{-# LANGUAGE CPP, ConstraintKinds #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE ConstraintKinds #-}
 module Ohua.Compile.Types where
 
 import Ohua.Prelude
@@ -24,6 +25,8 @@ import Control.Monad.Trans.Control (MonadBaseControl) -- TODO find out if this i
 
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.ByteString.Lazy.Char8 as L
+
+import Control.Lens.TH
 
 
 declareLenses[d|
@@ -75,15 +78,37 @@ type CompilationScope = HM.HashMap NSRef LanguageFileSuffix
 -- | This registers all algos used in a given namespace with their qualified names.
 type NamespaceRegistry = HM.HashMap QualifiedBinding FrLang.Expr
 
+-- type Conversions expr pat = 
+--      ( FC.ConvertExpr expr -- frontend
+--      , FC.ConvertPat pat -- frontend
+--      , BC.ConvertInto expr -- backend
+--      -- now we can easily add another one from ALang to expr to create new functions.
+--      -- actually all we need is a way to lower ALang into TCLang.
+--      )
 
-type Conversions expr pat = 
-     ( FC.ConvertExpr expr -- frontend
-     , FC.ConvertPat pat -- frontend
-     , BC.ConvertInto expr -- backend
-     -- now we can easily add another one from ALang to expr to create new functions.
-     -- actually all we need is a way to lower ALang into TCLang.
-     ) 
+-- class 
+--      -- (Conversions expr pat) => 
+--      Integration lang where
+--      -- TODO This type class should link back to the conversion type classes 
+--      --      that frontend and backend should be based upon.
+--      --      Currently, we do not expose any functions that require them,
+--      --      as such, I could not find a way to fit them.
+--      --      I think the key is to define a type for ctxt:
+--      -- type Ctxt expr pat :: *
+--      -- data Ctxt :: * -> * -> *
+--      --      This type faces the developer of an Integration but not the user!
+--      frontend :: CompM m 
+--                -- => Ctxt expr pat
+--                -> FilePath
+--                -> lang
+--                -> m (lang, T.Namespace FrLang.Expr)
 
-class (Conversions expr pat) => Integration ctxt a b where
-     frontend :: CompM m => FilePath -> m (T.Namespace FrLang.Expr, ctxt a b)
-     backend  :: CompM m => ctxt a b -> Algos TCLang.Expr -> m [L.ByteString]
+--      backend  :: CompM m 
+--                => lang 
+--                -> Algos TCLang.Expr 
+--                -> m [L.ByteString]  -- FIXME the byte array is insufficient because it does not provide the names for the files.
+
+-- TODO connect this type class with the type classes for converting into and from expressions
+class Integration lang where
+     frontend :: CompM m => FilePath -> lang -> m (lang, Namespace FrLang.Expr)
+     backend  :: CompM m => Algos TCLang.TCExpr -> lang -> m (NonEmpty (FilePath, L.ByteString))

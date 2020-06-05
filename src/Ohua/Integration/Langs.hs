@@ -14,23 +14,25 @@ This source code is licensed under the terms described in the associated LICENSE
 module Ohua.Integration.Langs where
 
 import Ohua.Prelude
-import Ohua.Parser.Common as P
--- import Ohua.Compat.Go.Lib(parseGo)
-import Ohua.Compat.Rust.Lib(parseRust)
 
-definedLangs :: [(Text, Text, P.Parser)]
-definedLangs =
+-- import Ohua.Integration.Go
+import Ohua.Integration.Rust
+
+definedIntegrations :: [(Text, Text, Integration lang)]
+definedIntegrations =
     [
-    -- ( ".go"
-    --  , "Go frontend for the algorithm language"
-    --  , parseGo)
+    --  ( ".go"
+    --  , "Go integration"
+    --  , Go
+    --  )
      ( ".rs"
-     , "Rust frontend for the algorithm language"
-     , parseRust )
+     , "Rust integration"
+     , Rust
+     )
     ]
 
-getParser :: Text -> P.Parser
-getParser ext
-    | Just a <- find ((== ext) . view _1) definedLangs = a ^. _3
+getIntegration :: Text -> Integration lang
+getIntegration ext
+    | Just a <- find ((== ext) . view _1) definedIntegrations = a ^. _3
     | otherwise =
-        error $ "No parser defined for files with extension '" <> ext <> "'"
+        error $ "No language integration defined for files with extension '" <> ext <> "'"

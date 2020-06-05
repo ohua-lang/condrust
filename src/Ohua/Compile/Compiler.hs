@@ -30,7 +30,7 @@ import Control.Lens (each, view, (%~), (^?), ix)
 
 import Ohua.ALang.Lang as ALang
 import qualified Ohua.Frontend.Lang as FrLang
-import qualified Ohua.Frontend.NS as NS hiding (Imports)
+import Ohua.Frontend.Lower (toAlang)
 import Ohua.DFGraph (OutGraph)
 -- FIXME the namespaces are broken here! this should be: Ohua.Core.Compile
 import qualified Ohua.Compile as OhuaCore (compile)
@@ -38,24 +38,19 @@ import qualified Ohua.Compile.Configuration as OhuaCoreConfig (passAfterDFLoweri
 import Ohua.Compile.Config
 import Ohua.Compile.Transform.Resolve (resolveNS)
 import Ohua.Compile.Transform.Load (load)
-import Ohua.Compile.CodeGen.Iface (CodeGenData(..), Fun(..))
 import Ohua.Unit (cleanUnits)
-import Ohua.Serialize.JSON ()
+import Ohua.Integration.Langs
+import Ohua.Compile.Types
 
-import Ohua.Compile.Types as T
 
-ohuacCompilation :: CompM m => CompilationScope -> FilePath -> m T.Namespace
-ohuacCompilation compScope inFile = resolveNS =<< load compScope inFile
+ohuacCompilation :: (CompM m, Integration lang) => lang -> CompilationScope -> FilePath -> m (Namespace FrLang.Expr)
+ohuacCompilation lang compScope inFile = resolveNS =<< load lang compScope inFile
 
 ohuaCoreCompilation :: CompM m => StageHandling -> Bool -> FrLang.Expr -> m OutGraph
 ohuaCoreCompilation stageHandlings tailRecSupport expr = do
     expr' <- prepareRootAlgoVars expr
     let expr'' = transformFinalUnit expr'
-    -- this transforms a Frontend expression into an ALang expression
-    -- FIXME the interface here is broken. either I give an FrLang expression to core and
-    --       itself translates it into ALang or FrLang is part of ohuac.
-    --       see ohua-core issue #3
-    alangExpr <- runGenBndT mempty $ FrLang.toAlang expr''
+    alangExpr <- runGenBndT mempty $ toAlang expr''
     OhuaCore.compile
         (def 
             & stageHandling .~ stageHandlings
@@ -77,71 +72,30 @@ transformFinalUnit = cata $ \case
     FrLang.StmtEF e u@(FrLang.LitE UnitLit) -> FrLang.SeqE e u
     e -> embed e
 
-package ::
+compile :: 
     ( CompM m
-    , MonadReader (StageHandling, Bool, CodeGenSelection) m ) 
-    => Maybe NSRef -> Set.HashSet QualifiedBinding -> [(Algo, OutGraph)] -> m L.ByteString
-package ns sfImports compiledAlgos = do
-    codegen <- selectionToGen . (^._3) <$> ask
-    codegen
-        CodeGenData
-            { namespace = ns
-            , sfDependencies = sfImports
-            , funs = flip map compiledAlgos (\((Algo n t _), gr) -> 
-                Fun 
-                    { graph = gr
-                    , annotation = t
-                    , name = n
-                    })
-            }
-
-compileModule ::
-    ( CompM m
-    , MonadReader (StageHandling, Bool, CodeGenSelection) m) 
-    => FilePath -> CompilationScope -> m L.ByteString
-compileModule inFile compScope = do
-    (sh, tailRec, _) <- ask
+    , MonadReader (StageHandling, Bool) m ) 
+    => FilePath -> CompilationScope -> FilePath -> m ()
+compile inFile compScope outDir = do
+    (sh, tailRec) <- ask
     -- composition:
+    let lang = getIntegration (toText $ takeExtension inFile)
+
     -- frontend
-    (ctxt, ns) <- ohuacCompilation compScope inFile
+    (ctxt, ns) <- ohuacCompilation lang compScope inFile
     -- middle end
     compiledAlgos <- 
         mapM 
             (\algo -> 
                 (algo,) <$> ohuaCoreCompilation sh tailRec  (algo^.algoCode))
             $ ns^.algos
-    -- backend -> TODO pass ctxt to backend
-    package (ns^.nsName) (sfImports ns) compiledAlgos
+    -- backend 
+    writeFiles =<< backend lang compiledAlgos
     where
-        sfImports :: P.Namespace -> Set.HashSet QualifiedBinding 
-        sfImports ns = 
-            let sfs = flip Set.difference (Set.fromList $ HM.keys compScope)
-                    $ Set.fromList
-                    $ join
-                    $ map 
-                        (\imp -> 
-                            -- TODO this conversion is just painful.
-                            --      it feels to me like there are too many types for the same thing:
-                            --      QualifiedBinding vs NSRef vs Import vs ...
-                            let bnds = unwrap $ imp^.nsRef
-                            in map 
-                                (\bnd -> makeThrow $ bnds ++ [bnd]) 
-                                $ imp^.bindings) 
-                        $ ns^.imports 
-            in flip Set.map sfs 
-                $ \nsReference -> 
-                    let l = NE.fromList $ unwrap nsReference
-                        newNSRef = makeThrow $ init l
-                        bnd = last l
-                    in QualifiedBinding newNSRef bnd
-
-
-compile :: 
-    ( CompM m
-    , MonadReader (StageHandling, Bool, CodeGenSelection) m ) 
-    => FilePath -> CompilationScope -> FilePath -> m ()
-compile inFile compScope outFile = do
-    packaged <- compileModule inFile compScope
-    liftIO $ L.writeFile outFile packaged
-    logInfoN $ "Code written to '" <> T.pack outFile <> "'"
+        writeFiles = mapM_ 
+                        (\(file, code) -> do 
+                            let fullPath = outDir <> file
+                            liftIO $ L.writeFile fullPath code
+                            logInfoN $ "Code written to '" <> T.pack fullPath <> "'"
+                        )
 

@@ -29,37 +29,10 @@ import Data.Functor.Foldable (cata, embed)
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
 
--- TODO: It feels to me like this function needs a rewrite. I'm quite sure there was no testing at
---       all to make sure it works for algorithms from other namespaces.
---       More urgently, we need to define what a namespace reference that a parser returns should look like.
---       For example in Go:
---       import some/other/ns
---                ^
---                |
---                 - What is this?
---       ns.foo()
---        ^
---        |
---         - Or this?
---
---       Or in Rust:
---       use some::other::ns::{foo};
---      
---       foo(); <-- This is not a local algo!
---
--- For this transformation, the expression only has the following form:
--- > some/other/ns:foo()
---   |               |
---    ---------------
---           |
---            -> This is a function literal with a qualified binding.
---
--- The algo is registered with the key 
--- > some/other/ns:foo
--- In the form of a qualified binding.
+
 resolveNS :: (MonadError Error m)
-          => (P.Namespace, NamespaceRegistry)
-          -> m P.Namespace
+          => (Namespace FrLang.Expr, NamespaceRegistry)
+          -> m (Namespace FrLang.Expr)
 resolveNS (ns, registry) = 
     return $ over algos (map (over algoCode work)) ns
     where
@@ -82,6 +55,7 @@ resolveNS (ns, registry) =
 
         collectFunctionRefs :: FrLang.Expr -> HS.HashSet QualifiedBinding
         collectFunctionRefs e =
+            -- FIXME we need to resolve this reference here against the namespace and the registry (for Globs).
             HS.fromList [r | LitE (FunRefLit (FunRef r _)) <- universe e]
         
         pathToVar :: QualifiedBinding -> Binding

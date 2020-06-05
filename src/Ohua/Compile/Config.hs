@@ -34,9 +34,6 @@ import Ohua.Prelude
 import qualified Prelude as P (Show, show)
 
 import Ohua.Compile.Types
-import Ohua.Frontend.NS (Feature)
-import qualified Ohua.Compile.CodeGen.JSONObject as JSONGen
-import Ohua.Compile.CodeGen.Iface (CodeGen)
 import Ohua.Compile.Util (toFilePath)
 
 import qualified Data.Text as T (Text, unpack, pack, intercalate)
@@ -48,16 +45,7 @@ import Control.Applicative
 import System.FilePath.Posix (splitDirectories, splitExtension)
 import System.Directory (doesFileExist)
 
-data CodeGenSelection
-    = JsonGraph
-    deriving (Read, Show, Bounded, Enum, Eq)
-
-selectionToGen :: CodeGenSelection -> CodeGen
-selectionToGen JsonGraph = JSONGen.generate
-
-intoCodeGenSelection :: Text -> CodeGenSelection
-intoCodeGenSelection "json-graph" = JsonGraph
-intoCodeGenSelection t            = error $ "Unknown code gen: " <> t
+type Feature = Text
 
 data DebugOptions = DebugOptions 
     { logLevel :: LogLevel
@@ -74,7 +62,7 @@ passStage :: (DumpCode, Bool)
 passStage = (Don'tDump, False)
 
 defaultStageHandling :: p -> (DumpCode, Bool)
-defaultStageHandling = \_ -> passStage
+defaultStageHandling = const passStage
 
 intoLogLevel :: Text -> LogLevel
 intoLogLevel "debug" = LevelDebug
@@ -90,13 +78,12 @@ defaultDebug = DebugOptions
     }
 
 data CompilerOptions = CompilerOptions 
-    { outputFormat :: CodeGenSelection
-    , compilationScope :: CompilationScope
+    { compilationScope :: CompilationScope
     , extraFeatures :: [Feature]
     , debug :: DebugOptions
     } deriving (Show, Eq)
 
-data Files = Files [Text]
+newtype Files = Files [Text]
 
 data Stage = Stage
     { stage :: Text
@@ -117,12 +104,12 @@ intoStageHandling Nothing   = defaultStageHandling
 intoStageHandling (Just []) = defaultStageHandling
 intoStageHandling (Just stages)  = 
     let registry = 
-            HM.fromList 
-                $ map
-                (\s -> ( stage s
-                      , ( if dump s then DumpPretty else Don'tDump, abortAfter s)
-                      ))
-                $ stages
+            HM.fromList $ 
+                map
+                    (\s -> ( stage s
+                        , ( if dump s then DumpPretty else Don'tDump, abortAfter s)
+                        ))
+                    stages
     in \stage -> HM.lookupDefault passStage stage registry
 
 instance FromJSON DebugOptions where
@@ -151,21 +138,20 @@ intoCompilationScope filePaths =
 instance FromJSON CompilerOptions where
     parseJSON (Y.Object v) =
         CompilerOptions <$>
-        (intoCodeGenSelection <$> v .:?  "output-format" .!= "json-graph") <*>
         (intoCompilationScope <$> v .:?  "compilation-scope" .!= []) <*>
         v .:? "extra-features" .!= [] <*>
         v .:? "debug" .!= defaultDebug
     parseJSON _ = fail "Expected Object for Config value"
 
 defaultCompilerOptions :: CompilerOptions
-defaultCompilerOptions = CompilerOptions JsonGraph HM.empty [] defaultDebug
+defaultCompilerOptions = CompilerOptions HM.empty [] defaultDebug
 
 loadConfig :: (MonadIO m) => Maybe String -> m CompilerOptions
 loadConfig Nothing    = return defaultCompilerOptions
 loadConfig (Just ref) = decodeFileThrow ref
 
 validateConfig :: (MonadIO m, MonadError Error m) => CompilerOptions -> m ()
-validateConfig conf = do
+validateConfig conf =
     mapM_
         (\pathAndSuffix -> do
             let file = toFilePath pathAndSuffix
@@ -174,4 +160,4 @@ validateConfig conf = do
             then return ()
             else throwError $ "Configuration error: Module '" <> show file <> "' does not exist.")
         $ HM.toList $ compilationScope conf
-    return ()
+
