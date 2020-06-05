@@ -21,14 +21,14 @@ import qualified Data.HashMap.Lazy as HM
 import System.FilePath ((</>), splitDirectories, dropExtension)
 
 
-data Rust where
-    Rust :: Rust
-    Module :: (FilePath, SourceFile Span) -> Rust
+data RustLang where
+    Rust :: RustLang
+    Module :: (FilePath, SourceFile Span) -> RustLang
 
 toBinding :: Ident -> Binding
 toBinding Ident{name=n} = fromString n
 
-instance Integration Rust where
+instance Integration RustLang where
     frontend srcFile _ = do
         mod <- liftIO load
         ns <- extractNs mod
@@ -59,8 +59,6 @@ instance Integration Rust where
             extractImports :: CompM m => [Binding] -> UseTree Span -> m (NonEmpty Import)
             extractImports prefix (UseTreeSimple path (Just alias) _) = 
                 (:|[]) . flip Alias (toBinding alias) . makeThrow . (prefix <>) <$> toBindings path
-            extractImports prefix u@(UseTreeSimple _ Nothing _) = 
-                throwError $ "Empty 'use' detected. Impossible: This program certainly does not pass 'rustc'." <> show u
             extractImports prefix u@(UseTreeSimple path Nothing _) = do
                 bnds <- reverse <$> toBindings path
                 case bnds of
@@ -95,9 +93,9 @@ instance Integration Rust where
     backend algos (Module (path, SourceFile modName atts items)) =
         let algos' = HM.fromList $ map (\(Algo name expr) -> (name, expr)) algos
             src    = SourceFile modName atts $ map (replaceAlgo algos') items
-            render = encodeUtf8 . renderLazy . layoutSmart defaultLayoutOptions . pretty'
+            render = encodeUtf8 . (<> "\n") . renderLazy . layoutSmart defaultLayoutOptions . pretty'
             path' = path -- TODO verify this!
-        in return (path', render $ src <> "\n") :| []
+        in return $ (path', render src) :| []
         where
             replaceAlgo algos = \case
                     f@(Fn atts vis ident decl s c abi gen _ span) ->

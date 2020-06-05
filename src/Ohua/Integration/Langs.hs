@@ -15,10 +15,15 @@ module Ohua.Integration.Langs where
 
 import Ohua.Prelude
 
--- import Ohua.Integration.Go
+import Ohua.Compile.Types
 import Ohua.Integration.Rust
+-- import Ohua.Integration.Go
 
-definedIntegrations :: [(Text, Text, Integration lang)]
+data Integrated where
+    Integrated :: Integration lang => lang -> Integrated
+
+
+definedIntegrations :: [(Text, Text, Integrated)]
 definedIntegrations =
     [
     --  ( ".go"
@@ -27,11 +32,11 @@ definedIntegrations =
     --  )
      ( ".rs"
      , "Rust integration"
-     , Rust
+     , Integrated Rust
      )
     ]
 
-getIntegration :: Text -> Integration lang
+getIntegration :: Text -> Integrated
 getIntegration ext
     | Just a <- find ((== ext) . view _1) definedIntegrations = a ^. _3
     | otherwise =
