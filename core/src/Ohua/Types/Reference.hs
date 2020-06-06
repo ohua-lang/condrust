@@ -104,7 +104,7 @@ instance Make NSRef where
 
 instance Make HostExpr where
     make i
-        | i < 0 = throwErrorS $ "HostExpr cannot be < 0"
+        | i < 0 = throwErrorS "HostExpr cannot be < 0"
         | otherwise = pure $ unsafeMake i
 
 
@@ -133,7 +133,7 @@ instance IsString Binding where
 instance IsString QualifiedBinding where
     fromString s = case fromString s of
         Qual q   -> q
-        Unqual b -> error $ fromString $ "Encountered unqualified binding: " ++ (show b)
+        Unqual b -> error $ fromString $ "Encountered unqualified binding: " ++ show b
 
 instance IsString SomeBinding where
     fromString = either error id . symbolFromString . toText
