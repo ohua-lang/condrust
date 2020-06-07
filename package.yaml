@@ -58,6 +58,10 @@ dependencies:
 - mtl
 - monad-logger
 - safe-exceptions
+- template-haskell
+- th-lift-instances
+- text
+- vector
 
 library:
   source-dirs: src

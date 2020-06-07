@@ -1,5 +1,5 @@
 {-# LANGUAGE ConstraintKinds #-}
-module Ohua.Common.Types where
+module Ohua.Types.Computation where
 
 import Ohua.Prelude
 
