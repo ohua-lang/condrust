@@ -1,0 +1,74 @@
+name:                ohuac-commons
+version:             0.1.0.0
+github:              "sertel/ohuac-commons"
+license:             BSD3
+author:              "Sebastian Ertel"
+maintainer:          "sebastian.ertel@gmail.com"
+copyright:           "2020 Sebastian Ertel"
+
+extra-source-files:
+- README.md
+
+# Metadata used when publishing your package
+# synopsis:            Short description of your package
+# category:            Web
+
+# To avoid duplicated efforts in documentation and dealing with the
+# complications of embedding Haddock markup inside cabal files, it is
+# common to point users to the README.md file.
+description:         Please see the README on GitHub at <https://github.com/sertel/ohuac-commons#readme>
+
+default-extensions:
+- OverloadedStrings
+- OverloadedLists
+- MultiParamTypeClasses
+- FunctionalDependencies
+- TypeFamilies
+- GADTs
+- FlexibleContexts
+- FlexibleInstances
+- TypeSynonymInstances
+- LambdaCase
+- TupleSections
+- BangPatterns
+- ExplicitForAll
+- ScopedTypeVariables
+- DefaultSignatures
+- DeriveFunctor
+- DeriveFoldable
+- DeriveTraversable
+- DeriveGeneric
+- PatternSynonyms
+- NoImplicitPrelude
+- TypeApplications
+- NamedFieldPuns
+- RecordWildCards
+- RankNTypes
+- ViewPatterns
+- NoImplicitPrelude
+- StandaloneDeriving
+
+dependencies:
+- base >= 4.7 && < 5
+- universum >= 1.0 # on version 1.6.1
+- lens
+- generic-lens >= 1.0.0.2
+- data-default-class
+- monad-control
+- mtl
+- monad-logger
+- safe-exceptions
+
+library:
+  source-dirs: src
+
+tests:
+  ohuac-commons-test:
+    main:                Spec.hs
+    source-dirs:         test
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - ohuac-commons
