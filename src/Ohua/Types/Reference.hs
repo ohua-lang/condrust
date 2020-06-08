@@ -120,10 +120,10 @@ instance Plated NSRef where plate = gplate
 instance IsString Binding where
     fromString = makeThrow . toText
 
--- instance IsString QualifiedBinding where
---     fromString s = case fromString s of
---         Qual q   -> q
---         Unqual b -> error $ fromString $ "Encountered unqualified binding: " ++ show b
+instance IsString QualifiedBinding where
+    fromString s = case either error id $ symbolFromString $ toText s of
+        Left b -> error $ fromString $ "Encountered unqualified binding: " ++ show b
+        Right q -> q
 
 instance IsList NSRef where
     type Item NSRef = Binding
@@ -138,3 +138,32 @@ instance Num HostExpr where
     (*) = intentionally_not_implemented
     abs = intentionally_not_implemented
     signum = intentionally_not_implemented
+
+-- | Attempt to parse a string into either a binding or a
+-- qualified binding.  Assumes a form "name.space/value" for qualified
+-- bindings.
+symbolFromString :: MonadError Error m => Text -> m (Either Binding QualifiedBinding)
+symbolFromString s
+    | T.null s = throwError "Symbols cannot be empty"
+    | otherwise =
+        case T.break (== '/') s of
+            (symNs, slashName)
+                | T.null symNs ->
+                    throwError $
+                    "An unqualified name cannot start with a '/': " <> show s
+                | T.null slashName -> Left <$> make symNs
+                | Just ('/', symName) <- T.uncons slashName ->
+                    if | (== '/') `T.find` symName /= Nothing ->
+                           throwError $
+                           "Too many '/' delimiters found in the binding " <>
+                           show s
+                       | T.null symName ->
+                           throwError $
+                           "Name cannot be empty in the binding " <> show s
+                       | otherwise ->
+                           do nspace <- make =<< mapM make (T.split (== '.') symNs)
+                              bnd <- make symName
+                              pure $ Right $ QualifiedBinding nspace bnd
+            _ ->
+                throwError $
+                "Leading slash expected after `break` in the binding " <> show s

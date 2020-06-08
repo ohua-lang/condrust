@@ -4,6 +4,7 @@ module Ohua.Types
     , Binding
     , NSRef
     , QualifiedBinding(..)
+    , symbolFromString
     , HostExpr
     , FunRef(..)
     , Lit(..)
