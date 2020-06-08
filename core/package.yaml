@@ -7,7 +7,7 @@ description: |
   Resulting graphs can be executed by any runtime, regardles of platform or language
   that implements the ohua core operators and execution semantics.
 
-  For the standalone executable compiler see https://github.com/ohua-dev/ohuac
+  For the standalone executable compiler see https://github.com/sertel/ohuac
 category: Concurrency
 author:
 - Sebastian Ertel
@@ -33,6 +33,7 @@ dependencies:
 - universum >= 1.0 # on version 1.6.1
 - tardis
 - generic-lens >= 1.0.0.2
+- ohuac-commons
 default-extensions:
 - OverloadedStrings
 - OverloadedLists
@@ -74,39 +75,6 @@ when:
   - -Wredundant-constraints
 library:
   source-dirs: src
-  exposed-modules:
-  - Ohua.Compile
-  - Ohua.Compile.Configuration
-  - Ohua.Types
-  - Ohua.LensClasses
-  - Ohua.Monad
-  - Ohua.Prelude
-  - Ohua.ParseTools.Refs
-  - Ohua.ALang.Lang
-  - Ohua.ALang.Refs
-  - Ohua.ALang.PPrint
-  - Ohua.ALang.Passes
-  - Ohua.ALang.Passes.SSA
-  - Ohua.ALang.Passes.If
-  - Ohua.ALang.Passes.Smap
-  - Ohua.ALang.Passes.Control
-  - Ohua.ALang.Passes.Verify
-  - Ohua.ALang.Passes.Unit
-  - Ohua.ALang.Util
-  - Ohua.DFLang.Lang
-  - Ohua.DFLang.Refs
-  - Ohua.DFLang.Util
-  - Ohua.DFLang.Passes
-  - Ohua.DFLang.PPrint
-  - Ohua.DFGraph
-  - Ohua.DFGraph.Show
-  - Ohua.Serialize.JSON
-  - Ohua.Stage
-  - Ohua.Util
-  - Ohua.Unit
-  - Ohua.Feature.TailRec
-  - Ohua.Feature.TailRec.Passes.ALang
-  - Ohua.Feature.TailRec.Passes.DFLang
   dependencies:
   - transformers
   - unordered-containers

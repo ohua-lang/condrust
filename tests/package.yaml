@@ -23,6 +23,7 @@ dependencies:
 - ohua-test-tools
 - comonad
 - recursion-schemes
+- ohuac-commons
 default-extensions:
 - OverloadedStrings
 - OverloadedLists

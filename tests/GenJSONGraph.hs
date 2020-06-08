@@ -1,10 +1,10 @@
-import Ohua.Prelude
+import Ohua.Core.Prelude
 
 import           Data.Aeson
 import qualified Data.ByteString.Lazy as L
-import           Ohua.DFGraph
-import           Ohua.Serialize.JSON  ()
-import           Ohua.Types.Arbitrary ()
+import           Ohua.Core.DFGraph
+import           Ohua.Core.Serialize.JSON  ()
+import           Ohua.Core.Types.Arbitrary ()
 import           Test.QuickCheck
 
 

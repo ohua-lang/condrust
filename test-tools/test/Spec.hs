@@ -6,12 +6,12 @@ import Control.Exception (evaluate)
 import Test.Hspec
 import Test.Hspec.QuickCheck
 
-import Ohua.Test
-import Ohua.DFLang.Parser
-import Ohua.DFLang.Lang
-import Ohua.ALang.PPrint
-import Ohua.DFLang.PPrint ()
-import Ohua.Types.Arbitrary
+import Ohua.Core.Test
+import Ohua.Core.DFLang.Parser
+import Ohua.Core.DFLang.Lang
+import Ohua.Core.ALang.PPrint
+import Ohua.Core.DFLang.PPrint ()
+import Ohua.Core.Types.Arbitrary
 
 dfLangParserPPrinterSpec :: Spec
 dfLangParserPPrinterSpec =
