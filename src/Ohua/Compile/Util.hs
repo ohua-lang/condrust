@@ -15,15 +15,6 @@ module Ohua.Compile.Util where
 
 import Ohua.Prelude
 
-import qualified Data.Text as T (unpack, pack, intercalate)
-import System.FilePath.Posix (pathSeparator, addExtension)
-
-
-nsToFilePath :: NSRef -> FilePath
-nsToFilePath = T.unpack . (T.intercalate $ T.pack [pathSeparator]) . (map unwrap) . unwrap 
-
-toFilePath :: (NSRef, Text) -> FilePath
-toFilePath (nsRef, suffix) = addExtension (nsToFilePath nsRef) $ T.unpack suffix
 
 runExceptM :: ExceptT Error IO a -> IO a
 runExceptM c = runExceptT c >>= either error pure

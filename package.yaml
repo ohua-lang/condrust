@@ -39,6 +39,7 @@ default-extensions:
 - StandaloneDeriving
 dependencies:
 - base
+- ohuac-commons
 - ohua-frontend
 - ohua-core >= 0.3.0
 - ohua-backend

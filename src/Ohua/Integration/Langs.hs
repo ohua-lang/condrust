@@ -19,6 +19,8 @@ import Ohua.Compile.Types
 import Ohua.Integration.Rust
 -- import Ohua.Integration.Go
 
+
+-- I needed this to construct the below heterogeneous list.
 data Integrated where
     Integrated :: Integration lang => lang -> Integrated
 
