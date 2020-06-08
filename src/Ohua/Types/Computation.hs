@@ -17,3 +17,13 @@ type CompM m =
      , MonadLogger m
      , MonadLoggerIO m
      )
+
+runCompM :: LogLevel -> ExceptT Error (LoggingT IO) a -> IO a
+runCompM targetLevel c =
+    runStderrLoggingT $
+    filterLogger (\_ level -> level >= targetLevel) $
+    runExceptT c >>= either exitError pure
+  where
+    exitError message = do
+        logErrorN message
+        exitFailure
