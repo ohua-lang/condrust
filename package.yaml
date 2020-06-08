@@ -22,17 +22,16 @@ description:         Please see the README on GitHub at <https://github.com/sert
 dependencies:
 - base >= 4.8 && < 5
 - text
-- mtl
 - containers
-- universum >= 1.0
-- ohua-core
-# - ohuac-commons
-- monad-control
+- ohuac-commons
 - extra
 - language-rust
 - lens
 - recursion-schemes
 - unordered-containers
+- filepath
+- directory
+- bytestring
 
 default-extensions:
 - OverloadedStrings

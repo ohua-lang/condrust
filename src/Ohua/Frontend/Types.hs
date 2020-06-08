@@ -2,14 +2,16 @@ module Ohua.Frontend.Types where
 
 import Ohua.Prelude
 
-import Ohua.Types (Error)
-import Control.Monad.Trans.Control (MonadBaseControl) -- TODO find out if this is really needed
+import Ohua.Frontend.Lang
+import System.FilePath
+import qualified Data.HashMap.Lazy as HM
 
--- TODO Put into common place and reuse throughout frontend, middle-end, backend.
-type CompM m = 
-     ( MonadIO m
-     , MonadBaseControl IO m
-     , MonadError Error m
-     , MonadLogger m
-     , MonadLoggerIO m
-     )
+class Integration lang where
+    frontend :: CompM m => FilePath -> lang -> m (lang, Namespace Expr)
+
+
+type LanguageFileSuffix = Text
+type CompilationScope = HM.HashMap NSRef LanguageFileSuffix
+
+-- | This registers all algos used in a given namespace with their qualified names.
+type NamespaceRegistry = HM.HashMap QualifiedBinding Expr

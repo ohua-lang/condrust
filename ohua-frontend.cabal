@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 1789d87f2930ac0c7e244404628e49bb172a47d0c6faee381f666d9e2aea4441
+-- hash: e440a3148902098733e7ef0abfe8f0426bde999b00260976b13d79132ab95499
 
 name:           ohua-frontend
 version:        0.1.0.0
@@ -27,11 +27,16 @@ source-repository head
 
 library
   exposed-modules:
+      Ohua.Frontend
       Ohua.Frontend.Convert
       Ohua.Frontend.Convert.Rust
       Ohua.Frontend.Lang
-      Ohua.Frontend.Lower
-      Ohua.Frontend.Transform
+      Ohua.Frontend.Transform.Calls
+      Ohua.Frontend.Transform.Envs
+      Ohua.Frontend.Transform.FinalUnit
+      Ohua.Frontend.Transform.Load
+      Ohua.Frontend.Transform.Maps
+      Ohua.Frontend.Transform.Resolve
       Ohua.Frontend.Types
   other-modules:
       Paths_ohua_frontend
@@ -40,16 +45,16 @@ library
   default-extensions: OverloadedStrings OverloadedLists MultiParamTypeClasses FunctionalDependencies TypeFamilies GADTs FlexibleContexts FlexibleInstances TypeSynonymInstances LambdaCase TupleSections BangPatterns ExplicitForAll ScopedTypeVariables DefaultSignatures DeriveFunctor DeriveFoldable DeriveTraversable DeriveGeneric PatternSynonyms NamedFieldPuns RecordWildCards ConstraintKinds StandaloneDeriving NoImplicitPrelude RankNTypes ViewPatterns
   build-depends:
       base >=4.8 && <5
+    , bytestring
     , containers
+    , directory
     , extra
+    , filepath
     , language-rust
     , lens
-    , monad-control
-    , mtl
-    , ohua-core
+    , ohuac-commons
     , recursion-schemes
     , text
-    , universum >=1.0
     , unordered-containers
   default-language: Haskell2010
 
@@ -65,17 +70,17 @@ test-suite ohua-frontend-test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
   build-depends:
       base >=4.8 && <5
+    , bytestring
     , containers
+    , directory
     , extra
+    , filepath
     , hspec
     , language-rust
     , lens
-    , monad-control
-    , mtl
-    , ohua-core
     , ohua-frontend
+    , ohuac-commons
     , recursion-schemes
     , text
-    , universum >=1.0
     , unordered-containers
   default-language: Haskell2010
