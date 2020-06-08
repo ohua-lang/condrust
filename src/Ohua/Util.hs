@@ -1,6 +1,6 @@
 module Ohua.Util
     ( 
-    intentionally_not_implemented
+      intentionally_not_implemented
     ) where
 
 import Universum

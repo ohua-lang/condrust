@@ -1,7 +1,10 @@
 {-# LANGUAGE ConstraintKinds #-}
 module Ohua.Types.Computation where
 
-import Ohua.Prelude
+import Universum
+
+import Control.Monad.Logger
+import Control.Monad.Error.Class hiding (Error)
 
 import Control.Monad.Trans.Control (MonadBaseControl) -- TODO find out if this is really needed
 

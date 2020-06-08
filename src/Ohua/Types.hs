@@ -1,5 +1,6 @@
 module Ohua.Types
-    ( FnId
+    ( CompM
+    , FnId
     , Binding
     , NSRef
     , QualifiedBinding(..)
@@ -7,6 +8,7 @@ module Ohua.Types
     , FunRef(..)
     , Lit(..)
     , Error
+    , module Ohua.Types.Integration
 
     -- * Creating and inspecting values
     , SourceType
@@ -21,6 +23,7 @@ module Ohua.Types
     ) where
 
 import Ohua.Types.Computation
+import Ohua.Types.Integration
 import Ohua.Types.Literal
 import Ohua.Types.Make
 import Ohua.Types.Reference
