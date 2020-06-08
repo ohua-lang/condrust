@@ -25,7 +25,6 @@ dependencies:
 - containers
 - ohuac-commons
 - extra
-- language-rust
 - lens
 - recursion-schemes
 - unordered-containers

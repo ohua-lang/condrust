@@ -8,13 +8,13 @@ import Ohua.Frontend.Types
 import qualified Data.HashMap.Strict as HM
 import qualified Data.ByteString.Lazy.Char8 as L
 import qualified Data.Text as T
-import System.FilePath as Path ((<.>), takeExtension)
+import System.FilePath as Path ((<.>), takeExtension, joinPath)
 import System.Directory (doesFileExist)
-import System.FilePath.Posix (pathSeparator, addExtension)
+import System.FilePath.Posix (addExtension)
 
 
 nsToFilePath :: NSRef -> FilePath
-nsToFilePath = T.unpack . T.intercalate (T.pack [pathSeparator]) . map unwrap . unwrap 
+nsToFilePath = joinPath . map (T.unpack . unwrap) . unwrap 
 
 toFilePath :: (NSRef, Text) -> FilePath
 toFilePath (nsRef, suffix) = addExtension (nsToFilePath nsRef) $ T.unpack suffix
