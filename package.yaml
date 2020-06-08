@@ -26,7 +26,6 @@ dependencies:
 - containers
 - ohuac-commons
 - extra
-- language-rust
 - filepath
 - bytestring
 default-extensions:
@@ -70,6 +69,6 @@ tests:
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
-    - o4a-ohua-backend
+    - ohua-backend
     - hspec
     - language-rust
