@@ -23,7 +23,7 @@ import qualified Data.HashMap.Lazy as HM
 instance Integration RustLang where
     -- | This is a single file backend.
     -- FIXME The type class does not define the dependency properly via its type.
-    backend _ Rust = throwError "This is simply a weakness in the interface! It should not be possible to call this function without calling 'frontend'. This is always a bug. Please report."
+    backend _ Empty = throwError "This is simply a weakness in the interface! It should not be possible to call this function without calling 'frontend'. This is always a bug. Please report."
     backend ns (Module (path, SourceFile modName atts items)) =
         let algos' = HM.fromList $ map (\(Algo name expr) -> (name, expr)) $ ns^.algos
             src    = SourceFile modName atts $ map (replaceAlgo algos') items

@@ -4,6 +4,4 @@ import System.FilePath
 import Language.Rust.Syntax hiding (Rust)
 import Language.Rust.Parser ( Span )
 
-data RustLang where
-    Rust :: RustLang
-    Module :: (FilePath, SourceFile Span) -> RustLang
+data RustLang = Empty | Module (FilePath, SourceFile Span)
