@@ -1,0 +1,75 @@
+name:                ohuac-integrations
+version:             0.1.0.0
+github:              "sertel/ohuac-integrations"
+license:             BSD3
+author:              "Sebastian Ertel"
+maintainer:          "sebastian.ertel@gmail.com"
+copyright:           "2020 Sebastian Ertel"
+
+extra-source-files:
+- README.md
+
+# Metadata used when publishing your package
+# synopsis:            Short description of your package
+# category:            Web
+
+# To avoid duplicated efforts in documentation and dealing with the
+# complications of embedding Haddock markup inside cabal files, it is
+# common to point users to the README.md file.
+description:         Please see the README on GitHub at <https://github.com/sertel/ohuac-integrations#readme>
+
+dependencies:
+- base >= 4.7 && < 5
+- ohuac-commons
+- ohua-frontend
+- ohua-backend
+- filepath
+- bytestring
+- language-rust
+- unordered-containers
+- text
+- prettyprinter
+
+default-extensions:
+- OverloadedStrings
+- OverloadedLists
+- MultiParamTypeClasses
+- FunctionalDependencies
+- TypeFamilies
+- GADTs
+- FlexibleContexts
+- FlexibleInstances
+- TypeSynonymInstances
+- LambdaCase
+- TupleSections
+- BangPatterns
+- ExplicitForAll
+- ScopedTypeVariables
+- DefaultSignatures
+- DeriveFunctor
+- DeriveFoldable
+- DeriveTraversable
+- DeriveGeneric
+- PatternSynonyms
+- NoImplicitPrelude
+- TypeApplications
+- NamedFieldPuns
+- RecordWildCards
+- RankNTypes
+- ViewPatterns
+- NoImplicitPrelude
+- StandaloneDeriving
+
+library:
+  source-dirs: src
+
+tests:
+  ohuac-integrations-test:
+    main:                Spec.hs
+    source-dirs:         test
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - ohuac-integrations

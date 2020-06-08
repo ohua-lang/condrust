@@ -1,0 +1,4 @@
+.stack-work/
+*~
+ohuac-integrations.cabal
+stack.yaml.lock
