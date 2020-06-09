@@ -4,7 +4,7 @@ import Universum
 
 import Control.Monad.Error.Class (MonadError)
 
-import Ohua.Types.Computation
+import Ohua.Types.Error
 
 type family SourceType t
 

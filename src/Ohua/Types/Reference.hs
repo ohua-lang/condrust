@@ -15,7 +15,7 @@ import Ohua.LensClasses
 
 import Ohua.Util
 
-import Ohua.Types.Computation
+import Ohua.Types.Error
 import Ohua.Types.Make
 
 -- | A binding name

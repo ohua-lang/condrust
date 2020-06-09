@@ -1,21 +1,34 @@
 {-# LANGUAGE ConstraintKinds #-}
-module Ohua.Types.Computation where
+module Ohua.Types.Computation
+    ( MonadGenBnd(generateBinding, generateBindingWith)
+    , MonadIO(liftIO)
+    , MonadError(throwError, catchError)
+    , MonadLogger, LoggingT, runStderrLoggingT, runLoggingT, filterLogger
+    , MonadLoggerIO(askLoggerIO)
+    , LogLevel(..), LogSource, logDebugN, logInfoN
+    , logWarnN, logErrorN, logOtherN
+    , CompM
+    -- ** Helper functions for building instances of 'MonadGenBnd'
+    , GenBndT, runGenBndT
+    , generateBindingIn, generateBindingWithIn
+    , generateBindingFromGenerator, generateBindingFromGeneratorWith
+    , initNameGen
+    ) where
 
 import Universum
 
 import Control.Monad.Logger
 import Control.Monad.Error.Class hiding (Error)
 
-import Control.Monad.Trans.Control (MonadBaseControl) -- TODO find out if this is really needed
+import Ohua.Internal.Monad
+import Ohua.Types.Error
 
-type Error = Text
 
 type CompM m = 
      ( MonadIO m
-     , MonadBaseControl IO m
+     , MonadGenBnd m
      , MonadError Error m
      , MonadLogger m
-     , MonadLoggerIO m
      )
 
 runCompM :: LogLevel -> ExceptT Error (LoggingT IO) a -> IO a

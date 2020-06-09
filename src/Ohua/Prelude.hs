@@ -24,7 +24,6 @@ module Ohua.Prelude
     , module Data.Generics.Product
     , module Ohua.Types
     , module Ohua.LensClasses
-    -- , module Ohua.Monad
     , module Control.Monad.Error.Class
     , module Control.Monad.Logger
     , module Ohua.Util
@@ -33,7 +32,6 @@ module Ohua.Prelude
     ) where
 
 import Ohua.Types
--- import Ohua.Monad
 import Control.Monad.Error.Class (MonadError, catchError, throwError)
 import Control.Monad.Logger
 import Ohua.Util
