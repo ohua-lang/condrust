@@ -9,10 +9,10 @@ import qualified Data.HashSet as HS
 import GHC.Exts
 
 import Ohua.Frontend.Lang
-import Ohua.ALang.Lang hiding (Expr, ExprF)
-import qualified Ohua.ALang.Lang as AL
-import qualified Ohua.ALang.Refs as ARefs
-import Ohua.ParseTools.Refs (ifBuiltin, mkTuple, smapBuiltin, seqBuiltin)
+import Ohua.Core.ALang.Lang hiding (Expr, ExprF)
+import qualified Ohua.Core.ALang.Lang as AL
+import qualified Ohua.Core.ALang.Refs as ARefs
+import Ohua.Core.ParseTools.Refs (ifBuiltin, mkTuple, smapBuiltin, seqBuiltin)
 
 
 -- | Not sure this traversal is necessary, but it makes every smap argument into

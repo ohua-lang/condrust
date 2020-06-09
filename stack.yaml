@@ -1,8 +1,12 @@
 resolver: lts-14.22 # ghc-8.6.5
+
 packages:
 - .
 
 extra-deps:
+  #- git: https://github.com/sertel/ohuac-commons
+  #  commit: ???
+  - ../ohuac-commons # debugging
   #- git: https://github.com/sertel/ohua-frontend
   #  commit: ???
   - ../ohua-frontend # debugging
@@ -13,14 +17,17 @@ extra-deps:
   #- git: https://github.com/sertel/ohua-backend
   #  commit: ???
   - ../ohua-backend # debugging
+  #- git: https://github.com/sertel/ohuac-integrations
+  #  commit: ???
+  - ../ohuac-integrations # debugging
 
-  ### integration deps:
-  # - language-rust-0.2.0.27@sha256:d96ec43076689ca8932a78b523b668de30a6b1f3b4fb6386017732028e591da7,6835
-  - git: https://github.com/harpocrates/language-rust
+  # for reproducibility reasons, stack requires me to specify this again here.
+  # TODO Is there a way that I can tell stack that it should use the version specified in ohuac-integrations?
+  - github: harpocrates/language-rust
     commit: 9d509c450d009cc99f1180b3f2f30247dfb1cfce
-
 
 flags:
   ohua-core:
     debug: true
+
 extra-package-dbs: []

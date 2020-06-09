@@ -14,35 +14,24 @@ module Ohua.Compile.Compiler where
 
 import Ohua.Prelude
 
-import Control.Monad.RWS (tell, evalRWS)
-import qualified Data.ByteString.Lazy.Char8 as L
-import Data.Functor.Foldable hiding (fold)
-import qualified Data.HashMap.Strict as HM
-import Data.List (partition)
-import Data.List.NonEmpty as NE (fromList)
-import qualified Data.HashSet as Set
-import qualified Data.Text as T
-import Control.Lens (each, view, (%~), (^?), ix)
-
-import Ohua.ALang.Lang as ALang
-import qualified Ohua.Frontend.Lang as FrLang
 import Ohua.Frontend as Fr (frontend)
-import Ohua.Frontend.Lower (toAlang)
+import Ohua.Frontend.Types (CompilationScope)
+import Ohua.Core.Types.Environment (Options)
+import Ohua.Core.Compile.Configuration as CoreConfig
+import Ohua.Core.Compile as Core (compile)
+import Ohua.Core.Unit (cleanUnits)
+import Ohua.Backend as B (backend)
+import Ohua.Compile.Lower.FrLang (toAlang)
+import Ohua.Compile.Lower.DFLang (toTCLang)
 
--- FIXME the namespaces are broken here! this should be: Ohua.Core.Compile
-import qualified Ohua.Compile as OhuaCore (compile)
-import qualified Ohua.Compile.Configuration as OhuaCoreConfig (passAfterDFLowering)
 import Ohua.Compile.Config
-import Ohua.Unit (cleanUnits)
-import Ohua.Integration.Langs
-import Ohua.Compile.Types
+import Ohua.Integration
 
+import System.FilePath
 
-compile :: 
-    ( CompM m
-    , MonadReader (StageHandling, Bool) m ) 
-    => FilePath -> CompilationScope -> FilePath -> m ()
-compile inFile compScope outDir = do
+compile :: CompM m 
+    => FilePath -> CompilationScope -> Options -> FilePath -> m ()
+compile inFile compScope coreOpts outDir = do
     -- composition:
     let lang = getIntegration (toText $ takeExtension inFile)
 
@@ -53,21 +42,18 @@ compile inFile compScope outDir = do
         mapM 
             (\algo -> 
                 (algo,) <$> 
-                ohuaCoreCompilation $
+                core $
                 toAlang -- lower into ALang
                 (algo^.algoCode))
             $ ns^.algos
     -- backend 
     B.backend compiledAlgos lang
     where
-        core stageHandlings tailRecSupport expr = do
-            (stageHandlings, tailRecSupport) <- ask
+        core expr = do
             alangExpr <- runGenBndT mempty expr
-            OhuaCore.compile
-                (def 
-                    & stageHandling .~ stageHandlings
-                    & transformRecursiveFunctions .~ tailRecSupport)
-                (def {OhuaCoreConfig.passAfterDFLowering = cleanUnits})
+            Core.compile
+                coreOpts
+                (def {CoreConfig.passAfterDFLowering = cleanUnits})
                 alangExpr
 
 

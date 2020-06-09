@@ -37,22 +37,21 @@ default-extensions:
 - ViewPatterns
 - NoImplicitPrelude
 - StandaloneDeriving
+
 dependencies:
 - base
 - ohuac-commons
 - ohua-frontend
 - ohua-core >= 0.3.0
 - ohua-backend
+- ohuac-integrations
 - bytestring
-- aeson
 - filepath
 - directory
-- template-haskell
 - unordered-containers
 - lens
-- monad-control
-- language-rust
-- prettyprinter
+- extra
+
 library:
   source-dirs: src
   dependencies:

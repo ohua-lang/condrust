@@ -33,8 +33,9 @@ module Ohua.Compile.Config where
 import Ohua.Prelude
 import qualified Prelude as P (Show, show)
 
-import Ohua.Compile.Types
-import Ohua.Compile.Util (toFilePath)
+import Ohua.Core.Types.Stage
+import Ohua.Core.Types.Environment (Options, stageHandling, transformRecursiveFunctions)
+import Ohua.Frontend.Types (CompilationScope)
 
 import qualified Data.Text as T (Text, unpack, pack, intercalate)
 import qualified Data.Yaml as Y
@@ -42,6 +43,7 @@ import Data.Yaml (FromJSON(..), (.:), (.:?), (.!=), decodeFileThrow)
 import Data.ByteString (ByteString)
 import qualified Data.HashMap.Strict as HM
 import Control.Applicative
+import System.FilePath (joinPath, addExtension)
 import System.FilePath.Posix (splitDirectories, splitExtension)
 import System.Directory (doesFileExist)
 
@@ -150,6 +152,12 @@ loadConfig :: (MonadIO m) => Maybe String -> m CompilerOptions
 loadConfig Nothing    = return defaultCompilerOptions
 loadConfig (Just ref) = decodeFileThrow ref
 
+extractCoreOptions :: CompilerOptions -> Options
+extractCoreOptions CompilerOptions {..} = 
+    (def 
+        & stageHandling .~ (stageHandlingOpt debug)
+        & transformRecursiveFunctions .~ ("tail-recursion" `elem` extraFeatures))
+
 validateConfig :: (MonadIO m, MonadError Error m) => CompilerOptions -> m ()
 validateConfig conf =
     mapM_
@@ -160,4 +168,7 @@ validateConfig conf =
             then return ()
             else throwError $ "Configuration error: Module '" <> show file <> "' does not exist.")
         $ HM.toList $ compilationScope conf
+    where
+        nsToFilePath = joinPath . map (T.unpack . unwrap) . unwrap
+        toFilePath (nsRef, suffix) = addExtension (nsToFilePath nsRef) $ T.unpack suffix
 

@@ -1,4 +1,3 @@
-{-# LANGUAGE TemplateHaskell, CPP #-}
 module Main where
 
 import Ohua.Prelude
@@ -25,6 +24,9 @@ data CommonCmdOpts = CommonCmdOpts
     , config :: Maybe FilePath
     }
 
+runExceptM :: ExceptT Error IO a -> IO a
+runExceptM c = runExceptT c >>= either error pure
+
 main :: IO ()
 main = do
     opts <- execParser odef
@@ -35,15 +37,11 @@ main = do
                 ("Compiled at " <>
                  $(LitE . StringL . show <$> liftIO getCurrentTime) :: Text)
         Build CommonCmdOpts {..} -> do
-            CompilerOptions {..} <- runExceptM $ loadConfig config
-            runCompM (logLevel debug)
-                $ flip runReaderT 
-                    -- TODO just pass in the configuration
-                    ( stageHandlingOpt debug
-                    , "tail-recursion" `elem` extraFeatures
-                    , outputFormat
-                    ) 
-                    $ compile inputModuleFile compilationScope outputPath
+            opts@CompilerOptions {..} <- runExceptM $ loadConfig config
+            let coreOpts = extractCoreOptions opts
+            runCompM 
+                (logLevel debug)
+                $ compile inputModuleFile compilationScope coreOpts outputPath
   where
     odef =
         info

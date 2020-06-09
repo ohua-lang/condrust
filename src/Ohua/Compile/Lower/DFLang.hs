@@ -2,9 +2,9 @@ module Ohua.Compile.Lower.DFLang where
 
 import Ohua.Prelude
 
-import Ohua.DFLang.Lang
-import Ohua.DFLang.Util
-import Ohua.DFGraph
+import Ohua.Core.DFLang.Lang
+import Ohua.Core.DFLang.Util
+import Ohua.Core.DFGraph
 import Ohua.Backend.Lang
 import Ohua.Backend.Types
 
@@ -12,8 +12,8 @@ import Data.Maybe
 import Control.Monad.Extra (maybeM)
 
 
-genCode :: CompM m => DFExpr -> m TCExpr
-genCode graph = do
+toTCLang :: CompM m => DFExpr -> m TCExpr
+toTCLang graph = do
     -- TODO generate code for Ohua ops (ctrls, recurs, nths) if necessary
     nodesCode <- generateNodesCode graph
     let arcsCode = generateArcsCode graph
