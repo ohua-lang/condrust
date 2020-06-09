@@ -38,7 +38,6 @@ module Ohua.Core.Types
     , OhuaState
     , nameGenerator
     , idCounter
-    , envExpressions
     , Annotated(Annotated)
     , TyExpr(TyApp, TyRef)
     , TyExprF(..)

@@ -204,11 +204,7 @@ import Ohua.Core.Prelude
 
 import qualified Data.Text.Prettyprint.Doc as PP
 
-import Control.Monad.Writer
-import Data.Functor.Foldable
 import qualified Data.HashSet as HS
-import qualified Data.List.NonEmpty as NE
-import qualified Data.Text as T
 
 import Ohua.Core.ALang.Lang
 import Ohua.Core.ALang.PPrint (quickRender)
@@ -221,8 +217,7 @@ import Ohua.Core.ALang.Util
     , mkDestructured
     )
 import qualified Ohua.Core.DFLang.Refs as DFRefs
-import Ohua.Core.Compile.Configuration
-import Ohua.Core.Unit
+
 
 --  ==== Implementation starts here
 

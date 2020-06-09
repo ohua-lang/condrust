@@ -32,11 +32,12 @@ import qualified Ohua.Core.DFLang.Verify
 import Ohua.Core.Stage
 import Ohua.Core.Feature.TailRec.Passes.ALang (y)
 
+
 forceLog :: (MonadLogger m, NFData a) => Text -> a -> m ()
 forceLog msg a = a `deepseq` logDebugN msg
 
 -- | The canonical order of transformations and lowerings performed in a full compilation.
-pipeline :: CustomPasses env -> Expression -> OhuaM env DFExpr
+pipeline :: CustomPasses -> Expression -> OhuaM DFExpr
 pipeline CustomPasses {..} e = do
     stage resolvedAlang e
     ssaE <- performSSA e
@@ -65,14 +66,14 @@ pipeline CustomPasses {..} e = do
     whenDebug $ Ohua.Core.DFLang.Passes.checkSSAExpr coreDfE
     pure coreDfE
 
-pipeline' :: CustomPasses env -> Expression -> OhuaM env OutGraph
+pipeline' :: CustomPasses -> Expression -> OhuaM OutGraph
 pipeline' passes e = toGraph <$> pipeline passes e
 
 -- | Run the pipeline in an arbitrary monad that supports error reporting.
 compile ::
        (MonadError Error m, MonadLoggerIO m)
     => Options
-    -> CustomPasses env
+    -> CustomPasses
     -> Expression
     -> m DFExpr
 compile opts passes exprs = do

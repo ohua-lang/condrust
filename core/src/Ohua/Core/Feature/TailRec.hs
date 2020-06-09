@@ -10,7 +10,7 @@ import Ohua.Core.Feature.TailRec.Passes.ALang
 import Ohua.Core.Feature.TailRec.Passes.DFLang
 
 
-loadTailRecPasses :: Bool -> CustomPasses env -> CustomPasses env
+loadTailRecPasses :: Bool -> CustomPasses -> CustomPasses
 loadTailRecPasses enabled passes =
     passes
         { passBeforeNormalize =

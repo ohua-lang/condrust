@@ -22,7 +22,6 @@ module Ohua.Core.ALang.Passes where
 
 import Ohua.Core.Prelude
 
-import Control.Comonad (extract)
 import Control.Monad.RWS.Lazy (evalRWST)
 import Control.Monad.Writer (listen, runWriter, tell)
 import Data.Functor.Foldable

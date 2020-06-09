@@ -6,9 +6,6 @@ module Ohua.Core.Monad
     ( OhuaM, runFromExpr, runFromBindings
     , MonadGenId(generateId, resetIdCounter)
     , MonadGenBnd(generateBinding, generateBindingWith)
-    , HasEnvExpr(EnvExpr)
-    , MonadReadEnvExpr(lookupEnvExpr), getEnvExpr
-    , MonadRecordEnvExpr(addEnvExpression)
     , MonadReadEnvironment(getEnvironment), fromEnv
     , MonadIO(liftIO)
     , MonadError(throwError, catchError), failWith

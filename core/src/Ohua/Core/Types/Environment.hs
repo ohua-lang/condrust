@@ -4,7 +4,6 @@ module Ohua.Core.Types.Environment where
 import Ohua.Prelude
 
 import Control.Lens.TH
-import qualified Data.Vector as V
 
 import Ohua.Core.Types.Stage
 
@@ -25,20 +24,19 @@ declareLenses [d|
 
 -- | State of the ohua compiler monad.
 declareLenses [d|
-    data OhuaState envExpr = OhuaState
+    data OhuaState = OhuaState
         { nameGenerator :: !NameGenerator
         , idCounter :: !FnId
-        , envExpressions :: !(V.Vector envExpr)
         }
   |]
 
 
-type instance SourceType (OhuaState envExpr) =
-     (NameGenerator, FnId, V.Vector envExpr)
+type instance SourceType OhuaState =
+     (NameGenerator, FnId)
 
 
-instance Make (OhuaState envExpr) where
-    make (ng, fnid, exprs) = pure $ OhuaState ng fnid exprs
+instance Make OhuaState where
+    make (ng, fnid) = pure $ OhuaState ng fnid
 
 
 instance Default Options where

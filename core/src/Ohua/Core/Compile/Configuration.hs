@@ -5,14 +5,14 @@ import Ohua.Core.Prelude
 import Ohua.Core.ALang.Lang
 import Ohua.Core.DFLang.Lang
 
-data CustomPasses env = CustomPasses
-  { passBeforeNormalize  :: Expression -> OhuaM env Expression
-  , passAfterNormalize  :: Expression -> OhuaM env Expression
-  , passAfterDFLowering :: DFExpr -> OhuaM env DFExpr
+data CustomPasses = CustomPasses
+  { passBeforeNormalize  :: Expression -> OhuaM Expression
+  , passAfterNormalize  :: Expression -> OhuaM Expression
+  , passAfterDFLowering :: DFExpr -> OhuaM DFExpr
   }
 
-noCustomPasses :: CustomPasses env
+noCustomPasses :: CustomPasses
 noCustomPasses = CustomPasses pure pure pure
 
-instance Default (CustomPasses env) where
+instance Default CustomPasses where
   def = noCustomPasses
