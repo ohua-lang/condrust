@@ -10,6 +10,10 @@ module Ohua.Types
     , Lit(..)
     , Error
     , module Ohua.Types.Integration
+    , StageHandling
+    , StageName
+    , AbortCompilation
+    , DumpCode(..)
 
     -- * Creating and inspecting values
     , SourceType
@@ -28,3 +32,4 @@ import Ohua.Types.Integration
 import Ohua.Types.Literal
 import Ohua.Types.Make
 import Ohua.Types.Reference
+import Ohua.Types.Stage

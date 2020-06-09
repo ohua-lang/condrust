@@ -62,6 +62,9 @@ dependencies:
 - th-lift-instances
 - text
 - vector
+- unordered-containers
+- fast-logger
+- bytestring
 
 library:
   source-dirs: src
