@@ -22,7 +22,6 @@ import qualified Control.Monad.State.Lazy
 import qualified Control.Monad.State.Strict
 import Control.Monad.Writer (WriterT)
 import qualified Data.HashSet as HS
-import qualified Data.Text as T
 import qualified Data.Vector as V
 import Control.Lens
 import Control.Lens.Operators ((%=), (.=))
@@ -31,7 +30,7 @@ import Ohua.Core.Types as Ty
 import Ohua.Core.ALang.Lang
 
 
--- The compiler monad.
+-- The core compiler monad.
 -- Encapsulates the state necessary to generate bindings
 -- Allows IO actions.
 -- In development this collects errors via a MonadWriter, in production this collection will
@@ -48,77 +47,9 @@ newtype OhuaM env a = OhuaM
                , MonadLoggerIO
                )
 
-class Monad m => MonadGenBnd m where
-    generateBinding :: m Binding
-    default generateBinding :: (MonadGenBnd n, MonadTrans t, t n ~ m) =>
-        m Binding
-    generateBinding = lift generateBinding
-    generateBindingWith :: Binding -> m Binding
-    default generateBindingWith :: ( MonadGenBnd n
-                                   , MonadTrans t
-                                   , t n ~ m
-                                   ) =>
-        Binding -> m Binding
-    generateBindingWith = lift . generateBindingWith
-
-deepseqM :: (Monad m, NFData a) => a -> m ()
-deepseqM a = a `deepseq` pure ()
-
 instance MonadGenBnd (OhuaM env) where
     generateBinding = OhuaM $ generateBindingIn nameGenerator
     generateBindingWith = OhuaM . generateBindingWithIn nameGenerator
-
-generateBindingFromGenerator :: NameGenerator -> (Binding, NameGenerator)
-generateBindingFromGenerator g = (h, g')
-  where
-    taken = g ^. takenNames
-    (h, t) =
-        case dropWhile (`HS.member` taken) (g ^. simpleNameList) of
-            (x:xs) -> (x, xs)
-            [] -> error "Simple names is empty, this should be impossible"
-    g' = g & simpleNameList .~ t & takenNames %~ HS.insert h
-
-generateBindingFromGeneratorWith ::
-       Binding -> NameGenerator -> (Binding, NameGenerator)
-generateBindingFromGeneratorWith prefixBnd g = (h, g')
-  where
-    prefix = unwrap prefixBnd
-    taken = g ^. takenNames
-    prefix' = prefix <> "_"
-    h = fromMaybe (error "IMPOSSIBLE") $
-        safeHead $
-        dropWhile (`HS.member` taken) $
-        map (makeThrow . (prefix' <>) . show) ([0 ..] :: [Int])
-    g' = g & takenNames %~ HS.insert h
-
-generateBindingIn :: MonadState s m => Lens' s NameGenerator -> m Binding
-generateBindingIn accessor = do
-    (bnd, gen') <- generateBindingFromGenerator <$> use accessor
-    accessor .= gen'
-    pure bnd
-
-generateBindingWithIn ::
-       MonadState s m => Lens' s NameGenerator -> Binding -> m Binding
-generateBindingWithIn accessor prefix = do
-    (bnd, gen') <- generateBindingFromGeneratorWith prefix <$> use accessor
-    accessor .= gen'
-    pure bnd
-
-instance (MonadGenBnd m, Monad m) => MonadGenBnd (ReaderT e m)
-
-instance (MonadGenBnd m, Monad m, Monoid w) => MonadGenBnd (WriterT w m)
-
-instance (MonadGenBnd m, Monad m) =>
-         MonadGenBnd (Control.Monad.State.Strict.StateT s m)
-
-instance (MonadGenBnd m, Monad m) =>
-         MonadGenBnd (Control.Monad.State.Lazy.StateT s m)
-
-instance (MonadGenBnd m, Monad m, Monoid w) =>
-         MonadGenBnd (Control.Monad.RWS.Strict.RWST e w s m)
-
-instance (MonadGenBnd m, Monad m, Monoid w) =>
-         MonadGenBnd (Control.Monad.RWS.Lazy.RWST e w s m)
 
 class MonadGenId m where
     generateId :: m FnId
@@ -317,24 +248,3 @@ runFromBindings opts f taken = runExceptT $ do
     fst <$> evalRWST (runOhuaM f) env s0
   where
     env = def & options .~ opts
-
-initNameGen :: MonadError Error m => HS.HashSet Binding -> m NameGenerator
-initNameGen taken =
-    make
-        ( taken
-        , [ makeThrow $ char `T.cons` maybe [] show num
-          | num <- Nothing : map Just [(0 :: Integer) ..]
-          , char <- ['a' .. 'z']
-          ])
-
-newtype GenBndT m a = GenBndT (StateT NameGenerator m a)
-    deriving (Monad, Functor, Applicative, MonadTrans)
-
-instance Monad m => MonadGenBnd (GenBndT m) where
-    generateBinding = GenBndT $ generateBindingIn id
-    generateBindingWith = GenBndT . generateBindingWithIn id
-
-runGenBndT :: MonadError Error m => HS.HashSet Binding -> GenBndT m a -> m a
-runGenBndT taken (GenBndT comp) = do
-    ng <- initNameGen taken
-    evaluatingStateT ng comp

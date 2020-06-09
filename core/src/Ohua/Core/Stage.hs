@@ -7,7 +7,6 @@ import Data.Text.Prettyprint.Doc
 import Data.Text.Prettyprint.Doc.Render.Text
 import Data.Text.Lazy as T (concat, Text)
 
-import Ohua.Core.ALang.PPrint
 
 stage ::
        (MonadReadEnvironment m, MonadIO m, Pretty code)

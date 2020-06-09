@@ -4,7 +4,6 @@ module Ohua.Core.Types.Environment where
 import Ohua.Prelude
 
 import Control.Lens.TH
-import qualified Data.HashSet as HS
 import qualified Data.Vector as V
 
 import Ohua.Core.Types.Stage
@@ -16,14 +15,6 @@ declareLenses [d|
         , callLocalFunction :: !(Maybe QualifiedBinding)
         , transformRecursiveFunctions :: Bool
         , stageHandling :: StageHandling
-        }
-  |]
-
--- | Stateful name generator
-declareLenses [d|
-    data NameGenerator = NameGenerator
-        { takenNames :: !(HS.HashSet Binding)
-        , simpleNameList :: [Binding]
         }
   |]
 
@@ -42,17 +33,9 @@ declareLenses [d|
   |]
 
 
-type instance SourceType NameGenerator = (HS.HashSet Binding, [Binding])
 type instance SourceType (OhuaState envExpr) =
      (NameGenerator, FnId, V.Vector envExpr)
 
-
-instance UnsafeMake NameGenerator where
-    unsafeMake = uncurry NameGenerator
-
-
-instance Make NameGenerator where
-    make = pure . unsafeMake
 
 instance Make (OhuaState envExpr) where
     make (ng, fnid, exprs) = pure $ OhuaState ng fnid exprs
@@ -63,7 +46,7 @@ instance Default Options where
         Options
             Nothing
             Nothing
-            False -- for no we always disable this option
+            False -- for now we always disable this option
             (const (Don'tDump, False))
 
 instance Default Environment where

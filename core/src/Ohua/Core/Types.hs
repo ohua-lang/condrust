@@ -39,9 +39,6 @@ module Ohua.Core.Types
     , nameGenerator
     , idCounter
     , envExpressions
-    , NameGenerator
-    , simpleNameList
-    , takenNames
     , Annotated(Annotated)
     , TyExpr(TyApp, TyRef)
     , TyExprF(..)
