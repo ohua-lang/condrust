@@ -1,6 +1,9 @@
 {-# LANGUAGE ConstraintKinds #-}
 module Ohua.Types.Computation
-    ( MonadGenBnd(generateBinding, generateBindingWith)
+    ( NameGenerator
+    , simpleNameList
+    , takenNames
+    , MonadGenBnd(generateBinding, generateBindingWith)
     , MonadIO(liftIO)
     , MonadError(throwError, catchError)
     , MonadLogger, LoggingT, runStderrLoggingT, runLoggingT, filterLogger
@@ -24,12 +27,7 @@ import Ohua.Internal.Monad
 import Ohua.Types.Error
 
 
-type CompM m = 
-     ( MonadIO m
-     , MonadGenBnd m
-     , MonadError Error m
-     , MonadLogger m
-     )
+type CompM m = ( MonadError Error m, MonadLoggerIO m)
 
 runCompM :: LogLevel -> ExceptT Error (LoggingT IO) a -> IO a
 runCompM targetLevel c =

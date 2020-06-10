@@ -1,6 +1,5 @@
 module Ohua.Types
-    ( CompM
-    , FnId
+    ( FnId
     , Binding
     , NSRef
     , QualifiedBinding(..)
@@ -8,7 +7,8 @@ module Ohua.Types
     , HostExpr
     , FunRef(..)
     , Lit(..)
-    , Error
+    , module Ohua.Types.Computation
+    , module Ohua.Types.Error
     , module Ohua.Types.Integration
 
     -- * Creating and inspecting values
