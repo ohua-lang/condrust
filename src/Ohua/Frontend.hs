@@ -10,17 +10,12 @@ import Ohua.Frontend.Transform.Maps
 import Ohua.Frontend.Transform.Resolve
 
 
-frontend :: (CompM m, Integration lang) => lang -> CompilationScope -> FilePath -> m (lang, Namespace Expr)
+frontend :: (CompM m, Integration lang) 
+        => lang -> CompilationScope -> FilePath -> m (lang, Namespace Expr)
 frontend lang compScope inFile = do
-    (lang', ns) <- load lang compScope inFile
-    ns' <- resolveNS ns
-    -- ns'' <- transform ns'
-    return (lang', ns')
-    -- TODO
-    -- where
-    --     transform = mapM 
-    --         (\algo -> 
-    --             ((algo,) . 
-    --             convertMaps . -- TODO
-    --             makeImplicitFunctionBindingsExplicit) (algo^.algoCode))
-    --         . (^. algos)
+        (lang', ns) <- load lang compScope inFile
+        ns' <- resolveNS ns
+        ns'' <- updateExprs ns' transform
+        return (lang', ns'')
+    where
+        transform = pure . makeImplicitFunctionBindingsExplicit
