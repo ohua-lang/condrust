@@ -41,8 +41,11 @@ declareLenses[d|
           } deriving (Show, Eq)
     |]
 
+updateExprs :: Monad m => Namespace expr1 -> (expr1 -> m expr2) -> m (Namespace expr2)
+updateExprs namespace f = do
+     algos' <- 
+          forM (namespace^.algos) $ \algo -> do
+               algoCode' <- f $ algo^.algoCode
+               return $ over algoCode (const algoCode') algo
+     return $ over algos (const algos') namespace
 
--- -- TODO connect this type class with the type classes for converting into and from expressions
--- class Integration lang where
---      frontend :: CompM m => FilePath -> lang -> m (lang, Namespace FrLang.Expr)
---      backend  :: CompM m => Algos TCLang.TCExpr -> lang -> m (NonEmpty (FilePath, L.ByteString))
