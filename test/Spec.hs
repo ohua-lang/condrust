@@ -2,11 +2,11 @@ import Prelude
 
 import Test.Hspec
 
-import qualified LoweringSpec
+import qualified ResolveSpec
 
 main :: IO ()
 main = hspec spec
 
 spec :: Spec
 spec = 
-  describe "LoweringSpec" LoweringSpec.spec
+  describe "ResolveSpec" ResolveSpec.spec

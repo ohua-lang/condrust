@@ -8,6 +8,8 @@ import Data.Functor.Foldable (cata, embed)
 import Control.Lens.Combinators (over)
 import Control.Lens.Plated (plate)
 
+
+-- With the new concept for SMap and state, this will not be necessary anymore.
 convertMaps :: FunRef -> FunRef -> Expr -> Expr
 convertMaps initFun updateFun = cata $ \case
     LetEF 
