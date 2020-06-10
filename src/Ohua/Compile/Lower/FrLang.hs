@@ -103,12 +103,15 @@ trans =
             UnitP -> "_"
             p -> error $ "Invariant broken, invalid pattern: " <> show p
 
-toAlang :: CompM m => Expr -> m AL.Expr
-toAlang expr = runGenBndT (definedBindings expr) $ transform expr
+toAlang' :: CompM m => HS.HashSet Binding -> Expr -> m AL.Expr
+toAlang' taken expr = runGenBndT taken $ transform expr
     where 
         transform =
             giveEmptyLambdaUnitArgument >>>
             mkLamSingleArgument >>> removeDestructuring >=> pure . trans
+
+toAlang :: CompM m => Expr -> m AL.Expr
+toAlang expr = toAlang' (definedBindings expr) expr
 
 definedBindings :: Expr -> HS.HashSet Binding
 definedBindings olang =
