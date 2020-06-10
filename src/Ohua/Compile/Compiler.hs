@@ -40,14 +40,7 @@ compile inFile compScope coreOpts outDir = do
     -- frontend
     (ctxt, ns) <- Fr.frontend lang compScope inFile
     -- middle end
-    ns' <- 
-        (\namespace -> do
-            algos' <- 
-                forM (namespace^.algos) $ \algo -> do
-                    algoCode' <- (toAlang >=> core >=> toTCLang) $ algo^.algoCode
-                    return $ over algoCode (const algoCode') algo
-            return $ over algos (const algos') namespace
-        ) ns
+    ns' <- updateExprs ns $ toAlang >=> core >=> toTCLang
     -- backend 
     B.backend outDir ns' lang
     where
