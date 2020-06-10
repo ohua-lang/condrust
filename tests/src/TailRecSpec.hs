@@ -4,12 +4,12 @@ module TailRecSpec
     ( spec
     ) where
 
-import Ohua.Prelude
+import Ohua.Core.Prelude
 
-import Ohua.ALang.Lang
-import Ohua.ALang.PPrint (quickRender)
-import Ohua.ALang.Passes (normalize)
-import Ohua.Feature.TailRec.Passes.ALang
+import Ohua.Core.ALang.Lang
+import Ohua.Core.ALang.PPrint (quickRender)
+import Ohua.Core.ALang.Passes (normalize)
+import Ohua.Core.Feature.TailRec.Passes.ALang
     ( findTailRecs
     , recur
     , recur_hof
@@ -17,13 +17,13 @@ import Ohua.Feature.TailRec.Passes.ALang
     , verifyTailRecursion
     , recurStartMarker
     )
-import qualified Ohua.DFLang.Refs as Refs
-import Ohua.DFLang.Passes (lowerALang, collapseNth)
-import Ohua.Feature.TailRec.Passes.DFLang (recurLowering)
-import Ohua.DFLang.PPrint ()
-import Ohua.DFLang.Lang (nodeRef)
+import qualified Ohua.Core.DFLang.Refs as Refs
+import Ohua.Core.DFLang.Passes (lowerALang, collapseNth)
+import Ohua.Core.Feature.TailRec.Passes.DFLang (recurLowering)
+import Ohua.Core.DFLang.PPrint ()
+import Ohua.Core.DFLang.Lang (nodeRef)
 
-import Ohua.Test (embedALang, embedDFLang, showWithPretty)
+import Ohua.Core.Test (embedALang, embedDFLang, showWithPretty)
 
 import Test.Hspec
 

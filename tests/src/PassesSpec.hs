@@ -19,7 +19,7 @@ module PassesSpec
     ( spec
     ) where
 
-import Ohua.Prelude
+import Ohua.Core.Prelude
 
 import Control.Comonad
 import Data.Functor.Foldable (para)
@@ -29,12 +29,12 @@ import Test.Hspec.QuickCheck
 import Test.QuickCheck
 import Test.QuickCheck.Property as P
 
-import Ohua.ALang.Lang
-import Ohua.ALang.Passes
-import Ohua.ALang.Passes.SSA
-import qualified Ohua.ALang.Refs as ALangRefs
-import Ohua.Test
-import Ohua.Types.Arbitrary ()
+import Ohua.Core.ALang.Lang
+import Ohua.Core.ALang.Passes
+import Ohua.Core.ALang.Passes.SSA
+import qualified Ohua.Core.ALang.Refs as ALangRefs
+import Ohua.Core.Test
+import Ohua.Core.Types.Arbitrary ()
 
 smapName :: QualifiedBinding
 smapName = "ohua.lang/smap"
@@ -192,7 +192,7 @@ spec = do
                 fmap (fmap showWithPretty) .
                 runSilentLoggingT .
                 flip (runFromBindings def) mempty .
-                (Ohua.ALang.Passes.removeCurrying . inlineReassignments)
+                (Ohua.Core.ALang.Passes.removeCurrying . inlineReassignments)
         let isSuccess = Right . showWithPretty
         it "inlines curring" $
             runRemoveCurrying

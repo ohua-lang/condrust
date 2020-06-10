@@ -9,7 +9,7 @@ import Ohua.Core.ALang.Lang
 -- ensureNthStructure :: MonadOhua m => Expression -> m ()
 -- ensureNthStructure =
 --     para $ \case
---         Apply (Apply (Lit (FunRefLit (FunRef "Ohua.Core.lang/nth" Nothing))) (Lit (NumericLit _))) (Var _) ->
+--         Apply (Apply (Lit (FunRefLit (FunRef "ohua.lang/nth" Nothing))) (Lit (NumericLit _))) (Var _) ->
 --             failWith $ "Missing total length argument to nth "
 --         e -> return ()
 ensureNthStructure :: MonadOhua m => Expression -> m ()
@@ -18,7 +18,7 @@ ensureNthStructure e =
         (failWith .
          ("Missing total length argument to nth call bound to " <>) . show)
         [ x
-        | Let x (Apply (Lit (FunRefLit (FunRef "Ohua.Core.lang/nth" Nothing))) e1) _ <-
+        | Let x (Apply (Lit (FunRefLit (FunRef "ohua.lang/nth" Nothing))) e1) _ <-
               universe e
         ]
 

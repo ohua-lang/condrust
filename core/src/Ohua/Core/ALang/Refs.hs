@@ -3,46 +3,46 @@ module Ohua.Core.ALang.Refs where
 import Ohua.Prelude
 
 id :: QualifiedBinding
-id = "Ohua.Core.lang/id"
+id = "ohua.lang/id"
 
 -- transforms into `ifFun` and `select`
 ifThenElse :: QualifiedBinding
-ifThenElse = "Ohua.Core.lang/if"
+ifThenElse = "ohua.lang/if"
 
 -- TODO: maybe these functions belong into the concrete passes
 -- semantically a different function from `ifThenElse`
 ifFun :: QualifiedBinding
-ifFun = "Ohua.Core.lang/ifFun"
+ifFun = "ohua.lang/ifFun"
 
 select :: QualifiedBinding
-select = "Ohua.Core.lang/select"
+select = "ohua.lang/select"
 
 -- transforms into `smapFun` and `collect`
 smap :: QualifiedBinding
-smap = "Ohua.Core.lang/smap"
+smap = "ohua.lang/smap"
 
 -- TODO: maybe these functions belong into the concrete passes
 -- semantically a different function from `smap`
 smapFun :: QualifiedBinding
-smapFun = "Ohua.Core.lang/smapFun"
+smapFun = "ohua.lang/smapFun"
 
 collect :: QualifiedBinding
-collect = "Ohua.Core.lang/collect"
+collect = "ohua.lang/collect"
 
 -- transforms into `seqFun`
 seq :: QualifiedBinding
-seq = "Ohua.Core.lang/seq"
+seq = "ohua.lang/seq"
 
 -- TODO: maybe these functions belong into the concrete passes
 -- semantically a different function from `seq`
 seqFun :: QualifiedBinding
-seqFun = "Ohua.Core.lang/seqFun"
+seqFun = "ohua.lang/seqFun"
 
 recur :: QualifiedBinding
-recur = "Ohua.Core.lang/recur"
+recur = "ohua.lang/recur"
 
 nth :: QualifiedBinding
-nth = "Ohua.Core.lang/nth"
+nth = "ohua.lang/nth"
 
 ctrl :: QualifiedBinding
-ctrl = "Ohua.Core.lang/ctrl"
+ctrl = "ohua.lang/ctrl"

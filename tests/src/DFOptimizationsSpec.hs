@@ -1,16 +1,16 @@
 module DFOptimizationsSpec where
 
 
-import Ohua.Prelude
+import Ohua.Core.Prelude
 
 import Test.Hspec
 
-import Ohua.DFLang.Lang
-import Ohua.DFLang.PPrint
-import Ohua.DFLang.Passes
-import Ohua.Test (embedDFLang, showWithPretty)
-import Ohua.Test.DFGraph
-import qualified Ohua.DFLang.Refs as Refs
+import Ohua.Core.DFLang.Lang
+import Ohua.Core.DFLang.PPrint
+import Ohua.Core.DFLang.Passes
+import Ohua.Core.Test (embedDFLang, showWithPretty)
+import Ohua.Core.Test.DFGraph
+import qualified Ohua.Core.DFLang.Refs as Refs
 
 optimizeCtrl = collapseNth (== nodeRef Refs.ctrl)
 

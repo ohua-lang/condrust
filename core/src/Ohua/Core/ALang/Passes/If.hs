@@ -124,7 +124,7 @@ selectSf :: Expression
 selectSf = Lit $ FunRefLit $ FunRef Refs.select Nothing
 
 ifFunSf :: Expression
-ifFunSf = Lit $ FunRefLit $ FunRef "Ohua.Core.lang/ifFun" Nothing
+ifFunSf = Lit $ FunRefLit $ FunRef "ohua.lang/ifFun" Nothing
 
 #if 1
 -- This is a proposal for `ifRewrite` that uses plated to make sure the
@@ -132,7 +132,7 @@ ifFunSf = Lit $ FunRefLit $ FunRef "Ohua.Core.lang/ifFun" Nothing
 -- not recurse properly onto the branches.
 ifRewrite :: (Monad m, MonadGenBnd m, MonadError Error m) => Expression -> m Expression
 ifRewrite = rewriteM $ \case
-    "Ohua.Core.lang/if" `Apply` cond `Apply` trueBranch `Apply` falseBranch
+    "ohua.lang/if" `Apply` cond `Apply` trueBranch `Apply` falseBranch
         | Lambda trueIn trueBody <- trueBranch
         , isUnit trueIn
         , Lambda falseIn falseBody <- falseBranch
@@ -167,7 +167,7 @@ ifRewrite = rewriteM $ \case
 
 ifRewrite (Let v a b) = Let v <$> ifRewrite a <*> ifRewrite b
 ifRewrite (Lambda v e) = Lambda v <$> ifRewrite e
-ifRewrite (Apply (Apply (Apply (Lit (FunRefLit (FunRef "Ohua.Core.lang/if" Nothing))) cond) trueBranch) falseBranch)
+ifRewrite (Apply (Apply (Apply (Lit (FunRefLit (FunRef "ohua.lang/if" Nothing))) cond) trueBranch) falseBranch)
     -- traceM $ "true branch: " <> (show trueBranch)
     -- traceM $ "false branch: " <> (show falseBranch)
  = do

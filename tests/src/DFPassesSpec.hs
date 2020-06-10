@@ -1,13 +1,13 @@
 module DFPassesSpec where
 
-import Ohua.Prelude
-import Ohua.Test
+import Ohua.Core.Prelude
+import Ohua.Core.Test
 import Test.Hspec
 
-import qualified Ohua.DFLang.Refs as Refs
-import Ohua.DFLang.Passes (collapseNth)
-import Ohua.DFLang.Lang
-import Ohua.DFLang.PPrint ()
+import qualified Ohua.Core.DFLang.Refs as Refs
+import Ohua.Core.DFLang.Passes (collapseNth)
+import Ohua.Core.DFLang.Lang
+import Ohua.Core.DFLang.PPrint ()
 
 
 collapseNthSpec :: Spec

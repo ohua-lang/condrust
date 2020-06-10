@@ -1,10 +1,10 @@
 module UtilSpec where
 
-import Ohua.Prelude
+import Ohua.Core.Prelude
 
-import Ohua.ALang.Util
-import Ohua.Test
-import Ohua.ALang.Lang
+import Ohua.Core.ALang.Util
+import Ohua.Core.Test
+import Ohua.Core.ALang.Lang
 
 import Test.Hspec
 

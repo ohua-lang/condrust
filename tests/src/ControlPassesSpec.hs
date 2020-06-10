@@ -2,14 +2,14 @@ module ControlPassesSpec where
 
 
 
-import Ohua.Prelude
+import Ohua.Core.Prelude
 
-import Ohua.ALang.Lang
-import Ohua.ALang.PPrint (quickRender)
-import Ohua.ALang.Passes (normalize)
-import Ohua.ALang.Passes.If (ifRewrite)
+import Ohua.Core.ALang.Lang
+import Ohua.Core.ALang.PPrint (quickRender)
+import Ohua.Core.ALang.Passes (normalize)
+import Ohua.Core.ALang.Passes.If (ifRewrite)
 
-import Ohua.Test (embedALang, showWithPretty)
+import Ohua.Core.Test (embedALang, showWithPretty)
 
 import Test.Hspec
 

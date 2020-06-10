@@ -132,7 +132,7 @@ runFromExpr ::
     -> Expression
     -> LoggingT IO (Either Error result)
 runFromExpr opts f tree =
-    runFromBindings opts (f tree) $ HS.fromList $ [b | Var b <- universe tree]
+    runFromBindings opts (f tree) $ HS.fromList [b | Var b <- universe tree]
 
 runFromBindings ::
        Options

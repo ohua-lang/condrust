@@ -366,6 +366,7 @@ liftApplyToApply =
 --                         pure $ Just $ Let b e2 (BindState (Var b) e1)
 --         BindState _ _ -> throwError "State bind target must be a pure function reference"
 --         _ -> pure Nothing
+dumpNormalizeDebug :: Bool
 dumpNormalizeDebug = False
 
 putStrLnND :: (Print str, MonadIO m) => str -> m ()

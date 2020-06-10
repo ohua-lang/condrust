@@ -70,12 +70,7 @@ pipeline' :: CustomPasses -> Expression -> OhuaM OutGraph
 pipeline' passes e = toGraph <$> pipeline passes e
 
 -- | Run the pipeline in an arbitrary monad that supports error reporting.
-compile ::
-       (MonadError Error m, MonadLoggerIO m)
-    => Options
-    -> CustomPasses
-    -> Expression
-    -> m DFExpr
+compile :: CompM m => Options -> CustomPasses -> Expression -> m DFExpr
 compile opts passes exprs = do
     logFn <- askLoggerIO
     let passes' =

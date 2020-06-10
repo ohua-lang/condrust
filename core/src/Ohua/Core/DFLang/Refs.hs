@@ -37,7 +37,7 @@ ctrl :: DFFnRef
 ctrl = DFFunction Refs.ctrl
 
 recurFunBnd :: QualifiedBinding
-recurFunBnd = "Ohua.Core.lang/recurFun"
+recurFunBnd = "ohua.lang/recurFun"
 
 recurFun :: DFFnRef
 recurFun = DFFunction recurFunBnd

@@ -4,7 +4,7 @@ module DFLoweringSpec where
 
 
 
-import Ohua.Prelude
+import Ohua.Core.Prelude
 
 import Data.Graph.Inductive.Graph
 import Data.Graph.Inductive.PatriciaTree
@@ -12,16 +12,16 @@ import qualified Data.IntMap.Strict as IntMap
 import qualified Data.IntSet as IntSet
 import Test.Hspec
 
-import Ohua.ALang.Lang
-import Ohua.ALang.Passes
-import qualified Ohua.ALang.Refs as ALangRefs
-import Ohua.DFGraph
-import Ohua.DFLang.Lang
-import Ohua.DFLang.PPrint
-import Ohua.DFLang.Passes
-import qualified Ohua.DFLang.Refs as Refs
-import Ohua.Test (embedALang, embedDFLang, showWithPretty)
-import Ohua.Test.DFGraph
+import Ohua.Core.ALang.Lang
+import Ohua.Core.ALang.Passes
+import qualified Ohua.Core.ALang.Refs as ALangRefs
+import Ohua.Core.DFGraph
+import Ohua.Core.DFLang.Lang
+import Ohua.Core.DFLang.PPrint
+import Ohua.Core.DFLang.Passes
+import qualified Ohua.Core.DFLang.Refs as Refs
+import Ohua.Core.Test (embedALang, embedDFLang, showWithPretty)
+import Ohua.Core.Test.DFGraph
 
 shouldSatisfyRet :: Show a => IO a -> (a -> Bool) -> Expectation
 shouldSatisfyRet action predicate = action >>= (`shouldSatisfy` predicate)
@@ -33,7 +33,7 @@ runLowering =
     runFromExpr
         def
         (lowerALang <=<
-         normalize <=< Ohua.ALang.Passes.runCorePasses <=< normalize)
+         normalize <=< Ohua.Core.ALang.Passes.runCorePasses <=< normalize)
 
 -- | IMPORTANT: Both source and target expression must be in SSA form
 shouldLowerTo :: Expression -> DFExpr -> Expectation

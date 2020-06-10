@@ -193,5 +193,5 @@ liftIntoCtrlCtxt ctrlIn e0 = do
                 mkLambda originalFormals $
                 Let
                     ctrlOut
-                    (fromListToApply (FunRef "Ohua.Core.lang/ctrl" Nothing) actuals')
+                    (fromListToApply (FunRef "ohua.lang/ctrl" Nothing) actuals')
                     ie

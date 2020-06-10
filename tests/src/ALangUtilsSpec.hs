@@ -3,13 +3,13 @@
 module ALangUtilsSpec where
 
 
-import Ohua.Prelude
+import Ohua.Core.Prelude
 
 import Test.Hspec
 
-import Ohua.ALang.Lang
-import Ohua.ALang.Util (lambdaLifting)
-import Ohua.Test (embedALang)
+import Ohua.Core.ALang.Lang
+import Ohua.Core.ALang.Util (lambdaLifting)
+import Ohua.Core.Test (embedALang)
 
 -- substitute' :: Binding -> Expression -> Expression -> Expression
 -- substitute' var val = lrPostwalkExpr f

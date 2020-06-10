@@ -2,7 +2,7 @@ module AesonConvertSpec where
 
 
 
-import Ohua.Prelude
+import Ohua.Core.Prelude
 
 import Data.Aeson as A
     ( FromJSON
@@ -19,9 +19,9 @@ import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck.Property
 
-import Ohua.DFGraph
-import Ohua.Serialize.JSON ()
-import Ohua.Types.Arbitrary ()
+import Ohua.Core.DFGraph
+import Ohua.Core.Serialize.JSON ()
+import Ohua.Core.Types.Arbitrary ()
 
 
 testConvert :: (ToJSON a, FromJSON a, Eq a, Show a) => a -> Result

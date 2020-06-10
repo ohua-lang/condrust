@@ -227,7 +227,7 @@ recur = ALangRefs.recur -- allows me to use it in binding position
 
 -- This is a compiler-internal higher-order function.
 recur_hof :: QualifiedBinding
-recur_hof = "Ohua.Core.lang/recur_hof"
+recur_hof = "ohua.lang/recur_hof"
 
 recur_sf :: Expression
 recur_sf = PureFunction recur Nothing
@@ -236,14 +236,14 @@ recur_hof_sf :: Expression
 recur_hof_sf = PureFunction recur_hof Nothing
 
 recurStartMarker :: QualifiedBinding
-recurStartMarker = "Ohua.Core.lang.marker/recur_start"
+recurStartMarker = "ohua.lang.marker/recur_start"
 
 recurEndMarker :: QualifiedBinding
-recurEndMarker = "Ohua.Core.lang.marker/recur_end"
+recurEndMarker = "ohua.lang.marker/recur_end"
 
 -- The Y combinator from Haskell Curry
 y :: QualifiedBinding
-y = "Ohua.Core.lang/Y"
+y = "ohua.lang/Y"
 
 y_sf :: Expression
 y_sf = PureFunction y Nothing
@@ -254,7 +254,7 @@ recurFun = DFRefs.recurFunBnd
 recurFunPureFunction :: Expression
 recurFunPureFunction = PureFunction recurFun Nothing
 
-idPureFunction = PureFunction "Ohua.Core.lang/id" Nothing
+idPureFunction = PureFunction "ohua.lang/id" Nothing
 
 -- Phase 1:
 findTailRecs ::
@@ -331,7 +331,7 @@ verifyTailRecursion e
     failOnRecur (Apply a b) = return ()
     failOnRecur e = error $ "Invariant broken! Found pattern: " <> show e
     checkIf e
-        | isCall "Ohua.Core.lang/if" e
+        | isCall "ohua.lang/if" e
       -- assumes well-structured if
          = do
             let (_:tBranch:fBranch:_) = snd $ fromApplyToList e
@@ -441,7 +441,7 @@ rewriteCallExpr e = do
             "invariant broken: recursive function does not have the proper structure."
     rewriteBranch :: Expression -> Either Expression [Expression]
     -- normally this is "fix" instead of `id`
-    rewriteBranch (Let v (Apply (PureFunction "Ohua.Core.lang/id" _) result) _) = Left result
+    rewriteBranch (Let v (Apply (PureFunction "ohua.lang/id" _) result) _) = Left result
     rewriteBranch (Let v e _)
         | isCall recur e = (Right . snd . fromApplyToList) e
     rewriteBranch e = error $ "invariant broken: " <> quickRender e
