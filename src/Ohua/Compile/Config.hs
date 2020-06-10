@@ -154,9 +154,9 @@ loadConfig (Just ref) = decodeFileThrow ref
 
 extractCoreOptions :: CompilerOptions -> Options
 extractCoreOptions CompilerOptions {..} = 
-    (def 
-        & stageHandling .~ (stageHandlingOpt debug)
-        & transformRecursiveFunctions .~ ("tail-recursion" `elem` extraFeatures))
+    def 
+        & stageHandling .~ stageHandlingOpt debug
+        & transformRecursiveFunctions .~ ("tail-recursion" `elem` extraFeatures)
 
 validateConfig :: (MonadIO m, MonadError Error m) => CompilerOptions -> m ()
 validateConfig conf =
