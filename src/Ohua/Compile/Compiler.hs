@@ -27,7 +27,9 @@ import Ohua.Compile.Lower.DFLang (toTCLang)
 import Ohua.Compile.Config
 import Ohua.Integration
 
+import Control.Lens
 import System.FilePath
+
 
 compile :: CompM m 
     => FilePath -> CompilationScope -> Options -> FilePath -> m ()
@@ -38,22 +40,18 @@ compile inFile compScope coreOpts outDir = do
     -- frontend
     (ctxt, ns) <- Fr.frontend lang compScope inFile
     -- middle end
-    compiledAlgos <- 
-        mapM 
-            (\algo -> 
-                (algo,) <$> 
-                core $
-                toAlang -- lower into ALang
-                (algo^.algoCode))
-            $ ns^.algos
+    ns' <- (\namespace -> 
+                (\x -> over algos (const x) namespace) <$> 
+                forM 
+                    (namespace^.algos)
+                    (\algo -> 
+                        (\x -> over algoCode (const x) algo) <$>
+                        (toAlang >=> core >=> toTCLang) (algo^.algoCode) )) ns
     -- backend 
-    B.backend compiledAlgos lang
+    B.backend outDir ns' lang
     where
-        core expr = do
-            alangExpr <- runGenBndT mempty expr
-            Core.compile
+        core = Core.compile
                 coreOpts
                 (def {CoreConfig.passAfterDFLowering = cleanUnits})
-                alangExpr
 
 

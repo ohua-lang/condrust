@@ -1,11 +1,11 @@
+{-# LANGUAGE TemplateHaskell, CPP #-}
 module Main where
 
 import Ohua.Prelude
 
-import Ohua.Compile.Util (runCompM, runExceptM)
-import Ohua.Compile.Config (CompilerOptions(..), loadConfig, logLevel, stageHandlingOpt)
+import Ohua.Compile.Config
 import Ohua.Compile.Compiler (compile)
-import Ohua.Integration.Langs (definedLangs)
+import Ohua.Integration (definedIntegrations)
 
 import qualified Data.String as Str
 import Data.Time (getCurrentTime)
@@ -24,8 +24,6 @@ data CommonCmdOpts = CommonCmdOpts
     , config :: Maybe FilePath
     }
 
-runExceptM :: ExceptT Error IO a -> IO a
-runExceptM c = runExceptT c >>= either error pure
 
 main :: IO ()
 main = do
@@ -37,8 +35,8 @@ main = do
                 ("Compiled at " <>
                  $(LitE . StringL . show <$> liftIO getCurrentTime) :: Text)
         Build CommonCmdOpts {..} -> do
-            opts@CompilerOptions {..} <- runExceptM $ loadConfig config
-            let coreOpts = extractCoreOptions opts
+            copts@CompilerOptions {..} <- runExceptM $ loadConfig config
+            let coreOpts = extractCoreOptions copts
             runCompM 
                 (logLevel debug)
                 $ compile inputModuleFile compilationScope coreOpts outputPath
@@ -54,7 +52,7 @@ main = do
                   "Supported module file extensions are:" </>
                   fillSep
                       (punctuate comma $
-                       map (squotes . text . toString . view _1) definedLangs)))
+                       map (squotes . text . toString . view _1) definedIntegrations)))
     softStr = fillSep . map text . Str.words
     optsParser =
         hsubparser

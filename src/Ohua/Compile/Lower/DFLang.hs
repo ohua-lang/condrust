@@ -11,16 +11,19 @@ import Ohua.Backend.Types
 import Data.Maybe
 import Control.Monad.Extra (maybeM)
 
+-- FIXME create bindings via MonadGenBnd!
 
 toTCLang :: CompM m => DFExpr -> m TCExpr
-toTCLang graph = do
-    -- TODO generate code for Ohua ops (ctrls, recurs, nths) if necessary
-    nodesCode <- generateNodesCode graph
-    let arcsCode = generateArcsCode graph
-    resultReceive <- generateResultArc graph
-    return $ 
-        arcsCode $ 
-            Run nodesCode resultReceive
+toTCLang graph = transform -- runGenBndT mempty transform
+    where 
+        transform = do
+            -- TODO generate code for Ohua ops (ctrls, recurs, nths) if necessary
+            nodesCode <- generateNodesCode graph
+            let arcsCode = generateArcsCode graph
+            resultReceive <- generateResultArc graph
+            return $ 
+                arcsCode $ 
+                    Run nodesCode resultReceive
 
 generateNodesCode :: CompM m => DFExpr -> m [Task TCExpr]
 generateNodesCode graph = toList <$> mapM generateNodeCode (letExprs graph)
