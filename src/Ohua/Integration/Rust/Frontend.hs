@@ -30,8 +30,8 @@ instance Integration RustLang where
 
             extractNs :: CompM m => SourceFile Span -> m (Namespace FrLang.Expr)
             -- TODO we might need to retrieve this from the file path.
-            extractNs (SourceFile Nothing _ _) = throwError "Missing module name!"
-            extractNs (SourceFile (Just modName) _ items) = do
+            -- extractNs (SourceFile Nothing a b) = extractNs $ SourceFile (Just $ takeFileName srcFile) a b
+            extractNs (SourceFile _ _ items) = do
                 let filePathToNsRef = makeThrow . map fromString . splitDirectories . dropExtension
                 imports <- concat . catMaybes <$>
                         mapM 

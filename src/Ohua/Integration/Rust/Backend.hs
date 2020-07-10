@@ -18,6 +18,7 @@ import Data.Text.Prettyprint.Doc
 import Data.Text.Prettyprint.Doc.Render.Text
 import Data.Text (unpack)
 import qualified Data.HashMap.Lazy as HM
+import System.FilePath (takeFileName)
 
 
 instance Integration RustLang where
@@ -28,7 +29,7 @@ instance Integration RustLang where
         let algos' = HM.fromList $ map (\(Algo name expr) -> (name, expr)) $ ns^.algos
             src    = SourceFile modName atts $ map (replaceAlgo algos') items
             render = encodeUtf8 . (<> "\n") . renderLazy . layoutSmart defaultLayoutOptions . pretty'
-            path' = path -- TODO verify this!
+            path' = takeFileName path -- TODO verify this!
         in return $ (path', render src) :| []
         where
             replaceAlgo algos = \case
