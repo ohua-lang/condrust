@@ -42,7 +42,7 @@ compile inFile compScope coreOpts outDir = do
     -- middle end
     ns' <- updateExprs ns $ toAlang >=> core >=> toTCLang
     -- backend 
-    B.backend outDir ns' lang
+    B.backend outDir ns' ctxt
     where
         core = Core.compile
                 coreOpts

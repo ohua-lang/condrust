@@ -102,3 +102,8 @@ tests:
     - yaml
     - hspec
     - raw-strings-qq
+    - temporary
+    - language-rust
+    - prettyprinter
+    - text
+    - bytestring
