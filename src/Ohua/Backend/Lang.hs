@@ -2,6 +2,7 @@ module Ohua.Backend.Lang where
 
 import Ohua.Prelude
 
+-- FIXME use Binding here!
 
 newtype Var = Var Text deriving (Show, Eq)
 
