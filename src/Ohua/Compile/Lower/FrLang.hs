@@ -86,7 +86,7 @@ trans =
                 [p0] -> Lambda (patToBnd p0) e
                 _ ->
                     error $
-                    "Invariant broken: Found multi apply or destucture lambda: " <>
+                    "Invariant broken: Found multi apply or destructure lambda: " <>
                     show p
         IfEF cont then_ else_ ->
             ifBuiltin `Apply` cont `Apply` Lambda "_" then_ `Apply`

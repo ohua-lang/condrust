@@ -101,15 +101,15 @@ instance FromJSON Stage where
         (v .:? "abort-after" .!= False)
     parseJSON _ = fail "Expected Object for stage description."
 
-intoStageHandling :: Maybe [Stage] -> StageHandling
-intoStageHandling Nothing   = defaultStageHandling
-intoStageHandling (Just []) = defaultStageHandling
-intoStageHandling (Just stages)  = 
+intoStageHandling :: DumpCode -> Maybe [Stage] -> StageHandling
+intoStageHandling _ Nothing   = defaultStageHandling
+intoStageHandling _ (Just []) = defaultStageHandling
+intoStageHandling dc (Just stages)  = 
     let registry = 
             HM.fromList $ 
                 map
                     (\s -> ( stage s
-                        , ( if dump s then DumpPretty else Don'tDump, abortAfter s)
+                        , ( if dump s then dc else Don'tDump, abortAfter s)
                         ))
                     stages
     in \stage -> HM.lookupDefault passStage stage registry
@@ -118,7 +118,7 @@ instance FromJSON DebugOptions where
     parseJSON (Y.Object v) = 
         DebugOptions <$>
         (intoLogLevel <$> v .:? "log-level" .!= "warn") <*>
-        (intoStageHandling <$> v .:? "core-stages")
+        (intoStageHandling DumpPretty <$> v .:? "core-stages")
     parseJSON _ = fail "Expected Object for DebugOptions description"
 
 intoCompilationScope :: [Text] -> CompilationScope
