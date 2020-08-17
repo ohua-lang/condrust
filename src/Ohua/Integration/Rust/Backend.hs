@@ -154,7 +154,7 @@ mkSimpleBinding bnd =
 
 convertQualBnd (QualifiedBinding ns bnd) = 
     Path 
-        (not $ null $ unwrap ns)
+        False
         (map 
             (\p -> PathSegment (mkIdent $ unpack $ unwrap p) Nothing noSpan)
             $ unwrap ns ++ [bnd])
