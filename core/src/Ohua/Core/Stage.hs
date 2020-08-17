@@ -19,7 +19,7 @@ stage stName code = do
     case dumpInstructions of
         DumpPretty ->
             liftIO $
-            LT.writeFile (toString $ stName <> ".dump") $ gen
+            LT.writeFile (toString $ stName <> ".dump") gen
         DumpStdOut ->
             liftIO $
             LT.putStr $ boundary <> stageHeader <> gen <> boundary
@@ -27,7 +27,7 @@ stage stName code = do
     when shouldAbort exitSuccess
     where
         gen = renderLazy $ layoutSmart ohuaDefaultLayoutOpts $ pretty code
-        boundary = "\n" <>(T.concat $ take 20 $ repeat ("-"::T.Text)) <> "\n"
+        boundary = "\n" <> T.concat (replicate 20 ("-"::T.Text)) <> "\n"
         stageHeader = "stage: " <> fromStrict stName <> "\n\n"
 
 resolvedAlang :: StageName
