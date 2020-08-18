@@ -29,6 +29,8 @@ import Data.Text as T (concat, Text)
 import qualified Data.ByteString.Lazy.Char8 as L
 import qualified Data.Text.Lazy.IO as LT
 
+debug :: Bool
+debug = False
 
 renderRustCode :: SourceFile Span -> L.ByteString
 renderRustCode = 
@@ -54,7 +56,7 @@ compileCode inCode =
             withSystemTempDirectory "output" 
                 $ \outDir -> do
                     let compScope = HM.empty
-                    let options = debugOptions -- def 
+                    let options = if debug then debugOptions else def 
                     runCompM 
                         (intoLogLevel "warn")
                         $ compile inFile compScope options outDir
@@ -67,7 +69,7 @@ showCode msg code =
     let 
         c = renderStrict $ layoutSmart defaultLayoutOptions $ pretty' code
     in do
-        print c
+        when debug $ print c
         return c
     where
         print code = putStr $ boundary <> header <> code <> boundary
@@ -88,8 +90,18 @@ spec =
                 expected <- showCode "Expected:"
                     [sourceFile| 
                         fn test() -> String {
-                            let x = f();
-                            g(x)
+                        let x_0 = ohua::arcs::Channel::new(1);
+                        let a = ohua::arcs::Channel::new(0);
+                        let mut tasks: Vec<Box<FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
+                        tasks
+                            .push(Box::new((move || -> _ {
+                            loop { let result = f(); x_0.send(result) }
+                            })));
+                        tasks
+                            .push(Box::new((move || -> _ {
+                            loop { let x0 = x_0.recv(0); let result = g(x0); a.send(result) }
+                            })));
+                        a.recv(0)
                         }
                     |]
                 expected `shouldBe` compiled)

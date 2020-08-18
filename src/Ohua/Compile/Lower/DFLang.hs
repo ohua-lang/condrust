@@ -3,6 +3,7 @@ module Ohua.Compile.Lower.DFLang where
 import Ohua.Prelude
 
 import Ohua.Core.DFLang.Lang
+import Ohua.Core.DFLang.Refs as Refs
 import Ohua.Core.DFLang.Util
 import Ohua.Core.DFGraph
 import Ohua.Backend.Lang
@@ -42,7 +43,7 @@ generateNodesCode graph = toList <$> mapM generateNodeCode (letExprs graph)
             varsAndReceives <- mapM 
                                 (\(idx, arg) -> generateReceiveCode arg idx e) 
                                 $ zip [0..] $ callArguments e
-            let receiveCode cont = foldr (\(v,r) c -> Let v r c) cont varsAndReceives
+            let loopCode varsAndReceives cont = foldr (\(v,r) c -> Let v r c) cont varsAndReceives
             let stateVar = Var "state"
             stateReceiveCode <- 
                 maybeM 
@@ -59,9 +60,10 @@ generateNodesCode graph = toList <$> mapM generateNodeCode (letExprs graph)
                     (return Stateless) 
                     (\_ -> return $ Stateful stateVar) 
                     $ return $ stateArgument e
-            let callCode = Apply $ fnCallCode
-                                    (nodeRef $ functionRef e) 
-                                    $ map (Binding . fst) varsAndReceives
+            
+            (varsAndReceives', fun, args) <- lowerFnRef (functionRef e) varsAndReceives
+
+            let callCode = Apply $ fnCallCode fun args
 
             let resultVar = Var "result"
             -- TODO do we support multiple outputs or is this here because of historical
@@ -75,8 +77,9 @@ generateNodesCode graph = toList <$> mapM generateNodeCode (letExprs graph)
                     stateReceiveCode $ -- FIXME I don't think this is correct! 
                                        -- It needs to be just a more sophisticated arc that maintains the state instance for 'n' calls. (Control arc)
                         Loop $
-                            receiveCode $
-                                Let resultVar callCode sendCode
+                            loopCode 
+                                varsAndReceives'
+                                (Let resultVar callCode sendCode)
 
         getStateVar :: CompM m => DFVar -> m Binding
         getStateVar (DFVar bnd) = return bnd
@@ -103,6 +106,18 @@ generateNodesCode graph = toList <$> mapM generateNodeCode (letExprs graph)
                     -- directly from the vars. But it feels that this algo would need a lot
                     -- of intermediate data structures.
                     Nothing -> throwError "Graph inconsistency: Can't find my usage of DFVar!"
+        
+        lowerFnRef :: CompM m => DFFnRef -> [(Var, TCExpr)] -> m ([(Var, TCExpr)], QualifiedBinding, [TCExpr])
+        lowerFnRef fun varsAndReceives | fun == Refs.unitFun = do
+            f <- case nonEmpty varsAndReceives of
+                    Just vs -> case snd $ head vs of
+                                    Lit (FunRefLit (FunRef p _)) -> return p
+                                    _ -> throwError "unitFun must always have a function as its first argument! This is an internal compiler error. Please report!"
+                    Nothing -> throwError "unitFun must always have two arguments! This is an internal compiler error. Please report!"
+            return ([], f, [])
+        lowerFnRef f varsAndReceives = 
+            return (varsAndReceives, nodeRef f, map (Binding . fst) varsAndReceives)
+
 
 generateArcsCode :: DFExpr -> TCExpr -> TCExpr
 generateArcsCode graph cont = 
