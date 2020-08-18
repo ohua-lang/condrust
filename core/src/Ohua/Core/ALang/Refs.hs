@@ -46,3 +46,6 @@ nth = "ohua.lang/nth"
 
 ctrl :: QualifiedBinding
 ctrl = "ohua.lang/ctrl"
+
+unitFun :: QualifiedBinding
+unitFun = "ohua.lang/unitFun"

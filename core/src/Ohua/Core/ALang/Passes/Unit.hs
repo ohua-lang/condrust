@@ -3,6 +3,7 @@ module Ohua.Core.ALang.Passes.Unit where
 import Ohua.Core.Prelude
 
 import Ohua.Core.ALang.Lang
+import Ohua.Core.ALang.Refs (unitFun)
 
 
 {-|
@@ -28,7 +29,7 @@ mkUnitFunctionsExplicit e =
         Let v (Apply (Lit (FunRefLit (FunRef f _))) u@(Lit UnitLit)) ie ->
             Let
                 v
-                ((Lit $ FunRefLit $ FunRef "ohua.lang/unitFn" Nothing) `Apply`
+                ((Lit $ FunRefLit $ FunRef unitFun Nothing) `Apply`
                  (Lit $ FunRefLit $ FunRef f Nothing) `Apply`
                  u)
                 ie

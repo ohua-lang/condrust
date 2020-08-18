@@ -44,3 +44,6 @@ recurFun = DFFunction recurFunBnd
 
 seqFun :: DFFnRef
 seqFun = EmbedSf Refs.seqFun
+
+unitFun :: DFFnRef
+unitFun = EmbedSf Refs.unitFun
