@@ -17,7 +17,9 @@ import Language.Rust.Quote
 import Data.Text.Prettyprint.Doc
 import Data.Text.Prettyprint.Doc.Render.Text
 import Data.Text (unpack)
+import Data.List ((!!))
 import qualified Data.HashMap.Lazy as HM
+import Data.Functor.Foldable (cata, embed)
 import System.FilePath (takeFileName)
 
 
@@ -33,12 +35,23 @@ instance Integration RustLang where
         in return $ (path', render src) :| []
         where
             replaceAlgo algos = \case
-                    f@(Fn atts vis ident decl s c abi gen _ span) ->
+                    f@(Fn atts vis ident decl@(FnDecl args _ _ _) s c abi gen _ span) ->
                         case HM.lookup (toBinding ident) algos of
                             Just algo -> 
-                                Fn atts vis ident decl s c abi gen (span <$ (convertExpr algo :: Block ())) span
+                                Fn atts vis ident decl s c abi gen (span <$ convert args algo) span
                             Nothing -> f
                     i -> i
+            
+            convert :: [Arg a] -> TCLang.TCExpr -> Block ()
+            convert args = convertExpr . convertEnvs args
+
+            convertEnvs :: [Arg a] -> TCLang.TCExpr -> TCLang.TCExpr
+            convertEnvs args = cata $ \case
+                LitF (EnvRefLit h) -> argToVar (args !! unwrap h)
+                e -> embed e
+
+            argToVar :: Rust.Arg a -> TCLang.TCExpr
+            argToVar (Arg (Just (IdentP _ i _ _ )) _ _) = Var $ toBinding i 
 
 noSpan = ()
 
@@ -50,12 +63,12 @@ instance ConvertInto (Block ()) where
             _ -> error $ "Expression is not a block!\n " <> show expr
 
 instance ConvertInto (Expr ()) where 
-    convertExpr (Binding v) = 
-        PathExpr [] Nothing (convertVar v) noSpan
+    convertExpr (Var bnd) = 
+        PathExpr [] Nothing (convertVar bnd) noSpan
 
     convertExpr (TCLang.Lit (NumericLit i)) = Rust.Lit [] (Int Dec i Unsuffixed noSpan) noSpan
     convertExpr (TCLang.Lit UnitLit) = TupExpr [] [] noSpan -- FIXME this means *our* unit, I believe.
-    convertExpr (TCLang.Lit (EnvRefLit hostExpr)) = error "Host expression encountered!"
+    convertExpr (TCLang.Lit (EnvRefLit hostExpr)) = error "Host expression encountered! This is a compiler error. Please report!"
     convertExpr (TCLang.Lit (FunRefLit (FunRef qBnd _))) = PathExpr [] Nothing (convertQualBnd qBnd) noSpan
 
     convertExpr (Apply (Stateless bnd args)) =
@@ -67,7 +80,7 @@ instance ConvertInto (Expr ()) where
     convertExpr (Apply (Stateful var (QualifiedBinding _ bnd) args)) =
         MethodCall
             []
-            (convertExpr $ Binding var)
+            (convertExpr $ Var var)
             (mkIdent $ unpack $ unwrap bnd)
             Nothing
             (map convertExpr args)
@@ -80,9 +93,9 @@ instance ConvertInto (Expr ()) where
             Value
             (FnDecl 
                 (map 
-                    (\(Var bnd) -> 
+                    (\bnd -> 
                         Arg 
-                            (Just $ mkSimpleBinding bnd)
+                            (Just $ mkSimpleBinding $ unwrap bnd)
                             (Infer noSpan)
                             noSpan)
                     args)
@@ -92,9 +105,9 @@ instance ConvertInto (Expr ()) where
             (convertExpr expr)
             noSpan
 
-    convertExpr (Let (Var bnd) stmt cont) = 
+    convertExpr (Let bnd stmt cont) = 
         let stmtExpr = Local 
-                        (mkSimpleBinding bnd)
+                        (mkSimpleBinding $ unwrap bnd)
                         Nothing
                         (Just $ convertExpr stmt)
                         []
@@ -127,7 +140,7 @@ instance ConvertInto (Expr ()) where
                 Stateful 
                     channel 
                     (QualifiedBinding (makeThrow []) "send")
-                    [Binding d]
+                    [Var d]
     convertExpr (Run tasks cont) = 
         let taskInitStmt = noSpan <$ [stmt| let mut tasks:Vec<Box<dyn FnOnce() -> Result<(), RunError>+ Send >> = Vec::new(); |]
             task (Task expr) =
@@ -138,7 +151,7 @@ instance ConvertInto (Expr ()) where
             push t =
                 Apply $
                     Stateful
-                        (Var "tasks")
+                        "tasks"
                         (QualifiedBinding (makeThrow []) "push")
                         [t]
             taskStmts = map (flip Semi noSpan . convertExpr . push . task) tasks
@@ -160,7 +173,7 @@ convertQualBnd (QualifiedBinding ns bnd) =
             $ unwrap ns ++ [bnd])
         noSpan
 
-convertVar (Var v) = Path False [PathSegment (mkIdent $ unpack v) Nothing noSpan] noSpan
+convertVar bnd = Path False [PathSegment (mkIdent $ unpack $ unwrap bnd) Nothing noSpan] noSpan
 
 append stmts cont = 
     case cont of

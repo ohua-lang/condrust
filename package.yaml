@@ -29,6 +29,7 @@ dependencies:
 - unordered-containers
 - text
 - prettyprinter
+- recursion-schemes
 
 default-extensions:
 - OverloadedStrings
