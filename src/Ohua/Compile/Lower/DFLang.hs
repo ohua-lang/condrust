@@ -44,7 +44,7 @@ generateNodesCode graph = toList <$> mapM generateNodeCode (letExprs graph)
                                 (\(idx, arg) -> generateReceiveCode arg idx e) 
                                 $ zip [0..] $ callArguments e
             let loopCode varsAndReceives cont = foldr (\(v,r) c -> Let v r c) cont varsAndReceives
-            let stateVar = Var "state"
+            let stateVar = "state" -- FIXME use generator
             stateReceiveCode <- 
                 maybeM 
                     (return id) 
@@ -53,7 +53,7 @@ generateNodesCode graph = toList <$> mapM generateNodeCode (letExprs graph)
                         -- is this really always the case? 
                         stateDFVar <- getStateVar s
                         idx <- getIndex stateDFVar e
-                        return $ Let stateVar $ Receive idx $ Var $ unwrap stateDFVar)
+                        return $ Let stateVar $ Receive idx stateDFVar)
                     $ return $ stateArgument e 
             fnCallCode <- 
                 maybeM 
@@ -65,12 +65,12 @@ generateNodesCode graph = toList <$> mapM generateNodeCode (letExprs graph)
 
             let callCode = Apply $ fnCallCode fun args
 
-            let resultVar = Var "result"
+            let resultVar = "result"
             -- TODO do we support multiple outputs or is this here because of historical
             --      reasons? (It previously was meant for destructuring.)
             sendCode <- case output e of
                             [] -> return $ Lit UnitLit
-                            [x] -> return $ Send (Var $ unwrap x) resultVar
+                            [x] -> return $ Send x resultVar
                             _ -> throwError "Unsupported: multiple outputs detected."
             return $
                 Task $
@@ -86,14 +86,14 @@ generateNodesCode graph = toList <$> mapM generateNodeCode (letExprs graph)
         getStateVar (DFEnvVar _) = throwError "Invariant broken: state arg can not be literal!"
 
         convertDFVar :: DFVar -> TCExpr
-        convertDFVar (DFVar bnd) = Binding $ Var $ unwrap bnd
+        convertDFVar (DFVar bnd) = Var bnd
         convertDFVar (DFEnvVar l) = Lit l 
 
-        generateReceiveCode :: CompM m => DFVar -> Int -> LetExpr -> m (Var, TCExpr)
+        generateReceiveCode :: CompM m => DFVar -> Int -> LetExpr -> m (Binding, TCExpr)
         generateReceiveCode (DFVar bnd) callIdx current = do
             idx <- getIndex bnd current
-            return (Var $ "x" <> show callIdx, Receive idx $ Var $ unwrap bnd)
-        generateReceiveCode (DFEnvVar l) callIdx _ = return (Var $ "x" <> show callIdx, Lit l)
+            return ("x" <> show callIdx, Receive idx bnd)
+        generateReceiveCode (DFEnvVar l) callIdx _ = return ("x" <> show callIdx, Lit l)
 
         getIndex :: CompM m => Binding -> LetExpr -> m Int
         getIndex bnd current = 
@@ -107,7 +107,7 @@ generateNodesCode graph = toList <$> mapM generateNodeCode (letExprs graph)
                     -- of intermediate data structures.
                     Nothing -> throwError "Graph inconsistency: Can't find my usage of DFVar!"
         
-        lowerFnRef :: CompM m => DFFnRef -> [(Var, TCExpr)] -> m ([(Var, TCExpr)], QualifiedBinding, [TCExpr])
+        lowerFnRef :: CompM m => DFFnRef -> [(Binding, TCExpr)] -> m ([(Binding, TCExpr)], QualifiedBinding, [TCExpr])
         lowerFnRef fun varsAndReceives | fun == Refs.unitFun = do
             f <- case nonEmpty varsAndReceives of
                     Just vs -> case snd $ head vs of
@@ -116,8 +116,7 @@ generateNodesCode graph = toList <$> mapM generateNodeCode (letExprs graph)
                     Nothing -> throwError "unitFun must always have two arguments! This is an internal compiler error. Please report!"
             return ([], f, [])
         lowerFnRef f varsAndReceives = 
-            return (varsAndReceives, nodeRef f, map (Binding . fst) varsAndReceives)
-
+            return (varsAndReceives, nodeRef f, map (Var . fst) varsAndReceives)
 
 generateArcsCode :: DFExpr -> TCExpr -> TCExpr
 generateArcsCode graph cont = 
@@ -126,11 +125,11 @@ generateArcsCode graph cont =
     flip map (letExprs graph) $ \letExpr ->
         flip map (output letExpr) $ \out ->
             let numUsages = length $ findUsages out $ letExprs graph
-            in Let (Var $ unwrap out) (Channel numUsages)
+            in Let out (Channel numUsages)
 
 generateResultArc :: CompM m => DFExpr -> m TCExpr
 generateResultArc graph = 
     let retVar = returnVar graph
     in case length $ findUsages retVar $ letExprs graph of
-        0 -> return $ Receive 0 $ Var $ unwrap retVar 
+        0 -> return $ Receive 0 retVar 
         _ -> throwError "Unsupported: use of final result elsewhere in the code."

@@ -105,18 +105,29 @@ spec =
                         }
                     |]
                 expected `shouldBe` compiled)
-        -- it "env vars" $
-        --     (showCode <$> compileCode [sourceFile| 
-        --         fn test(i: i32) -> String {
-        --             let x = f(i);
-        --             g(x)
-        --         }
-        --         |]) >>= 
-        --     (`shouldBe`
-        --         showCode
-        --             [sourceFile| 
-        --                 fn test(i: i32) -> String {
-        --                     let x = f(i);
-        --                     g(x)
-        --                 }
-        --             |])
+        it "env vars" $
+            (showCode "Compiled: " =<< compileCode [sourceFile| 
+                fn test(i: i32) -> String {
+                    let x = f(i);
+                    g(x)
+                }
+                |]) >>= 
+            (\compiled -> do
+                expected <- showCode "Expected:"
+                    [sourceFile| 
+                        fn test(i: i32) -> String {
+                        let x_0 = ohua::arcs::Channel::new(1);
+                        let a = ohua::arcs::Channel::new(0);
+                        let mut tasks: Vec<Box<FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
+                        tasks
+                            .push(Box::new((move || -> _ {
+                            loop { let x0 = i; let result = f(x0); x_0.send(result) }
+                            })));
+                        tasks
+                            .push(Box::new((move || -> _ {
+                            loop { let x0 = x_0.recv(0); let result = g(x0); a.send(result) }
+                            })));
+                        a.recv(0)
+                        }
+                    |]
+                expected `shouldBe` compiled)
