@@ -28,6 +28,8 @@ dependencies:
 - extra
 - filepath
 - bytestring
+- recursion-schemes
+- template-haskell
 default-extensions:
 - OverloadedStrings
 - OverloadedLists

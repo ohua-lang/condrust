@@ -14,7 +14,6 @@ backend outDir compiled lang =
     mapM_ writeFile =<< Types.backend compiled lang
     where
         writeFile (file, code) = do 
-            traceShowM $ outDir </> file
             let fullPath = outDir </> file
             liftIO $ L.writeFile fullPath code
             logInfoN $ "Code written to '" <> T.pack fullPath <> "'"
