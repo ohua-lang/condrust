@@ -1,7 +1,19 @@
 module Ohua.Integration.Rust.Util where
 
 import Ohua.Prelude
-import Language.Rust.Data.Ident
+
+import Language.Rust.Data.Ident (Ident(..))
+import Language.Rust.Parser ( parse' , Span )
+import Language.Rust.Data.InputStream
+import Language.Rust.Syntax (SourceFile)
+
+import System.FilePath
 
 toBinding :: Ident -> Binding
 toBinding Ident{name=n} = fromString n
+
+filePathToNsRef :: FilePath -> NSRef
+filePathToNsRef = makeThrow . map fromString . splitDirectories . dropExtension
+
+load :: FilePath -> IO (SourceFile Span)
+load srcFile = parse' <$> readInputStream srcFile

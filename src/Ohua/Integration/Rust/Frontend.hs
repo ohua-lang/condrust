@@ -12,7 +12,6 @@ import Ohua.Integration.Rust.Util
 import Language.Rust.Syntax as Rust hiding (Rust)
 import Language.Rust.Data.Ident
 import Language.Rust.Parser ( parse' , Span )
-import Language.Rust.Data.InputStream
 import Data.Text as T hiding (map, concat, reverse)
 
 import qualified Data.HashMap.Lazy as HM
@@ -21,18 +20,14 @@ import System.FilePath ((</>), splitDirectories, dropExtension)
 
 instance Integration RustLang where
     frontend srcFile _ = do
-        mod <- liftIO load
+        mod <- liftIO $ load srcFile
         ns <- extractNs mod
         return (Module (srcFile, mod), ns)
         where
-            load :: IO (SourceFile Span)
-            load = parse' <$> readInputStream srcFile
-
             extractNs :: CompM m => SourceFile Span -> m (Namespace FrLang.Expr)
             -- TODO we might need to retrieve this from the file path.
             -- extractNs (SourceFile Nothing a b) = extractNs $ SourceFile (Just $ takeFileName srcFile) a b
             extractNs (SourceFile _ _ items) = do
-                let filePathToNsRef = makeThrow . map fromString . splitDirectories . dropExtension
                 imports <- concat . catMaybes <$>
                         mapM 
                             (\case 
@@ -65,11 +60,11 @@ instance Integration RustLang where
                 join <$> mapM (extractImports path') nesteds'
 
             extractAlgo :: CompM m => Ident -> FnDecl Span -> Block Span -> m (Algo FrLang.Expr)
-            extractAlgo Ident{name=n} (FnDecl args _ _ _) block = do
+            extractAlgo ident (FnDecl args _ _ _) block = do
                 args' <- mapM convertPat args
                 block' <- convertExpr block
                 return $ Algo
-                            (fromString n) 
+                            (toBinding ident) 
                             $ LamE args' block'
             
             toBindings p@(Path _ segments _) =
