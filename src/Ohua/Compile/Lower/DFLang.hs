@@ -10,26 +10,32 @@ import Ohua.Backend.Lang
 import Ohua.Backend.Types
 
 import Data.Maybe
+import qualified Data.HashSet as HS
 import Control.Monad.Extra (maybeM)
 
--- FIXME create bindings via MonadGenBnd!
 
 toTCLang :: CompM m => DFExpr -> m TCExpr
-toTCLang graph = transform -- runGenBndT mempty transform
+toTCLang graph = runGenBndT taken transform
     where 
         transform = do
             -- TODO generate code for Ohua ops (ctrls, recurs, nths) if necessary
             nodesCode <- generateNodesCode graph
             let arcsCode = generateArcsCode graph
-            resultReceive <- generateResultArc graph
-            return $ 
-                arcsCode $ 
+            resultReceive <- lift $ generateResultArc graph
+            return $
+                arcsCode $
                     Run nodesCode resultReceive
+        
+        taken = definedBindings graph
+        definedBindings :: DFExpr -> HS.HashSet Binding
+        definedBindings e =
+            HS.fromList $ returnVar e : concatMap output (letExprs e)
 
-generateNodesCode :: CompM m => DFExpr -> m [Task TCExpr]
+
+generateNodesCode :: CompM m => DFExpr ->  GenBndT m [Task TCExpr]
 generateNodesCode graph = toList <$> mapM generateNodeCode (letExprs graph)
     where 
-        generateNodeCode :: CompM m => LetExpr -> m (Task TCExpr)
+        generateNodeCode :: CompM m => LetExpr ->  GenBndT m (Task TCExpr)
         generateNodeCode e@LetExpr {functionRef=DFFnRef{nodeType=OperatorNode}} = 
             return $
                 Task $ 
@@ -40,19 +46,19 @@ generateNodesCode graph = toList <$> mapM generateNodeCode (letExprs graph)
                                 $ map convertDFVar $ callArguments e
 
         generateNodeCode e@LetExpr {functionRef=DFFnRef{nodeType=FunctionNode}} = do
-            varsAndReceives <- mapM 
-                                (\(idx, arg) -> generateReceiveCode arg idx e) 
+            varsAndReceives <- mapM
+                                (\(idx, arg) -> generateReceiveCode arg idx e)
                                 $ zip [0..] $ callArguments e
             let loopCode varsAndReceives cont = foldr (\(v,r) c -> Let v r c) cont varsAndReceives
-            let stateVar = "state" -- FIXME use generator
+            stateVar <- generateBindingWith "state"
             stateReceiveCode <- 
                 maybeM 
                     (return id) 
                     (\s -> do
                         -- assumes that state is used only in a single location!
                         -- is this really always the case? 
-                        stateDFVar <- getStateVar s
-                        idx <- getIndex stateDFVar e
+                        stateDFVar <- lift$ getStateVar s
+                        idx <- lift $ getIndex stateDFVar e
                         return $ Let stateVar $ Receive idx stateDFVar)
                     $ return $ stateArgument e 
             fnCallCode <- 
@@ -61,17 +67,17 @@ generateNodesCode graph = toList <$> mapM generateNodeCode (letExprs graph)
                     (\_ -> return $ Stateful stateVar) 
                     $ return $ stateArgument e
             
-            (varsAndReceives', fun, args) <- lowerFnRef (functionRef e) varsAndReceives
+            (varsAndReceives', fun, args) <- lift $ lowerFnRef (functionRef e) varsAndReceives
 
             let callCode = Apply $ fnCallCode fun args
 
-            let resultVar = "result"
+            resultVar <- generateBindingWith "result"
             -- TODO do we support multiple outputs or is this here because of historical
             --      reasons? (It previously was meant for destructuring.)
             sendCode <- case output e of
                             [] -> return $ Lit UnitLit
                             [x] -> return $ Send x resultVar
-                            _ -> throwError "Unsupported: multiple outputs detected."
+                            _ -> lift $ throwError "Unsupported: multiple outputs detected."
             return $
                 Task $
                     stateReceiveCode $ -- FIXME I don't think this is correct! 
@@ -89,11 +95,14 @@ generateNodesCode graph = toList <$> mapM generateNodeCode (letExprs graph)
         convertDFVar (DFVar bnd) = Var bnd
         convertDFVar (DFEnvVar l) = Lit l 
 
-        generateReceiveCode :: CompM m => DFVar -> Int -> LetExpr -> m (Binding, TCExpr)
+        generateReceiveCode :: CompM m => DFVar -> Int -> LetExpr -> GenBndT m (Binding, TCExpr)
         generateReceiveCode (DFVar bnd) callIdx current = do
-            idx <- getIndex bnd current
-            return ("x" <> show callIdx, Receive idx bnd)
-        generateReceiveCode (DFEnvVar l) callIdx _ = return ("x" <> show callIdx, Lit l)
+            idx <- lift $ getIndex bnd current
+            x <- generateBindingWith $ "arg" <> show callIdx
+            return (x, Receive idx bnd)
+        generateReceiveCode (DFEnvVar l) callIdx _ = do
+            x <- generateBindingWith $ "arg" <> show callIdx
+            return (x, Lit l)
 
         getIndex :: CompM m => Binding -> LetExpr -> m Int
         getIndex bnd current = 

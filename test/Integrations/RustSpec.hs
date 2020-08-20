@@ -95,11 +95,11 @@ spec =
                         let mut tasks: Vec<Box<FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
                         tasks
                             .push(Box::new((move || -> _ {
-                            loop { let result = f(); x_0.send(result) }
+                            loop { let result_0 = f(); x_0.send(result_0) }
                             })));
                         tasks
                             .push(Box::new((move || -> _ {
-                            loop { let x0 = x_0.recv(0); let result = g(x0); a.send(result) }
+                            loop { let arg0_1 = x_0.recv(0); let result_1 = g(arg0_1); a.send(result_1) }
                             })));
                         a.recv(0)
                         }
@@ -121,11 +121,11 @@ spec =
                         let mut tasks: Vec<Box<FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
                         tasks
                             .push(Box::new((move || -> _ {
-                            loop { let x0 = i; let result = f(x0); x_0.send(result) }
+                            loop { let arg0_0 = i; let result_0 = f(arg0_0); x_0.send(result_0) }
                             })));
                         tasks
                             .push(Box::new((move || -> _ {
-                            loop { let x0 = x_0.recv(0); let result = g(x0); a.send(result) }
+                            loop { let arg0_1 = x_0.recv(0); let result_1 = g(arg0_1); a.send(result_1) }
                             })));
                         a.recv(0)
                         }
