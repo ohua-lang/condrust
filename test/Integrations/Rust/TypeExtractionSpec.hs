@@ -68,6 +68,26 @@ spec =
                         )
                     ]
                 )
+        -- it "mod functions" $
+        --     extractTypes (void [sourceFile|
+        --         mod Foo {
+        --             fn void_input() -> String { unimplemented!{}}
+        --             fn void_output(i:i32) { unimplemented!{} }
+        --             fn simple(i:i32) -> String { unimplemented!{} }
+        --         }
+        --         |]) >>= (`shouldBe` 
+        --             HM.fromList [
+        --                 ( FunRef (QualifiedBinding (makeThrow []) "void_input") Nothing
+        --                 , FunType [] $ Just $ void [ty| String |]
+        --                 ) ,
+        --                 ( FunRef (QualifiedBinding (makeThrow []) "void_output") Nothing
+        --                 , FunType [ Normal $ void [ty| i32 |] ] Nothing
+        --                 ) ,
+        --                 ( FunRef (QualifiedBinding (makeThrow []) "simple") Nothing
+        --                 , FunType [ Normal $ void [ty| i32 |] ] $ Just $ void [ty| String |]
+        --                 )
+        --             ]
+        --         )
         -- it "trait functions" $
         --     extractTypes (void [sourceFile|
         --         trait Foo {

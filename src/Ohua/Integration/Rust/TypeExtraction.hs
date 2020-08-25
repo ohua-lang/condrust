@@ -36,7 +36,9 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
                     --     mapM (extractFromTraitItem (toTraitType ident)) items
                     _ -> return [])
                 items
-                
+        
+        -- TODO I'm not sure here how to create a value because the code is polymorph over the
+        --      annotation on the data structure.
         -- toTraitType ident = 
         --     TraitObject 
         --         (TraitTyParamBound 
