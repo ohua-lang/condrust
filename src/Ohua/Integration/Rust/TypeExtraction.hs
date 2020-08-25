@@ -32,8 +32,22 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
                         (: []) . Just . (createFunRef ident, ) <$> extractFunType convertArg decl
                     (Impl _ _ _ _ _ _ _ selfType items _) -> 
                         mapM (extractFromImplItem selfType) items
+                    -- (Trait _ _ ident _ _ _ _ items _) -> 
+                    --     mapM (extractFromTraitItem (toTraitType ident)) items
                     _ -> return [])
                 items
+                
+        -- toTraitType ident = 
+        --     TraitObject 
+        --         (TraitTyParamBound 
+        --             (PolyTraitRef 
+        --                 [] 
+        --                 (TraitRef (Path False [PathSegment ident Nothing span] span) span) 
+        --                 span) 
+        --             None
+        --             span)
+        --         span
+        --         :| []
 
         createFunRef :: Ident -> FunRef
         createFunRef = 
@@ -63,3 +77,8 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
         extractFromImplItem selfType (MethodI _ _ _ ident _ (MethodSig _ _ _ decl) _ _) = 
             Just . (createFunRef ident, ) <$> extractFunType (convertImplArg selfType) decl
         extractFromImplItem _ _ = return Nothing
+
+        extractFromTraitItem :: (CompM m, Show a) => Ty a -> TraitItem a -> m (Maybe (FunRef, FunType a))
+        extractFromTraitItem selfType (MethodT _ ident _ (MethodSig _ _ _ decl) _ _) =
+            Just . (createFunRef ident, ) <$> extractFunType (convertImplArg selfType) decl
+        extractFromTraitItem _ _ = return Nothing
