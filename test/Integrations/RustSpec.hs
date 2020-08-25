@@ -1,7 +1,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 module Integrations.RustSpec
     ( spec
-    )  where
+    ) where
 
 import Ohua.Prelude
 
@@ -12,7 +12,7 @@ import Ohua.Core.Types.Stage (DumpCode(..))
 import Ohua.Core.Stage
 
 import Ohua.Compile.Compiler
-import Ohua.Compile.Config (intoLogLevel, intoStageHandling, Stage(..))
+import Ohua.Compile.Config (intoStageHandling, Stage(..))
 import qualified Data.HashMap.Lazy as HM
 
 import System.FilePath
@@ -58,7 +58,7 @@ compileCode inCode =
                     let compScope = HM.empty
                     let options = if debug then debugOptions else def 
                     runCompM 
-                        (intoLogLevel "warn")
+                        LevelWarn
                         $ compile inFile compScope options outDir
                     outCode :: SourceFile Span 
                         <- parse' <$> readInputStream (outDir </> takeFileName inFile)
