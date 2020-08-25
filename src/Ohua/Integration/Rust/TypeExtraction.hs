@@ -13,24 +13,26 @@ import qualified Data.HashMap.Lazy as HM
 -- per instance of the type class that defines this method.
 -- extract :: FilePath -> HS FunRef typ
 
-data ArgType = Self (Ty Span) Mutability | Normal (Ty Span)
+data ArgType a = Self (Ty a) Mutability | Normal (Ty a) deriving (Show, Eq)
 
-data FnType = FnType [ArgType] (Maybe (Ty Span))
+data FunType a = FunType [ArgType a] (Maybe (Ty a)) deriving (Show, Eq)
 
-extract :: CompM m => FilePath -> m (HM.HashMap FunRef FnType)
-extract srcFile = do
-    mod <- liftIO $ load srcFile
-    extractTypes mod
+extractFromFile :: CompM m => FilePath -> m (HM.HashMap FunRef (FunType Span))
+extractFromFile srcFile = extract srcFile =<< liftIO (load srcFile)
+
+extract :: (CompM m, Show a) => FilePath -> SourceFile a -> m (HM.HashMap FunRef (FunType a))
+extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
     where
-        extractTypes :: CompM m => SourceFile Span -> m (HM.HashMap FunRef FnType)
-        extractTypes (SourceFile _ _ items) = 
-            HM.fromList .
-            catMaybes <$>
+        extractTypes :: (CompM m, Show a) => [Item a] -> m [(FunRef, FunType a)]
+        extractTypes items = 
+            catMaybes . concat <$>
             mapM
                 (\case
                     (Fn _ _ ident decl _ _ _ _ _ _) -> 
-                        Just . (createFunRef ident, ) <$> extractFnType decl
-                    _ -> return Nothing)
+                        (: []) . Just . (createFunRef ident, ) <$> extractFunType convertArg decl
+                    (Impl _ _ _ _ _ _ _ selfType items _) -> 
+                        mapM (extractFromImplItem selfType) items
+                    _ -> return [])
                 items
 
         createFunRef :: Ident -> FunRef
@@ -39,14 +41,25 @@ extract srcFile = do
             QualifiedBinding (filePathToNsRef srcFile) .
             toBinding
         
-        extractFnType :: CompM m => FnDecl Span -> m FnType
-        extractFnType f@(FnDecl _ _ True _) = throwError $ "Currently, we do not support variadic arguments." <> show f
-        extractFnType (FnDecl args retTyp _ _) = do
-            args' <- mapM convertArg args
-            return $ FnType args' retTyp
-        
-        convertArg :: CompM m => Arg Span -> m ArgType
+        extractFunType :: (CompM m, Show a) => (Arg a -> m (ArgType a)) -> FnDecl a -> m (FunType a)
+        extractFunType _ f@(FnDecl _ _ True _) = throwError $ "Currently, we do not support variadic arguments." <> show f
+        extractFunType firstArgExtract (FnDecl args retTyp _ _) = do
+            args' <- case args of 
+                        [] -> return []
+                        (x:xs) -> (:) <$> firstArgExtract x  <*> mapM convertArg xs
+            return $ FunType args' retTyp
+
+        convertImplArg :: (CompM m, Show a) => Ty a -> Arg a -> m (ArgType a)
+        convertImplArg selfType (SelfValue mut _) = return $ Self selfType mut
+        convertImplArg _ a@SelfRegion{} = throwError $ "Self arguments by reference are currently not supported." <> show a
+        convertImplArg selfType (SelfExplicit _ty mut _) = return $ Self selfType mut
+        convertImplArg _ a = convertArg a
+
+        convertArg :: (CompM m, Show a) => Arg a -> m (ArgType a)
         convertArg (Arg _ typ _) = return $ Normal typ
-        convertArg (SelfValue mut _) = undefined
-        convertArg a@SelfRegion{} = throwError $ "Self arguments by reference are currently not supported." <> show a
-        convertArg (SelfExplicit ty mut _) = return $ Self ty mut
+        convertArg a = throwError $ "Please report: The impossible happened at argument: " <> show a
+
+        extractFromImplItem :: (CompM m, Show a) => Ty a -> ImplItem a -> m (Maybe (FunRef, FunType a))
+        extractFromImplItem selfType (MethodI _ _ _ ident _ (MethodSig _ _ _ decl) _ _) = 
+            Just . (createFunRef ident, ) <$> extractFunType (convertImplArg selfType) decl
+        extractFromImplItem _ _ = return Nothing
