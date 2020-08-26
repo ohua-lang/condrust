@@ -16,6 +16,32 @@ data App expr
   | Stateful Binding QualifiedBinding [expr]
   deriving (Show, Eq, Lift, Generic, Functor, Foldable, Traversable)
 
+data TaskExpr
+  -- common with TCExpr
+  = VarT Binding
+  | ApplyT (App TaskExpr)
+  | LetT Binding
+        TaskExpr
+        TaskExpr -- cont
+  | Stmt 
+      TaskExpr
+      TaskExpr -- cont
+  | LitT Lit -- true, false  etc.
+  | ReceiveT Int -- copy index 
+            Binding -- channel
+  | SendT Binding -- channel
+         Binding -- data
+  -- specific control flow:
+  | LoopT Binding Binding TaskExpr -- foreach/map
+  | Cond TaskExpr TaskExpr TaskExpr
+  -- specific functions:
+  | HasSize Binding -- :: [a] -> Bool
+  | Size Binding -- :: [a] -> Int
+  | Tuple (Either Binding Lit) (Either Binding Lit)
+  | Increment Binding -- a = a + 1;
+  | Generate Binding Lit -- data generator  
+  deriving (Show, Eq, Lift, Generic)
+
 -- This language is intentionally kept very simple and restricted.
 data TCExpr
   = Var Binding
