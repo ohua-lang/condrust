@@ -101,6 +101,7 @@ spec =
                             .push(Box::new((move || -> _ {
                             loop { let arg0_1 = x_0.recv(0); let result_1 = g(arg0_1); a.send(result_1) }
                             })));
+                        run(tasks);
                         a.recv(0)
                         }
                     |]
@@ -127,6 +128,7 @@ spec =
                             .push(Box::new((move || -> _ {
                             loop { let arg0_1 = x_0.recv(0); let result_1 = g(arg0_1); a.send(result_1) }
                             })));
+                        run(tasks);
                         a.recv(0)
                         }
                     |]
