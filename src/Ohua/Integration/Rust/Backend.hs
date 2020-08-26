@@ -113,7 +113,7 @@ instance ConvertInto (Expr ()) where
                         []
                         noSpan
             contExpr = convertExpr cont
-        in append [stmtExpr] contExpr
+        in appendToBlock [stmtExpr] contExpr
     
     convertExpr (TCLang.Loop expr) =
         let block = case convertExpr expr of
@@ -155,8 +155,9 @@ instance ConvertInto (Expr ()) where
                         (QualifiedBinding (makeThrow []) "push")
                         [t]
             taskStmts = map (flip Semi noSpan . convertExpr . push . task) tasks
+            taskRunStmt = noSpan <$ [stmt| run(tasks); |]
             contStmt = convertExpr cont
-        in flip append contStmt $ taskInitStmt : taskStmts
+        in appendToBlock (taskInitStmt : taskStmts ++ [taskRunStmt]) contStmt
 
 mkSimpleBinding bnd = 
     IdentP 
@@ -175,7 +176,7 @@ convertQualBnd (QualifiedBinding ns bnd) =
 
 convertVar bnd = Path False [PathSegment (mkIdent $ unpack $ unwrap bnd) Nothing noSpan] noSpan
 
-append stmts cont = 
+appendToBlock stmts cont = 
     case cont of
         BlockExpr atts (Block contStmts safety s0) s1 -> 
             BlockExpr atts (Block (stmts ++ contStmts) safety s0) s1
