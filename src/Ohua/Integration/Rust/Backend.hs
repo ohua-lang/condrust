@@ -24,34 +24,26 @@ import System.FilePath (takeFileName)
 
 
 instance Integration RustLang where
-    -- | This is a single file backend.
-    -- FIXME The type class does not define the dependency properly via its type.
-    backend _ Empty = throwError "This is simply a weakness in the interface! It should not be possible to call this function without calling 'frontend'. This is always a bug. Please report."
-    backend ns (Module (path, SourceFile modName atts items)) =
-        let algos' = HM.fromList $ map (\(Algo name expr) -> (name, expr)) $ ns^.algos
-            src    = SourceFile modName atts $ map (replaceAlgo algos') items
-            render = encodeUtf8 . (<> "\n") . renderLazy . layoutSmart defaultLayoutOptions . pretty'
-            path' = takeFileName path -- TODO verify this!
-        in return $ (path', render src) :| []
+    type Code RustLang = Block ()
+
+    convert _ Empty = throwError "This is simply a weakness in the interface! It should not be possible to call this function without calling 'frontend'. This is always a bug. Please report."
+    convert ns (Module (path, SourceFile _ _ items)) =  
+        return ns & algos %~ map (\algo -> algo & algoCode %~ convertTasks)
         where
-            replaceAlgo algos = \case
-                    f@(Fn atts vis ident decl@(FnDecl args _ _ _) s c abi gen _ span) ->
-                        case HM.lookup (toBinding ident) algos of
-                            Just algo -> 
-                                Fn atts vis ident decl s c abi gen (span <$ convert args algo) span
-                            Nothing -> f
-                    i -> i
+            convertTasks (TCProgram chans retChan tasks) = 
+                TCProgram chans retChan $ map convertExpr tasks 
             
-            convert :: [Arg a] -> TCLang.TCExpr -> Block ()
-            convert args = convertExpr . convertEnvs args
+            -- FIXME The support for EnvRefs is in fact architecture-dependent.
+            --       For the microservice case, there are no EnvRefs.
+            --       I still need to find a way to attach this code to the architecture type class.
 
-            convertEnvs :: [Arg a] -> TCLang.TCExpr -> TCLang.TCExpr
-            convertEnvs args = cata $ \case
-                LitF (EnvRefLit h) -> argToVar (args !! unwrap h)
-                e -> embed e
+            -- convertEnvs :: [Arg a] -> TCLang.TaskExpr -> TCLang.TaskExpr
+            -- convertEnvs args = cata $ \case
+            --     LitF (EnvRefLit h) -> argToVar (args !! unwrap h)
+            --     e -> embed e
 
-            argToVar :: Rust.Arg a -> TCLang.TCExpr
-            argToVar (Arg (Just (IdentP _ i _ _ )) _ _) = Var $ toBinding i 
+            -- argToVar :: Rust.Arg a -> TCLang.TaskExpr
+            -- argToVar (Arg (Just (IdentP _ i _ _ )) _ _) = Var $ toBinding i
 
 noSpan = ()
 
@@ -86,25 +78,6 @@ instance ConvertInto (Expr ()) where
             (map convertExpr args)
             noSpan
 
-    convertExpr (Lambda args expr) = 
-        Closure
-            []
-            Movable
-            Value
-            (FnDecl 
-                (map 
-                    (\bnd -> 
-                        Arg 
-                            (Just $ mkSimpleBinding $ unwrap bnd)
-                            (Infer noSpan)
-                            noSpan)
-                    args)
-                (Just $ Infer noSpan)
-                False
-                noSpan)
-            (convertExpr expr)
-            noSpan
-
     convertExpr (Let bnd stmt cont) = 
         let stmtExpr = Local 
                         (mkSimpleBinding $ unwrap bnd)
@@ -114,19 +87,10 @@ instance ConvertInto (Expr ()) where
                         noSpan
             contExpr = convertExpr cont
         in appendToBlock [stmtExpr] contExpr
-    
-    convertExpr (TCLang.Loop expr) =
-        let block = case convertExpr expr of
-                        BlockExpr _ b _ -> b
-                        e -> Block [Semi e noSpan] Normal noSpan
-        in Rust.Loop [] block Nothing noSpan
 
-    convertExpr (Channel numCopies) =
-        convertExpr $
-            Apply $ 
-                Stateless 
-                    (QualifiedBinding (makeThrow ["ohua", "arcs", "Channel"]) "new") 
-                    [TCLang.Lit $ NumericLit $ fromIntegral numCopies]
+    convertExpr (TCLang.Stmt stmt cont) = 
+        appentToBlock [Semi (convertExpr stmt) noSpan] $ convertExpr cont
+    
     convertExpr (Receive rcvIdx channel) =
         convertExpr $
             Apply $ 
@@ -141,24 +105,16 @@ instance ConvertInto (Expr ()) where
                     channel 
                     (QualifiedBinding (makeThrow []) "send")
                     [Var d]
-    convertExpr (Run tasks cont) = 
-        let taskInitStmt = noSpan <$ [stmt| let mut tasks:Vec<Box<dyn FnOnce() -> Result<(), RunError>+ Send >> = Vec::new(); |]
-            task (Task expr) =
-                Apply $
-                    Stateless
-                        (QualifiedBinding (makeThrow ["Box"]) "new") 
-                        [Lambda [] expr]
-            push t =
-                Apply $
-                    Stateful
-                        "tasks"
-                        (QualifiedBinding (makeThrow []) "push")
-                        [t]
-            taskStmts = map (flip Semi noSpan . convertExpr . push . task) tasks
-            taskRunStmt = noSpan <$ [stmt| run(tasks); |]
-            contStmt = convertExpr cont
-        in appendToBlock (taskInitStmt : taskStmts ++ [taskRunStmt]) contStmt
 
+    convertExpr (TCLang.EndlessLoop expr) =
+        let block = case convertExpr expr of
+                        BlockExpr _ b _ -> b
+                        e -> Block [Semi e noSpan] Normal noSpan
+        in Rust.Loop [] block Nothing noSpan
+
+    convertExpr (TCLang.Loop bnd colBnd expr) = undefined -- TODO
+
+mkSimpleBinding :: Binding -> Pat ()
 mkSimpleBinding bnd = 
     IdentP 
         (ByValue Immutable)
@@ -166,6 +122,7 @@ mkSimpleBinding bnd =
         Nothing
         noSpan
 
+convertQualBnd :: QualifiedBinding -> Path ()
 convertQualBnd (QualifiedBinding ns bnd) = 
     Path 
         False
@@ -174,8 +131,10 @@ convertQualBnd (QualifiedBinding ns bnd) =
             $ unwrap ns ++ [bnd])
         noSpan
 
+convertVar :: Binding -> Path ()
 convertVar bnd = Path False [PathSegment (mkIdent $ unpack $ unwrap bnd) Nothing noSpan] noSpan
 
+appendToBlock :: [Rust.Stmt ()] -> Expr () -> Expr ()
 appendToBlock stmts cont = 
     case cont of
         BlockExpr atts (Block contStmts safety s0) s1 -> 
