@@ -14,17 +14,15 @@ import qualified Data.HashSet as HS
 import Control.Monad.Extra (maybeM)
 
 
-toTCLang :: CompM m => DFExpr -> m TCExpr
+toTCLang :: CompM m => DFExpr -> m TCProgram
 toTCLang graph = runGenBndT taken transform
     where 
         transform = do
             -- TODO generate code for Ohua ops (ctrls, recurs, nths) if necessary
-            nodesCode <- generateNodesCode graph
-            let arcsCode = generateArcsCode graph
-            resultReceive <- lift $ generateResultArc graph
-            return $
-                arcsCode $
-                    Run nodesCode resultReceive
+            let chans = generateArcsCode graph
+            resultChan <- lift $ generateResultArc graph
+            tasks <- generateNodesCode graph
+            return $ TCProgram chans resultChan tasks
         
         taken = definedBindings graph
         definedBindings :: DFExpr -> HS.HashSet Binding
@@ -32,18 +30,17 @@ toTCLang graph = runGenBndT taken transform
             HS.fromList $ returnVar e : concatMap output (letExprs e)
 
 
-generateNodesCode :: CompM m => DFExpr ->  GenBndT m [Task TCExpr]
+generateNodesCode :: CompM m => DFExpr ->  GenBndT m [TaskExpr]
 generateNodesCode graph = toList <$> mapM generateNodeCode (letExprs graph)
     where 
-        generateNodeCode :: CompM m => LetExpr ->  GenBndT m (Task TCExpr)
+        generateNodeCode :: CompM m => LetExpr ->  GenBndT m TaskExpr
         generateNodeCode e@LetExpr {functionRef=DFFnRef{nodeType=OperatorNode}} = 
             return $
-                Task $ 
-                    Loop $ 
-                        Apply $ 
-                            Stateless
-                                (nodeRef $ functionRef e)
-                                $ map convertDFVar $ callArguments e
+                EndlessLoop $ 
+                    Apply $ 
+                        Stateless
+                            (nodeRef $ functionRef e)
+                            $ map convertDFVar $ callArguments e
 
         generateNodeCode e@LetExpr {functionRef=DFFnRef{nodeType=FunctionNode}} = do
             varsAndReceives <- mapM
@@ -79,10 +76,9 @@ generateNodesCode graph = toList <$> mapM generateNodeCode (letExprs graph)
                             [x] -> return $ Send x resultVar
                             _ -> lift $ throwError "Unsupported: multiple outputs detected."
             return $
-                Task $
                     stateReceiveCode $ -- FIXME I don't think this is correct! 
                                        -- It needs to be just a more sophisticated arc that maintains the state instance for 'n' calls. (Control arc)
-                        Loop $
+                        EndlessLoop $
                             loopCode 
                                 varsAndReceives'
                                 (Let resultVar callCode sendCode)
@@ -91,11 +87,11 @@ generateNodesCode graph = toList <$> mapM generateNodeCode (letExprs graph)
         getStateVar (DFVar bnd) = return bnd
         getStateVar (DFEnvVar _) = throwError "Invariant broken: state arg can not be literal!"
 
-        convertDFVar :: DFVar -> TCExpr
+        convertDFVar :: DFVar -> TaskExpr
         convertDFVar (DFVar bnd) = Var bnd
         convertDFVar (DFEnvVar l) = Lit l 
 
-        generateReceiveCode :: CompM m => DFVar -> Int -> LetExpr -> GenBndT m (Binding, TCExpr)
+        generateReceiveCode :: CompM m => DFVar -> Int -> LetExpr -> GenBndT m (Binding, TaskExpr)
         generateReceiveCode (DFVar bnd) callIdx current = do
             idx <- lift $ getIndex bnd current
             x <- generateBindingWith $ "arg" <> show callIdx
@@ -116,7 +112,7 @@ generateNodesCode graph = toList <$> mapM generateNodeCode (letExprs graph)
                     -- of intermediate data structures.
                     Nothing -> throwError "Graph inconsistency: Can't find my usage of DFVar!"
         
-        lowerFnRef :: CompM m => DFFnRef -> [(Binding, TCExpr)] -> m ([(Binding, TCExpr)], QualifiedBinding, [TCExpr])
+        lowerFnRef :: CompM m => DFFnRef -> [(Binding, TaskExpr)] -> m ([(Binding, TaskExpr)], QualifiedBinding, [TaskExpr])
         lowerFnRef fun varsAndReceives | fun == Refs.unitFun = do
             f <- case nonEmpty varsAndReceives of
                     Just vs -> case snd $ head vs of
@@ -127,18 +123,13 @@ generateNodesCode graph = toList <$> mapM generateNodeCode (letExprs graph)
         lowerFnRef f varsAndReceives = 
             return (varsAndReceives, nodeRef f, map (Var . fst) varsAndReceives)
 
-generateArcsCode :: DFExpr -> TCExpr -> TCExpr
-generateArcsCode graph cont = 
-    foldr (\e c -> e c) cont $
+generateArcsCode :: DFExpr -> [Channel]
+generateArcsCode graph =
     concat $ 
     flip map (letExprs graph) $ \letExpr ->
         flip map (output letExpr) $ \out ->
             let numUsages = length $ findUsages out $ letExprs graph
-            in Let out (Channel numUsages)
+            in Channel out numUsages
 
-generateResultArc :: CompM m => DFExpr -> m TCExpr
-generateResultArc graph = 
-    let retVar = returnVar graph
-    in case length $ findUsages retVar $ letExprs graph of
-        0 -> return $ Receive 0 retVar 
-        _ -> throwError "Unsupported: use of final result elsewhere in the code."
+generateResultArc :: DFExpr -> Channel
+generateResultArc = flip Channel 1 . returnVar
