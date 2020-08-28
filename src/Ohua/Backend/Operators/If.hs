@@ -10,22 +10,22 @@ type CtrlFalseOutput = Binding
 
 ifFun :: CondInput -> CtrlTrueOutput -> CtrlFalseOutput -> TaskExpr
 ifFun condInput ctrlTrue ctrlFalse = 
-    LetT "branchSelection" (ReceiveT 0 condInput) $
+    Let "branchSelection" (Receive 0 condInput) $
     Cond 
-        (VarT "branchSelection")
+        (Var "branchSelection")
         (
-            LetT "ctrlTrue" (Tuple (Right $ BoolLit True) (Right $ NumericLit 1)) $
-            LetT "ctrlFalse" (Tuple (Right $ BoolLit True) (Right $ NumericLit 0)) $
+            Let "ctrlTrue" (Tuple (Right $ BoolLit True) (Right $ NumericLit 1)) $
+            Let "ctrlFalse" (Tuple (Right $ BoolLit True) (Right $ NumericLit 0)) $
             Stmt 
-                (SendT ctrlTrue "ctrlTrue")
-                (SendT ctrlFalse "ctrlFalse")
+                (Send ctrlTrue "ctrlTrue")
+                (Send ctrlFalse "ctrlFalse")
         )
         (
-            LetT "ctrlTrue" (Tuple (Right $ BoolLit True) (Right $ NumericLit 0)) $
-            LetT "ctrlFalse" (Tuple (Right $ BoolLit True) (Right $ NumericLit 1)) $
+            Let "ctrlTrue" (Tuple (Right $ BoolLit True) (Right $ NumericLit 0)) $
+            Let "ctrlFalse" (Tuple (Right $ BoolLit True) (Right $ NumericLit 1)) $
             Stmt 
-                (SendT ctrlTrue "ctrlTrue")
-                (SendT ctrlFalse "ctrlFalse")
+                (Send ctrlTrue "ctrlTrue")
+                (Send ctrlFalse "ctrlFalse")
         )
 
 type TrueBranchInput = Binding
@@ -34,14 +34,14 @@ type ResultOutput = Binding
 
 select :: CondInput -> TrueBranchInput -> FalseBranchInput -> ResultOutput -> TaskExpr
 select condInput trueBranchInput falseBranchInput resultOut = 
-    LetT "branchSelection" (ReceiveT 0 condInput) $
+    Let "branchSelection" (Receive 0 condInput) $
         Cond 
-            (VarT "branchSelection")
+            (Var "branchSelection")
             (
-                LetT "result" (ReceiveT 0 trueBranchInput) $
-                    SendT resultOut "result"
+                Let "result" (Receive 0 trueBranchInput) $
+                    Send resultOut "result"
             )
             (
-                LetT "result" (ReceiveT 0 falseBranchInput) $
-                    SendT resultOut "result"
+                Let "result" (Receive 0 falseBranchInput) $
+                    Send resultOut "result"
             )

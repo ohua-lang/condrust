@@ -9,7 +9,7 @@ import qualified Data.Text as T
 import System.FilePath as Path ((<.>), (</>), takeExtension)
 
 
-backend :: (CompM m, Integration lang) => FilePath -> Namespace TCExpr -> lang -> m ()
+backend :: (CompM m, Integration lang) => FilePath -> Namespace TCProgram -> lang -> m ()
 backend outDir compiled lang = 
     mapM_ writeFile =<< Types.backend compiled lang
     where

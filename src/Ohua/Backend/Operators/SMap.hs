@@ -2,7 +2,7 @@ module Ohua.Backend.Operators.SMap where
 
 import Ohua.Prelude
 
-import Ohua.Backend.Lang hiding (TCExpr)
+import Ohua.Backend.Lang
 
 
 type Input = Binding
@@ -12,27 +12,27 @@ type CollectOut = Binding
 
 smapFun :: Input -> DataOut -> CtrlOut -> CollectOut -> TaskExpr
 smapFun input dataOut ctrlOut collectOut = 
-    LetT "data" (ReceiveT 0 input) $
-    LetT "hasSize" (HasSize "data") $
-        Cond (VarT "hasSize")
+    Let "data" (Receive 0 input) $
+    Let "hasSize" (HasSize "data") $
+        Cond (Var "hasSize")
             -- known size
             (
-                LetT "size" (Size "data") $
-                Stmt (SendT collectOut "size") $
-                LetT "ctrl" (Tuple (Right $ BoolLit True) (Left "size")) $
-                Stmt (SendT ctrlOut "ctrl") $ LitT UnitLit
+                Let "size" (Size "data") $
+                Stmt (Send collectOut "size") $
+                Let "ctrl" (Tuple (Right $ BoolLit True) (Left "size")) $
+                Stmt (Send ctrlOut "ctrl") $ Lit UnitLit
             )
             -- unknown size --> generator-style
             (
-                LetT "size" (LitT $ NumericLit 0) $
+                Let "size" (Lit $ NumericLit 0) $
                 Stmt
-                    (LoopT "d" "data" $
-                        Stmt (SendT dataOut "d") $
-                        LetT "ctrl" (Tuple (Right $ BoolLit False) (Right $ NumericLit 1)) $
-                        Stmt (SendT ctrlOut "ctrl") $ Increment "size") $
-                Stmt (SendT collectOut "size") $
-                LetT "ctrl" (Tuple (Right $ BoolLit True) (Right $ NumericLit 0)) $
-                Stmt (SendT ctrlOut "ctrl") $ LitT UnitLit
+                    (Loop "d" "data" $
+                        Stmt (Send dataOut "d") $
+                        Let "ctrl" (Tuple (Right $ BoolLit False) (Right $ NumericLit 1)) $
+                        Stmt (Send ctrlOut "ctrl") $ Increment "size") $
+                Stmt (Send collectOut "size") $
+                Let "ctrl" (Tuple (Right $ BoolLit True) (Right $ NumericLit 0)) $
+                Stmt (Send ctrlOut "ctrl") $ Lit UnitLit
             )
 
 type SizeInput = Binding
@@ -48,13 +48,13 @@ collect :: SizeInput
         -> CollectedOutput 
         -> TaskExpr
 collect sizeInput dataInput stateInput (FunRef collectFun _) collectedOutput = 
-    LetT "num" (ReceiveT 0 sizeInput) $
-    LetT "collection" (ReceiveT 0 stateInput) $
-    LetT "receives" (Generate "num" UnitLit) $
+    Let "num" (Receive 0 sizeInput) $
+    Let "collection" (Receive 0 stateInput) $
+    Let "receives" (Generate "num" UnitLit) $
     Stmt 
         (
-            LoopT "_receive" "receives" $
-                LetT "data" (ReceiveT 0 dataInput) $
-                    ApplyT $ Stateful "collection"  collectFun [VarT "data"]
+            Loop "_receive" "receives" $
+                Let "data" (Receive 0 dataInput) $
+                    Apply $ Stateful "collection"  collectFun [Var "data"]
         ) $
-        SendT collectedOutput "collection"
+        Send collectedOutput "collection"

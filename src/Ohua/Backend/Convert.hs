@@ -4,5 +4,9 @@ import Ohua.Prelude
 
 import Ohua.Backend.Lang
 
-class ConvertInto a where
-    convertExpr :: TCExpr -> a
+
+class ConvertExpr a where
+    convertExpr :: TaskExpr -> a
+
+class ConvertChannel a where
+    convertChannel :: Channel -> a

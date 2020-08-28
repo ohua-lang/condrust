@@ -1,8 +1,5 @@
-import Test.Hspec
 
-import Universum
-
-import CodeGenSpec
+import Ohua.Prelude
 
 main :: IO ()
-main = hspec $ do codeGenSpec
+main = undefined -- TODO
