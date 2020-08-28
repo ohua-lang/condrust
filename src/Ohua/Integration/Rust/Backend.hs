@@ -1,4 +1,3 @@
-{-# LANGUAGE QuasiQuotes #-}
 module Ohua.Integration.Rust.Backend where
 
 import Ohua.Prelude
@@ -12,30 +11,26 @@ import Ohua.Integration.Rust.Util
 
 import Language.Rust.Syntax as Rust hiding (Rust)
 import Language.Rust.Data.Ident
-import Language.Rust.Pretty ( pretty' )
-import Language.Rust.Quote
-import Data.Text.Prettyprint.Doc
-import Data.Text.Prettyprint.Doc.Render.Text
 import Data.Text (unpack)
 import Data.List ((!!))
-import qualified Data.HashMap.Lazy as HM
 import Data.Functor.Foldable (cata, embed)
-import System.FilePath (takeFileName)
 
 
 instance Integration RustLang where
     type Code RustLang = Block ()
 
-    convert _ Empty = throwError "This is simply a weakness in the interface! It should not be possible to call this function without calling 'frontend'. This is always a bug. Please report."
-    convert ns (Module (path, SourceFile _ _ items)) =  
-        return ns & algos %~ map (\algo -> algo & algoCode %~ convertTasks)
+    lower Empty _ = throwError "This is simply a weakness in the interface! It should not be possible to call this function without calling 'frontend'. This is always a bug. Please report."
+    lower (Module (path, SourceFile _ _ items)) ns =  
+        return $ ns & algos %~ map (\algo -> algo & algoCode %~ convertTasks)
         where
             convertTasks (TCProgram chans retChan tasks) = 
-                TCProgram chans retChan $ map convertExpr tasks 
+                TCProgram chans retChan $ map convertIntoBlock tasks 
             
             -- FIXME The support for EnvRefs is in fact architecture-dependent.
             --       For the microservice case, there are no EnvRefs.
             --       I still need to find a way to attach this code to the architecture type class.
+            -- SOLUTION EnvRefs should just be of type Binding. They refer to an idx only for
+            --          historic reasons. 
 
             -- convertEnvs :: [Arg a] -> TCLang.TaskExpr -> TCLang.TaskExpr
             -- convertEnvs args = cata $ \case
@@ -47,16 +42,15 @@ instance Integration RustLang where
 
 noSpan = ()
 
-instance ConvertInto (Block ()) where
-    convertExpr expr = 
-        let expr' = convertExpr expr :: (Expr ())
-        in case expr' of
-            BlockExpr _ block _ -> block
-            _ -> error $ "Expression is not a block!\n " <> show expr
+convertIntoBlock :: TaskExpr -> Block ()
+convertIntoBlock expr = 
+    let expr' = convertExpr expr :: (Expr ())
+    in case expr' of
+        BlockExpr _ block _ -> block
+        e -> Block [NoSemi e noSpan] Normal noSpan
 
-instance ConvertInto (Expr ()) where 
-    convertExpr (Var bnd) = 
-        PathExpr [] Nothing (convertVar bnd) noSpan
+instance ConvertExpr (Expr ()) where
+    convertExpr (Var bnd) = PathExpr [] Nothing (convertVar bnd) noSpan
 
     convertExpr (TCLang.Lit (NumericLit i)) = Rust.Lit [] (Int Dec i Unsuffixed noSpan) noSpan
     convertExpr (TCLang.Lit UnitLit) = TupExpr [] [] noSpan -- FIXME this means *our* unit, I believe.
@@ -80,17 +74,17 @@ instance ConvertInto (Expr ()) where
 
     convertExpr (Let bnd stmt cont) = 
         let stmtExpr = Local 
-                        (mkSimpleBinding $ unwrap bnd)
+                        (mkSimpleBinding bnd)
                         Nothing
                         (Just $ convertExpr stmt)
                         []
                         noSpan
             contExpr = convertExpr cont
-        in appendToBlock [stmtExpr] contExpr
+        in prependToBlock [stmtExpr] contExpr
 
     convertExpr (TCLang.Stmt stmt cont) = 
-        appentToBlock [Semi (convertExpr stmt) noSpan] $ convertExpr cont
-    
+        prependToBlock [Semi (convertExpr stmt) noSpan] $ convertExpr cont
+
     convertExpr (Receive rcvIdx channel) =
         convertExpr $
             Apply $ 
@@ -107,18 +101,21 @@ instance ConvertInto (Expr ()) where
                     [Var d]
 
     convertExpr (TCLang.EndlessLoop expr) =
-        let block = case convertExpr expr of
-                        BlockExpr _ b _ -> b
-                        e -> Block [Semi e noSpan] Normal noSpan
+        let block = convertIntoBlock expr
         in Rust.Loop [] block Nothing noSpan
 
-    convertExpr (TCLang.Loop bnd colBnd expr) = undefined -- TODO
+    convertExpr (TCLang.Loop bnd colBnd expr) = 
+        let block = convertIntoBlock expr
+            colExpr = convertExpr $ Var colBnd
+            loopVar = mkSimpleBinding bnd
+        in Rust.ForLoop [] loopVar colExpr block Nothing noSpan
+
 
 mkSimpleBinding :: Binding -> Pat ()
 mkSimpleBinding bnd = 
     IdentP 
         (ByValue Immutable)
-        (mkIdent $ unpack bnd)
+        (mkIdent $ unpack $ unwrap bnd)
         Nothing
         noSpan
 
@@ -134,8 +131,8 @@ convertQualBnd (QualifiedBinding ns bnd) =
 convertVar :: Binding -> Path ()
 convertVar bnd = Path False [PathSegment (mkIdent $ unpack $ unwrap bnd) Nothing noSpan] noSpan
 
-appendToBlock :: [Rust.Stmt ()] -> Expr () -> Expr ()
-appendToBlock stmts cont = 
+prependToBlock :: [Rust.Stmt ()] -> Expr () -> Expr ()
+prependToBlock stmts cont = 
     case cont of
         BlockExpr atts (Block contStmts safety s0) s1 -> 
             BlockExpr atts (Block (stmts ++ contStmts) safety s0) s1

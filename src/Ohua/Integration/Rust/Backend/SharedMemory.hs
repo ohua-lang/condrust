@@ -1,39 +1,55 @@
+{-# LANGUAGE QuasiQuotes #-}
 module Ohua.Integration.Rust.Backend.SharedMemory where
 
 import Ohua.Prelude
 
+import Ohua.Backend.Types
+import Ohua.Backend.Lang as TCLang
+import Ohua.Backend.Convert
 import Ohua.Integration.Rust.Backend
+import Ohua.Integration.Rust.Types
+import Ohua.Integration.Rust.Util
+
+import Language.Rust.Syntax as Rust hiding (Rust)
+import Language.Rust.Quote
+import Language.Rust.Pretty ( pretty' )
+import Data.Text.Prettyprint.Doc
+import Data.Text.Prettyprint.Doc.Render.Text
+
+import qualified Data.HashMap.Lazy as HM
+import System.FilePath (takeFileName)
 
 
 newtype SharedMem = SharedMem RustLang
 
 instance Architecture SharedMem where 
+    type Integ SharedMem = RustLang
     type Task SharedMem = Expr ()
-    type Channel SharedMem = Stmt ()
+    type Chan SharedMem = Stmt ()
 
-    build ns (SharedMem (Module (_, SourceFile _ _ items))) = 
-        return ns & algos %~ map (\algo -> algo & algoCode %~ createTasksAndChannels)
+    build (SharedMem (Module (_, SourceFile _ _ items))) ns = 
+        return $ ns & algos %~ map (\algo -> algo & algoCode %~ createTasksAndChannels)
         where
             createTasksAndChannels (TCProgram chans retChan tasks) = 
                 TCProgram
-                    ((createChannels chans) ++ [(convertChannel retChan)])
+                    (createChannels chans ++ [convertChannel retChan])
                     retChan
                     (map createTask tasks)
 
             createTask :: Block () -> Expr ()
             createTask code = 
-                Clojure
+                Closure
                     []
                     Movable
                     Value
-                    (FnDecl [] (Just Infer ()) false ())
-                    code
-                    ()
+                    (FnDecl [] (Just $ Infer noSpan) False noSpan)
+                    (BlockExpr [] code noSpan)
+                    noSpan
 
             createChannels :: [Channel] -> [Stmt ()]
             createChannels = map convertChannel
 
-    serialize ns (SharedMem (Module (path, SourceFile modName atts items))) =
+    serialize (SharedMem (Module (path, SourceFile modName atts items))) ns =
         let algos' = HM.fromList $ map (\(Algo name expr) -> (name, expr)) $ ns^.algos
             src    = SourceFile modName atts $ map (replaceAlgo algos') items
             render = encodeUtf8 . (<> "\n") . renderLazy . layoutSmart defaultLayoutOptions . pretty'
@@ -54,7 +70,7 @@ instance Architecture SharedMem where
                         Apply $
                             Stateless
                                 (QualifiedBinding (makeThrow ["Box"]) "new") 
-                                [task]
+                                [task] -- FIXME This does not work!
                     push t =
                         Apply $
                             Stateful
@@ -64,8 +80,8 @@ instance Architecture SharedMem where
                     taskStmts = map (flip Semi noSpan . convertExpr . push . box) tasks
                     taskRunStmt = () <$ [stmt| run(tasks); |]
                     resultExpr = convertExpr $ Receive 0 retChan
-                    program = chans ++ retChan ++ [taskInitStmt] ++ taskStmts ++ [taskRunStmt]
-                in appendToBlock program resultExpr
+                    program = chans ++ [taskInitStmt] ++ taskStmts ++ [taskRunStmt]
+                in prependToBlock program resultExpr
 
 instance ConvertChannel (Stmt ()) where
     convertChannel (Channel bnd numCopies) = 
@@ -74,7 +90,7 @@ instance ConvertChannel (Stmt ()) where
                         (QualifiedBinding (makeThrow ["ohua", "arcs", "Channel"]) "new") 
                         [TCLang.Lit $ NumericLit $ fromIntegral numCopies]
         in Local 
-                (mkSimpleBinding $ unwrap bnd)
+                (mkSimpleBinding bnd)
                 Nothing
                 (Just $ convertExpr stmt)
                 []
