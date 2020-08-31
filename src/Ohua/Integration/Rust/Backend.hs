@@ -14,30 +14,34 @@ import Language.Rust.Data.Ident
 import Data.Text (unpack)
 import Data.List ((!!))
 import Data.Functor.Foldable (cata, embed)
+import qualified Data.HashMap.Lazy as HM
 
 
 instance Integration Module where
     type Code Module = Block ()
 
-    lower (Module (path, SourceFile _ _ items)) ns =  
-        return $ ns & algos %~ map (\algo -> algo & algoCode %~ convertTasks)
+    lower (Module (path, SourceFile _ _ items)) ns = 
+        return $ 
+            ns & algos %~ map (\algo -> algo & algoCode %~ convertTasks (algo^.algoName))
         where
-            convertTasks (TCProgram chans retChan tasks) = 
-                TCProgram chans retChan $ map convertIntoBlock tasks 
-            
-            -- FIXME The support for EnvRefs is in fact architecture-dependent.
-            --       For the microservice case, there are no EnvRefs.
-            --       I still need to find a way to attach this code to the architecture type class.
-            -- SOLUTION EnvRefs should just be of type Binding. They refer to an idx only for
-            --          historic reasons. 
+            convertTasks algo (TCProgram chans retChan tasks) = 
+                let algosAndArgs = HM.fromList $ 
+                        map (\(Fn _ _ ident (FnDecl args _ _ _) _ _ _ _ _ _) -> 
+                                (toBinding ident, args))
+                            items
+                    args = case HM.lookup algo algosAndArgs of
+                                -- TODO: I have currently no idea how to express this invariant in a type.
+                            Nothing -> error "Compiler invariant broken: Algo not found in source module."
+                            (Just as) -> as
+                in TCProgram chans retChan $ map (convertIntoBlock . convertEnvs args)tasks 
+                            
+            convertEnvs :: [Arg a] -> TCLang.TaskExpr -> TCLang.TaskExpr
+            convertEnvs args = cata $ \case
+                LitF (EnvRefLit h) -> argToVar (args !! unwrap h)
+                e -> embed e
 
-            -- convertEnvs :: [Arg a] -> TCLang.TaskExpr -> TCLang.TaskExpr
-            -- convertEnvs args = cata $ \case
-            --     LitF (EnvRefLit h) -> argToVar (args !! unwrap h)
-            --     e -> embed e
-
-            -- argToVar :: Rust.Arg a -> TCLang.TaskExpr
-            -- argToVar (Arg (Just (IdentP _ i _ _ )) _ _) = Var $ toBinding i
+            argToVar :: Rust.Arg a -> TCLang.TaskExpr
+            argToVar (Arg (Just (IdentP _ i _ _ )) _ _) = Var $ toBinding i
 
 noSpan = ()
 
