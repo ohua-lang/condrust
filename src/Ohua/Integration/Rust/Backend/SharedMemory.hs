@@ -13,6 +13,7 @@ import Ohua.Integration.Rust.Util
 import Language.Rust.Syntax as Rust hiding (Rust)
 import Language.Rust.Quote
 import Language.Rust.Pretty ( pretty' )
+import Language.Rust.Data.Ident
 import Data.Text.Prettyprint.Doc
 import Data.Text.Prettyprint.Doc.Render.Text
 
@@ -20,10 +21,10 @@ import qualified Data.HashMap.Lazy as HM
 import System.FilePath (takeFileName)
 
 
-newtype SharedMem = SharedMem RustLang
+newtype SharedMem = SharedMem Module
 
 instance Architecture SharedMem where 
-    type Integ SharedMem = RustLang
+    type Integ SharedMem = Module
     type Task SharedMem = Expr ()
     type Chan SharedMem = Stmt ()
 
@@ -67,21 +68,24 @@ instance Architecture SharedMem where
             createProgram (TCProgram chans (Channel retChan _) tasks) =
                 let taskInitStmt = noSpan <$ [stmt| let mut tasks:Vec<Box<dyn FnOnce() -> Result<(), RunError>+ Send >> = Vec::new(); |]
                     box task =
-                        Apply $
-                            Stateless
-                                (QualifiedBinding (makeThrow ["Box"]) "new") 
-                                [task] -- FIXME This does not work!
+                        Call 
+                            []
+                            (PathExpr [] Nothing (convertQualBnd (QualifiedBinding (makeThrow ["Box"]) "new")) noSpan)
+                            [task]
+                            noSpan
                     push t =
-                        Apply $
-                            Stateful
-                                "tasks"
-                                (QualifiedBinding (makeThrow []) "push")
-                                [t]
-                    taskStmts = map (flip Semi noSpan . convertExpr . push . box) tasks
+                        MethodCall
+                            []
+                            (convertExpr $ Var "tasks")
+                            (mkIdent "push")
+                            Nothing
+                            [t]
+                            noSpan
+                    taskStmts = map (flip Semi noSpan . push . box) tasks
                     taskRunStmt = () <$ [stmt| run(tasks); |]
                     resultExpr = convertExpr $ Receive 0 retChan
                     program = chans ++ [taskInitStmt] ++ taskStmts ++ [taskRunStmt]
-                in prependToBlock program resultExpr
+                in Block (program ++ [NoSemi resultExpr noSpan]) Normal noSpan
 
 instance ConvertChannel (Stmt ()) where
     convertChannel (Channel bnd numCopies) = 

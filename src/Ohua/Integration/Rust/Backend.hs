@@ -16,10 +16,9 @@ import Data.List ((!!))
 import Data.Functor.Foldable (cata, embed)
 
 
-instance Integration RustLang where
-    type Code RustLang = Block ()
+instance Integration Module where
+    type Code Module = Block ()
 
-    lower Empty _ = throwError "This is simply a weakness in the interface! It should not be possible to call this function without calling 'frontend'. This is always a bug. Please report."
     lower (Module (path, SourceFile _ _ items)) ns =  
         return $ ns & algos %~ map (\algo -> algo & algoCode %~ convertTasks)
         where

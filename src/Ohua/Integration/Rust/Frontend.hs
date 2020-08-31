@@ -18,8 +18,10 @@ import qualified Data.HashMap.Lazy as HM
 import System.FilePath ((</>), splitDirectories, dropExtension)
 
 
-instance Integration RustLang where
-    frontend srcFile _ = do
+instance Integration Rust where
+    type Lang Rust = Module
+
+    frontend _ srcFile = do
         mod <- liftIO $ load srcFile
         ns <- extractNs mod
         return (Module (srcFile, mod), ns)
