@@ -23,12 +23,17 @@ data TaskExpr
   = Var Binding
   | Lit Lit -- true, false  etc.
   | Apply (App TaskExpr)
+  | Lambda [Binding] TaskExpr
   | Let Binding
         TaskExpr
         TaskExpr -- cont
   | Stmt 
       TaskExpr
       TaskExpr -- cont
+  | Assign -- side-effect
+      Binding
+      TaskExpr
+
   | Receive Int -- copy index 
             Binding -- channel
   | Send Binding -- channel
@@ -37,12 +42,17 @@ data TaskExpr
   -- specific control flow:
   | EndlessLoop TaskExpr
   | Loop Binding Binding TaskExpr -- foreach/map
+  | Repeat (Either Binding Int) TaskExpr
   | Cond TaskExpr TaskExpr TaskExpr
   
   -- specific functions:
   | HasSize Binding -- :: [a] -> Bool
   | Size Binding -- :: [a] -> Int
+
   | Tuple (Either Binding Lit) (Either Binding Lit)
+  | First (Either Binding Lit)
+  | Second (Either Binding Lit)
+
   | Increment Binding -- a = a + 1;
   | Generate Binding Lit -- data generator  
   
