@@ -7,7 +7,9 @@ import System.FilePath
 import qualified Data.HashMap.Lazy as HM
 
 class Integration lang where
-    frontend :: CompM m => FilePath -> lang -> m (lang, Namespace Expr)
+    type Lang lang :: *
+
+    frontend :: (CompM m) => lang -> FilePath -> m (Lang lang, Namespace Expr)
 
 
 type LanguageFileSuffix = Text
