@@ -34,18 +34,26 @@ import System.FilePath
 compile :: CompM m 
     => FilePath -> CompilationScope -> Options -> FilePath -> m ()
 compile inFile compScope coreOpts outDir = 
-    runIntegration (toText $ takeExtension inFile) compilation
+    runIntegration 
+        (toText $ takeExtension inFile) 
+        "sm" -- TODO integrate backend architecture option into config
+        (compilation inFile compScope coreOpts outDir)
+    
+compilation :: 
+    (CompM m, FullIntegration lang integ arch)
+    => 
+    FilePath -> CompilationScope -> Options -> FilePath
+    -> lang -> arch -> m ()
+compilation inFile compScope coreOpts outDir integration arch = do
+    -- frontend
+    (ctxt, ns) <- Fr.frontend integration compScope inFile
+    -- middle end
+    ns' <- updateExprs ns $ toAlang >=> core >=> toTCLang
+    -- backend 
+    B.backend outDir ns' ctxt arch
+
     where
-        compilation integration = do
-            -- frontend
-            (ctxt, ns) <- Fr.frontend lang compScope inFile
-            -- middle end
-            ns' <- updateExprs ns $ toAlang >=> core >=> toTCLang
-            -- backend 
-            B.backend outDir ns' ctxt
-
         core = Core.compile
-                coreOpts
-                (def {CoreConfig.passAfterDFLowering = cleanUnits})
-
+            coreOpts
+            (def {CoreConfig.passAfterDFLowering = cleanUnits})
 

@@ -14,13 +14,13 @@ import qualified Data.HashSet as HS
 import Control.Monad.Extra (maybeM)
 
 
-toTCLang :: CompM m => DFExpr -> m TCProgram
+toTCLang :: CompM m => DFExpr -> m (TCProgram Channel TaskExpr)
 toTCLang graph = runGenBndT taken transform
     where 
         transform = do
             -- TODO generate code for Ohua ops (ctrls, recurs, nths) if necessary
             let chans = generateArcsCode graph
-            resultChan <- lift $ generateResultArc graph
+            let resultChan = generateResultArc graph
             tasks <- generateNodesCode graph
             return $ TCProgram chans resultChan tasks
         
