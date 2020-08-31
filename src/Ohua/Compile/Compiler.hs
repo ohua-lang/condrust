@@ -33,17 +33,17 @@ import System.FilePath
 
 compile :: CompM m 
     => FilePath -> CompilationScope -> Options -> FilePath -> m ()
-compile inFile compScope coreOpts outDir = do
-    -- composition:
-    let lang = getIntegration (toText $ takeExtension inFile)
-
-    -- frontend
-    (ctxt, ns) <- Fr.frontend lang compScope inFile
-    -- middle end
-    ns' <- updateExprs ns $ toAlang >=> core >=> toTCLang
-    -- backend 
-    B.backend outDir ns' ctxt
+compile inFile compScope coreOpts outDir = 
+    runIntegration (toText $ takeExtension inFile) compilation
     where
+        compilation integration = do
+            -- frontend
+            (ctxt, ns) <- Fr.frontend lang compScope inFile
+            -- middle end
+            ns' <- updateExprs ns $ toAlang >=> core >=> toTCLang
+            -- backend 
+            B.backend outDir ns' ctxt
+
         core = Core.compile
                 coreOpts
                 (def {CoreConfig.passAfterDFLowering = cleanUnits})
