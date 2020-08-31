@@ -26,15 +26,17 @@ class Architecture arch where
     type Task arch :: *
 
     build :: 
-        ( CompM m,
-          Integration (Integ arch)
+        ( CompM m
+        , Integration (Integ arch)
         )
         => arch
+        -> Integ arch
         -> Namespace (TCProgram Channel (Code (Integ arch)))
         -> m (Namespace (TCProgram (Chan arch) (Task arch)))
 
     serialize :: 
         CompM m
         => arch
+        -> Integ arch
         -> Namespace (TCProgram (Chan arch) (Task arch))
         -> m (NonEmpty (FilePath, L.ByteString))

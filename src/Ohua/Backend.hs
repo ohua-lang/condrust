@@ -11,15 +11,15 @@ import System.FilePath as Path ((<.>), (</>), takeExtension)
 
 backend :: 
         ( CompM m
-        , Integration lang
+        , Integration integ
         , Architecture arch
-        , lang ~ Integ arch
+        , integ ~ Integ arch
         ) 
-        => FilePath -> Namespace (TCProgram Channel TaskExpr) -> lang -> arch -> m ()
-backend outDir compiled lang arch =
-    Types.lower lang compiled >>=
-    Types.build arch >>=
-    Types.serialize arch >>=
+        => FilePath -> Namespace (TCProgram Channel TaskExpr) -> integ -> arch -> m ()
+backend outDir compiled integ arch =
+    Types.lower integ compiled >>=
+    Types.build arch integ >>=
+    Types.serialize arch integ >>=
     mapM_ writeFile
     where
         writeFile (file, code) = do 
