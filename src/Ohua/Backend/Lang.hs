@@ -23,7 +23,6 @@ data TaskExpr
   = Var Binding
   | Lit Lit -- true, false  etc.
   | Apply (App TaskExpr)
-  | Lambda [Binding] TaskExpr
   | Let Binding
         TaskExpr
         TaskExpr -- cont
@@ -58,6 +57,7 @@ data TaskExpr
   
   deriving (Show, Eq, Lift, Generic)
 
+data Function expr = Function QualifiedBinding [Binding] expr deriving (Show, Eq)
 
 -------------------- Recursion schemes support --------------------
 

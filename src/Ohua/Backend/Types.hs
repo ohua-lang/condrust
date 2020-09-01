@@ -9,12 +9,12 @@ import System.FilePath
 import qualified Data.ByteString.Lazy.Char8 as L
 
 
-data TCProgram chan task = 
+data TCProgram chan expr = 
     TCProgram 
         [chan] -- ^ Channels
         Channel -- ^ Result channel
-        [task] -- ^ Tasks
-        -- [fun] -- ^ Functions
+        [expr] -- ^ Tasks
+        -- [Function expr] -- ^ Functions
         deriving (Show, Eq)
 
 class Integration lang where
