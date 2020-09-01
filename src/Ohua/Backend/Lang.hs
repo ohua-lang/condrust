@@ -41,7 +41,7 @@ data TaskExpr
 
   -- specific control flow:
   | EndlessLoop TaskExpr
-  | Loop Binding Binding TaskExpr -- foreach/map
+  | ForEach Binding Binding TaskExpr -- ^ a.k.a. map
   | Repeat (Either Binding Int) TaskExpr
   | Cond TaskExpr TaskExpr TaskExpr
   

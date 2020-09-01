@@ -15,7 +15,8 @@ backend ::
         , Architecture arch
         , integ ~ Integ arch
         ) 
-        => FilePath -> Namespace (TCProgram Channel TaskExpr) -> integ -> arch -> m ()
+        => FilePath 
+        -> Namespace (TCProgram Channel TaskExpr) -> integ -> arch -> m ()
 backend outDir compiled integ arch =
     Types.lower integ compiled >>=
     Types.build arch integ >>=

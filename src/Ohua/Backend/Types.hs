@@ -9,7 +9,13 @@ import System.FilePath
 import qualified Data.ByteString.Lazy.Char8 as L
 
 
-data TCProgram chan task = TCProgram [chan] Channel [task] deriving (Show, Eq)
+data TCProgram chan task = 
+    TCProgram 
+        [chan] -- ^ Channels
+        Channel -- ^ Result channel
+        [task] -- ^ Tasks
+        -- [fun] -- ^ Functions
+        deriving (Show, Eq)
 
 class Integration lang where
     type Code lang :: *

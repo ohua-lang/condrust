@@ -26,7 +26,7 @@ smapFun input dataOut ctrlOut collectOut =
             (
                 Let "size" (Lit $ NumericLit 0) $
                 Stmt
-                    (Loop "d" "data" $
+                    (ForEach "d" "data" $
                         Stmt (Send dataOut "d") $
                         Let "ctrl" (Tuple (Right $ BoolLit False) (Right $ NumericLit 1)) $
                         Stmt (Send ctrlOut "ctrl") $ Increment "size") $
@@ -53,7 +53,7 @@ collect sizeInput dataInput stateInput (FunRef collectFun _) collectedOutput =
     Let "receives" (Generate "num" UnitLit) $
     Stmt 
         (
-            Loop "_receive" "receives" $
+            ForEach "_receive" "receives" $
                 Let "data" (Receive 0 dataInput) $
                     Apply $ Stateful "collection"  collectFun [Var "data"]
         ) $
