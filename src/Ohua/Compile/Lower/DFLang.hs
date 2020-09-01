@@ -13,7 +13,7 @@ import Data.Maybe
 import qualified Data.HashSet as HS
 import Control.Monad.Extra (maybeM)
 
-
+-- Invariant in the result type: the result channel is already part of the list of channels.
 toTCLang :: CompM m => DFExpr -> m (TCProgram Channel TaskExpr)
 toTCLang graph = runGenBndT taken transform
     where 

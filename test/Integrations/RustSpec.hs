@@ -94,18 +94,18 @@ spec =
                         let a = ohua::arcs::Channel::new(0);
                         let mut tasks: Vec<Box<FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
                         tasks
-                            .push(Box::new((move || -> _ {
+                            .push(Box::new(move || -> _ {
                             loop { let result_0 = f(); x_0.send(result_0) }
-                            })));
+                            }));
                         tasks
-                            .push(Box::new((move || -> _ {
+                            .push(Box::new(move || -> _ {
                             loop { let arg0_1 = x_0.recv(0); let result_1 = g(arg0_1); a.send(result_1) }
-                            })));
+                            }));
                         run(tasks);
                         a.recv(0)
                         }
                     |]
-                expected `shouldBe` compiled)
+                compiled `shouldBe` expected)
         it "env vars" $
             (showCode "Compiled: " =<< compileCode [sourceFile| 
                 fn test(i: i32) -> String {
@@ -121,15 +121,15 @@ spec =
                         let a = ohua::arcs::Channel::new(0);
                         let mut tasks: Vec<Box<FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
                         tasks
-                            .push(Box::new((move || -> _ {
+                            .push(Box::new(move || -> _ {
                             loop { let arg0_0 = i; let result_0 = f(arg0_0); x_0.send(result_0) }
-                            })));
+                            }));
                         tasks
-                            .push(Box::new((move || -> _ {
+                            .push(Box::new(move || -> _ {
                             loop { let arg0_1 = x_0.recv(0); let result_1 = g(arg0_1); a.send(result_1) }
-                            })));
+                            }));
                         run(tasks);
                         a.recv(0)
                         }
                     |]
-                expected `shouldBe` compiled)
+                compiled `shouldBe` expected)
