@@ -107,7 +107,7 @@ instance ConvertExpr (Expr ()) where
         let block = convertIntoBlock expr
         in Rust.Loop [] block Nothing noSpan
 
-    convertExpr (TCLang.Loop bnd colBnd expr) = 
+    convertExpr (TCLang.ForEach bnd colBnd expr) = 
         let block = convertIntoBlock expr
             colExpr = convertExpr $ Var colBnd
             loopVar = mkSimpleBinding bnd
