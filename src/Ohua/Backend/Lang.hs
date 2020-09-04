@@ -19,6 +19,9 @@ data Channel = Channel
                 Int -- num of copies
                 deriving (Show, Eq, Lift, Generic)
 
+data List expr = Create | Append Binding expr 
+  deriving (Show, Eq, Lift, Generic, Functor, Foldable, Traversable)
+
 data TaskExpr
   = Var Binding
   | Lit Lit -- true, false  etc.
@@ -47,6 +50,8 @@ data TaskExpr
   -- specific functions:
   | HasSize Binding -- :: [a] -> Bool
   | Size Binding -- :: [a] -> Int
+
+  | ListOp (List TaskExpr)
 
   | Tuple (Either Binding Lit) (Either Binding Lit)
   | First (Either Binding Lit)

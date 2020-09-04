@@ -37,24 +37,20 @@ smapFun input dataOut ctrlOut collectOut =
 
 type SizeInput = Binding
 type DataInput = Binding
-type StateInput = Binding
-type CollectFun = FunRef
 type CollectedOutput = Binding
 
 collect :: SizeInput 
         -> DataInput 
-        -> StateInput
-        -> CollectFun
         -> CollectedOutput 
         -> TaskExpr
-collect sizeInput dataInput stateInput (FunRef collectFun _) collectedOutput = 
+collect sizeInput dataInput collectedOutput = 
     Let "num" (Receive 0 sizeInput) $
-    Let "collection" (Receive 0 stateInput) $
+    Let "collection" (ListOp Create) $
     Let "receives" (Generate "num" UnitLit) $
     Stmt 
         (
             ForEach "_receive" "receives" $
                 Let "data" (Receive 0 dataInput) $
-                    Apply $ Stateful "collection"  collectFun [Var "data"]
+                    ListOp $ Append "collection" $ Var "data"
         ) $
         Send collectedOutput "collection"
