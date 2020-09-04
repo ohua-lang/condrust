@@ -149,9 +149,9 @@ generateNodeCode e@LetExpr {functionRef=f} | f == smapFun = do
             Ops.smapFun input dataOut ctrlOut collectOut
 
 generateNodeCode e@LetExpr {functionRef=f} | f == collect = do
-    (sizeIn, dataIn, stateIn, collectFun) <-
+    (sizeIn, dataIn) <-
         case callArguments e of
-            [DFVar s, DFVar d, DFVar st, DFEnvVar (FunRefLit f)] -> return (s,d,st,f)
+            [DFVar s, DFVar d] -> return (s,d)
             _ -> invariantBroken $ "Collect arguments don't match: " <> show e
     collectedOutput <- 
         case output e of
@@ -159,7 +159,7 @@ generateNodeCode e@LetExpr {functionRef=f} | f == collect = do
             _ -> invariantBroken $ "Collect outputs don't match" <> show e
     lift $ return $
         EndlessLoop $
-            Ops.collect sizeIn dataIn stateIn collectFun collectedOutput
+            Ops.collect sizeIn dataIn collectedOutput
 
 generateNodeCode e@LetExpr {functionRef=f} | f == ifFun= do
     condIn <- 
@@ -203,6 +203,19 @@ generateNodeCode e@LetExpr {functionRef=f} | f == ctrl = do
     lift $ return $
         EndlessLoop $
             Ops.ctrl ctrlIn ins outs
+
+-- generateNodeCode e@LetExpr {functionRef=f} | f == runSTCLang = do
+--     (sizeIn, dataIn, stateIn, collectFun) <-
+--         case callArguments e of
+--             [DFVar s, DFVar d, DFVar st, DFEnvVar (FunRefLit f)] -> return (s,d,st,f)
+--             _ -> invariantBroken $ "runSTCLang arguments don't match: " <> show e
+--     collectedOutput <- 
+--         case output e of
+--             [x] -> return x
+--             _ -> invariantBroken $ "runSTCLang outputs don't match" <> show e
+--     lift $ return $
+--         EndlessLoop $
+--             Ops.runSTCLang sizeIn dataIn stateIn collectFun collectedOutput
 
 generateNodeCode e@LetExpr {functionRef=f} | f == recurFun = undefined
 generateNodeCode e = generateFunctionCode e
