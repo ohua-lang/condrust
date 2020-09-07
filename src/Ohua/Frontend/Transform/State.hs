@@ -10,12 +10,15 @@ check :: CompM m => Expr -> m Expr
 check e = evalStateT (transformM f e) HM.empty
     where
         f e@(BindE (VarE bnd) _) = modify (HM.insertWith + bnd 1) >> return e
-        f e@(LetE p _ _) = do
-            mapM_ (modify . HM.delete) [bnd | VarP bnd <- universe p]
-            return e
+        f e@(LetE p _ _) = clearDefined p
+        f e@(LamE ps _) = clearDefined $ TupP p
         f e@(MapE ctxt _)= checkAndFail e
         f e@IfE{} = checkAndFail e
         f e = return e
+
+        clearDefined p = do
+            mapM_ (modify . HM.delete) [bnd | VarP bnd <- universe p]
+            return e
 
         checkAndFail e = do
             reused <- filter ((>1) . snd) . HM.toList <$> get
