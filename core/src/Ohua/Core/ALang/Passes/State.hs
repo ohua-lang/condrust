@@ -20,6 +20,7 @@ import qualified Ohua.Core.ALang.Refs as Refs
 import Data.List.NonEmpty as NE
 import qualified Data.HashMap.Lazy as HM
 
+-- TODO recursion support is still pending here!
 
 runSTCLangSMapFun :: Expression
 runSTCLangSMapFun = Lit $ FunRefLit $ FunRef "ohua.lang/runSTCLang-Smap" Nothing
@@ -123,8 +124,20 @@ transformCtxtExits = f
                 in Let compOut'' (f `Apply` cond `Apply` tbCompOut `Apply` fbCompOut) $
                     stateArgs $
                     descend f cont
-
         h co c s co' c' s' e = descend (h co c s co' c' s') e
+
+splitCtrls :: Expression -> Expression
+splitCtrls = f
+    where
+        f (Let v e@(f@(PureFunction op _) `Apply` ctrlSig `Apply` _) cont)
+            | op == Refs.ctrl = 
+                let (_, ctrlIn:vars) = fromApplyToList e
+                    outs = findDestructed cont v
+                in foldr
+                    (\((varOut,varIn), c) -> 
+                        Let varOut (f `Apply` ctrlSig `Apply` varIn)) c
+                    cont
+                    zip outs vars
 
 pattern NthFunction bnd <- PureFunction Refs.nth _ `Apply` _ `Apply` _ `Apply` bnd
 
@@ -146,7 +159,7 @@ findDestructured e bnd =
                     _ `Apply` 
                     bnd) 
                 <- universe e]
-    in nthts
+    in nths
 applyToBody :: (Expression -> Expression) -> Expression -> Expression
 applyToBody f e@(Lambda _ body) = applyToBody f body
 applyToBody f e = f e
