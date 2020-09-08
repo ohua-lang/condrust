@@ -21,8 +21,11 @@ import Data.List.NonEmpty as NE
 import qualified Data.HashMap.Lazy as HM
 
 
-runSTCLangFun :: Expression
-runSTCLangFun = Lit $ FunRefLit $ FunRef "ohua.lang/runSTCLang" Nothing
+runSTCLangSMapFun :: Expression
+runSTCLangSMapFun = Lit $ FunRefLit $ FunRef "ohua.lang/runSTCLang-Smap" Nothing
+
+runSTCLangIfFun :: Expression
+runSTCLangIfFun = Lit $ FunRefLit $ FunRef "ohua.lang/runSTCLang-If" Nothing
 
 -- invariant: this type of node has at least one var as input (the computation result)
 ctxtExit :: QualifiedBinding
@@ -79,37 +82,51 @@ transformCtxtExits = f
         f (Let v e@(PureFunction op _ `Apply` _) cont)
             | op == ctxtExit =
                 let (_, compOut:stateArgs) = fromApplyToList e
-                in descend (g compOut stateArgs) cont
+                in descend (g v compOut stateArgs) cont
         f = descend f
 
-        g compOut stateOuts (Let v e@(PureFunction op i `Apply` _) cont)
+        g compound compOut stateOuts (Let v e@(PureFunction op i `Apply` _) cont)
             | op == ctxtExit = 
                 -- Must be a conditional
                 let (_, compOut':stateArgs') = fromApplyToList e
-                in descend (h compOut stateArgs compOut' stateArgs') cont
+                in descend (h compound compOut stateArgs v compOut' stateArgs') cont
 
-        g compOut stateOuts (Let v (f@(PureFunction op i) `Apply` size `Apply` _) cont)
+        g compound compOut stateOuts (Let v (f@(PureFunction op i) `Apply` size `Apply` _) cont)
             | op == Refs.collect = 
-                let (compOut':stateOuts') = findDestructured cont
+                let (compOut':stateOuts') = findDestructured cont v
                     stateExits ct = 
                         foldr
                             (\((s',s), c) -> 
-                                Let s' (runSTCLangFun `Apply` size `Apply` s)) c
+                                Let s' (runSTCLangSMapFun `Apply` size `Apply` s)) c
                             ct
                             $ zip stateOuts' stateOuts 
 
-                in Let compOut' 
-                        (f `Apply` size `Apply` compOut) $
-                        stateExits $
-                        descend f cont
-        g c s e = descend (g c s) e
+                in Let compOut' (f `Apply` size `Apply` compOut) $
+                    stateExits $
+                    descend f cont
+        g co c s e = descend (g co c s) e
 
-        g compOut stateOuts compOut' stateOuts' (Let v (f@(PureFunction op _) `Apply` _ `Apply` _) cont)
-            | op == Refs.select = undefined -- TODO
+        h compound compOut stateOuts compound' compOut' stateOuts' 
+            (Let v (f@(PureFunction op _) `Apply` cond `Apply` trueBranch `Apply` falseBranch) cont)
+            | op == Refs.select = 
+                let (tbCompOut, tbStateArgs, fbCompOut, fbStateArgs) =
+                        if compound == trueBranch
+                        then (compOut, stateOuts, compOut', stateOuts')
+                        else (compOut', stateOuts', compOut, stateOuts)
+                    (compOut'', stateOuts'') = findDestructured cont v
+                    stateExits ct = 
+                        foldr
+                            (\((s', (ts,fs)), c) -> 
+                                Let s' (runSTCLangIfFun `Apply` cond `Apply` ts `Apply` fs)) c
+                            ct
+                            $ zip stateOuts'' $ zip tbStateArgs fbStateArgs 
+                in Let compOut'' (f `Apply` cond `Apply` tbCompOut `Apply` fbCompOut) $
+                    stateArgs $
+                    descend f cont
 
+        h co c s co' c' s' e = descend (h co c s co' c' s') e
 
-pattern NthFunction :: Binding -> Expression
-pattern NthFunction bnd = PureFunction Refs.nth _ `Apply` _ `Apply` _ `Apply` bnd
+pattern NthFunction bnd <- PureFunction Refs.nth _ `Apply` _ `Apply` _ `Apply` bnd
 
 evictOrphanedDestructured :: Expression -> Expression
 evictOrphanedDestructured e = 
