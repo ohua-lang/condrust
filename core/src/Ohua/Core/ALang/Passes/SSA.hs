@@ -7,8 +7,6 @@
 -- Stability   : experimental
 -- Portability : portable
 -- This source code is licensed under the terms described in the associated LICENSE.TXT file
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE TupleSections #-}
 
 module Ohua.Core.ALang.Passes.SSA where
 

@@ -61,7 +61,7 @@ lambdaLifting e = do
     go findFreeExprs expr
         | null freeExprs = pure (expr, [])
         | otherwise = do
-            newFormals <- mapM (bindingFromAny) freeExprs
+            newFormals <- mapM bindingFromAny freeExprs
             let rewrittenExp =
                     foldl
                         (\newExpr (from, to) -> renameExpr from (Var to) newExpr)
@@ -89,7 +89,7 @@ lambdaLifting e = do
                 FunRefLit ref -> bindifyFunRef ref
                 EnvRefLit l -> "env_" <> show l
     bindifyFunRef :: FunRef -> Binding
-    bindifyFunRef _ = "fun_ref" -- TODO
+    bindifyFunRef _ = error "Unsupported transformation of fun_ref literal" -- FIXME
 
 mkLambda :: [Binding] -> Expression -> Expression
 mkLambda args expr = go expr $ reverse args
@@ -176,7 +176,7 @@ findLonelyLiterals =
 mkApply :: Expr -> [Expr] -> Expr
 mkApply f args = go $ reverse args
   where
-    go (v:[]) = Apply f v
+    go [v] = Apply f v
     go (v:vs) = Apply (go vs) v
     go [] = f
 
@@ -220,6 +220,6 @@ mkDestructured formals compound = destructure (Var compound) formals
 lambdaArgsAndBody :: Expression -> ([Binding], Expression)
 lambdaArgsAndBody (Lambda arg l@(Lambda _ _)) =
     let (args, body) = lambdaArgsAndBody l
-     in ([arg] ++ args, body)
+     in (arg :. args, body)
 lambdaArgsAndBody (Lambda arg body) = ([arg], body)
 lambdaArgsAndBody e = ([], e)

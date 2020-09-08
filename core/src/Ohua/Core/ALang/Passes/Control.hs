@@ -173,6 +173,9 @@ import Ohua.Core.ALang.Util
 --  2. add the `ctrl` operator with the free variables as input
 --  3. provide independent functions with the unitVal that the `ctrl` operator always provides.
 -- (if there are no independent function then this binding will never turn into an arc anyway.)
+-- invariants: (dependent type)
+-- if e0 == Lambda args body then Lambda args body'
+-- otherwise Lambda [] e0' 
 liftIntoCtrlCtxt ::
        (Monad m, MonadGenBnd m) => Binding -> Expression -> m Expression
 liftIntoCtrlCtxt ctrlIn e0 = do
@@ -187,7 +190,7 @@ liftIntoCtrlCtxt ctrlIn e0 = do
             dAssertM $ lam' == e0
             pure lam'
         else do
-            let actuals' = [Var ctrlIn] ++ actuals
+            let actuals' = Var ctrlIn :. actuals
             let ie = mkDestructured formals ctrlOut e
             return $
                 mkLambda originalFormals $

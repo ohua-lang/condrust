@@ -46,7 +46,7 @@ smapRewrite =
     -- post traversal optimization
                 ctrlVar <- generateBindingWith "ctrl"
                 lamExpr'' <- liftIntoCtrlCtxt ctrlVar lamExpr'
-                let ((inBnd:[]), expr) = lambdaArgsAndBody lamExpr''
+                let ([inBnd], expr) = lambdaArgsAndBody lamExpr''
                 d <- generateBindingWith "d"
                 let expr' = renameVar expr (Var inBnd, d)
   --   [ohualang|

@@ -130,6 +130,9 @@ ifFunSf = Lit $ FunRefLit $ FunRef "ohua.lang/ifFun" Nothing
 -- This is a proposal for `ifRewrite` that uses plated to make sure the
 -- recursion is handled correctly. As far as I can tell the other version does
 -- not recurse properly onto the branches.
+-- (Sebastian) The recursion is handled properly below and this version is incorrect.
+--             However scrapping the boilerplate is definitely a good thing. It should be
+--             a transformM though.
 ifRewrite :: (Monad m, MonadGenBnd m, MonadError Error m) => Expression -> m Expression
 ifRewrite = rewriteM $ \case
     "ohua.lang/if" `Apply` cond `Apply` trueBranch `Apply` falseBranch
@@ -160,6 +163,8 @@ ifRewrite = rewriteM $ \case
         | otherwise -> throwError $ "Found if with unexpected, non-unit-lambda branch(es)\ntrue:\n " <> show trueBranch <> "\nfalse:\n" <> show falseBranch
       where
         -- This test needs to improve
+        -- FIXME The proper way to do this would actually define a cond type! Then also
+        --       the above error would immediately go away.
         isUnit = unwrap >>> T.isPrefixOf "_"
     _ -> pure Nothing
 
@@ -180,14 +185,15 @@ ifRewrite (Apply (Apply (Apply (Lit (FunRefLit (FunRef "ohua.lang/if" Nothing)))
     falseBranch'' <- liftIntoCtrlCtxt ctrlFalse falseBranch'
     -- now these can become normal expressions
     -- TODO match against "()" - unit symbol for args
+    -- FIXME This is an assumption that should be covered by the type of this call!
     let ((_:[]), trueBranch''') = lambdaArgsAndBody trueBranch''
     let ((_:[]), falseBranch''') = lambdaArgsAndBody falseBranch''
     -- return $
     --     [ohualang|
-    --       let ($var:ctrlTrue, $var:ctrlFalse) = Ohua.Core.lang/ifFun $var:cond in
+    --       let ($var:ctrlTrue, $var:ctrlFalse) = ohua.lang/ifFun $var:cond in
     --         let trueResult = $expr:trueBranch' in
     --          let falseResult = $expr:falseBranch' in
-    --           let result = Ohua.Core.lang/select cond trueResult falseResult in
+    --           let result = ohua.lang/select cond trueResult falseResult in
     --             result
     --                |]
     ctrls <- generateBindingWith "ctrls"
