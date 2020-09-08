@@ -24,13 +24,17 @@ import qualified Data.HashMap.Lazy as HM
 runSTCLangFun :: Expression
 runSTCLangFun = Lit $ FunRefLit $ FunRef "ohua.lang/runSTCLang" Nothing
 
-ctxtExit :: Expression
-ctxtExit = Lit $ FunRefLit $ FunRef "ohua.lang/ctxtExit" Nothing
+-- invariant: this type of node has at least one var as input (the computation result)
+ctxtExit :: QualifiedBinding
+ctxtExit = "ohua.lang/ctxtExit"
+
+ctxtExitFunRef :: Expression
+ctxtExitFunRef = Lit $ FunRefLit $ FunRef ctxtExit Nothing
 
 addCtxtExit :: MonadGenBnd m => Expression -> m Expression
-addCtxtExit = f
+addCtxtExit = transform f
     where
-        f (PureFunction op i `Apply` trueBranch `Apply` falseBranch)
+        f (Let v (f@(PureFunction op _) `Apply` trueBranch `Apply` falseBranch) cont)
             | op == Refs.ifThenElse = 
                 let trueBranchStates = collectStates trueBranch
                     falseBranchStates = collectStates falseBranch
@@ -49,81 +53,83 @@ addCtxtExit = f
                 in do 
                     trueBranch'' <- mkST allStates trueBranch'
                     falseBranch'' <- mkST allStates falseBranch'
+                    ctxtOut <- generateBindingWith "ctxt_out"
                     return $
-                        PureFunction op i `Apply` trueBranch'' `Apply` falseBranch''
+                        Let ctxtOut (f `Apply` trueBranch'' `Apply` falseBranch'') $
+                        mkDestructured (v:states) ctxtOut
+                        cont
     
-        f (PureFunction op i `Apply` expr `Apply` _)
+        f (Let v (f@(PureFunction op _) `Apply` expr `Apply` ds) cont)
             | op == Refs.smap =
                 let states = collectStates expr
                 in do
                     expr' <- mkST states expr
+                    ctxtOut <- generateBindingWith "ctxt_out"
                     return $
-                        PureFunction op i `Apply` expr'
-
-        f = descend f
+                        Let ctxtOut (f `Apply` expr' `Apply` ds) $
+                        mkDestructured (v:states) ctxtOut
+                        cont
+        f e = e
 
 -- Assumptions: This function is applied to a normalized and SSAed expression.
-transformCtxtExits :: Binding -> Expression -> Expression
-transformCtxtExits = undefined
+--              This transformation executes after the control rewrites.
+transformCtxtExits :: Expression -> Expression
+transformCtxtExits = f
     where
-        f (Let v (PureFunction op _ `Apply` _) cont)
-            | op == Refs.smapFun = do
-                -- add the context to the stacks
-                modify $ HM.map $ 
-                    maybe
-                        (runSTCLangFun :| [])
-                        (runSTCLangFun <| )
-                descendM cont
+        f (Let v e@(PureFunction op _ `Apply` _) cont)
+            | op == ctxtExit =
+                let (_, compOut:stateArgs) = fromApplyToList e
+                in descend (g compOut stateArgs) cont
+        f = descend f
 
-        f (Let v (PureFunction op _ `Apply` _) cont)
-            | op == Refs.collectFun = do
-                -- evict the context from the stacks
-                modify $ HM.map 
-                    $ \case
-                        Just ctxts -> NE.nonEmpty $ tail ctxts
-                        Nothing -> error "invariant broken" -- FIXME encode this invariant!
-                descendM cont
+        g compOut stateOuts (Let v e@(PureFunction op i `Apply` _) cont)
+            | op == ctxtExit = 
+                -- Must be a conditional
+                let (_, compOut':stateArgs') = fromApplyToList e
+                in descend (h compOut stateArgs compOut' stateArgs') cont
 
-        f (Let v (PureFunction op _ `Apply` _) cont)
-            | op == Refs.ifFun = do
-                -- add the context to the stacks
-                descendM cont
+        g compOut stateOuts (Let v (f@(PureFunction op i) `Apply` size `Apply` _) cont)
+            | op == Refs.collect = 
+                let (compOut':stateOuts') = findDestructured cont
+                    stateExits ct = 
+                        foldr
+                            (\((s',s), c) -> 
+                                Let s' (runSTCLangFun `Apply` size `Apply` s)) c
+                            ct
+                            $ zip stateOuts' stateOuts 
 
-        f (Let v (PureFunction op _ `Apply` _) cont)
-            | op == Refs.selectFun = do
-                -- evict the context from the stacks
-                descendM cont
+                in Let compOut' 
+                        (f `Apply` size `Apply` compOut) $
+                        stateExits $
+                        descend f cont
+        g c s e = descend (g c s) e
 
-        f (Let v (PureFunction op _ `Apply` ctrlSig `Apply` _) cont)
-            | op == Refs.controlFun = do
-                -- instantiate the context with the required control information
-                modify $ HM.map $ 
-                    maybe
-                        (error "invariant broken") -- FIXME encode this invariant!
-                        (\ctxts -> head ctxts `Apply` ctrlSig :| tail ctxts)
-                descendM cont
-        
-        f (Let v _ cont) = 
-            -- register a new variable with an empty stack
-            modify (HM.insert bnd Nothing)
-
-        f (Let v st@(BindState (Var state) e) cont)
-            | state == currentState = do
-                -- return the state and unfold the context
-                x <- generateBinding
-                let stateThread = Let x st $ mkDestructured [v,state] x
-
-                -- TODO enforce this invariant: there can not be a state that
-                --      was not defined!
-                ctxtStack <- fromMaybe . HM.lookup state <$> get
-                let ctxtUnfolded = foldl (\c ctxtExit -> c $ Let state (ctxtExit `Apply` Var state)) stateThread ctxtStack 
-
-                -- evict the key
-                modify $ HM.delete state
-
-                return $ ctxtUnfolded cont
+        g compOut stateOuts compOut' stateOuts' (Let v (f@(PureFunction op _) `Apply` _ `Apply` _) cont)
+            | op == Refs.select = undefined -- TODO
 
 
+pattern NthFunction :: Binding -> Expression
+pattern NthFunction bnd = PureFunction Refs.nth _ `Apply` _ `Apply` _ `Apply` bnd
+
+evictOrphanedDestructured :: Expression -> Expression
+evictOrphanedDestructured e = 
+    let allBnds = HS.fromList [v | Let v _ _ <- universe e]
+    in transform (f allBnds) e
+    where 
+        f bnds (Let v (NthFunction bnd) cont) | not $ HS.member bnd bnds = cont
+        f _ e = e
+
+findDestructured :: Expression -> Binding -> [Binding]
+findDestructured e bnd = 
+    let nths = sort 
+                [ (i,v) 
+                | (Let v 
+                    (PureFunction Refs.nth _) `Apply` 
+                    (Lit (NumericLit i)) `Apply` 
+                    _ `Apply` 
+                    bnd) 
+                <- universe e]
+    in nthts
 applyToBody :: (Expression -> Expression) -> Expression -> Expression
 applyToBody f e@(Lambda _ body) = applyToBody f body
 applyToBody f e = f e
@@ -138,5 +144,5 @@ mkST states = \case
         allOut <- generateBindingWith "all_out" 
         return $
             Let allOut
-                (mkApply ctxtExit $ e : states)
+                (mkApply ctxtExitFunRef $ e : states)
                 (Var allOut)

@@ -188,6 +188,8 @@ getFunctionArgs e = args
   where
     (_, _, args) = fromApplyToList' e
 
+-- TODO The errors in these functions should not be here. Either we enforce these things
+--      via other means in the type system or we should change the return type to Maybe.
 fromApplyToList :: HasCallStack => Expr -> (FunRef, [Expr])
 fromApplyToList e =
     case state of
