@@ -6,30 +6,46 @@ import Ohua.Backend.Lang
 
 
 type DataSizeInput = Binding
-type DataInputs = [Binding]
-type StateInput = Binding
 type FoldFun = FunRef
 type StateOutput = Binding
 
--- | Currently, this is implemented as a fold over the state.
-runSTCLang :: DataSizeInput 
-        -> StateInput
-        -> FoldFun
-        -> DataInputs 
-        -> StateOutput 
-        -> TaskExpr
-runSTCLang sizeInput stateInput (FunRef foldFun _) dataInputs stateOutput = 
-    Let "num" (Receive 0 sizeInput) $
-    Let "state" (Receive 0 stateInput) $
-    Let "receives" (Generate "num" UnitLit) $
+type StateBnd = Binding
+
+data STCLangSMap = 
+    STCLangSMap
+        (TaskExpr -> TaskExpr) -- init
+        (TaskExpr -> TaskExpr) -- ctxt loop
+        (StateBnd -> TaskExpr) -- state receive
+        (StateBnd -> TaskExpr) -- state emission
+
+genSTCLangSMap :: STCLangSMap -> TaskExpr
+genSTCLangSMap (STCLangSMap init ctxtLoop stateReceive emit) = 
+    init $
     Stmt 
-        (
-            ForEach "_receive" "receives" $
-                dataReceiveCode $
-                    Apply $ Stateful "state" foldFun [Var "data"]
-        ) $
-        Send stateOutput "state"
+    (
+        ctxtLoop $
+            Stmt (stateReceive "state") $
+            Lit UnitLit
+    ) $
+    Let "state" stateReceive
+        $ emit "state"
+
+mkSTCLangSMap :: DataSizeInput -> StateOutput -> STCLangSMap
+mkSTCLangSMap sizeInput stateOutput = 
+    STCLangSMap init ctxtLoop stateReceiveCode emit
     where
-        dataReceiveCode cont = 
-            foldr (\(i,input) c -> Let ("data" <> show i) (Receive 0 input) c) cont $ zip [1..] dataInputs
-        dataVars = ["data" <> show i | i <- [1..(length dataInputs)]]
+        init :: Binding -> TaskExpr -> TaskExpr
+        init sizeInput =  
+            Let "num" (Receive 0 sizeInput) $
+            Let "toDrop" (Decrement "num") $
+            Let "drops" (Generate "toDrop" UnitLit)
+
+        ctxtLoop :: TaskExpr -> TaskExpr
+        ctxtLoop = Repeat "drops" 
+                
+        stateReceiveCode :: StateBnd -> TaskExpr
+        stateReceiveCode = Receive 0
+
+        emit :: TaskExpr
+        emit = Send stateOutput
+

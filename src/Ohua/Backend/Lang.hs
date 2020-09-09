@@ -57,7 +57,8 @@ data TaskExpr
   | First (Either Binding Lit)
   | Second (Either Binding Lit)
 
-  | Increment Binding -- a = a + 1;
+  | Increment Binding -- a + 1;
+  | Decrement Binding -- a - 1;
   | Generate Binding Lit -- data generator  
   
   deriving (Show, Eq, Lift, Generic)
