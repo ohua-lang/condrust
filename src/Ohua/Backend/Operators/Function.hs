@@ -8,10 +8,10 @@ import Ohua.Backend.Lang as L
 data Function 
     = Pure
         FunRef
-        [Either Binding Lit] -- call args
+        [Either Recv Lit] -- call args
         -- Assumption: if there is no one that needs this result, then this should not be computed
         --             in the first place!
-        Binding -- out
+        Send -- out
     | ST
         FunRef
         Binding -- state
@@ -19,34 +19,58 @@ data Function
         Maybe Binding -- state out
         Maybe Binding -- out
 
+data DataSource 
+    = Recv 
+    | TaskExpr 
+
 data FusableFunction 
     = PureFusable
-        [Either Com Lit]  -- args
+        [DataSource]  -- data receive
         ([Binding] -> TaskExpr -> TaskExpr) -- application
-        Com -- send result
+        (Maybe Send) -- send result
     | STFusable
-        [Either Com Lit]  -- args
+        [DataSource]  -- data receive
         (NonEmpty Binding -> TaskExpr -> TaskExpr) -- application
-        Com -- send state
-        Com -- send result
+        (Maybe Send) -- send state
+        (Maybe Send) -- send result
 
-fun :: CompM m => Function -> FusableFunction
+gen :: FusableFunction
+gen f = 
+    case f of
+        (PureFusable receives app send) ->
+            varsAndReceives $ 
+            app (bnds receives) $
+            maybe (Lit UnitLit) (\(Emit c d) -> Send c d) send
+        (STFusable receives app sendState sendRes) ->
+            varsAndReceives $
+            app (bnds $ NE.toList receives) $
+            foldr (\(Emit ch d) c -> Stmt (Send ch d) c) (Lit UnitLit) $ 
+            catMaybe [sendState, sendRes]
+    where
+        bnds = map (("var_" <>) . show . fst) . zip [0..] 
+        varsAndReceives cont = 
+            foldr (\(v,r) c -> Let v r c) cont $
+            map (curry generateReceiveCode) $ 
+            zip [0..] receives
+        generateReceiveCode idx (Recv cidx bnd) = ("var_" <> show idx, Receive cidx bnd)
+        generateReceiveCode idx e = ("var_" <> show idx, e)
+
+fun :: Function -> FusableFunction
 fun (Pure funRef callArgs out) = 
     PureFusable
-        (map generateReceiveCode callArgs)
+        (map dataSource callArgs)
         (\args cont -> 
             Let "result" (Apply $ Stateless funRef $ map Var args)
                 cont)
-        (Com out $ Send out "result")
-    
+        (`Emit` "result" <$> out)
 fun (ST funRef stateVar callArgs stateOut out) = undefined
     STFusable
         (map generateReceiveCode $ stateVar : callArgs)
         (\args cont -> 
             Let "result" (Apply $ Stateful stateVar funRef $ map Var args)
                 cont)
-        (Com out $ Send out "result")
-        (Com stateOut $ Send stateOut stateVar)
+        (`Emit` "result" <$> out)
+        (`Emit` stateVar <$> out)
 
-generateReceiveCode (Left (bnd, idx)) = Com bnd $ Receive idx bnd
-generateReceiveCode (Right l) = l
+dataSource (Left (bnd, idx)) = Recv idx bnd
+dataSource (Right l) = l

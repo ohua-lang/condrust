@@ -14,6 +14,15 @@ data App expr
   | Stateful Binding QualifiedBinding [expr]
   deriving (Show, Eq, Lift, Generic, Functor, Foldable, Traversable)
 
+data Recv 
+  = Recv
+      Int -- copy index 
+      Binding -- channel
+data Send
+  = Emit 
+      Binding -- channel
+      Binding -- data
+
 data Channel = Channel 
                 Binding -- channel id
                 Int -- num of copies
@@ -35,7 +44,7 @@ data TaskExpr
   | Assign -- side-effect
       Binding
       TaskExpr
-
+-- FIXME use the types from above!
   | Receive Int -- copy index 
             Binding -- channel
   | Send Binding -- channel

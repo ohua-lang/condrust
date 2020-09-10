@@ -9,10 +9,10 @@ type CtrlInput = Binding
 type Inputs = NonEmpty Binding
 type Outputs = NonEmpty Binding
 
+-- FIXME create a type for Receive and Send in Lang
 data Com = Com
             Binding
             (TaskExpr -> TaskExpr)
-
 
 data Ctrl = 
     Ctrl
@@ -34,11 +34,24 @@ data Ctrl =
         TaskExpr -- computation
         TaskExpr -- signal state renewal
 
-fuseFun :: Ctrl -> TaskExpr -> TaskExpr
+fuseFun :: Ctrl -> FusableFunction -> TaskExpr
 fuseRun (Ctrl sigStateInit varStateInit sigStateRecv receiveVars ctxtLoop sendVars sigStateRenewal)
-        comp
+        (Pure args app res)
         = 
-        Ctrl sigStateInit varStateInit sigStateRecv receiveVars ctxtLoop comp sigStateRenewal
+        Ctrl
+            sigStateInit
+            varStateInit
+            sigStateRecv
+            receiveVars
+            ( ctxtLoop $
+                gen $ PureFusable args' app res
+            )
+            siStateRenewal
+        where
+            args' = map f args
+            ctrled = HS.fromList $ map fst sendVars
+            f (Recv _ ch) | HS.member ch ctrled = Var ch
+            f e  = e
 
 fuse :: Ctrl -> FusedCtrl -> Ctrl
 fuse 
@@ -58,11 +71,6 @@ fuse
         (Lit UnitLit)
         sigStateRenewal
     where
-        missing xs ys =
-            let a = HS.fromList $ map fst xs
-                b = HS.fromList $ map fst ys
-                c = HS.difference b a
-            in filter (\(v,_) -> HS.member v c) ys 
         externalVarStateInits = missing varStateInit varStateInit'
         externalReceiveVars = missing receiveVars receiveVars'
         remainingReceiveVars cont =
@@ -145,51 +153,57 @@ mkCtrl ctrlInput inputs outputs =
             map (\(o, output) -> Com output $ Stmt $ Send output ("var" <> show o))
             $ zip [1..] outputs
 
+missing :: NonEmpty Com -> NonEmpty Com -> [Com]
+missing xs ys =
+    let a = HS.fromList $ map fst xs
+        b = HS.fromList $ map fst ys
+        c = HS.difference b a
+    in filter (\(v,_) -> HS.member v c) ys 
 
 
--- invariants:  length Inputs == length Outputs, NonEmpty Inputs, NonEmpty Outputs
-ctrl' :: CtrlInput -> Inputs -> Outputs -> TaskExpr
-ctrl' ctrlInput inputs outputs = 
-    Let "renew" (Lit $ BoolLit False) $
-    stateReceiveCode Let $
-    EndlessLoop $
-        Let "sig" (Receive 0 ctrlInput) $
-        Let "renew_next_time" (L.First $ Left "sig") $
-        Let "count" (L.Second $ Left "sig") $
-        Stmt 
-        ( Cond (Var "renew")
-            (stateReceiveCode (\v r c -> Stmt (Assign v r) c) $ Lit UnitLit)
-            (Lit UnitLit) ) $
-        Stmt
-        ( Repeat (Left "count")
-            sendCode ) $
-        Assign "renew" (Var "renew_next_time")
-    where
-        stateReceiveCode f cont = 
-            foldr (\(i,input) c -> f ("state" <> show i) (Receive 0 input) c) cont $ zip [1..] inputs
-        sendCode = foldr (\(o,output) c ->  Stmt (Send output ("state" <> show o)) c) (Lit UnitLit) $ zip [1..] outputs
+-- -- invariants:  length Inputs == length Outputs, NonEmpty Inputs, NonEmpty Outputs
+-- ctrl' :: CtrlInput -> Inputs -> Outputs -> TaskExpr
+-- ctrl' ctrlInput inputs outputs = 
+--     Let "renew" (Lit $ BoolLit False) $
+--     stateReceiveCode Let $
+--     EndlessLoop $
+--         Let "sig" (Receive 0 ctrlInput) $
+--         Let "renew_next_time" (L.First $ Left "sig") $
+--         Let "count" (L.Second $ Left "sig") $
+--         Stmt 
+--         ( Cond (Var "renew")
+--             (stateReceiveCode (\v r c -> Stmt (Assign v r) c) $ Lit UnitLit)
+--             (Lit UnitLit) ) $
+--         Stmt
+--         ( Repeat (Left "count")
+--             sendCode ) $
+--         Assign "renew" (Var "renew_next_time")
+--     where
+--         stateReceiveCode f cont = 
+--             foldr (\(i,input) c -> f ("state" <> show i) (Receive 0 input) c) cont $ zip [1..] inputs
+--         sendCode = foldr (\(o,output) c ->  Stmt (Send output ("state" <> show o)) c) (Lit UnitLit) $ zip [1..] outputs
 
-ctrlNoAssign :: CtrlInput -> Inputs -> Outputs -> (TaskExpr, NonEmpty (Function TaskExpr))
-ctrlNoAssign ctrlInput inputs outputs = 
-    let initFun = 
-            Function (QualifiedBinding (makeThrow []) "init") [] $
-                stateReceiveCode Let $
-                Apply $ Stateless (QualifiedBinding (makeThrow []) "ctrl") $ map Var stateVars
-        ctrlFun =
-            Function (QualifiedBinding (makeThrow []) "ctrl") stateVars $
-                Let "sig" (Receive 0 ctrlInput) $
-                Let "renew_next_time" (L.First $ Left "sig") $
-                Let "count" (L.Second $ Left "sig") $
-                Stmt
-                ( Repeat (Left "count")
-                    sendCode ) $
-                Cond (Var "renew_next_time")
-                    (Apply $ Stateless (QualifiedBinding (makeThrow []) "init") [])
-                    (Apply $ Stateless (QualifiedBinding (makeThrow []) "ctrl") $ map Var stateVars)
-        expr = Apply $ Stateless (QualifiedBinding (makeThrow []) "init") []
-    in (expr, [initFun, ctrlFun])
-    where
-        stateReceiveCode f cont = 
-            foldr (\(input, i) c -> f ("state" <> show i) (Receive 0 input) c) cont $ zip inputs [1..]
-        sendCode = foldr (\(output, o) c ->  Stmt (Send output ("state" <> show o)) c) (Lit UnitLit) $ zip outputs [1..]
-        stateVars = ["state" <> show i | i <- [1..(length inputs)]]
+-- ctrlNoAssign :: CtrlInput -> Inputs -> Outputs -> (TaskExpr, NonEmpty (Function TaskExpr))
+-- ctrlNoAssign ctrlInput inputs outputs = 
+--     let initFun = 
+--             Function (QualifiedBinding (makeThrow []) "init") [] $
+--                 stateReceiveCode Let $
+--                 Apply $ Stateless (QualifiedBinding (makeThrow []) "ctrl") $ map Var stateVars
+--         ctrlFun =
+--             Function (QualifiedBinding (makeThrow []) "ctrl") stateVars $
+--                 Let "sig" (Receive 0 ctrlInput) $
+--                 Let "renew_next_time" (L.First $ Left "sig") $
+--                 Let "count" (L.Second $ Left "sig") $
+--                 Stmt
+--                 ( Repeat (Left "count")
+--                     sendCode ) $
+--                 Cond (Var "renew_next_time")
+--                     (Apply $ Stateless (QualifiedBinding (makeThrow []) "init") [])
+--                     (Apply $ Stateless (QualifiedBinding (makeThrow []) "ctrl") $ map Var stateVars)
+--         expr = Apply $ Stateless (QualifiedBinding (makeThrow []) "init") []
+--     in (expr, [initFun, ctrlFun])
+--     where
+--         stateReceiveCode f cont = 
+--             foldr (\(input, i) c -> f ("state" <> show i) (Receive 0 input) c) cont $ zip inputs [1..]
+--         sendCode = foldr (\(output, o) c ->  Stmt (Send output ("state" <> show o)) c) (Lit UnitLit) $ zip outputs [1..]
+--         stateVars = ["state" <> show i | i <- [1..(length inputs)]]
