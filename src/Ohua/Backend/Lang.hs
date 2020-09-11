@@ -54,6 +54,7 @@ data TaskExpr
   | EndlessLoop TaskExpr
   | ForEach Binding Binding TaskExpr -- ^ a.k.a. map
   | Repeat (Either Binding Int) TaskExpr
+  | While TaskExpr TaskExpr
   | Cond TaskExpr TaskExpr TaskExpr
   
   -- specific functions:
@@ -68,6 +69,7 @@ data TaskExpr
 
   | Increment Binding -- a + 1;
   | Decrement Binding -- a - 1;
+  | Not TaskExpr
   | Generate Binding Lit -- data generator  
   
   deriving (Show, Eq, Lift, Generic)

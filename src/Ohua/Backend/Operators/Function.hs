@@ -19,22 +19,18 @@ data Function
         Maybe Binding -- state out
         Maybe Binding -- out
 
-data DataSource 
-    = Recv 
-    | TaskExpr 
-
 data FusableFunction 
     = PureFusable
-        [DataSource]  -- data receive
+        [Either Recv TaskExpr]  -- data receive
         ([Binding] -> TaskExpr -> TaskExpr) -- application
         (Maybe Send) -- send result
     | STFusable
-        [DataSource]  -- data receive
+        [Either Recv TaskExpr]  -- data receive
         (NonEmpty Binding -> TaskExpr -> TaskExpr) -- application
         (Maybe Send) -- send state
         (Maybe Send) -- send result
 
-gen :: FusableFunction
+gen :: FusableFunction -> TaskExpr
 gen f = 
     case f of
         (PureFusable receives app send) ->
@@ -50,7 +46,7 @@ gen f =
         bnds = map (("var_" <>) . show . fst) . zip [0..] 
         varsAndReceives cont = 
             foldr (\(v,r) c -> Let v r c) cont $
-            map (curry generateReceiveCode) $ 
+            map (curry generateReceiveCode) $
             zip [0..] receives
         generateReceiveCode idx (Recv cidx bnd) = ("var_" <> show idx, Receive cidx bnd)
         generateReceiveCode idx e = ("var_" <> show idx, e)
