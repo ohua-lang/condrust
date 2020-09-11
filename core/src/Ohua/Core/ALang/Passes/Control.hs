@@ -190,7 +190,7 @@ liftIntoCtrlCtxt ctrlIn e0 = do
             dAssertM $ lam' == e0
             pure lam'
         else do
-            let actuals' = Var ctrlIn :. actuals
+            let actuals' = Var ctrlIn : actuals
             let ie = mkDestructured formals ctrlOut e
             return $
                 mkLambda originalFormals $
