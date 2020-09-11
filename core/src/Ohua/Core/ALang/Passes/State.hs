@@ -15,10 +15,13 @@ module Ohua.Core.ALang.Passes.State where
 import Ohua.Core.Prelude
 
 import Ohua.Core.ALang.Lang
+import Ohua.Core.ALang.Util
 import qualified Ohua.Core.ALang.Refs as Refs
 
-import Data.List.NonEmpty as NE
-import qualified Data.HashMap.Lazy as HM
+import qualified Data.HashSet as HS
+
+import Control.Lens.Combinators (over)
+import Control.Lens.Plated (plate)
 
 -- TODO recursion support is still pending here!
 
@@ -36,12 +39,12 @@ ctxtExitFunRef :: Expression
 ctxtExitFunRef = Lit $ FunRefLit $ FunRef ctxtExit Nothing
 
 addCtxtExit :: MonadGenBnd m => Expression -> m Expression
-addCtxtExit = transform f
+addCtxtExit = transformM f
     where
-        f (Let v (f@(PureFunction op _) `Apply` trueBranch `Apply` falseBranch) cont)
+        f (Let v (fun@(PureFunction op _) `Apply` trueBranch `Apply` falseBranch) cont)
             | op == Refs.ifThenElse = 
-                let trueBranchStates = collectStates trueBranch
-                    falseBranchStates = collectStates falseBranch
+                let trueBranchStates = HS.fromList $ collectStates trueBranch
+                    falseBranchStates = HS.fromList $ collectStates falseBranch
 
                     trueBranchStatesMissing = HS.difference falseBranchStates trueBranchStates
                     falseBranchStatesMissing = HS.difference trueBranchStates falseBranchStates
@@ -59,117 +62,131 @@ addCtxtExit = transform f
                     falseBranch'' <- mkST allStates falseBranch'
                     ctxtOut <- generateBindingWith "ctxt_out"
                     return $
-                        Let ctxtOut (f `Apply` trueBranch'' `Apply` falseBranch'') $
+                        Let ctxtOut (fun `Apply` trueBranch'' `Apply` falseBranch'') $
                         mkDestructured (v:states) ctxtOut
                         cont
     
-        f (Let v (f@(PureFunction op _) `Apply` expr `Apply` ds) cont)
+        f (Let v (fun@(PureFunction op _) `Apply` expr `Apply` ds) cont)
             | op == Refs.smap =
                 let states = collectStates expr
                 in do
                     expr' <- mkST states expr
                     ctxtOut <- generateBindingWith "ctxt_out"
                     return $
-                        Let ctxtOut (f `Apply` expr' `Apply` ds) $
+                        Let ctxtOut (fun `Apply` expr' `Apply` ds) $
                         mkDestructured (v:states) ctxtOut
                         cont
-        f e = e
+        f e = return e
 
 -- Assumptions: This function is applied to a normalized and SSAed expression.
 --              This transformation executes after the control rewrites.
 transformCtxtExits :: Expression -> Expression
-transformCtxtExits = f
+transformCtxtExits = evictOrphanedDestructured . f
     where
+        f :: Expression -> Expression
         f (Let v e@(PureFunction op _ `Apply` _) cont)
             | op == ctxtExit =
                 let (_, compOut:stateArgs) = fromApplyToList e
                 in descend (g v compOut stateArgs) cont
-        f = descend f
+        f e = descend f e
 
-        g compound compOut stateOuts (Let v e@(PureFunction op i `Apply` _) cont)
+        g :: Binding -> Expression -> [Expression] -> Expression -> Expression
+        g compound compOut stateArgs (Let v e@(PureFunction op _ `Apply` _) cont)
             | op == ctxtExit = 
                 -- Must be a conditional
                 let (_, compOut':stateArgs') = fromApplyToList e
                 in descend (h compound compOut stateArgs v compOut' stateArgs') cont
 
-        g compound compOut stateOuts (Let v (f@(PureFunction op i) `Apply` size `Apply` _) cont)
+        g _ compOut stateOuts (Let v (fun@(PureFunction op _) `Apply` size `Apply` _) cont)
             | op == Refs.collect = 
                 let (compOut':stateOuts') = findDestructured cont v
                     stateExits ct = 
                         foldr
-                            (\((s',s), c) -> 
-                                Let s' (runSTCLangSMapFun `Apply` size `Apply` s)) c
+                            (\(s',s) c -> 
+                                Let s' (runSTCLangSMapFun `Apply` size `Apply` s) c)
                             ct
                             $ zip stateOuts' stateOuts 
 
-                in Let compOut' (f `Apply` size `Apply` compOut) $
+                in Let compOut' (fun `Apply` size `Apply` compOut) $
                     stateExits $
                     descend f cont
         g co c s e = descend (g co c s) e
 
-        h compound compOut stateOuts compound' compOut' stateOuts' 
-            (Let v (f@(PureFunction op _) `Apply` cond `Apply` trueBranch `Apply` falseBranch) cont)
+        h :: Binding -> Expression -> [Expression]
+          -> Binding -> Expression -> [Expression]
+          -> Expression
+          -> Expression
+        h compound compOut stateOuts _compound' compOut' stateOuts' 
+            (Let v (fun@(PureFunction op _) `Apply` cond `Apply` Var trueBranch `Apply` _falseBranch) cont)
             | op == Refs.select = 
                 let (tbCompOut, tbStateArgs, fbCompOut, fbStateArgs) =
                         if compound == trueBranch
                         then (compOut, stateOuts, compOut', stateOuts')
                         else (compOut', stateOuts', compOut, stateOuts)
-                    (compOut'', stateOuts'') = findDestructured cont v
+                    (compOut'':stateOuts'') = findDestructured cont v
                     stateExits ct = 
                         foldr
-                            (\((s', (ts,fs)), c) -> 
-                                Let s' (runSTCLangIfFun `Apply` cond `Apply` ts `Apply` fs)) c
-                            ct
-                            $ zip stateOuts'' $ zip tbStateArgs fbStateArgs 
-                in Let compOut'' (f `Apply` cond `Apply` tbCompOut `Apply` fbCompOut) $
-                    stateArgs $
+                            (\(s', (ts,fs)) c -> 
+                                Let s' (runSTCLangIfFun `Apply` cond `Apply` ts `Apply` fs) c)
+                            ct $ 
+                            zip stateOuts'' $ 
+                            zip tbStateArgs fbStateArgs 
+                in stateExits $
+                    Let compOut'' (fun `Apply` cond `Apply` tbCompOut `Apply` fbCompOut) $
                     descend f cont
         h co c s co' c' s' e = descend (h co c s co' c' s') e
 
-splitCtrls :: Expression -> Expression
-splitCtrls = f
-    where
-        f (Let v e@(f@(PureFunction op _) `Apply` ctrlSig `Apply` _) cont)
-            | op == Refs.ctrl = 
-                let (_, ctrlIn:vars) = fromApplyToList e
-                    outs = findDestructed cont v
-                in foldr
-                    (\((varOut,varIn), c) -> 
-                        Let varOut (f `Apply` ctrlSig `Apply` varIn)) c
-                    cont
-                    zip outs vars
+        descend = over plate -- note composOp = descend = over plate -> https://www.stackage.org/haddock/lts-14.25/lens-4.17.1/Control-Lens-Plated.html#v:para (below)
 
-pattern NthFunction bnd <- PureFunction Refs.nth _ `Apply` _ `Apply` _ `Apply` bnd
+splitCtrls :: Expression -> Expression
+splitCtrls = go
+    where
+        go :: Expression -> Expression
+        go (Let v e@(f@(PureFunction op _) `Apply` ctrlSig `Apply` _) cont) | op == Refs.ctrl = 
+            let (_, _ctrlIn:vars) = fromApplyToList e
+                outs = findDestructured cont v
+            in foldr
+                (\(varOut,varIn) c -> 
+                    Let varOut (f `Apply` ctrlSig `Apply` varIn) c)
+                cont $
+                zip outs vars
+        go e = e
+
+pattern NthFunction :: Binding -> Expression
+pattern NthFunction bnd <- PureFunction "ohua.lang/nth" _ `Apply` _ `Apply` _ `Apply` Var bnd
 
 evictOrphanedDestructured :: Expression -> Expression
 evictOrphanedDestructured e = 
     let allBnds = HS.fromList [v | Let v _ _ <- universe e]
     in transform (f allBnds) e
     where 
+        f :: HS.HashSet Binding -> Expression -> Expression
         f bnds (Let v (NthFunction bnd) cont) | not $ HS.member bnd bnds = cont
         f _ e = e
 
 findDestructured :: Expression -> Binding -> [Binding]
 findDestructured e bnd = 
-    let nths = sort 
-                [ (i,v) 
-                | (Let v 
-                    (PureFunction Refs.nth _) `Apply` 
-                    (Lit (NumericLit i)) `Apply` 
-                    _ `Apply` 
-                    bnd) 
-                <- universe e]
-    in nths
+    map snd $
+    sort 
+        [ (i,v) 
+        | Let v 
+            (PureFunction "ohua.lang/nth" _ `Apply` 
+                Lit (NumericLit i) `Apply` 
+                _ `Apply` 
+                bnd) 
+            _
+        <- universe e]
+
 applyToBody :: (Expression -> Expression) -> Expression -> Expression
 applyToBody f e@(Lambda _ body) = applyToBody f body
 applyToBody f e = f e
 
 collectStates :: Expression -> [Binding]
-collectStates e = HS.fromList [ state | (BindState (Var state) _) <- universe e ] 
+collectStates e = [ state | (BindState (Var state) _) <- universe e ] 
 
-mkST :: (MonadGenBnd m) => Expression -> m Expression
+mkST :: (MonadGenBnd m) => [Expression] -> Expression -> m Expression
 mkST states = \case
-    Let v exp res -> return $ Let v exp $ mkST res
+    Let v exp res -> Let v exp <$> mkST states res
     e -> do
         allOut <- generateBindingWith "all_out" 
         return $

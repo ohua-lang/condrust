@@ -222,6 +222,6 @@ mkDestructured formals compound = destructure (Var compound) formals
 lambdaArgsAndBody :: Expression -> ([Binding], Expression)
 lambdaArgsAndBody (Lambda arg l@(Lambda _ _)) =
     let (args, body) = lambdaArgsAndBody l
-     in (arg :. args, body)
+     in (arg : args, body)
 lambdaArgsAndBody (Lambda arg body) = ([arg], body)
 lambdaArgsAndBody e = ([], e)
