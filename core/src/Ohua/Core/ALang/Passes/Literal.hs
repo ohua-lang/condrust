@@ -32,7 +32,7 @@ literalsToFunctions e =
                 UnitLit      -> mkFun v u ie
                 NumericLit _ -> mkFun v u ie
                 EnvRefLit _  -> mkFun v u ie
-                other -> throwError $ "Compiler invariant broken. Trying to convert literal to function: " <> show lit 
+                _other -> throwError $ "Compiler invariant broken. Trying to convert literal to function: " <> show lit 
         other -> return other
     where 
         mkFun v lit body = return $ 

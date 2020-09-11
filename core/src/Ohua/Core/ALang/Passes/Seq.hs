@@ -23,7 +23,7 @@ import Ohua.Core.Prelude
 
 import Ohua.Core.ALang.Lang
 import Ohua.Core.ALang.Passes.Control
-import qualified Ohua.Core.ALang.Refs as Refs (seq, seqFun)
+import qualified Ohua.Core.ALang.Refs as Refs (seqFun)
 import Ohua.Core.ALang.Util (lambdaArgsAndBody)
 
 seqFunSf :: Expression
@@ -52,7 +52,7 @@ seqRewrite (Apply (Apply (Lit (FunRefLit (FunRef "ohua.lang/seq" Nothing))) dep)
     where
         -- TODO check that this is actually () -> maybe it is better to check this
         --      via assuring that the expr was a lambda with a Unit argument.
-        getExpr ((_:[]), e) = e
+        getExpr ([_], e) = e
         getExpr (args, e) = error $ 
             "Expected () argument for expression to seq (" <> show e <> ") but got: " 
             <> show args 

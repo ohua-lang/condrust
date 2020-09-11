@@ -161,8 +161,8 @@ evictOrphanedDestructured e =
     in transform (f allBnds) e
     where 
         f :: HS.HashSet Binding -> Expression -> Expression
-        f bnds (Let v (NthFunction bnd) cont) | not $ HS.member bnd bnds = cont
-        f _ e = e
+        f bnds (Let _v (NthFunction bnd) cont) | not $ HS.member bnd bnds = cont
+        f _ expr = expr
 
 findDestructured :: Expression -> Binding -> [Binding]
 findDestructured e bnd = 
@@ -173,20 +173,21 @@ findDestructured e bnd =
             (PureFunction "ohua.lang/nth" _ `Apply` 
                 Lit (NumericLit i) `Apply` 
                 _ `Apply` 
-                bnd) 
-            _
-        <- universe e]
+                Var bnd')
+            _  
+            <- universe e
+        , bnd == bnd']
 
 applyToBody :: (Expression -> Expression) -> Expression -> Expression
-applyToBody f e@(Lambda _ body) = applyToBody f body
+applyToBody f (Lambda _ body) = applyToBody f body
 applyToBody f e = f e
 
 collectStates :: Expression -> [Binding]
-collectStates e = [ state | (BindState (Var state) _) <- universe e ] 
+collectStates e = [ s | (BindState (Var s) _) <- universe e ] 
 
 mkST :: (MonadGenBnd m) => [Expression] -> Expression -> m Expression
 mkST states = \case
-    Let v exp res -> Let v exp <$> mkST states res
+    Let v e res -> Let v e <$> mkST states res
     e -> do
         allOut <- generateBindingWith "all_out" 
         return $
