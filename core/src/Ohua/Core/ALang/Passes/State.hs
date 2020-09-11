@@ -49,28 +49,28 @@ addCtxtExit = transformM f
                     trueBranchStatesMissing = HS.difference falseBranchStates trueBranchStates
                     falseBranchStatesMissing = HS.difference trueBranchStates falseBranchStates
                     addMissing = 
-                        foldr 
-                            (\cont missingState -> 
-                                Let missingState (PureFunction Refs.id Nothing `Apply` missingState) 
-                                    cont) 
+                        HS.foldr 
+                            (\missingState c -> 
+                                Let missingState (PureFunction Refs.id Nothing `Apply` Var missingState) 
+                                    c) 
                     trueBranch' = applyToBody (`addMissing` trueBranchStatesMissing) trueBranch
                     falseBranch' = applyToBody (`addMissing` falseBranchStatesMissing) falseBranch
 
-                    allStates = map Var $ HS.toList $ HS.union trueBranchStates falseBranchStates
+                    allStates = HS.toList $ HS.union trueBranchStates falseBranchStates
                 in do 
-                    trueBranch'' <- mkST allStates trueBranch'
-                    falseBranch'' <- mkST allStates falseBranch'
+                    trueBranch'' <- mkST (map Var allStates) trueBranch'
+                    falseBranch'' <- mkST (map Var allStates) falseBranch'
                     ctxtOut <- generateBindingWith "ctxt_out"
                     return $
                         Let ctxtOut (fun `Apply` trueBranch'' `Apply` falseBranch'') $
-                        mkDestructured (v:states) ctxtOut
+                        mkDestructured (v:allStates) ctxtOut
                         cont
     
         f (Let v (fun@(PureFunction op _) `Apply` expr `Apply` ds) cont)
             | op == Refs.smap =
                 let states = collectStates expr
                 in do
-                    expr' <- mkST states expr
+                    expr' <- mkST (map Var states) expr
                     ctxtOut <- generateBindingWith "ctxt_out"
                     return $
                         Let ctxtOut (fun `Apply` expr' `Apply` ds) $
