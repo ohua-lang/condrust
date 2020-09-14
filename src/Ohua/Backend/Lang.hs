@@ -18,6 +18,7 @@ data Recv
   = Recv
       Int -- copy index 
       Binding -- channel
+
 data Send
   = Emit 
       Binding -- channel

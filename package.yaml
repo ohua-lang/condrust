@@ -24,6 +24,7 @@ dependencies:
 - base >= 4.7 && < 5
 - text
 - containers
+- unordered-containers
 - ohuac-commons
 - extra
 - filepath
@@ -63,7 +64,7 @@ library:
   source-dirs: src
 
 tests:
-  o4a-ohua-backend-test:
+  ohua-backend-test:
     main:                Spec.hs
     source-dirs:         test
     ghc-options:

@@ -2,7 +2,11 @@ module Ohua.Backend.Operators.Control where
 
 import Ohua.Prelude
 
-import Ohua.Backend.Lang as L
+import Ohua.Backend.Lang as L hiding (Function)
+import Ohua.Backend.Operators.State
+
+import Data.List.NonEmpty as NE
+import qualified Data.HashSet as HS
 
 
 type CtrlInput = Binding

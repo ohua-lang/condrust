@@ -2,71 +2,71 @@ module Ohua.Backend.Operators.Function where
 
 import Ohua.Prelude
 
-import Ohua.Backend.Lang as L
+import Ohua.Backend.Lang as L hiding (Function)
+
+import qualified Data.List.NonEmpty as NE
 
 
 data Function 
     = Pure
-        FunRef
-        [Either Recv Lit] -- call args
+        QualifiedBinding
+        [Either Recv TaskExpr] -- call args
         -- Assumption: if there is no one that needs this result, then this should not be computed
         --             in the first place!
-        Send -- out
+        Binding -- out
     | ST
-        FunRef
-        Binding -- state
-        [Either (Binding, Int) Lit] -- call args
-        Maybe Binding -- state out
-        Maybe Binding -- out
+        QualifiedBinding
+        Recv -- state
+        [Either Recv TaskExpr] -- call args
+        (Maybe Binding) -- state out
+        (Maybe Binding) -- out
 
 data FusableFunction 
     = PureFusable
         [Either Recv TaskExpr]  -- data receive
         ([Binding] -> TaskExpr -> TaskExpr) -- application
-        (Maybe Send) -- send result
+        Send -- send result
     | STFusable
-        [Either Recv TaskExpr]  -- data receive
+        (NonEmpty (Either Recv TaskExpr))  -- data receive
         (NonEmpty Binding -> TaskExpr -> TaskExpr) -- application
         (Maybe Send) -- send state
         (Maybe Send) -- send result
 
 gen :: FusableFunction -> TaskExpr
-gen f = 
-    case f of
-        (PureFusable receives app send) ->
-            varsAndReceives $ 
-            app (bnds receives) $
-            maybe (Lit UnitLit) (\(Emit c d) -> Send c d) send
-        (STFusable receives app sendState sendRes) ->
-            varsAndReceives $
-            app (bnds $ NE.toList receives) $
-            foldr (\(Emit ch d) c -> Stmt (Send ch d) c) (Lit UnitLit) $ 
-            catMaybe [sendState, sendRes]
+gen = \case
+    (PureFusable receives app send) ->
+        varsAndReceives $ 
+        app (bnds receives) $
+        (\(Emit c d) -> Send c d) send
+    (STFusable receives app sendState sendRes) ->
+        varsAndReceives $
+        app (bndsNE receives) $
+        foldr (\(Emit ch d) c -> Stmt (Send ch d) c) (Lit UnitLit) $ 
+        catMaybes [sendState, sendRes]
     where
         bnds = map (("var_" <>) . show . fst) . zip [0..] 
+        bndsNE = NE.map (("var_" <>) . show . fst) . NE.zip [0..] 
         varsAndReceives cont = 
             foldr (\(v,r) c -> Let v r c) cont $
             map (curry generateReceiveCode) $
             zip [0..] receives
-        generateReceiveCode idx (Recv cidx bnd) = ("var_" <> show idx, Receive cidx bnd)
-        generateReceiveCode idx e = ("var_" <> show idx, e)
+        generateReceiveCode idx (Left (Recv cidx bnd)) = ("var_" <> show idx, Receive cidx bnd)
+        generateReceiveCode idx (Right e) = ("var_" <> show idx, e)
 
 fun :: Function -> FusableFunction
-fun (Pure funRef callArgs out) = 
-    PureFusable
-        (map dataSource callArgs)
-        (\args cont -> 
-            Let "result" (Apply $ Stateless funRef $ map Var args)
-                cont)
-        (`Emit` "result" <$> out)
-fun (ST funRef stateVar callArgs stateOut out) = undefined
-    STFusable
-        (map generateReceiveCode $ stateVar : callArgs)
-        (\args cont -> 
-            Let "result" (Apply $ Stateful stateVar funRef $ map Var args)
-                cont)
-        (`Emit` "result" <$> out)
-        (`Emit` stateVar <$> out)
-
-dataSource (Left (bnd, idx)) = Recv idx bnd
-dataSource (Right l) = l
+fun = \case 
+    (Pure funRef callArgs out) ->
+        PureFusable
+            callArgs
+            (\args cont -> 
+                Let "result" (Apply $ Stateless funRef $ map Var args)
+                    cont)
+            (out `Emit` "result")
+    (ST funRef stateVar@(Recv _ stateBnd) callArgs stateOut out) ->
+        STFusable
+            (Left stateVar :| callArgs)
+            (\args cont -> 
+                Let "result" (Apply $ Stateful (NE.head args) funRef $ map Var $ NE.tail args)
+                    cont)
+            ((`Emit` "result") <$> out)
+            ((`Emit` stateBnd) <$> out)
