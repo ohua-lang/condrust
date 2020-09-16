@@ -6,7 +6,7 @@ import Ohua.Backend.Lang
 
 
 type DataSizeInput = Binding
-type FoldFun = FunRef
+type StateInput = Binding
 type StateOutput = Binding
 
 type StateBnd = Binding
@@ -15,27 +15,24 @@ data STCLangSMap =
     STCLangSMap
         (TaskExpr -> TaskExpr) -- init
         (TaskExpr -> TaskExpr) -- ctxt loop
-        (StateBnd -> TaskExpr) -- state receive
-        (StateBnd -> TaskExpr) -- state emission
+        StateInput -- state receive
+        StateOutput -- state emission
 
--- TODO
-fuse = undefined
 
 genSTCLangSMap :: STCLangSMap -> TaskExpr
 genSTCLangSMap (STCLangSMap init ctxtLoop stateReceive emit) = 
     init $
-    Stmt 
+    Stmt
     (
         ctxtLoop $
-            Stmt (stateReceive "state") $
+            Stmt (Receive 0 stateReceive) $
             Lit UnitLit
     ) $
-    Let "s" (stateReceive "state")
-        $ emit "s"
+    Let "s" (Receive 0 stateReceive)
+        $ Send emit "s"
 
-mkSTCLangSMap :: DataSizeInput -> StateOutput -> STCLangSMap
-mkSTCLangSMap sizeInput stateOutput = 
-    STCLangSMap init ctxtLoop stateReceiveCode emit
+mkSTCLangSMap :: DataSizeInput -> StateInput -> StateOutput -> STCLangSMap
+mkSTCLangSMap sizeInput = STCLangSMap init ctxtLoop
     where
         init :: TaskExpr -> TaskExpr
         init c =  
@@ -45,10 +42,3 @@ mkSTCLangSMap sizeInput stateOutput =
 
         ctxtLoop :: TaskExpr -> TaskExpr
         ctxtLoop = Repeat $ Left "drops" 
-                
-        stateReceiveCode :: StateBnd -> TaskExpr
-        stateReceiveCode = Receive 0
-
-        emit :: StateBnd -> TaskExpr
-        emit = Send stateOutput
-

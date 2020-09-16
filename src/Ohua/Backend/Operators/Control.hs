@@ -8,40 +8,67 @@ import Ohua.Backend.Operators.Function as F
 
 import qualified Data.List.NonEmpty as NE
 import qualified Data.HashSet as HS
+import qualified Data.HashMap.Lazy as HM
 
 
 type CtrlInput = Binding
 type Inputs = NonEmpty Recv
 type Outputs = NonEmpty Binding
+type OutputChannel = Binding
 
 -- assumption: length (receive vars) == length (send vars)
 -- FIXME: the above assumption can easily be encoded via NonEmpty (receive var, send var)
 data Ctrl 
     = Ctrl
         (Binding -> TaskExpr -> TaskExpr) -- signal state init
-        (NonEmpty (Binding, Recv)) -- vars
+        (NonEmpty (OutputChannel, Recv)) -- vars
         -- below here is computation code
         (Binding -> TaskExpr -> TaskExpr -> TaskExpr) -- signal state receive code
         (TaskExpr -> TaskExpr) -- ctxt loop
         (Binding -> TaskExpr) -- signal state renewal
 
+data VarReceive = StateVar OutputChannel Recv | PureVar OutputChannel Recv
+
+from :: VarReceive -> (OutputChannel, Recv)
+from (StateVar c r) = (c,r)
+from (PureVar c r) = (c,r)
+
 data FusedCtrl
     = FusedCtrl
         (Binding -> TaskExpr -> TaskExpr) -- signal state init
-        (NonEmpty (Binding, Recv)) -- vars
+        (NonEmpty VarReceive) -- vars
         -- below here is computation code
         (Binding -> TaskExpr -> TaskExpr -> TaskExpr) -- signal state receive code
-        -- (TaskExpr -> TaskExpr) -- ctxt loop
         TaskExpr -- comp
         (Binding -> TaskExpr) -- signal state renewal
+        [Send] -- state outs
+
+fuseSTCSMap :: STCLangSMap -> FusedCtrl -> FusedCtrl
+fuseSTCSMap
+    (STCLangSMap init ctxtLoop stateReceive stateOut)
+    (FusedCtrl sigStateInit vars sigStateRecv comp sigStateRenewal stateOuts)
+    = FusedCtrl
+        sigStateInit
+        vars
+        sigStateRecv
+        comp
+        sigStateRenewal
+        stateOuts'
+    where
+        stateOuts' = 
+            map 
+                (\(Emit ch d) -> if ch == stateReceive
+                                    then Emit stateOut d
+                                    else Emit ch d) 
+                stateOuts
 
 fuse :: Ctrl -> FusedCtrl -> FusedCtrl
 fuse 
     (Ctrl sigStateInit vars sigStateRecv ctxtLoop sigStateRenewal) -- from
-    (FusedCtrl sigStateInit' receiveVars' sigStateRecv' comp' sigStateRenewal') -- to
+    (FusedCtrl sigStateInit' vars' sigStateRecv' comp' sigStateRenewal' stateOuts) -- to
     = FusedCtrl
         sigStateInit
-        vars
+        vars''
         sigStateRecv
         (ctxtLoop $
             sigStateInit' "renew" $
@@ -52,10 +79,30 @@ fuse
                     comp' $
                     sigStateRenewal' "renew")
         sigStateRenewal
+        stateOuts'
     where
-        initVarsExpr' = initVarsExpr receiveVars' sendVars
-        receiveVarsExpr' = receiveVarsExpr receiveVars' sendVars
+        initVarsExpr' = initVarsExpr (map from vars') sendVars
+        receiveVarsExpr' = receiveVarsExpr (map from vars') sendVars
         sendVars = NE.map fst vars
+        stateVars = 
+            HS.fromList $
+            catMaybes $
+            NE.toList $
+            NE.map (\case StateVar _outChan (Recv _ b) -> Just b; _ -> Nothing)
+            vars'
+        vars'' = 
+            NE.map 
+                (\(b,re@(Recv _ r)) -> 
+                    if HS.member b stateVars
+                    then StateVar b re
+                    else PureVar b re) 
+                vars
+        stateOuts' = map g stateOuts
+        g (Emit ch d) = 
+            let d' = case NE.filter (\(v,r) -> v == d) vars of
+                        [(v,_)] -> v
+                        _ -> error "invariant broken"
+            in Emit ch d' -- the var that I assign the state to becomes the new data out for the state
 
 fuseFun :: Ctrl -> FusableFunction -> FusedCtrl
 fuseFun (Ctrl sigStateInit vars sigStateRecv ctxtLoop sigStateRenewal) =
@@ -63,28 +110,38 @@ fuseFun (Ctrl sigStateInit vars sigStateRecv ctxtLoop sigStateRenewal) =
         (PureFusable args app res) -> 
             FusedCtrl
                 sigStateInit
-                vars
+                (NE.map (uncurry PureVar) vars)
                 sigStateRecv
                 ( ctxtLoop $
                     F.gen $ 
                     PureFusable (map f args) app res
                 )
                 sigStateRenewal
-        (STFusable args app stateRes res) ->
+                []
+        (STFusable stateArg args app res stateRes) ->
             FusedCtrl
                 sigStateInit
-                vars
+                (vars' stateArg)
                 sigStateRecv
                 ( ctxtLoop $
                     F.gen $ 
-                        STFusable (NE.map f args) app stateRes res
+                        STFusable stateArg (map f args) app res Nothing
                 )
-                sigStateRenewal
+                sigStateRenewal $
+                maybe [] (\g -> [g $ fst $ stateVar stateArg]) stateRes
         where
             f (Left (Recv _ ch)) | HS.member ch ctrled = Right $ Var ch
             f e  = e
             ctrled = HS.fromList $ NE.toList sendVars
             sendVars = NE.map fst vars
+            stateVar sArg = case NE.filter (\(_, r) -> r == sArg) vars of
+                                [s] -> s
+                                [] -> error "invariant broken" -- an assumption rooted inside DFLang
+            vars' sArg = 
+                NE.map (\case
+                            (bnd, sArg) -> StateVar bnd sArg
+                            (bnd, a) -> PureVar bnd a)
+                        vars
 
 -- | Assumption: both controls share the same signal source and the same target:
 --                             x ---> ctrl1 -------+ 

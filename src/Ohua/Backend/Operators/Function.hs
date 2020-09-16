@@ -27,31 +27,32 @@ data FusableFunction
         ([Binding] -> TaskExpr -> TaskExpr) -- application
         Send -- send result
     | STFusable
-        (NonEmpty (Either Recv TaskExpr))  -- data receive
+        Recv -- state receive
+        [Either Recv TaskExpr]  -- data receive
         (NonEmpty Binding -> TaskExpr -> TaskExpr) -- application
-        (Maybe Send) -- send state
         (Maybe Send) -- send result
+        (Maybe (Binding -> Send)) -- send state
 
 gen :: FusableFunction -> TaskExpr
 gen = \case
     (PureFusable receives app send) ->
-        varsAndReceives $ 
+        varsAndReceives receives $ 
         app (bnds receives) $
         (\(Emit c d) -> Send c d) send
-    (STFusable receives app sendState sendRes) ->
-        varsAndReceives $
-        app (bndsNE receives) $
+    (STFusable stateRecv receives app sendRes sendState) ->
+        varsAndReceives (Left stateRecv : receives) $
+        app (bndsNE $ Left stateRecv :| receives) $
         foldr (\(Emit ch d) c -> Stmt (Send ch d) c) (Lit UnitLit) $ 
-        catMaybes [sendState, sendRes]
+        catMaybes [sendRes, "var_0" <$> sendState]
     where
         bnds = map (("var_" <>) . show . fst) . zip [0..] 
         bndsNE = NE.map (("var_" <>) . show . fst) . NE.zip [0..] 
-        varsAndReceives cont = 
+        varsAndReceives rcvs cont = 
             foldr (\(v,r) c -> Let v r c) cont $
-            map (curry generateReceiveCode) $
-            zip [0..] receives
-        generateReceiveCode idx (Left (Recv cidx bnd)) = ("var_" <> show idx, Receive cidx bnd)
-        generateReceiveCode idx (Right e) = ("var_" <> show idx, e)
+            map generateReceiveCode $
+            zip [0..] rcvs
+        generateReceiveCode (idx, Left (Recv cidx bnd)) = ("var_" <> show idx, Receive cidx bnd)
+        generateReceiveCode (idx, Right e) = ("var_" <> show idx, e)
 
 fun :: Function -> FusableFunction
 fun = \case 
@@ -64,9 +65,10 @@ fun = \case
             (out `Emit` "result")
     (ST funRef stateVar@(Recv _ stateBnd) callArgs stateOut out) ->
         STFusable
-            (Left stateVar :| callArgs)
+            stateVar
+            callArgs
             (\args cont -> 
                 Let "result" (Apply $ Stateful (NE.head args) funRef $ map Var $ NE.tail args)
                     cont)
             ((`Emit` "result") <$> out)
-            ((`Emit` stateBnd) <$> out)
+            (Emit <$> stateOut)

@@ -18,11 +18,13 @@ data Recv
   = Recv
       Int -- copy index 
       Binding -- channel
+  deriving (Eq, Show)
 
 data Send
   = Emit 
       Binding -- channel
       Binding -- data
+  deriving (Eq, Show)
 
 data Channel = Channel 
                 Binding -- channel id
