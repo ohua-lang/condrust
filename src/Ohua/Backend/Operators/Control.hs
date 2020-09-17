@@ -113,7 +113,7 @@ fuseFun (Ctrl sigStateInit vars sigStateRecv ctxtLoop sigStateRenewal) =
                 (NE.map (uncurry PureVar) vars)
                 sigStateRecv
                 ( ctxtLoop $
-                    F.gen $ 
+                    F.genFun $ 
                     PureFusable (map f args) app res
                 )
                 sigStateRenewal
@@ -124,7 +124,7 @@ fuseFun (Ctrl sigStateInit vars sigStateRecv ctxtLoop sigStateRenewal) =
                 (vars' stateArg)
                 sigStateRecv
                 ( ctxtLoop $
-                    F.gen $ 
+                    F.genFun $ 
                         STFusable stateArg (map f args) app res Nothing
                 )
                 sigStateRenewal $
@@ -139,7 +139,7 @@ fuseFun (Ctrl sigStateInit vars sigStateRecv ctxtLoop sigStateRenewal) =
                                 [] -> error "invariant broken" -- an assumption rooted inside DFLang
             vars' sArg = 
                 NE.map (\case
-                            (bnd, sArg) -> StateVar bnd sArg
+                            (bnd, a) | a == sArg -> StateVar bnd a
                             (bnd, a) -> PureVar bnd a)
                         vars
 

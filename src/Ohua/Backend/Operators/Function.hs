@@ -33,8 +33,8 @@ data FusableFunction
         (Maybe Send) -- send result
         (Maybe (Binding -> Send)) -- send state
 
-gen :: FusableFunction -> TaskExpr
-gen = \case
+genFun :: FusableFunction -> TaskExpr
+genFun = \case
     (PureFusable receives app send) ->
         varsAndReceives receives $ 
         app (bnds receives) $
@@ -43,14 +43,15 @@ gen = \case
         varsAndReceives (Left stateRecv : receives) $
         app (bndsNE $ Left stateRecv :| receives) $
         foldr (\(Emit ch d) c -> Stmt (Send ch d) c) (Lit UnitLit) $ 
-        catMaybes [sendRes, "var_0" <$> sendState]
+        catMaybes [sendRes, (\f -> f "var_0") <$> sendState]
     where
         bnds = map (("var_" <>) . show . fst) . zip [0..] 
         bndsNE = NE.map (("var_" <>) . show . fst) . NE.zip [0..] 
         varsAndReceives rcvs cont = 
-            foldr (\(v,r) c -> Let v r c) cont $
-            map generateReceiveCode $
-            zip [0..] rcvs
+            foldr 
+                ((\ (v, r) c -> Let v r c) . generateReceiveCode) 
+                cont
+                (zip [0 ..] rcvs)
         generateReceiveCode (idx, Left (Recv cidx bnd)) = ("var_" <> show idx, Receive cidx bnd)
         generateReceiveCode (idx, Right e) = ("var_" <> show idx, e)
 
