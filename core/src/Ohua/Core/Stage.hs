@@ -69,6 +69,11 @@ conditionalsTransformationALang = "alang-condtionals-transformation"
 seqTransformationALang :: StageName
 seqTransformationALang = "alang-seq-transformation"
 
+preControlSTCLangALang :: StageName
+preControlSTCLangALang = "alang-stclang-pre-control"
+
+postControlSTCLangALang :: StageName
+postControlSTCLangALang = "alang-stclang-post-control"
 
 knownStages :: [StageName]
 knownStages =
@@ -85,4 +90,6 @@ knownStages =
     , smapTransformationALang
     , conditionalsTransformationALang
     , seqTransformationALang
+    , preControlSTCLangALang
+    , postControlSTCLangALang
     ]

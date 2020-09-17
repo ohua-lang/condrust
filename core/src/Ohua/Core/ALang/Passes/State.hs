@@ -16,6 +16,7 @@ import Ohua.Core.Prelude
 
 import Ohua.Core.ALang.Lang
 import Ohua.Core.ALang.Util
+import Ohua.Core.ALang.Passes.SSA
 import qualified Ohua.Core.ALang.Refs as Refs
 
 import qualified Data.HashSet as HS
@@ -25,11 +26,17 @@ import Control.Lens.Plated (plate)
 
 -- TODO recursion support is still pending here!
 
+preControlPasses :: MonadOhua m => Expression -> m Expression
+preControlPasses = addCtxtExit >=> performSSA
+
+postControlPasses :: Expression -> Expression
+postControlPasses = splitCtrls . transformCtxtExits
+
 runSTCLangSMapFun :: Expression
-runSTCLangSMapFun = Lit $ FunRefLit $ FunRef "ohua.lang/runSTCLang-Smap" Nothing
+runSTCLangSMapFun = Lit $ FunRefLit $ FunRef Refs.runSTCLangSMap Nothing
 
 runSTCLangIfFun :: Expression
-runSTCLangIfFun = Lit $ FunRefLit $ FunRef "ohua.lang/runSTCLang-If" Nothing
+runSTCLangIfFun = Lit $ FunRefLit $ FunRef Refs.runSTCLangIf Nothing
 
 -- invariant: this type of node has at least one var as input (the computation result)
 ctxtExit :: QualifiedBinding
@@ -76,7 +83,7 @@ addCtxtExit = transformM f
                         Let ctxtOut (fun `Apply` expr' `Apply` ds) $
                         mkDestructured (v:states) ctxtOut
                         cont
-        f e = return e
+        f expr = return expr
 
 -- Assumptions: This function is applied to a normalized and SSAed expression.
 --              This transformation executes after the control rewrites.

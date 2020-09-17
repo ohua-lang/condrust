@@ -35,8 +35,10 @@ import Ohua.Core.ALang.Passes.Seq
 import Ohua.Core.ALang.Passes.Smap
 import Ohua.Core.ALang.Passes.Unit
 import Ohua.Core.ALang.Passes.Literal
+import Ohua.Core.ALang.Passes.State
 import qualified Ohua.Core.ALang.Refs as Refs
 import Ohua.Core.Stage
+
 
 runCorePasses :: MonadOhua m => Expression -> m Expression
 runCorePasses expr = do
@@ -46,7 +48,10 @@ runCorePasses expr = do
     let exprE = mkUnitFunctionsExplicit litE
     stage unitFunctionsALang exprE
 
-    smapE <- smapRewrite exprE
+    stateThreadsE <- preControlPasses exprE
+    stage preControlSTCLangALang stateThreadsE
+
+    smapE <- smapRewrite stateThreadsE
     stage smapTransformationALang smapE
 
     ifE <- ifRewrite smapE
@@ -55,7 +60,10 @@ runCorePasses expr = do
     seqE <- seqRewrite ifE
     stage seqTransformationALang seqE
     
-    return seqE
+    let stateThreadsE' = postControlPasses seqE
+    stage postControlSTCLangALang stateThreadsE'
+
+    return stateThreadsE'
 
 -- | Inline all references to lambdas.
 -- Aka `let f = (\a -> E) in f N` -> `(\a -> E) N`
@@ -128,7 +136,7 @@ letLift =
     cata $ \e ->
         let f =
                 case e of
-                    LetF _ _ _ -> reduceLetA
+                    LetF{} -> reduceLetA
                     ApplyF _ _ -> reduceApplication
                     _ -> id
          in f $ embed e
@@ -287,10 +295,10 @@ removeCurrying e = fst <$> evalRWST (para inlinePartials e) mempty ()
         tell $ wasTouchedAsFunction bnd
         val <- asks (HM.lookup bnd)
         Apply <$>
-            (maybe
-                 (failWith $ "No suitable value found for binding " <> show bnd)
-                 pure
-                 val) <*>
+            maybe
+                (failWith $ "No suitable value found for binding " <> show bnd)
+                pure
+                val <*>
             arg
     inlinePartials (VarF bnd) = tell (wasTouchedAsValue bnd) >> pure (Var bnd)
     inlinePartials innerExpr = embed <$> traverse snd innerExpr

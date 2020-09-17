@@ -47,3 +47,10 @@ seqFun = EmbedSf Refs.seqFun
 
 unitFun :: DFFnRef
 unitFun = EmbedSf Refs.unitFun
+
+runSTCLangSMap :: DFFnRef
+runSTCLangSMap = DFFunction Refs.runSTCLangSMap
+
+runSTCLangIf :: DFFnRef
+runSTCLangIf = DFFunction Refs.runSTCLangIf
+

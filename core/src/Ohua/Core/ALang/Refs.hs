@@ -2,6 +2,10 @@ module Ohua.Core.ALang.Refs where
 
 import Ohua.Prelude
 
+-- FIXME all these references should not be defined here but only re-exported
+--       from the passes that introduce them!
+--       (cyclic dependency problem for this module)
+
 id :: QualifiedBinding
 id = "ohua.lang/id"
 
@@ -49,3 +53,9 @@ ctrl = "ohua.lang/ctrl"
 
 unitFun :: QualifiedBinding
 unitFun = "ohua.lang/unitFun"
+
+runSTCLangSMap :: QualifiedBinding
+runSTCLangSMap = "ohua.lang/runSTCLang-Smap"
+
+runSTCLangIf :: QualifiedBinding
+runSTCLangIf = "ohua.lang/runSTCLang-If"
