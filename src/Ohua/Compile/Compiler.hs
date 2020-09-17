@@ -24,10 +24,8 @@ import Ohua.Backend as B (backend)
 import Ohua.Compile.Lower.FrLang (toAlang)
 import Ohua.Compile.Lower.DFLang (toTCLang)
 
-import Ohua.Compile.Config
 import Ohua.Integration
 
-import Control.Lens
 import System.FilePath
 
 
@@ -46,11 +44,11 @@ compilation ::
     -> lang -> arch -> m ()
 compilation inFile compScope coreOpts outDir integration arch = do
     -- frontend
-    (ctxt, ns) <- Fr.frontend integration compScope inFile
+    (ctxt, n) <- Fr.frontend integration compScope inFile
     -- middle end
-    ns' <- updateExprs ns $ toAlang >=> core >=> toTCLang
+    n' <- updateExprs n $ toAlang >=> core >=> toTCLang
     -- backend 
-    B.backend outDir ns' ctxt arch
+    B.backend outDir n' ctxt arch
 
     where
         core = Core.compile

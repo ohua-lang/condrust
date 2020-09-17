@@ -5,26 +5,25 @@ import Ohua.Prelude
 import Ohua.Core.DFLang.Lang
 import Ohua.Core.DFLang.Refs as Refs
 import Ohua.Core.DFLang.Util
-import Ohua.Core.DFGraph
 import Ohua.Backend.Lang
 import Ohua.Backend.Types
 import qualified Ohua.Backend.Operators as Ops
+import Ohua.Backend.Fusion
 
-import Data.Maybe
 import qualified Data.HashSet as HS
-import Control.Monad.Extra (maybeM)
+import qualified Data.List.NonEmpty as NE
 
 
 -- Invariant in the result type: the result channel is already part of the list of channels.
-toTCLang :: CompM m => DFExpr -> m (TCProgram Channel TaskExpr)
-toTCLang graph = runGenBndT taken $ runReaderT transform graph
+toTCLang :: CompM m => DFExpr -> m (TCProgram Channel Fusable)
+toTCLang gr = runGenBndT taken $ runReaderT go gr
     where 
-        transform = do
-            let chans = generateArcsCode graph
-            let resultChan = generateResultArc graph
-            tasks <- generateNodesCode graph
+        go = do
+            let chans = generateArcsCode gr
+            let resultChan = generateResultArc gr
+            tasks <- generateNodesCode gr
             return $ TCProgram chans resultChan tasks
-        taken = definedBindings graph
+        taken = definedBindings gr
         definedBindings :: DFExpr -> HS.HashSet Binding
         definedBindings e =
             HS.fromList $ returnVar e : concatMap output (letExprs e)
@@ -34,51 +33,39 @@ type LoweringM m a = ReaderT DFExpr (GenBndT m) a
 invariantBroken :: CompM m => Text -> LoweringM m a
 invariantBroken msg = lift $ lift $ throwError $ "Compiler invariant broken! " <> msg
 
-generateNodesCode :: CompM m => DFExpr ->  LoweringM m [TaskExpr]
-generateNodesCode graph = toList <$> mapM generateNodeCode (letExprs graph)
+generateNodesCode :: CompM m => DFExpr ->  LoweringM m [Fusable]
+generateNodesCode gr = toList <$> mapM generateNodeCode (letExprs gr)
 
-generateFunctionCode :: CompM m => LetExpr ->  LoweringM m TaskExpr
-generateFunctionCode e@LetExpr {functionRef=DFFnRef{nodeType=OperatorNode}} = 
+generateFunctionCode :: CompM m => LetExpr ->  LoweringM m Fusable
+generateFunctionCode LetExpr {functionRef=DFFnRef{nodeType=OperatorNode}} = 
     invariantBroken "`generateOpCode` should take care of all operators!"
 generateFunctionCode e@LetExpr {functionRef=DFFnRef{nodeType=FunctionNode}} = do
-    varsAndReceives <- mapM
-                        (\(idx, arg) -> generateReceiveCode arg idx e)
-                        $ zip [0..] $ callArguments e
-    let loopCode varsAndReceives cont = foldr (\(v,r) c -> Let v r c) cont varsAndReceives
-    stateVar <- lift $ generateBindingWith "state"
-    stateReceiveCode <- 
-        maybeM 
-            (return id) 
-            (\s -> do
-                -- assumes that state is used only in a single location!
-                -- is this really always the case? 
-                stateDFVar <- getStateVar s
-                idx <- getIndex stateDFVar e
-                return $ Let stateVar $ Receive idx stateDFVar)
-            $ return $ stateArgument e 
-    fnCallCode <- 
-        maybeM 
-            (return Stateless) 
-            (\_ -> return $ Stateful stateVar) 
-            $ return $ stateArgument e
-    
-    (varsAndReceives', fun, args) <- lowerFnRef (functionRef e) varsAndReceives
+    argReceives <- mapM (`generateReceive` e) $ callArguments e
+    f <- case stateArgument e of
+            Just s -> do
+                (stateOut,resOut) <- case output e of 
+                                        [] -> return (Nothing, Nothing)
+                                        [st,r] -> return (Just st, Just r)
+                                        _ -> lift $ lift $ throwError $ "Unsupported multiple outputs: " <> show e
+                stateReceive <- getStateVar s
 
-    let callCode = Apply $ fnCallCode fun args
-
-    resultVar <- generateBindingWith "result"
-    -- TODO do we support multiple outputs or is this here because of historical
-    --      reasons? (It previously was meant for destructuring.)
-    sendCode <- case output e of
-                    [] -> return $ Lit UnitLit
-                    [x] -> return $ Send x resultVar
-                    _ -> lift $ lift $ throwError "Unsupported: multiple outputs detected."
-    return $ stateReceiveCode $ -- FIXME I don't think this is correct! 
-                                -- It needs to be just a more sophisticated arc that maintains the state instance for 'n' calls. (Control arc)
-                EndlessLoop $
-                    loopCode 
-                        varsAndReceives'
-                        (Let resultVar callCode sendCode)
+                return $
+                    Ops.ST
+                        (nodeRef $ functionRef e)
+                        (Recv 0 stateReceive)
+                        argReceives
+                        stateOut
+                        resOut
+            Nothing -> do
+                resOut <- case output e of 
+                        [r] -> return r
+                        _ -> lift $ lift $ throwError $ "Unsupported multiple outputs: " <> show e
+                return $
+                    Ops.Pure
+                        (nodeRef $ functionRef e)
+                        argReceives
+                        resOut
+    return $ Fun $ Ops.fun f
 
 getStateVar :: CompM m => DFVar -> LoweringM m Binding
 getStateVar (DFVar bnd) = return bnd
@@ -88,14 +75,12 @@ convertDFVar :: DFVar -> TaskExpr
 convertDFVar (DFVar bnd) = Var bnd
 convertDFVar (DFEnvVar l) = Lit l 
 
-generateReceiveCode :: CompM m => DFVar -> Int -> LetExpr -> LoweringM m (Binding, TaskExpr)
-generateReceiveCode (DFVar bnd) callIdx current = do
+generateReceive :: CompM m => DFVar -> LetExpr -> LoweringM m (Either Recv TaskExpr)
+generateReceive (DFVar bnd) current = do
     idx <- getIndex bnd current
-    x <- generateBindingWith $ "arg" <> show callIdx
-    return (x, Receive idx bnd)
-generateReceiveCode (DFEnvVar l) callIdx _ = do
-    x <- generateBindingWith $ "arg" <> show callIdx
-    return (x, Lit l)
+    return $ Left $ Recv idx bnd
+generateReceive (DFEnvVar l)  _ =
+    return $ Right $ Lit l
 
 getIndex :: CompM m => Binding -> LetExpr -> LoweringM m Int
 getIndex bnd current = do
@@ -121,18 +106,18 @@ lowerFnRef f varsAndReceives =
     return (varsAndReceives, nodeRef f, map (Var . fst) varsAndReceives)
 
 generateArcsCode :: DFExpr -> [Channel]
-generateArcsCode graph =
+generateArcsCode gr =
     concat $ 
-    flip map (letExprs graph) $ \letExpr ->
+    flip map (letExprs gr) $ \letExpr ->
         flip map (output letExpr) $ \out ->
-            let numUsages = length $ findUsages out $ letExprs graph
+            let numUsages = length $ findUsages out $ letExprs gr
             in Channel out numUsages
 
 generateResultArc :: DFExpr -> Channel
 generateResultArc = flip Channel 1 . returnVar
 
 -- FIXME see sertel/ohua-core#7: all these errors would immediately go away
-generateNodeCode :: CompM m => LetExpr ->  LoweringM m TaskExpr
+generateNodeCode :: CompM m => LetExpr ->  LoweringM m Fusable
 generateNodeCode e@LetExpr {functionRef=f} | f == smapFun = do
     input <- 
         case callArguments e of
@@ -144,7 +129,7 @@ generateNodeCode e@LetExpr {functionRef=f} | f == smapFun = do
         case output e of -- FIXME: I can not even be sure here whether the order is the correct one!
             [x,y,z] -> return (x,y,z)
             _ -> invariantBroken $ "SMap must have 3 outputs: " <> show e
-    lift $ return $
+    lift $ return $ Unfusable $
         EndlessLoop $
             Ops.smapFun input dataOut ctrlOut collectOut
 
@@ -157,8 +142,8 @@ generateNodeCode e@LetExpr {functionRef=f} | f == collect = do
         case output e of
             [x] -> return x
             _ -> invariantBroken $ "Collect outputs don't match" <> show e
-    lift $ return $
-        EndlessLoop $
+    lift $ return $ Unfusable $
+        EndlessLoop $ 
             Ops.collect sizeIn dataIn collectedOutput
 
 generateNodeCode e@LetExpr {functionRef=f} | f == ifFun= do
@@ -168,9 +153,9 @@ generateNodeCode e@LetExpr {functionRef=f} | f == ifFun= do
             _ -> invariantBroken $ "IfFun arguments don't match: " <> show e
     (ctrlTrueOut, ctrlFalseOut) <-
         case output e of
-            [t, f] -> return (t,f)
+            [t, fa] -> return (t,fa)
             _ -> invariantBroken $ "IfFun outputs don't match" <> show e
-    lift $ return $
+    lift $ return $ Unfusable $
         EndlessLoop $
             Ops.ifFun condIn ctrlTrueOut ctrlFalseOut
 
@@ -183,26 +168,43 @@ generateNodeCode e@LetExpr {functionRef=f} | f == select = do
         case output e of
             [x] -> return x
             _ -> invariantBroken $ "Select outputs don't match" <> show e
-    lift $ return $
+    lift $ return $ Unfusable $
         EndlessLoop $
             Ops.select condIn trueIn falseIn out
+
+generateNodeCode e@LetExpr {functionRef=f} | f == Refs.runSTCLangSMap = do
+    (sizeIn, stateIn) <- 
+        case callArguments e of
+            [DFVar x, DFVar y] -> return (x,y)
+            _ -> invariantBroken $ "STCLangSMap arguments don't match: " <> show e
+    out <-
+        case output e of
+            [x] -> return x
+            _ -> invariantBroken $ "STCLangSMap outputs don't match" <> show e
+    lift $ return $ STC $
+            Ops.mkSTCLangSMap 
+                sizeIn
+                stateIn
+                out
 
 generateNodeCode e@LetExpr {functionRef=f} | f == ctrl = do
     -- invariants: len ins == len outs, NonEmpty ins, NonEmpty outs
     (ctrlIn, ins) <- 
         case callArguments e of
             DFVar c:is -> 
-                (c,) <$> forM is (\case 
-                                    DFVar v -> return v
+                (c,) <$> forM (NE.fromList is) (\case
+                                    DFVar v -> return $ Recv 0 v
                                     DFEnvVar _ -> invariantBroken $ "Control argument can not be literal: " <> show e)
             _ -> invariantBroken $ "Control arguments don't match: " <> show e
     outs <-
         case output e of
             [] -> invariantBroken $ "Control outputs don't match" <> show e    
-            xs -> return xs
+            xs -> return $ NE.fromList xs
     lift $ return $
-        EndlessLoop $
-            Ops.ctrl ctrlIn ins outs
+        Control $ Ops.mkCtrl 
+                    ctrlIn 
+                    ins 
+                    outs
 
 -- generateNodeCode e@LetExpr {functionRef=f} | f == runSTCLang = do
 --     (sizeIn, dataIn, stateIn, collectFun) <-
@@ -217,6 +219,6 @@ generateNodeCode e@LetExpr {functionRef=f} | f == ctrl = do
 --         EndlessLoop $
 --             Ops.runSTCLang sizeIn dataIn stateIn collectFun collectedOutput
 
-generateNodeCode e@LetExpr {functionRef=f} | f == recurFun = undefined
+generateNodeCode LetExpr {functionRef=f} | f == recurFun = undefined
 generateNodeCode e = generateFunctionCode e
     
