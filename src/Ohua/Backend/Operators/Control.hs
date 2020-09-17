@@ -70,6 +70,7 @@ fuse
         sigStateInit
         vars''
         sigStateRecv
+        -- TODO refactor and use genFused!
         (ctxtLoop $
             sigStateInit' "renew" $
             initVarsExpr' $
@@ -164,7 +165,21 @@ merge
         sigStateRenewal
 
 genFused :: FusedCtrl -> TaskExpr
-genFused = undefined
+genFused (FusedCtrl sigStateInit vars sigStateRecv comp sigStateRenewal stateOuts) =
+    sigStateInit "renew" $
+    initVarsExpr' $
+    Stmt ( 
+        While (Not $ Var "renew") $
+        sigStateRecv "renew" receiveVarsExpr' $
+        Stmt
+            comp $
+            sigStateRenewal "renew"
+    ) stateOuts'
+    where
+        initVarsExpr' = initVarsExpr (map from vars) []
+        receiveVarsExpr' = receiveVarsExpr (map from vars) []
+        stateOuts' = 
+            foldr (\(Emit ch d) c -> Stmt (Send ch d) c) (Lit UnitLit) stateOuts
 
 genCtrl :: Ctrl -> TaskExpr
 genCtrl (Ctrl sigStateInit vars sigStateRecv ctxtLoop sigStateRenewal) = 
