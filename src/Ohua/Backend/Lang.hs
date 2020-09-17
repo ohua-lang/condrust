@@ -7,6 +7,7 @@ import Ohua.Prelude
 
 import Data.Functor.Foldable.TH (makeBaseFunctor)
 import Language.Haskell.TH.Syntax (Lift)
+import Control.Lens.Plated
 
 
 data App expr
@@ -84,3 +85,4 @@ data Function expr = Function QualifiedBinding [Binding] expr deriving (Show, Eq
 makeBaseFunctor ''App
 makeBaseFunctor ''TaskExpr
 
+instance Plated TaskExpr where plate = gplate

@@ -163,8 +163,11 @@ merge
         ctxtLoop
         sigStateRenewal
 
-gen :: Ctrl -> TaskExpr
-gen (Ctrl sigStateInit vars sigStateRecv ctxtLoop sigStateRenewal) = 
+genFused :: FusedCtrl -> TaskExpr
+genFused = undefined
+
+genCtrl :: Ctrl -> TaskExpr
+genCtrl (Ctrl sigStateInit vars sigStateRecv ctxtLoop sigStateRenewal) = 
     sigStateInit "renew" $
     initVarsExpr' $
     EndlessLoop $
