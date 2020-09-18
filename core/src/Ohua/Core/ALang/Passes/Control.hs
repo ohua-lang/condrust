@@ -198,3 +198,130 @@ liftIntoCtrlCtxt ctrlIn e0 = do
                     ctrlOut
                     (fromListToApply (FunRef "ohua.lang/ctrl" Nothing) actuals')
                     ie
+
+
+-- | The following three passes belong together.
+--  They are meant to make fusion of control nodes in the backend easier.
+
+fusionPasses :: Expression -> Expression
+fusionPasses = splitCtrls
+
+{-|
+  Initial situation after context lifting by the liftIntoCtrlCtxt function:
+           x ------+ +----------------+ 
+                   | |                |
+                   v |                v
+  sig-source ----> ctrl     let _ = f x y in g y  
+                   ^ |                  ^      ^
+                   | |                  |      |
+           y ------+ +------------------+------+
+
+  becomes:
+           x ---> ctrl1 --------------+ 
+                    ^                 |
+                    |                 v
+  sig-source -------+       let _ = f x y in g y
+                    |                   ^      ^
+                    v                   |      |
+           y ---> ctrl2 ----------------+------+ 
+-}
+splitCtrls :: Expression -> Expression
+splitCtrls = transform go
+    where
+        go :: Expression -> Expression
+        go (Let v e@(f@(PureFunction op _) `Apply` _) cont) | op == Refs.ctrl = 
+            let (_, ctrlSig:vars) = fromApplyToList e
+                outs = findDestructured cont v
+            in foldr
+                (\(varOut,varIn) c -> 
+                    Let varOut (f `Apply` ctrlSig `Apply` varIn) c)
+                cont $
+                zip outs vars
+        go e = e
+
+{-|
+  Each variable gets used only once. This removes the need for ctrl ops to distribute
+  variables to more than one usage location and makes the following transformations easier.
+  
+  So we transform this:
+           x ---> ctrl1 --------------+ 
+                    ^                 |
+                    |                 v
+  sig-source -------+       let _ = f x y in g y
+                    |                   ^      ^
+                    v                   |      |
+           y ---> ctrl2 ----------------+------+ 
+
+  into this:
+           x ---> ctrl1 --------------+ 
+                    ^                 |
+                    |                 v
+  sig-source -------+       let _ = f x y in g y
+        |           |                   ^      ^
+        |           v                   |      |
+        |  y ---> ctrl2 ----------------+      |
+        |  |                                   |
+        |  |                                   |
+        |  +----> ctrl3 -----------------------+
+        |           ^
+        |           |
+        +-----------+
+-}
+uniqueCtrl :: MonadGenBnd m => Expression -> m Expression
+uniqueCtrl = transformM go
+    where
+        go :: MonadGenBnd m => Expression -> m Expression
+        go e@(Let v ctrl@(PureFunction op _ `Apply` _) cont) | op == Refs.ctrl = 
+            let usages = [ bnd | Var bnd <- universe cont 
+                               , bnd == v]
+            in 
+              if length usages < 2 
+              then return e
+              else do
+                (cont',newBnds) <- runWriterT $ renameUsages v cont
+                return $ 
+                  foldr (\newBnd c -> Let newBnd ctrl c) cont' newBnds
+
+        renameUsages :: MonadGenBnd m => Binding -> Expression -> WriterT [Binding] m Expression
+        renameUsages v (Var bnd) | bnd == v = do
+            newBnd <- lift $ generateBindingWith v
+            tell [newBnd]
+            return $ Var bnd
+        renameUsages _ = return                              
+
+{-|
+  Now, we can easily merge the controls for a single function, so that the
+  (controlled) variables to a single function are guarded by the same control node.
+  So this:
+           x ---> ctrl1 --------------+ 
+                    ^                 |
+                    |                 v
+  sig-source -------+       let _ = f x y in g y
+        |           |                   ^      ^
+        |           v                   |      |
+        |  y ---> ctrl2 ----------------+      |
+        |  |                                   |
+        |  |                                   |
+        |  +----> ctrl3 -----------------------+
+        |           ^
+        |           |
+        +-----------+
+
+becomes: 
+           x --> ctrl(1+2) -------------+ 
+                 ^  ^  |                |
+                 |  |  +--------------+ |
+              +--+  |                 | |
+              |     |                 v v
+  sig-source -+-----+       let _ = f x y in g y
+              |     |                          ^
+              |     v                          |
+           y -+-> ctrl3 -----------------------+
+-}
+mergeCtrls :: Expression -> Expression
+mergeCtrls = transform go
+    where
+        go :: Expression -> Expression
+        go e@(Let v ctrl@(PureFunction op _ `Apply` _) cont) | op == Refs.ctrl = 
+          undefined
+

@@ -219,6 +219,20 @@ fromApplyToList' =
 mkDestructured :: [Binding] -> Binding -> Expression -> Expression
 mkDestructured formals compound = destructure (Var compound) formals
 
+findDestructured :: Expression -> Binding -> [Binding]
+findDestructured e bnd = 
+    map snd $
+    sort 
+        [ (i,v) 
+        | Let v 
+            (PureFunction "ohua.lang/nth" _ `Apply` 
+                Lit (NumericLit i) `Apply` 
+                _ `Apply` 
+                Var bnd')
+            _  
+            <- universe e
+        , bnd == bnd']
+
 lambdaArgsAndBody :: Expression -> ([Binding], Expression)
 lambdaArgsAndBody (Lambda arg l@(Lambda _ _)) =
     let (args, body) = lambdaArgsAndBody l

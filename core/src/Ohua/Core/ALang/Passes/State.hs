@@ -30,7 +30,7 @@ preControlPasses :: MonadOhua m => Expression -> m Expression
 preControlPasses = addCtxtExit >=> performSSA
 
 postControlPasses :: Expression -> Expression
-postControlPasses = splitCtrls . transformCtxtExits
+postControlPasses = transformCtxtExits
 
 runSTCLangSMapFun :: Expression
 runSTCLangSMapFun = Lit $ FunRefLit $ FunRef Refs.runSTCLangSMap Nothing
@@ -145,20 +145,6 @@ transformCtxtExits = evictOrphanedDestructured . f
 
         descend = over plate -- note composOp = descend = over plate -> https://www.stackage.org/haddock/lts-14.25/lens-4.17.1/Control-Lens-Plated.html#v:para (below)
 
-splitCtrls :: Expression -> Expression
-splitCtrls = go
-    where
-        go :: Expression -> Expression
-        go (Let v e@(f@(PureFunction op _) `Apply` ctrlSig `Apply` _) cont) | op == Refs.ctrl = 
-            let (_, _ctrlIn:vars) = fromApplyToList e
-                outs = findDestructured cont v
-            in foldr
-                (\(varOut,varIn) c -> 
-                    Let varOut (f `Apply` ctrlSig `Apply` varIn) c)
-                cont $
-                zip outs vars
-        go e = e
-
 pattern NthFunction :: Binding -> Expression
 pattern NthFunction bnd <- PureFunction "ohua.lang/nth" _ `Apply` _ `Apply` _ `Apply` Var bnd
 
@@ -170,20 +156,6 @@ evictOrphanedDestructured e =
         f :: HS.HashSet Binding -> Expression -> Expression
         f bnds (Let _v (NthFunction bnd) cont) | not $ HS.member bnd bnds = cont
         f _ expr = expr
-
-findDestructured :: Expression -> Binding -> [Binding]
-findDestructured e bnd = 
-    map snd $
-    sort 
-        [ (i,v) 
-        | Let v 
-            (PureFunction "ohua.lang/nth" _ `Apply` 
-                Lit (NumericLit i) `Apply` 
-                _ `Apply` 
-                Var bnd')
-            _  
-            <- universe e
-        , bnd == bnd']
 
 applyToBody :: (Expression -> Expression) -> Expression -> Expression
 applyToBody f (Lambda _ body) = applyToBody f body
