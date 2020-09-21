@@ -73,3 +73,11 @@ fun = \case
                     cont)
             ((`Emit` "result") <$> out)
             (Emit <$> stateOut)
+
+funReceives :: FusableFunction -> [Binding]
+funReceives = 
+    \case
+        (PureFusable vars _ _) -> extract vars
+        (STFusable (Recv _ bnd) vars _ _ _) -> bnd : extract vars
+    where 
+        extract = mapMaybe (\case (Left (Recv _ bnd)) -> Just bnd; _ -> Nothing )

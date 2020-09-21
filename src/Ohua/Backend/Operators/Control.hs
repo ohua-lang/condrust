@@ -16,16 +16,25 @@ type Inputs = NonEmpty Recv
 type Outputs = NonEmpty Binding
 type OutputChannel = Binding
 
--- assumption: length (receive vars) == length (send vars)
--- FIXME: the above assumption can easily be encoded via NonEmpty (receive var, send var)
-data Ctrl 
+data Ctrl f 
     = Ctrl
         (Binding -> TaskExpr -> TaskExpr) -- signal state init
-        (NonEmpty (OutputChannel, Recv)) -- vars
+        CtrlInput
+        (f (OutputChannel, Recv)) -- var
         -- below here is computation code
         (Binding -> TaskExpr -> TaskExpr -> TaskExpr) -- signal state receive code
         (TaskExpr -> TaskExpr) -- ctxt loop
         (Binding -> TaskExpr) -- signal state renewal
+
+type VarCtrl = Ctrl Identity
+type FunCtrl = Ctrl NonEmpty
+
+ctrlReceives :: FunCtrl -> NonEmpty Binding
+ctrlReceives (Ctrl _ _ vars _ _ _) = map ((\(Recv _ b) -> b) . snd) vars
+
+toFunCtrl :: VarCtrl -> FunCtrl
+toFunCtrl (Ctrl sigStateInit ctrlVar (Identity var) sigStateRecv ctxtLoop sigStateRenewal) = 
+    Ctrl sigStateInit ctrlVar (var:|[]) sigStateRecv ctxtLoop sigStateRenewal
 
 data VarReceive = StateVar OutputChannel Recv | PureVar OutputChannel Recv
 
@@ -62,9 +71,9 @@ fuseSTCSMap
                                     else Emit ch d) 
                 stateOuts
 
-fuse :: Ctrl -> FusedCtrl -> FusedCtrl
+fuse :: FunCtrl -> FusedCtrl -> FusedCtrl
 fuse 
-    (Ctrl sigStateInit vars sigStateRecv ctxtLoop sigStateRenewal) -- from
+    (Ctrl sigStateInit _ vars sigStateRecv ctxtLoop sigStateRenewal) -- from
     (FusedCtrl sigStateInit' vars' sigStateRecv' comp' sigStateRenewal' stateOuts) -- to
     = FusedCtrl
         sigStateInit
@@ -105,8 +114,8 @@ fuse
                         _ -> error "invariant broken"
             in Emit ch d' -- the var that I assign the state to becomes the new data out for the state
 
-fuseFun :: Ctrl -> FusableFunction -> FusedCtrl
-fuseFun (Ctrl sigStateInit vars sigStateRecv ctxtLoop sigStateRenewal) =
+fuseFun :: FunCtrl -> FusableFunction -> FusedCtrl
+fuseFun (Ctrl sigStateInit _ vars sigStateRecv ctxtLoop sigStateRenewal) =
     \case
         (PureFusable args app res) -> 
             FusedCtrl
@@ -115,7 +124,7 @@ fuseFun (Ctrl sigStateInit vars sigStateRecv ctxtLoop sigStateRenewal) =
                 sigStateRecv
                 ( ctxtLoop $
                     F.genFun $ 
-                    PureFusable (map f args) app res
+                        PureFusable (map f args) app res
                 )
                 sigStateRenewal
                 []
@@ -144,22 +153,50 @@ fuseFun (Ctrl sigStateInit vars sigStateRecv ctxtLoop sigStateRenewal) =
                             (bnd, a) -> PureVar bnd a)
                         vars
 
--- | Assumption: both controls share the same signal source and the same target:
---                             x ---> ctrl1 -------+ 
---                                      ^          |
---                                      |          v
---                    sig-source -------+        f x y
---                                      |            ^
---                                      v            |
---                             y ---> ctrl2 ---------+ 
--- That really just means that I'm removing all signaling code because it is already there.
-merge :: Ctrl -> Ctrl -> Ctrl
-merge     
-    (Ctrl sigStateInit vars sigStateRecv ctxtLoop sigStateRenewal)
-    (Ctrl _ vars' _ _ _)
-    = Ctrl
+{-|
+  Now, we can easily merge the controls for a single function, so that the
+  (controlled) variables to a single function are guarded by the same control node.
+  So this:
+           x ---> ctrl1 --------------+ 
+                    ^                 |
+                    |                 v
+  sig-source -------+       let _ = f x y in g y
+        |           |                   ^      ^
+        |           v                   |      |
+        |  y ---> ctrl2 ----------------+      |
+        |  |                                   |
+        |  |                                   |
+        |  +----> ctrl3 -----------------------+
+        |           ^
+        |           |
+        +-----------+
+
+becomes: 
+           x --> ctrl(1+2) -------------+ 
+                 ^  ^  |                |
+                 |  |  +--------------+ |
+              +--+  |                 | |
+              |     |                 v v
+  sig-source -+-----+       let _ = f x y in g y
+              |     |                          ^
+              |     v                          |
+           y -+-> ctrl3 -----------------------+
+           
+  That really just means that I'm removing all signaling code because it is already there.
+-}
+-- Assumption: _sigSource == _sigSource'
+merge :: VarCtrl -> Either VarCtrl FunCtrl -> FunCtrl
+merge
+    (Ctrl sigStateInit sigSource (Identity var) sigStateRecv ctxtLoop sigStateRenewal)
+    c
+    = 
+    let vars' = case c of
+                    (Left (Ctrl _ _sigSource' (Identity var') _ _ _)) -> [var, var']
+                    (Right (Ctrl _ _sigSource' vars _ _ _)) -> var NE.<| vars
+    in Ctrl
         sigStateInit
-        (vars <> vars')
+        sigSource
+        vars'
         sigStateRecv
         ctxtLoop
         sigStateRenewal
@@ -181,8 +218,8 @@ genFused (FusedCtrl sigStateInit vars sigStateRecv comp sigStateRenewal stateOut
         stateOuts' = 
             foldr (\(Emit ch d) c -> Stmt (Send ch d) c) (Lit UnitLit) stateOuts
 
-genCtrl :: Ctrl -> TaskExpr
-genCtrl (Ctrl sigStateInit vars sigStateRecv ctxtLoop sigStateRenewal) = 
+genCtrl :: FunCtrl -> TaskExpr
+genCtrl (Ctrl sigStateInit _ vars sigStateRecv ctxtLoop sigStateRenewal) = 
     sigStateInit "renew" $
     initVarsExpr' $
     EndlessLoop $
@@ -216,11 +253,12 @@ toExpr rVars sVars  = NE.map (second f) rVars
 
 -- assumption: ctrl before merging and as such there is only a single input
 -- assumption: length inputs = length outputs 
-mkCtrl :: CtrlInput -> Inputs -> Outputs -> Ctrl
-mkCtrl ctrlInput inputs outputs = 
+mkCtrl :: CtrlInput -> Binding -> Binding -> VarCtrl
+mkCtrl ctrlInput input output = 
     Ctrl 
-        sigStateInit 
-        (NE.zip outputs inputs)
+        sigStateInit
+        ctrlInput
+        (Identity (output, Recv 0 input))
         sigStateRecv
         ctxtLoop 
         sigStateRenew
