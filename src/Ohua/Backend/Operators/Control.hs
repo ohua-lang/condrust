@@ -16,15 +16,20 @@ type Inputs = NonEmpty Recv
 type Outputs = NonEmpty Binding
 type OutputChannel = Binding
 
-data Ctrl f 
-    = Ctrl
-        (Binding -> TaskExpr -> TaskExpr) -- signal state init
-        CtrlInput
-        (f (OutputChannel, Recv)) -- var
+data Ctrl f where
+    Ctrl :: (Foldable f)
+        => (Binding -> TaskExpr -> TaskExpr) -- signal state init
+        -> CtrlInput
+        -> f (OutputChannel, Recv) -- var(s)
         -- below here is computation code
-        (Binding -> TaskExpr -> TaskExpr -> TaskExpr) -- signal state receive code
-        (TaskExpr -> TaskExpr) -- ctxt loop
-        (Binding -> TaskExpr) -- signal state renewal
+        -> (Binding -> TaskExpr -> TaskExpr -> TaskExpr) -- signal state receive code
+        -> (TaskExpr -> TaskExpr) -- ctxt loop
+        -> (Binding -> TaskExpr) -- signal state renewal
+        -> Ctrl f
+
+instance Eq (Ctrl f) where
+    (Ctrl _ cInp insOuts _ _ _) == (Ctrl _ cInp' insOuts' _ _ _) = 
+        cInp == cInp' && concatMap (:[]) insOuts == concatMap (:[]) insOuts'
 
 type VarCtrl = Ctrl Identity
 type FunCtrl = Ctrl NonEmpty
@@ -36,7 +41,10 @@ toFunCtrl :: VarCtrl -> FunCtrl
 toFunCtrl (Ctrl sigStateInit ctrlVar (Identity var) sigStateRecv ctxtLoop sigStateRenewal) = 
     Ctrl sigStateInit ctrlVar (var:|[]) sigStateRecv ctxtLoop sigStateRenewal
 
-data VarReceive = StateVar OutputChannel Recv | PureVar OutputChannel Recv
+data VarReceive 
+    = StateVar OutputChannel Recv 
+    | PureVar OutputChannel Recv
+    deriving (Eq)
 
 from :: VarReceive -> (OutputChannel, Recv)
 from (StateVar c r) = (c,r)
@@ -51,6 +59,10 @@ data FusedCtrl
         TaskExpr -- comp
         (Binding -> TaskExpr) -- signal state renewal
         [Send] -- state outs
+
+instance Eq FusedCtrl where
+    (FusedCtrl _ ins _ comp _ outs) == (FusedCtrl _ ins' _ comp' _ outs') =
+        ins == ins' && comp == comp' && outs == outs'
 
 fuseSTCSMap :: STCLangSMap -> FusedCtrl -> FusedCtrl
 fuseSTCSMap

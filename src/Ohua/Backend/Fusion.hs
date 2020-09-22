@@ -22,7 +22,7 @@ data Fusable ctrl
     --  Collect
     --  RecurFun
     --  UnitFun
-    deriving (Functor)
+    deriving (Eq, Functor)
 
 -- TODO add config flag
 fuse :: CompM m => Namespace (TCProgram Channel (Fusable VarCtrl)) -> m (Namespace (TCProgram Channel TaskExpr))
@@ -103,3 +103,55 @@ mergeCtrls (TCProgram chans resultChan exprs) =
         findCtrl _ = Nothing 
         ctrls :: [(OutputChannel, VarCtrl)]
         ctrls = mapMaybe findCtrl exprs
+
+fuseSTCLang :: TCProgram Channel (Fusable FusedCtrl) -> TCProgram Channel (Fusable FusedCtrl)
+fuseSTCLang (TCProgram chans resultChan exprs) = 
+    let noSTC = filter (isNothing . findSTCLang) exprs
+        fused = go stclangs
+    in TCProgram chans resultChan $ noSTC ++ fused
+    where
+        go stcs = 
+            let sourceAndTarget = map (\stc -> (findSource stc, stc)) stcs
+                (toFuse, rest) = split sourceAndTarget
+                fused = map (Control . uncurry fuse) toFuse
+            in if null rest
+                then fused
+                else fused ++ go rest
+
+        fuse (Control c) stc = fuseSTCSMap stc c
+        -- Now this seems to be a very interesting thing to be able to do with Liquid Haskell:
+        -- In the definition of a language I want to have variables and abstract over them.
+        -- How can I define constraints for the inputs to certain nodes nevertheless?
+        -- That is: How can I transport a type constraint through the variable definition in a
+        -- language/expression data type?
+        fuse _ _ = error "Invariant broken: Trying to fuse non-STCLangSMap!"
+
+        split xs = 
+            let tgts = HS.fromList $ map snd xs
+            in partitionEithers $
+                map 
+                    (\e@(source, target) -> 
+                        case source of
+                            STC s -> if not $ HS.member s tgts
+                                        then Left e
+                                        else Right target
+                            _ -> Right target)
+                    xs
+    
+        findSource :: STCLangSMap -> Fusable FusedCtrl
+        findSource (STCLangSMap _ _ inp _) = 
+            case filter (isSource inp) exprs of
+                    [src] -> src
+                    _ -> error "Invariant broken: every STC has exactly one source by definition!"
+        
+        stclangs = mapMaybe findSTCLang exprs
+        findSTCLang (STC s) = Just s
+        findSTCLang _ = Nothing
+        isSource inp (STC (STCLangSMap _ _ _ outp)) = outp == inp
+        isSource inp (Control (FusedCtrl _ _ _ _ _ outs)) = 
+            HS.member inp $ HS.fromList $ map (\(Emit c _) -> c) outs
+        isSource inp (Unfusable _) = False
+        isSource inp (Fun PureFusable{}) = False
+        isSource inp (Fun (STFusable _ _ _ _ send)) =
+            maybe False (\(Emit outp _) -> outp == inp) ((\f -> f "0") <$> send)
+

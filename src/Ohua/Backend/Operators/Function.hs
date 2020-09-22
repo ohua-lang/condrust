@@ -33,6 +33,14 @@ data FusableFunction
         (Maybe Send) -- send result
         (Maybe (Binding -> Send)) -- send state
 
+instance Eq FusableFunction where
+    (PureFusable inp _ out) == (PureFusable inp' _ out') = inp == inp && out == out'
+    (STFusable sInp inp _ out sOut) == (STFusable sInp' inp' _ out' sOut') 
+        = sInp == sInp' 
+        && inp == inp' 
+        && out == out' 
+        && ((\f -> f "") <$> sOut) == ((\f -> f "") <$> sOut')
+
 genFun :: FusableFunction -> TaskExpr
 genFun = \case
     (PureFusable receives app send) ->

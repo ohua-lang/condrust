@@ -4,6 +4,9 @@ import Ohua.Prelude
 
 import Ohua.Backend.Lang
 
+import Data.Functor.Foldable.TH (makeBaseFunctor)
+import Language.Haskell.TH.Syntax (Lift)
+
 
 type DataSizeInput = Binding
 type StateInput = Binding
@@ -17,7 +20,13 @@ data STCLangSMap =
         (TaskExpr -> TaskExpr) -- ctxt loop
         StateInput -- state receive
         StateOutput -- state emission
+    deriving (Generic)
 
+instance Eq STCLangSMap where
+    (STCLangSMap _ _ inp out) == (STCLangSMap _ _ inp' out') = inp == inp' && out == out'
+
+instance Hashable STCLangSMap where
+    hashWithSalt s (STCLangSMap _ _ inp out) = s `hashWithSalt` inp `hashWithSalt` out
 
 genSTCLangSMap :: STCLangSMap -> TaskExpr
 genSTCLangSMap (STCLangSMap init ctxtLoop stateReceive emit) = 
