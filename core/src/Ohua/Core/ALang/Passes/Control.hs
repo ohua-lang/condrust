@@ -159,13 +159,19 @@ module Ohua.Core.ALang.Passes.Control where
 import Ohua.Core.Prelude
 
 import Ohua.Core.ALang.Lang
+import qualified Ohua.Core.ALang.Refs as Refs
 import Ohua.Core.ALang.Util
     ( fromListToApply
+    , fromApplyToList
     , lambdaArgsAndBody
     , lambdaLifting
     , mkDestructured
+    , findDestructured
+    , evictOrphanedDestructured
     , mkLambda
     )
+
+import Control.Monad.Trans.Writer.Lazy
 
 
 -- | We perform the following steps:
@@ -196,15 +202,15 @@ liftIntoCtrlCtxt ctrlIn e0 = do
                 mkLambda originalFormals $
                 Let
                     ctrlOut
-                    (fromListToApply (FunRef "ohua.lang/ctrl" Nothing) actuals')
+                    (fromListToApply (FunRef Refs.ctrl Nothing) actuals')
                     ie
 
 
--- | The following three passes belong together.
+-- | The following passes belong together.
 --  They are meant to make fusion of control nodes in the backend easier.
 
-fusionPasses :: Expression -> Expression
-fusionPasses = splitCtrls
+fusionPasses :: MonadGenBnd m => Expression -> m Expression
+fusionPasses = uniqueCtrls . evictOrphanedDestructured . splitCtrls
 
 {-|
   Initial situation after context lifting by the liftIntoCtrlCtxt function:
@@ -223,7 +229,8 @@ fusionPasses = splitCtrls
   sig-source -------+       let _ = f x y in g y
                     |                   ^      ^
                     v                   |      |
-           y ---> ctrl2 ----------------+------+ 
+           y ---> ctrl2 ----------------+------+
+  This removes all destructuring (nth-nodes) for the output of ctrl! 
 -}
 splitCtrls :: Expression -> Expression
 splitCtrls = transform go
@@ -267,8 +274,8 @@ splitCtrls = transform go
         |           |
         +-----------+
 -}
-uniqueCtrl :: MonadGenBnd m => Expression -> m Expression
-uniqueCtrl = transformM go
+uniqueCtrls :: MonadGenBnd m => Expression -> m Expression
+uniqueCtrls = transformM go
     where
         go :: MonadGenBnd m => Expression -> m Expression
         go e@(Let v ctrl@(PureFunction op _ `Apply` _) cont) | op == Refs.ctrl = 
@@ -281,47 +288,12 @@ uniqueCtrl = transformM go
                 (cont',newBnds) <- runWriterT $ renameUsages v cont
                 return $ 
                   foldr (\newBnd c -> Let newBnd ctrl c) cont' newBnds
+        go e = return e
 
         renameUsages :: MonadGenBnd m => Binding -> Expression -> WriterT [Binding] m Expression
         renameUsages v (Var bnd) | bnd == v = do
             newBnd <- lift $ generateBindingWith v
             tell [newBnd]
             return $ Var bnd
-        renameUsages _ = return                              
-
-{-|
-  Now, we can easily merge the controls for a single function, so that the
-  (controlled) variables to a single function are guarded by the same control node.
-  So this:
-           x ---> ctrl1 --------------+ 
-                    ^                 |
-                    |                 v
-  sig-source -------+       let _ = f x y in g y
-        |           |                   ^      ^
-        |           v                   |      |
-        |  y ---> ctrl2 ----------------+      |
-        |  |                                   |
-        |  |                                   |
-        |  +----> ctrl3 -----------------------+
-        |           ^
-        |           |
-        +-----------+
-
-becomes: 
-           x --> ctrl(1+2) -------------+ 
-                 ^  ^  |                |
-                 |  |  +--------------+ |
-              +--+  |                 | |
-              |     |                 v v
-  sig-source -+-----+       let _ = f x y in g y
-              |     |                          ^
-              |     v                          |
-           y -+-> ctrl3 -----------------------+
--}
-mergeCtrls :: Expression -> Expression
-mergeCtrls = transform go
-    where
-        go :: Expression -> Expression
-        go e@(Let v ctrl@(PureFunction op _ `Apply` _) cont) | op == Refs.ctrl = 
-          undefined
-
+        renameUsages _ e = return e
+              

@@ -159,6 +159,7 @@ handleApplyExpr (PureFunction fn fnId) =
                                                                                  -- what is this?
 handleApplyExpr g = failWith $ "Expected apply but got: " <> show g
 
+-- FIXME This assumption would have been better defined at the type level.
 -- | Inspect an expression expecting something which can be captured
 -- in a DFVar otherwise throws appropriate errors.
 expectVar :: (HasCallStack, MonadError Error m) => Expression -> m DFVar

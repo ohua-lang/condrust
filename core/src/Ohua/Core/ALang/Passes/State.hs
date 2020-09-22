@@ -145,18 +145,6 @@ transformCtxtExits = evictOrphanedDestructured . f
 
         descend = over plate -- note composOp = descend = over plate -> https://www.stackage.org/haddock/lts-14.25/lens-4.17.1/Control-Lens-Plated.html#v:para (below)
 
-pattern NthFunction :: Binding -> Expression
-pattern NthFunction bnd <- PureFunction "ohua.lang/nth" _ `Apply` _ `Apply` _ `Apply` Var bnd
-
-evictOrphanedDestructured :: Expression -> Expression
-evictOrphanedDestructured e = 
-    let allBnds = HS.fromList [v | Let v _ _ <- universe e]
-    in transform (f allBnds) e
-    where 
-        f :: HS.HashSet Binding -> Expression -> Expression
-        f bnds (Let _v (NthFunction bnd) cont) | not $ HS.member bnd bnds = cont
-        f _ expr = expr
-
 applyToBody :: (Expression -> Expression) -> Expression -> Expression
 applyToBody f (Lambda _ body) = applyToBody f body
 applyToBody f e = f e

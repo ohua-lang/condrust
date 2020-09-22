@@ -188,25 +188,26 @@ getFunctionArgs e = args
   where
     (_, _, args) = fromApplyToList' e
 
--- TODO The errors in these functions should not be here. Either we enforce these things
---      via other means in the type system or we should change the return type to Maybe.
+-- FIXME The errors in these functions should not be here. Either we enforce these things
+--       via other means in the type system or we should change the return type to Maybe.
+-- FIXME Using this function always creates more warnings because the type is not expressive enough.
 fromApplyToList :: HasCallStack => Expr -> (FunRef, [Expr])
 fromApplyToList e =
-    case state of
+    case stateExpr of
         Just s ->
             error $ "Expected pure function, but found bound state: " <> show s
         _ -> (f, args)
   where
-    (f, state, args) = fromApplyToList' e
+    (f, stateExpr, args) = fromApplyToList' e
 
 fromApplyToList' :: HasCallStack => Expr -> (FunRef, Maybe Expr, [Expr])
 fromApplyToList' =
     para $ \case
         ApplyF (extract -> (f, s, args)) (arg, _) -> (f, s, args ++ [arg])
         LitF (FunRefLit f) -> (f, Nothing, [])
-        BindStateF (state, _) (method, _) ->
+        BindStateF (stateExpr, _) (method, _) ->
             case method of
-                Lit (FunRefLit f) -> (f, Just state, [])
+                Lit (FunRefLit f) -> (f, Just stateExpr, [])
                 other ->
                     error $
                     "Expected state to be bound to function, found: " <>
@@ -232,6 +233,18 @@ findDestructured e bnd =
             _  
             <- universe e
         , bnd == bnd']
+
+pattern NthFunction :: Binding -> Expression
+pattern NthFunction bnd <- PureFunction "ohua.lang/nth" _ `Apply` _ `Apply` _ `Apply` Var bnd
+
+evictOrphanedDestructured :: Expression -> Expression
+evictOrphanedDestructured e = 
+    let allBnds = HS.fromList [v | Let v _ _ <- universe e]
+    in transform (f allBnds) e
+    where 
+        f :: HS.HashSet Binding -> Expression -> Expression
+        f bnds (Let _v (NthFunction bnd) cont) | not $ HS.member bnd bnds = cont
+        f _ expr = expr
 
 lambdaArgsAndBody :: Expression -> ([Binding], Expression)
 lambdaArgsAndBody (Lambda arg l@(Lambda _ _)) =
