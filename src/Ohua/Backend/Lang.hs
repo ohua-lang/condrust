@@ -19,7 +19,9 @@ data Recv
   = Recv
       Int -- copy index 
       Binding -- channel
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+
+instance Hashable Recv
 
 data Send
   = Emit 

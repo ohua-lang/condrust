@@ -31,8 +31,15 @@ instance Eq (Ctrl f) where
     (Ctrl _ cInp insOuts _ _ _) == (Ctrl _ cInp' insOuts' _ _ _) = 
         cInp == cInp' && concatMap (:[]) insOuts == concatMap (:[]) insOuts'
 
+instance Hashable (Ctrl f) where
+    hashWithSalt s (Ctrl _ cInp insOuts _ _ _) = 
+        s `hashWithSalt` cInp `hashWithSalt` concatMap (:[]) insOuts
+
 type VarCtrl = Ctrl Identity
-type FunCtrl = Ctrl NonEmpty
+type FunCtrl = Ctrl NonEmpty -- FIXME this is not the right type! It does not transport the 
+                             -- invariant that all output channels have the same target.
+                             -- This is what `merge` establishes.
+                             -- Is this again something that can be created with LiquidHaskell?
 
 ctrlReceives :: FunCtrl -> NonEmpty Binding
 ctrlReceives (Ctrl _ _ vars _ _ _) = map ((\(Recv _ b) -> b) . snd) vars
@@ -83,8 +90,8 @@ fuseSTCSMap
                                     else Emit ch d) 
                 stateOuts
 
-fuse :: FunCtrl -> FusedCtrl -> FusedCtrl
-fuse 
+fuseCtrl :: FunCtrl -> FusedCtrl -> FusedCtrl
+fuseCtrl 
     (Ctrl sigStateInit _ vars sigStateRecv ctxtLoop sigStateRenewal) -- from
     (FusedCtrl sigStateInit' vars' sigStateRecv' comp' sigStateRenewal' stateOuts) -- to
     = FusedCtrl

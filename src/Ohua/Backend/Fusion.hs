@@ -104,6 +104,51 @@ mergeCtrls (TCProgram chans resultChan exprs) =
         ctrls :: [(OutputChannel, VarCtrl)]
         ctrls = mapMaybe findCtrl exprs
 
+fuseCtrls :: TCProgram Channel (Fusable FunCtrl) -> TCProgram Channel (Fusable FusedCtrl)
+fuseCtrls (TCProgram chans resultChan exprs) = 
+    let (ctrls, noFunCtrls) = split exprs
+    in TCProgram chans resultChan $ go ctrls noFunCtrls
+    where
+        go funCtrls noFunCtrls = 
+            let sAndT = srcsAndTgts noFunCtrls funCtrls
+                fused = map (uncurry fuseIt) sAndT
+                noFunCtrls' = fused ++ noFunCtrls
+                pendingFunCtrls = 
+                    HS.toList $ foldr (HS.delete . fst) (HS.fromList funCtrls) sAndT
+            in if null pendingFunCtrls
+                then noFunCtrls'
+                else go pendingFunCtrls noFunCtrls
+
+        fuseIt :: FunCtrl -> Either FusableFunction FusedCtrl -> Fusable FusedCtrl
+        fuseIt ctrl (Left f) = Control $ fuseFun ctrl f
+        fuseIt ctrl (Right c) = Control $ fuseCtrl ctrl c
+        fuseIt _ _ = error "Invariant broken: control can only be fused with another control or a function!"
+        split :: [Fusable FunCtrl] -> ([FunCtrl], [Fusable FusedCtrl])
+        split = partitionEithers . 
+                map (\case 
+                        (Control c) -> Left c
+                        -- type conversion from Fusable FunCtrl to Fusable FusedCtrl
+                        (Fun f) -> Right (Fun f)
+                        (STC s) -> Right (STC s)
+                        (Unfusable u) -> Right (Unfusable u))
+        srcsAndTgts :: [Fusable FusedCtrl] -> [FunCtrl] -> [(FunCtrl, Either FusableFunction FusedCtrl)]
+        srcsAndTgts es = mapMaybe (`findTarget` es)
+        findTarget:: FunCtrl -> [Fusable FusedCtrl] -> Maybe (FunCtrl, Either FusableFunction FusedCtrl)
+        findTarget fc@(Ctrl _ _ outsAndIns _ _ _) es = 
+            let chan = fst $ NE.head outsAndIns
+            in case filter (isTarget chan) es of
+                [] -> Nothing
+                [target] -> case target of
+                                (Fun f) -> Just (fc, Left f)
+                                (Control c) -> Just (fc, Right c)
+                                _ -> error "Invariant broken!"
+                _ -> error "Invariant broken: a control always has exactly one target!"
+        isTarget bnd (Control (FusedCtrl _ vars _ _ _ _)) = 
+            HS.member bnd $ HS.fromList $ NE.toList $ 
+            NE.map ((\(Recv _ b) -> b) . snd . from) vars
+        isTarget bnd (Fun f) = HS.member bnd $ HS.fromList $ funReceives f
+        isTarget _ _ = False
+
 fuseSTCLang :: TCProgram Channel (Fusable FusedCtrl) -> TCProgram Channel (Fusable FusedCtrl)
 fuseSTCLang (TCProgram chans resultChan exprs) = 
     let noSTC = filter (isNothing . findSTCLang) exprs
@@ -113,18 +158,18 @@ fuseSTCLang (TCProgram chans resultChan exprs) =
         go stcs = 
             let sourceAndTarget = map (\stc -> (findSource stc, stc)) stcs
                 (toFuse, rest) = split sourceAndTarget
-                fused = map (Control . uncurry fuse) toFuse
+                fused = map (Control . uncurry fuseIt) toFuse
             in if null rest
                 then fused
                 else fused ++ go rest
 
-        fuse (Control c) stc = fuseSTCSMap stc c
+        fuseIt (Control c) stc = fuseSTCSMap stc c
         -- Now this seems to be a very interesting thing to be able to do with Liquid Haskell:
         -- In the definition of a language I want to have variables and abstract over them.
         -- How can I define constraints for the inputs to certain nodes nevertheless?
         -- That is: How can I transport a type constraint through the variable definition in a
         -- language/expression data type?
-        fuse _ _ = error "Invariant broken: Trying to fuse non-STCLangSMap!"
+        fuseIt _ _ = error "Invariant broken: Trying to fuse non-STCLangSMap!"
 
         split xs = 
             let tgts = HS.fromList $ map snd xs
