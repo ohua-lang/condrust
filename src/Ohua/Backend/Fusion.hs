@@ -49,7 +49,7 @@ evictUnusedChannels (TCProgram chans resultChan exprs) =
     in TCProgram chans' resultChan exprs
 
 fuseStateThreads :: TCProgram Channel (Fusable VarCtrl) -> TCProgram Channel (Fusable FusedCtrl)
-fuseStateThreads (TCProgram chans resultChan exprs) = undefined
+fuseStateThreads = fuseSTCLang . fuseCtrls . mergeCtrls
 
 mergeCtrls :: TCProgram Channel (Fusable VarCtrl) -> TCProgram Channel (Fusable FunCtrl)
 mergeCtrls (TCProgram chans resultChan exprs) =
