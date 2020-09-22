@@ -4,11 +4,12 @@ import Ohua.Prelude
 
 import Ohua.Frontend.Types
 import Ohua.Frontend.Lang
-import Ohua.Frontend.Transform.Load
+import Ohua.Frontend.Transform.Load ( load )
 import Ohua.Frontend.Transform.Calls
-import Ohua.Frontend.Transform.Maps
-import Ohua.Frontend.Transform.Resolve
-import Ohua.Frontend.Transform.Envs
+    ( makeImplicitFunctionBindingsExplicit )
+import Ohua.Frontend.Transform.Resolve ( resolveNS )
+import Ohua.Frontend.Transform.Envs ( prepareRootAlgoVars )
+import Ohua.Frontend.Transform.State ( check )
 
 
 frontend :: (CompM m, Integration lang) 
@@ -19,4 +20,9 @@ frontend lang compScope inFile = do
         ns'' <- updateExprs ns' transform
         return (lang', ns'')
     where
-        transform = prepareRootAlgoVars . makeImplicitFunctionBindingsExplicit
+        transform :: CompM m => Expr -> m Expr
+        transform e = 
+                (\a -> check a >> return a) =<< 
+                ( prepareRootAlgoVars 
+                . makeImplicitFunctionBindingsExplicit -- FIXME is this really necessary?!
+                ) e
