@@ -11,11 +11,10 @@ import qualified Ohua.Backend.Operators as Ops
 import Ohua.Backend.Fusion
 
 import qualified Data.HashSet as HS
-import qualified Data.List.NonEmpty as NE
 
 
 -- Invariant in the result type: the result channel is already part of the list of channels.
-toTCLang :: CompM m => DFExpr -> m (TCProgram Channel Fusable)
+toTCLang :: CompM m => DFExpr -> m (TCProgram Channel FusableExpr)
 toTCLang gr = runGenBndT taken $ runReaderT go gr
     where 
         go = do
@@ -33,10 +32,10 @@ type LoweringM m a = ReaderT DFExpr (GenBndT m) a
 invariantBroken :: CompM m => Text -> LoweringM m a
 invariantBroken msg = lift $ lift $ throwError $ "Compiler invariant broken! " <> msg
 
-generateNodesCode :: CompM m => DFExpr ->  LoweringM m [Fusable]
+generateNodesCode :: CompM m => DFExpr ->  LoweringM m [FusableExpr]
 generateNodesCode gr = toList <$> mapM generateNodeCode (letExprs gr)
 
-generateFunctionCode :: CompM m => LetExpr ->  LoweringM m Fusable
+generateFunctionCode :: CompM m => LetExpr ->  LoweringM m FusableExpr
 generateFunctionCode LetExpr {functionRef=DFFnRef{nodeType=OperatorNode}} = 
     invariantBroken "`generateOpCode` should take care of all operators!"
 generateFunctionCode e@LetExpr {functionRef=DFFnRef{nodeType=FunctionNode}} = do
@@ -117,7 +116,7 @@ generateResultArc :: DFExpr -> Channel
 generateResultArc = flip Channel 1 . returnVar
 
 -- FIXME see sertel/ohua-core#7: all these errors would immediately go away
-generateNodeCode :: CompM m => LetExpr ->  LoweringM m Fusable
+generateNodeCode :: CompM m => LetExpr ->  LoweringM m FusableExpr
 generateNodeCode e@LetExpr {functionRef=f} | f == smapFun = do
     input <- 
         case callArguments e of
@@ -187,24 +186,40 @@ generateNodeCode e@LetExpr {functionRef=f} | f == Refs.runSTCLangSMap = do
                 stateIn
                 out
 
+-- code for "non-fused" control handling without the passes on ALang
+-- generateNodeCode e@LetExpr {functionRef=f} | f == ctrl = do
+--     -- invariants: len ins == len outs, NonEmpty ins, NonEmpty outs
+--     (ctrlIn, ins) <- 
+--         case callArguments e of
+--             DFVar c:is -> 
+--                 (c,) <$> forM (NE.fromList is) (\case
+--                                     DFVar v -> return $ Recv 0 v
+--                                     DFEnvVar _ -> invariantBroken $ "Control argument can not be literal: " <> show e)
+--             _ -> invariantBroken $ "Control arguments don't match: " <> show e
+--     outs <-
+--         case output e of
+--             [] -> invariantBroken $ "Control outputs don't match" <> show e    
+--             xs -> return $ NE.fromList xs
+--     lift $ return $
+--         Control $ Ops.mkCtrl 
+--                     ctrlIn 
+--                     ins
+--                     out
+
 generateNodeCode e@LetExpr {functionRef=f} | f == ctrl = do
-    -- invariants: len ins == len outs, NonEmpty ins, NonEmpty outs
-    (ctrlIn, ins) <- 
+    (ctrlIn, inp) <- 
         case callArguments e of
-            DFVar c:is -> 
-                (c,) <$> forM (NE.fromList is) (\case
-                                    DFVar v -> return $ Recv 0 v
-                                    DFEnvVar _ -> invariantBroken $ "Control argument can not be literal: " <> show e)
+            DFVar c:[DFVar i] -> return (c, i)
             _ -> invariantBroken $ "Control arguments don't match: " <> show e
-    outs <-
+    out <-
         case output e of
-            [] -> invariantBroken $ "Control outputs don't match" <> show e    
-            xs -> return $ NE.fromList xs
+            [x] -> return x
+            _ -> invariantBroken $ "Control outputs don't match" <> show e    
     lift $ return $
         Control $ Ops.mkCtrl 
                     ctrlIn 
-                    ins 
-                    outs
+                    inp
+                    out
 
 -- generateNodeCode e@LetExpr {functionRef=f} | f == runSTCLang = do
 --     (sizeIn, dataIn, stateIn, collectFun) <-
