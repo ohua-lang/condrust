@@ -24,20 +24,23 @@ data Fusable ctrl
     --  UnitFun
     deriving (Eq, Functor)
 
--- TODO add config flag
+type FusableExpr = Fusable VarCtrl
+
+-- TODO add config flag to make fusion optional
+
 fuse :: CompM m => Namespace (TCProgram Channel (Fusable VarCtrl)) -> m (Namespace (TCProgram Channel TaskExpr))
 fuse ns = 
     return $ ns & algos %~ map (\algo -> algo & algoCode %~ go)
     where 
         go :: TCProgram Channel (Fusable VarCtrl) -> TCProgram Channel TaskExpr
-        go = evictUnusedChannels . concludeFusion
+        go = evictUnusedChannels . concludeFusion . fuseStateThreads
 
-concludeFusion :: TCProgram Channel (Fusable FunCtrl) -> TCProgram Channel TaskExpr
+concludeFusion :: TCProgram Channel (Fusable FusedCtrl) -> TCProgram Channel TaskExpr
 concludeFusion (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ map go exprs
     where
         go (Fun function) = genFun function
         go (STC stcMap) = genSTCLangSMap stcMap
-        go (Control ctrl) = genCtrl ctrl
+        go (Control ctrl) = genFused ctrl
         go (Unfusable e) = e
 
 -- invariant length in >= length out
@@ -74,7 +77,7 @@ mergeCtrls (TCProgram chans resultChan exprs) =
                 then map (toFunCtrl . snd) $ HM.toList cs'
                 else mcs' <> mergeNextLevel receives cs' mcs'
 
-        -- TODO: refactor to use a state monad
+        -- TODO: refactor to use a state monad instead for better readability
         mergeLevel :: (b -> [Binding])
                     -> HashMap OutputChannel VarCtrl 
                     -> [b] 
@@ -122,7 +125,6 @@ fuseCtrls (TCProgram chans resultChan exprs) =
         fuseIt :: FunCtrl -> Either FusableFunction FusedCtrl -> Fusable FusedCtrl
         fuseIt ctrl (Left f) = Control $ fuseFun ctrl f
         fuseIt ctrl (Right c) = Control $ fuseCtrl ctrl c
-        fuseIt _ _ = error "Invariant broken: control can only be fused with another control or a function!"
         split :: [Fusable FunCtrl] -> ([FunCtrl], [Fusable FusedCtrl])
         split = partitionEithers . 
                 map (\case 

@@ -17,7 +17,7 @@ backend ::
         , integ ~ Integ arch
         ) 
         => FilePath 
-        -> Namespace (TCProgram Channel Fusable) 
+        -> Namespace (TCProgram Channel FusableExpr) 
         -> integ 
         -> arch 
         -> m ()
