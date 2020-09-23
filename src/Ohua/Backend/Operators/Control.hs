@@ -159,7 +159,8 @@ fuseFun (Ctrl sigStateInit _ vars sigStateRecv ctxtLoop sigStateRenewal) =
                 sigStateRenewal $
                 maybe [] (\g -> [g $ fst $ stateVar stateArg]) stateRes
         where
-            f (Left (Recv _ ch)) | HS.member ch ctrled = Right $ Var ch
+            f (Arg (Recv _ ch)) | HS.member ch ctrled = Converted $ Var ch
+            f (Drop (Recv _ ch)) | HS.member ch ctrled = Converted $ Var ch
             f e  = e
             ctrled = HS.fromList $ NE.toList sendVars
             sendVars = NE.map fst vars

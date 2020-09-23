@@ -6,29 +6,32 @@ import Ohua.Backend.Lang as L hiding (Function)
 
 import qualified Data.List.NonEmpty as NE
 
+data CallArg 
+    = Arg Recv | Drop Recv | Converted TaskExpr
+    deriving (Eq)
 
 data Function 
     = Pure
         QualifiedBinding
-        [Either Recv TaskExpr] -- call args
+        [CallArg] -- call args
         -- Assumption: if there is no one that needs this result, then this should not be computed
         --             in the first place!
         Binding -- out
     | ST
         QualifiedBinding
         Recv -- state
-        [Either Recv TaskExpr] -- call args
+        [CallArg] -- call args
         (Maybe Binding) -- state out
         (Maybe Binding) -- out
 
 data FusableFunction 
     = PureFusable
-        [Either Recv TaskExpr]  -- data receive
+        [CallArg]  -- data receive
         ([Binding] -> TaskExpr -> TaskExpr) -- application
         Send -- send result
     | STFusable
         Recv -- state receive
-        [Either Recv TaskExpr]  -- data receive
+        [CallArg]  -- data receive
         (NonEmpty Binding -> TaskExpr -> TaskExpr) -- application
         (Maybe Send) -- send result
         (Maybe (Binding -> Send)) -- send state
@@ -44,24 +47,30 @@ instance Eq FusableFunction where
 genFun :: FusableFunction -> TaskExpr
 genFun = \case
     (PureFusable receives app send) ->
-        varsAndReceives receives $ 
-        app (bnds receives) $
-        (\(Emit c d) -> Send c d) send
+        loop receives $
+            varsAndReceives receives $ 
+            app (bnds 0 receives) $
+            (\(Emit c d) -> Send c d) send
     (STFusable stateRecv receives app sendRes sendState) ->
-        varsAndReceives (Left stateRecv : receives) $
-        app (bndsNE $ Left stateRecv :| receives) $
-        foldr (\(Emit ch d) c -> Stmt (Send ch d) c) (Lit UnitLit) $ 
-        catMaybes [sendRes, (\f -> f "var_0") <$> sendState]
+        loop receives $
+            varsAndReceives (Arg stateRecv : receives) $
+            app (bndsNE $ Arg stateRecv :| receives) $
+            foldr (\(Emit ch d) c -> Stmt (Send ch d) c) (Lit UnitLit) $ 
+            catMaybes [sendRes, (\f -> f "var_0") <$> sendState]
     where
-        bnds = map (("var_" <>) . show . fst) . zip [0..] 
-        bndsNE = NE.map (("var_" <>) . show . fst) . NE.zip [0..] 
+        bnds i = map (("var_" <>) . show . fst) . filter (\case (_, Drop _) -> False; _ -> True) . zip [i..]
+        bndsNE = ("var_0" :|) . bnds 1 . NE.tail
         varsAndReceives rcvs cont = 
             foldr 
                 ((\ (v, r) c -> Let v r c) . generateReceiveCode) 
                 cont
                 (zip [0 ..] rcvs)
-        generateReceiveCode (idx, Left (Recv cidx bnd)) = ("var_" <> show idx, Receive cidx bnd)
-        generateReceiveCode (idx, Right e) = ("var_" <> show idx, e)
+        generateReceiveCode (idx, Arg (Recv cidx bnd)) = ("var_" <> show idx, Receive cidx bnd)
+        generateReceiveCode (idx, Drop (Recv cidx bnd)) = ("_var_" <> show idx, Receive cidx bnd)
+        generateReceiveCode (idx, Converted e) = ("var_" <> show idx, e)
+        loop rcvs c = if any (\case Converted _ -> False; _ -> True) rcvs
+                        then EndlessLoop c
+                        else c
 
 fun :: Function -> FusableFunction
 fun = \case 
@@ -88,4 +97,9 @@ funReceives =
         (PureFusable vars _ _) -> extract vars
         (STFusable (Recv _ bnd) vars _ _ _) -> bnd : extract vars
     where 
-        extract = mapMaybe (\case (Left (Recv _ bnd)) -> Just bnd; _ -> Nothing )
+        extract = mapMaybe 
+                    (\case 
+                        (Arg (Recv _ bnd)) -> Just bnd
+                        (Drop (Recv _ bnd)) -> Just bnd
+                        (Converted _) -> Nothing)
+        
