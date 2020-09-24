@@ -39,7 +39,7 @@ generateFunctionCode :: CompM m => LetExpr ->  LoweringM m FusableExpr
 generateFunctionCode LetExpr {functionRef=DFFnRef{nodeType=OperatorNode}} = 
     invariantBroken "`generateOpCode` should take care of all operators!"
 generateFunctionCode e@LetExpr {functionRef=DFFnRef{nodeType=FunctionNode}} = do
-    argReceives <- mapM (`generateReceive` e) $ callArguments e
+    (fun, argReceives) <- lowerFnRef (functionRef e) $ callArguments e
     f <- case stateArgument e of
             Just s -> do
                 (stateOut,resOut) <- case output e of 
@@ -50,7 +50,7 @@ generateFunctionCode e@LetExpr {functionRef=DFFnRef{nodeType=FunctionNode}} = do
 
                 return $
                     Ops.ST
-                        (nodeRef $ functionRef e)
+                        fun
                         (Recv 0 stateReceive)
                         argReceives
                         stateOut
@@ -61,7 +61,7 @@ generateFunctionCode e@LetExpr {functionRef=DFFnRef{nodeType=FunctionNode}} = do
                         _ -> lift $ lift $ throwError $ "Unsupported multiple outputs: " <> show e
                 return $
                     Ops.Pure
-                        (nodeRef $ functionRef e)
+                        fun
                         argReceives
                         resOut
     return $ Fun $ Ops.fun f
@@ -74,12 +74,13 @@ convertDFVar :: DFVar -> TaskExpr
 convertDFVar (DFVar bnd) = Var bnd
 convertDFVar (DFEnvVar l) = Lit l 
 
-generateReceive :: CompM m => DFVar -> LetExpr -> LoweringM m (Either Recv TaskExpr)
-generateReceive (DFVar bnd) current = do
-    idx <- getIndex bnd current
-    return $ Left $ Recv idx bnd
-generateReceive (DFEnvVar l)  _ =
-    return $ Right $ Lit l
+-- generateReceive :: CompM m => DFVar -> LoweringM m (Either Recv TaskExpr)
+generateReceive :: DFVar -> Ops.CallArg
+generateReceive (DFVar bnd) = -- do
+    -- idx <- getIndex bnd current
+    Ops.Arg $ Recv 0 bnd
+generateReceive (DFEnvVar l) =
+    Ops.Converted $ Lit l
 
 getIndex :: CompM m => Binding -> LetExpr -> LoweringM m Int
 getIndex bnd current = do
@@ -93,16 +94,16 @@ getIndex bnd current = do
         -- of intermediate data structures.
         Nothing -> invariantBroken "Graph inconsistency: Can't find my usage of DFVar!"
 
-lowerFnRef :: CompM m => DFFnRef -> [(Binding, TaskExpr)] -> LoweringM m ([(Binding, TaskExpr)], QualifiedBinding, [TaskExpr])
-lowerFnRef fun varsAndReceives | fun == Refs.unitFun = do
-    f <- case nonEmpty varsAndReceives of
-            Just vs -> case snd $ head vs of
-                            Lit (FunRefLit (FunRef p _)) -> return p
-                            _ -> invariantBroken "unitFun must always have a function as its first argument!"
-            Nothing -> invariantBroken "unitFun must always have two arguments!"
-    return ([], f, [])
-lowerFnRef f varsAndReceives = 
-    return (varsAndReceives, nodeRef f, map (Var . fst) varsAndReceives)
+lowerFnRef :: CompM m => DFFnRef -> [DFVar] -> LoweringM m (QualifiedBinding, [Ops.CallArg])
+lowerFnRef fun vars | fun == Refs.unitFun = do
+    (f,vars') <- case vars of
+            [DFEnvVar (FunRefLit (FunRef p _)), DFVar bnd] -> 
+                return (p, [Ops.Drop $ Recv 0 bnd])
+            [DFEnvVar (FunRefLit (FunRef p _)), DFEnvVar UnitLit] -> 
+                return (p, [])
+            _ -> invariantBroken "unitFun must always have two arguments!"
+    return (f, vars')
+lowerFnRef f vars = return (nodeRef f, map generateReceive vars)
 
 generateArcsCode :: DFExpr -> [Channel]
 generateArcsCode gr =
