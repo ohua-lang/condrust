@@ -26,7 +26,7 @@ build (Module (_, SourceFile _ _ items)) ns =
     where
         createTasksAndChannels (TCProgram chans retChan tasks) = 
             TCProgram
-                (createChannels chans)
+                (createChannels chans ++ createChannels [retChan])
                 retChan
                 (map createTask tasks)
 

@@ -11,9 +11,11 @@ import Ohua.Integration.Rust.Util
 
 import Language.Rust.Syntax as Rust hiding (Rust)
 import Language.Rust.Data.Ident
+import Language.Rust.Quote (expr)
 import Data.Text (unpack)
 import Data.List ((!!))
 import Data.Functor.Foldable (cata, embed)
+import Data.Maybe
 import qualified Data.HashMap.Lazy as HM
 
 
@@ -60,12 +62,7 @@ instance ConvertExpr (Expr ()) where
     convertExpr (TCLang.Lit (EnvRefLit hostExpr)) = error "Host expression encountered! This is a compiler error. Please report!"
     convertExpr (TCLang.Lit (FunRefLit (FunRef qBnd _))) = PathExpr [] Nothing (convertQualBnd qBnd) noSpan
 
-    convertExpr (Apply (Stateless bnd args)) =
-        Call 
-            []
-            (convertExpr $ TCLang.Lit $ FunRefLit $ FunRef bnd Nothing)
-            (map convertExpr args)
-            noSpan
+    convertExpr (Apply (Stateless bnd args)) = convertFunCall bnd args
     convertExpr (Apply (Stateful var (QualifiedBinding _ bnd) args)) =
         MethodCall
             []
@@ -87,6 +84,9 @@ instance ConvertExpr (Expr ()) where
 
     convertExpr (TCLang.Stmt stmt cont) = 
         prependToBlock [Semi (convertExpr stmt) noSpan] $ convertExpr cont
+
+    convertExpr (TCLang.Assign bnd expr) =
+        Rust.Assign [] (convertExpr $ Var bnd) (convertExpr expr) noSpan
 
     convertExpr (Receive rcvIdx channel) =
         convertExpr $
@@ -113,6 +113,52 @@ instance ConvertExpr (Expr ()) where
             loopVar = mkSimpleBinding bnd
         in Rust.ForLoop [] loopVar colExpr block Nothing noSpan
 
+    convertExpr (TCLang.Repeat count expr) = 
+        let loopVar = mkSimpleBinding "_"
+            repetition = case count of
+                            Left bnd -> convertExpr $ Var bnd
+                            Right cnt -> convertExpr (TCLang.Lit $ NumericLit $ fromIntegral cnt)
+            range = Rust.Repeat [] (convertExpr $ TCLang.Lit $ NumericLit 0) repetition noSpan
+            block = convertIntoBlock expr
+        in Rust.ForLoop [] loopVar range block Nothing noSpan
+
+    convertExpr (TCLang.While loopHead body) =
+        Rust.While [] (convertExpr loopHead) (convertIntoBlock body) Nothing noSpan
+
+    convertExpr (TCLang.Cond condExpr trueBranch falseBranch) =
+        Rust.If [] 
+            (convertExpr condExpr) 
+            (convertIntoBlock trueBranch)
+            (Just $ convertExpr falseBranch)
+            noSpan
+
+    convertExpr (TCLang.ListOp Create) = convertExpr $ Apply $ Stateless "Vec/new" []
+    convertExpr (TCLang.ListOp (Append bnd expr)) = 
+        convertExpr $ Apply $ Stateful bnd "push" [expr]
+    convertExpr (TCLang.Size bnd) =         
+        convertExpr $
+            Apply $ 
+                Stateful 
+                    bnd 
+                    (QualifiedBinding (makeThrow []) "len")
+                    []
+
+    convertExpr (TCLang.Tuple one two) = 
+        let conv = convertExpr . either TCLang.Var TCLang.Lit
+        in Rust.TupExpr [] [conv one, conv two] noSpan    
+    convertExpr (TCLang.First bnd) = Rust.TupField [] (convertExpr $ Var bnd) 0 noSpan
+    convertExpr (TCLang.Second bnd) = Rust.TupField [] (convertExpr $ Var bnd) 1 noSpan
+
+    convertExpr (TCLang.Increment bnd) = 
+        convertExpr $
+        TCLang.Assign bnd $ Apply $ Stateless "+" [Var bnd, TCLang.Lit $ NumericLit 1]
+    convertExpr (TCLang.Decrement bnd) = 
+        convertExpr $
+        TCLang.Assign bnd $ Apply $ Stateless "-" [Var bnd, TCLang.Lit $ NumericLit 1]
+    convertExpr (TCLang.Not expr) = convertExpr $ Apply $ Stateless "!" [expr]
+    
+    convertExpr (TCLang.HasSize bnd) = undefined -- TODO This is really something that we need to reconsider/redesign!
+    convertExpr (TCLang.Generate bnd lit) = undefined -- TODO 
 
 mkSimpleBinding :: Binding -> Pat ()
 mkSimpleBinding bnd = 
@@ -120,6 +166,32 @@ mkSimpleBinding bnd =
         (ByValue Immutable)
         (mkIdent $ unpack $ unwrap bnd)
         Nothing
+        noSpan
+
+-- TODO we probably want a Literal for common operations
+convertFunCall :: QualifiedBinding -> [TCLang.TaskExpr] -> Expr ()
+convertFunCall op [arg1, arg2] | isJust $ binOp op = 
+    Binary [] (fromJust $ binOp op) (convertExpr arg1) (convertExpr arg2) noSpan
+    where
+        binOp = \case
+            "+" -> Just Rust.AddOp
+            "-" -> Just Rust.SubOp
+            "*" -> Just Rust.MulOp
+            "/" -> Just Rust.DivOp
+            _ -> Nothing
+convertFunCall op [arg] | isJust $ unOp op = 
+    Unary [] (fromJust $ unOp op) (convertExpr arg) noSpan 
+    where
+        unOp = \case
+            "!" -> Just Rust.Not
+            "-" -> Just Rust.Neg
+            "*" -> Just Rust.Deref
+            _ -> Nothing
+convertFunCall f args = 
+    Call 
+        []
+        (convertExpr $ TCLang.Lit $ FunRefLit $ FunRef f Nothing)
+        (map convertExpr args)
         noSpan
 
 convertQualBnd :: QualifiedBinding -> Path ()
