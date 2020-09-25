@@ -10,7 +10,9 @@ import qualified Text.Show
 
 data CallArg 
     = Arg Recv | Drop Recv | Converted TaskExpr
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
+
+instance Hashable CallArg
 
 data Function 
     = Pure
@@ -53,6 +55,14 @@ instance Show FusableFunction where
         " , callArgs: " <> show inp <> 
         " , output: " <> show out <> 
         " , stateOut: " <> show ((\f -> f "") <$> sOut) <>"}"
+
+instance Hashable FusableFunction where
+    hashWithSalt s (PureFusable inp _ out) = s `hashWithSalt` inp `hashWithSalt` out
+    hashWithSalt s (STFusable sInp inp _ out sOut) = 
+        s `hashWithSalt` sInp 
+        `hashWithSalt` inp 
+        `hashWithSalt` out 
+        `hashWithSalt` ((\f -> f "") <$> sOut)
 
 genFun :: FusableFunction -> TaskExpr
 genFun = \case

@@ -23,7 +23,9 @@ data Fusable ctrl
     --  Collect
     --  RecurFun
     --  UnitFun
-    deriving (Show, Eq, Functor)
+    deriving (Show, Eq, Functor, Generic)
+
+instance (Hashable ctrl) => Hashable (Fusable ctrl)
 
 type FusableExpr = Fusable VarCtrl
 
@@ -118,16 +120,17 @@ fuseCtrls (TCProgram chans resultChan exprs) =
         go funCtrls noFunCtrls = 
             let sAndT = srcsAndTgts noFunCtrls funCtrls
                 fused = map (uncurry fuseIt) sAndT
-                noFunCtrls' = fused ++ noFunCtrls
+                orphans = HS.fromList $ 
+                    map ((\case Left f -> Fun f; Right c -> Control c) . snd)
+                        sAndT
+                noFunCtrls' = filter (not . (`HS.member` orphans)) noFunCtrls
+                noFunCtrls'' = fused ++ noFunCtrls'
                 pendingFunCtrls = 
                     HS.toList $ foldr (HS.delete . fst) (HS.fromList funCtrls) sAndT
             in if null pendingFunCtrls
-                then noFunCtrls'
-                else go pendingFunCtrls noFunCtrls
+                then noFunCtrls''
+                else go pendingFunCtrls noFunCtrls''
 
-        fuseIt :: FunCtrl -> Either FusableFunction FusedCtrl -> Fusable FusedCtrl
-        fuseIt ctrl (Left f) = Control $ fuseFun ctrl f
-        fuseIt ctrl (Right c) = Control $ fuseCtrl ctrl c
         split :: [Fusable FunCtrl] -> ([FunCtrl], [Fusable FusedCtrl])
         split = partitionEithers . 
                 map (\case 
@@ -138,6 +141,9 @@ fuseCtrls (TCProgram chans resultChan exprs) =
                         (Unfusable u) -> Right (Unfusable u))
         srcsAndTgts :: [Fusable FusedCtrl] -> [FunCtrl] -> [(FunCtrl, Either FusableFunction FusedCtrl)]
         srcsAndTgts es = mapMaybe (`findTarget` es)
+        fuseIt :: FunCtrl -> Either FusableFunction FusedCtrl -> Fusable FusedCtrl
+        fuseIt ctrl (Left f) = Control $ fuseFun ctrl f
+        fuseIt ctrl (Right c) = Control $ fuseCtrl ctrl c
         findTarget:: FunCtrl -> [Fusable FusedCtrl] -> Maybe (FunCtrl, Either FusableFunction FusedCtrl)
         findTarget fc@(Ctrl _ _ outsAndIns _ _ _) es = 
             let chan = fst $ NE.head outsAndIns

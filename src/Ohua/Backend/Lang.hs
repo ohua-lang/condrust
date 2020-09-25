@@ -15,6 +15,8 @@ data App expr
   | Stateful Binding QualifiedBinding [expr]
   deriving (Show, Eq, Lift, Generic, Functor, Foldable, Traversable)
 
+instance (Hashable expr) => Hashable (App expr)
+
 data Recv 
   = Recv
       Int -- copy index 
@@ -27,15 +29,21 @@ data Send
   = Emit 
       Binding -- channel
       Binding -- data
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+
+instance Hashable Send
 
 data Channel = Channel 
                 Binding -- channel id
                 Int -- num of copies
                 deriving (Show, Eq, Lift, Generic)
 
+instance Hashable Channel
+
 data List expr = Create | Append Binding expr 
   deriving (Show, Eq, Lift, Generic, Functor, Foldable, Traversable)
+
+instance (Hashable expr) => Hashable (List expr)
 
 -- TODO this expression language should be typed, probably using a GADT
 data TaskExpr
@@ -80,6 +88,8 @@ data TaskExpr
   | Generate Binding Lit -- data generator  
   
   deriving (Show, Eq, Lift, Generic)
+
+instance Hashable TaskExpr
 
 data Function expr = Function QualifiedBinding [Binding] expr deriving (Show, Eq)
 

@@ -58,7 +58,9 @@ toFunCtrl (Ctrl sigStateInit ctrlVar (Identity var) sigStateRecv ctxtLoop sigSta
 data VarReceive 
     = StateVar OutputChannel Recv 
     | PureVar OutputChannel Recv
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
+
+instance Hashable VarReceive
 
 from :: VarReceive -> (OutputChannel, Recv)
 from (StateVar c r) = (c,r)
@@ -81,6 +83,10 @@ instance Show FusedCtrl where
 instance Eq FusedCtrl where
     (FusedCtrl _ ins _ comp _ outs) == (FusedCtrl _ ins' _ comp' _ outs') =
         ins == ins' && comp == comp' && outs == outs'
+
+instance Hashable FusedCtrl where
+    hashWithSalt s (FusedCtrl _ ins _ comp _ outs) =
+        s `hashWithSalt` ins `hashWithSalt` comp `hashWithSalt` outs
 
 fuseSTCSMap :: STCLangSMap -> FusedCtrl -> FusedCtrl
 fuseSTCSMap
