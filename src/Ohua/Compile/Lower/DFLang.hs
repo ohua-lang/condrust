@@ -36,8 +36,8 @@ generateNodesCode :: CompM m => DFExpr ->  LoweringM m [FusableExpr]
 generateNodesCode gr = toList <$> mapM generateNodeCode (letExprs gr)
 
 generateFunctionCode :: CompM m => LetExpr ->  LoweringM m FusableExpr
-generateFunctionCode LetExpr {functionRef=DFFnRef{nodeType=OperatorNode}} = 
-    invariantBroken "`generateOpCode` should take care of all operators!"
+generateFunctionCode e@LetExpr {functionRef=DFFnRef{nodeType=OperatorNode}} = 
+    invariantBroken $ "`generateNodeCode` should take care of all operators! Slipped through: " <> show e
 generateFunctionCode e@LetExpr {functionRef=DFFnRef{nodeType=FunctionNode}} = do
     (fun, argReceives) <- lowerFnRef (functionRef e) $ callArguments e
     f <- case stateArgument e of
@@ -146,7 +146,7 @@ generateNodeCode e@LetExpr {functionRef=f} | f == collect = do
         EndlessLoop $ 
             Ops.collect sizeIn dataIn collectedOutput
 
-generateNodeCode e@LetExpr {functionRef=f} | f == ifFun= do
+generateNodeCode e@LetExpr {functionRef=f} | f == ifFun = do
     condIn <- 
         case callArguments e of
             [DFVar x] -> return x
