@@ -58,6 +58,7 @@ instance ConvertExpr (Expr ()) where
     convertExpr (Var bnd) = PathExpr [] Nothing (convertVar bnd) noSpan
 
     convertExpr (TCLang.Lit (NumericLit i)) = Rust.Lit [] (Int Dec i Unsuffixed noSpan) noSpan
+    convertExpr (TCLang.Lit (BoolLit b)) = Rust.Lit [] (Bool b Unsuffixed noSpan) noSpan
     convertExpr (TCLang.Lit UnitLit) = TupExpr [] [] noSpan -- FIXME this means *our* unit, I believe.
     convertExpr (TCLang.Lit (EnvRefLit hostExpr)) = error "Host expression encountered! This is a compiler error. Please report!"
     convertExpr (TCLang.Lit (FunRefLit (FunRef qBnd _))) = PathExpr [] Nothing (convertQualBnd qBnd) noSpan
@@ -86,21 +87,23 @@ instance ConvertExpr (Expr ()) where
         prependToBlock [Semi (convertExpr stmt) noSpan] $ convertExpr cont
 
     convertExpr (TCLang.Assign bnd expr) =
-        Rust.Assign [] (convertExpr $ Var bnd) (convertExpr expr) noSpan
+        prependToBlock 
+            [Semi (Rust.Assign [] (convertExpr $ Var bnd) (convertExpr expr) noSpan) noSpan]
+            $ convertExpr $ TCLang.Lit UnitLit
 
     convertExpr (Receive rcvIdx channel) =
         convertExpr $
             Apply $ 
                 Stateful 
                     channel 
-                    (QualifiedBinding (makeThrow []) "recv") 
+                    (mkFunRefUnqual "recv") 
                     [TCLang.Lit $ NumericLit $ fromIntegral rcvIdx]
     convertExpr (Send channel d) =
         convertExpr $
             Apply $ 
                 Stateful 
                     channel 
-                    (QualifiedBinding (makeThrow []) "send")
+                    (mkFunRefUnqual "send")
                     [Var d]
 
     convertExpr (TCLang.EndlessLoop expr) =
@@ -134,13 +137,13 @@ instance ConvertExpr (Expr ()) where
 
     convertExpr (TCLang.ListOp Create) = convertExpr $ Apply $ Stateless "Vec/new" []
     convertExpr (TCLang.ListOp (Append bnd expr)) = 
-        convertExpr $ Apply $ Stateful bnd "push" [expr]
+        convertExpr $ Apply $ Stateful bnd (mkFunRefUnqual "push") [expr]
     convertExpr (TCLang.Size bnd) =         
         convertExpr $
             Apply $ 
                 Stateful 
                     bnd 
-                    (QualifiedBinding (makeThrow []) "len")
+                    (mkFunRefUnqual "len")
                     []
 
     convertExpr (TCLang.Tuple one two) = 
@@ -151,14 +154,19 @@ instance ConvertExpr (Expr ()) where
 
     convertExpr (TCLang.Increment bnd) = 
         convertExpr $
-        TCLang.Assign bnd $ Apply $ Stateless "+" [Var bnd, TCLang.Lit $ NumericLit 1]
+        TCLang.Assign bnd $ Apply $ Stateless (mkFunRefUnqual "+") [Var bnd, TCLang.Lit $ NumericLit 1]
     convertExpr (TCLang.Decrement bnd) = 
         convertExpr $
-        TCLang.Assign bnd $ Apply $ Stateless "-" [Var bnd, TCLang.Lit $ NumericLit 1]
-    convertExpr (TCLang.Not expr) = convertExpr $ Apply $ Stateless "!" [expr]
+        TCLang.Assign bnd $ Apply $ Stateless (mkFunRefUnqual "-") [Var bnd, TCLang.Lit $ NumericLit 1]
+    convertExpr (TCLang.Not expr) = convertExpr $ Apply $ Stateless (mkFunRefUnqual "!") [expr]
     
     convertExpr (TCLang.HasSize bnd) = undefined -- TODO This is really something that we need to reconsider/redesign!
     convertExpr (TCLang.Generate bnd lit) = undefined -- TODO 
+
+pattern UnqualFun :: Binding -> QualifiedBinding
+pattern UnqualFun bnd <- QualifiedBinding [] bnd
+
+mkFunRefUnqual = QualifiedBinding (makeThrow [])
 
 mkSimpleBinding :: Binding -> Pat ()
 mkSimpleBinding bnd = 
@@ -174,18 +182,18 @@ convertFunCall op [arg1, arg2] | isJust $ binOp op =
     Binary [] (fromJust $ binOp op) (convertExpr arg1) (convertExpr arg2) noSpan
     where
         binOp = \case
-            "+" -> Just Rust.AddOp
-            "-" -> Just Rust.SubOp
-            "*" -> Just Rust.MulOp
-            "/" -> Just Rust.DivOp
+            UnqualFun "+" -> Just Rust.AddOp
+            UnqualFun "-" -> Just Rust.SubOp
+            UnqualFun "*" -> Just Rust.MulOp
+            UnqualFun "/" -> Just Rust.DivOp
             _ -> Nothing
 convertFunCall op [arg] | isJust $ unOp op = 
     Unary [] (fromJust $ unOp op) (convertExpr arg) noSpan 
     where
         unOp = \case
-            "!" -> Just Rust.Not
-            "-" -> Just Rust.Neg
-            "*" -> Just Rust.Deref
+            UnqualFun "!" -> Just Rust.Not
+            UnqualFun "-" -> Just Rust.Neg
+            UnqualFun "*" -> Just Rust.Deref
             _ -> Nothing
 convertFunCall f args = 
     Call 
