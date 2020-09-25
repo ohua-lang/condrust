@@ -5,10 +5,12 @@ import Ohua.Prelude
 import Ohua.Backend.Lang as L hiding (Function)
 
 import qualified Data.List.NonEmpty as NE
+import qualified Text.Show
+
 
 data CallArg 
     = Arg Recv | Drop Recv | Converted TaskExpr
-    deriving (Eq)
+    deriving (Eq, Show)
 
 data Function 
     = Pure
@@ -43,6 +45,14 @@ instance Eq FusableFunction where
         && inp == inp' 
         && out == out' 
         && ((\f -> f "") <$> sOut) == ((\f -> f "") <$> sOut')
+
+instance Show FusableFunction where
+    show (PureFusable inp _ out) = "PureFusable { callArgs: " <> show inp <>" , output: " <> show out <> "}"
+    show (STFusable sInp inp _ out sOut) = 
+        "STFusable { sInp: " <> show sInp <> 
+        " , callArgs: " <> show inp <> 
+        " , output: " <> show out <> 
+        " , stateOut: " <> show ((\f -> f "") <$> sOut) <>"}"
 
 genFun :: FusableFunction -> TaskExpr
 genFun = \case

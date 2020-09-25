@@ -6,6 +6,7 @@ import Ohua.Backend.Lang
 
 import Data.Functor.Foldable.TH (makeBaseFunctor)
 import Language.Haskell.TH.Syntax (Lift)
+import qualified Text.Show
 
 
 type DataSizeInput = Binding
@@ -27,6 +28,9 @@ instance Eq STCLangSMap where
 
 instance Hashable STCLangSMap where
     hashWithSalt s (STCLangSMap _ _ inp out) = s `hashWithSalt` inp `hashWithSalt` out
+
+instance Show STCLangSMap where
+    show (STCLangSMap _ _ inp out) = "STCLangSMap { state input: " <> show inp <> " , state output: " <> show out <> " }"
 
 genSTCLangSMap :: STCLangSMap -> TaskExpr
 genSTCLangSMap (STCLangSMap init ctxtLoop stateReceive emit) = 

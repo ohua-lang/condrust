@@ -37,6 +37,7 @@ data Channel = Channel
 data List expr = Create | Append Binding expr 
   deriving (Show, Eq, Lift, Generic, Functor, Foldable, Traversable)
 
+-- TODO this expression language should be typed, probably using a GADT
 data TaskExpr
   = Var Binding
   | Lit Lit -- true, false  etc.
@@ -70,8 +71,8 @@ data TaskExpr
   | ListOp (List TaskExpr)
 
   | Tuple (Either Binding Lit) (Either Binding Lit)
-  | First (Either Binding Lit)
-  | Second (Either Binding Lit)
+  | First Binding
+  | Second Binding
 
   | Increment Binding -- a + 1;
   | Decrement Binding -- a - 1;

@@ -4,6 +4,7 @@ import Ohua.Prelude
 
 import Ohua.Backend.Operators
 import Ohua.Backend.Lang
+    ( TaskExpr(Receive), Channel(..), Send(Emit), Recv(Recv) )
 import Ohua.Backend.Types
 
 import qualified Data.HashSet as HS
@@ -22,7 +23,7 @@ data Fusable ctrl
     --  Collect
     --  RecurFun
     --  UnitFun
-    deriving (Eq, Functor)
+    deriving (Show, Eq, Functor)
 
 type FusableExpr = Fusable VarCtrl
 
@@ -92,7 +93,7 @@ mergeCtrls (TCProgram chans resultChan exprs) =
                             in (ctrls', fs':fs))
                         (ctrls, [])
                         level
-                ctrlsPerFun' = map NE.fromList $ filter (not . null) ctrlsPerFun
+                ctrlsPerFun' = map erroringNE $ filter (not . null) ctrlsPerFun
                 mergedCtrls = 
                     map (\cs -> 
                         foldl 
@@ -101,12 +102,14 @@ mergeCtrls (TCProgram chans resultChan exprs) =
                             $ NE.tail cs) 
                         ctrlsPerFun'
             in (ctrls', mergedCtrls)
+        erroringNE = fromMaybe (error "Invariant broken: No controls for function!") . nonEmpty
          
         findCtrl (Control c@(Ctrl _ _ (Identity (out,_)) _ _ _)) = Just (out, c)
         findCtrl _ = Nothing 
         ctrls :: [(OutputChannel, VarCtrl)]
         ctrls = mapMaybe findCtrl exprs
 
+-- FIXME Remove the fused functions/tasks!
 fuseCtrls :: TCProgram Channel (Fusable FunCtrl) -> TCProgram Channel (Fusable FusedCtrl)
 fuseCtrls (TCProgram chans resultChan exprs) = 
     let (ctrls, noFunCtrls) = split exprs
