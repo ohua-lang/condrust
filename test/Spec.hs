@@ -4,7 +4,7 @@ import Test.Hspec
 
 import qualified LoweringSpec as Lowering
 import qualified ConfigSpec as Config
-import qualified Integrations.RustSpec as Rust
+import qualified Integrations.Rust.Spec as Rust
 
 
 main :: IO ()
