@@ -98,7 +98,7 @@ lowerFnRef :: CompM m => DFFnRef -> [DFVar] -> LoweringM m (QualifiedBinding, [O
 lowerFnRef fun vars | fun == Refs.unitFun = do
     (f,vars') <- case vars of
             [DFEnvVar (FunRefLit (FunRef p _)), DFVar bnd] -> 
-                return (p, [Ops.Drop $ Recv 0 bnd])
+                return (p, [Ops.Drop $ Left $ Recv 0 bnd])
             [DFEnvVar (FunRefLit (FunRef p _)), DFEnvVar UnitLit] -> 
                 return (p, [])
             _ -> invariantBroken "unitFun must always have two arguments!"
@@ -208,19 +208,16 @@ generateNodeCode e@LetExpr {functionRef=f} | f == Refs.runSTCLangSMap = do
 --                     out
 
 generateNodeCode e@LetExpr {functionRef=f} | f == ctrl = do
-    (ctrlIn, inp) <- 
-        case callArguments e of
-            DFVar c:[DFVar i] -> return (c, i)
-            _ -> invariantBroken $ "Control arguments don't match: " <> show e
     out <-
         case output e of
             [x] -> return x
             _ -> invariantBroken $ "Control outputs don't match" <> show e    
-    lift $ return $
-        Control $ Ops.mkCtrl 
-                    ctrlIn 
-                    inp
-                    out
+    case callArguments e of
+        DFVar ctrlInp:[DFVar inp] ->
+            lift $ return $ Control $ Left $ Ops.mkCtrl ctrlInp inp out
+        DFVar ctrlInp:[DFEnvVar lit] ->
+            lift $ return $ Control $ Right $ Ops.mkLittedCtrl ctrlInp lit out
+        _ -> invariantBroken $ "Control arguments don't match: " <> show e
 
 -- generateNodeCode e@LetExpr {functionRef=f} | f == runSTCLang = do
 --     (sizeIn, dataIn, stateIn, collectFun) <-

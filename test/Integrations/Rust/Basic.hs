@@ -8,6 +8,28 @@ import Integrations.Rust.Utils
 spec :: Spec
 spec = 
     describe "Basics" $ do
+        it "a function" $
+            (showCode "Compiled: " =<< compileCode [sourceFile| 
+                fn test() -> String {
+                    hello_world()
+                }
+                |]) >>= 
+            (\compiled -> do
+                expected <- showCode "Expected:"
+                    [sourceFile| 
+                        fn test() -> String {
+                        let a_0 = ohua::arcs::Channel::new(1);
+                        let mut tasks: Vec<Box<FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
+                        tasks
+                            .push(Box::new(move || -> _ {
+                            let result = hello_world();
+                            a_0.send(result)
+                            }));
+                        run(tasks);
+                        a_0.recv(0)
+                        }
+                    |]
+                compiled `shouldBe` expected)
         it "simple composition" $
             (showCode "Compiled: " =<< compileCode [sourceFile| 
                 fn test() -> String {
