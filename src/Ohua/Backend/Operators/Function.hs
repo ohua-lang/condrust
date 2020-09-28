@@ -8,8 +8,9 @@ import qualified Data.List.NonEmpty as NE
 import qualified Text.Show
 
 
+-- FIXME Seems to be like this: Arg Recv (Either Recv TaskExpr) | Drop (Either Recv TaskExpr)
 data CallArg 
-    = Arg Recv | Drop Recv | Converted TaskExpr
+    = Arg Recv | Drop (Either Recv TaskExpr) | Converted TaskExpr
     deriving (Eq, Show, Generic)
 
 instance Hashable CallArg
@@ -86,9 +87,10 @@ genFun = \case
                 cont
                 (zip [0 ..] rcvs)
         generateReceiveCode (idx, Arg (Recv cidx bnd)) = ("var_" <> show idx, Receive cidx bnd)
-        generateReceiveCode (idx, Drop (Recv cidx bnd)) = ("_var_" <> show idx, Receive cidx bnd)
+        generateReceiveCode (idx, Drop (Left (Recv cidx bnd))) = ("_var_" <> show idx, Receive cidx bnd)
+        generateReceiveCode (idx, Drop (Right e)) = ("_var_" <> show idx, e)
         generateReceiveCode (idx, Converted e) = ("var_" <> show idx, e)
-        loop rcvs c = if any (\case Converted _ -> False; _ -> True) rcvs
+        loop rcvs c = if any (\case (Converted _) -> False; (Drop (Right _)) -> False; _ -> True) rcvs
                         then EndlessLoop c
                         else c
 
@@ -120,6 +122,7 @@ funReceives =
         extract = mapMaybe 
                     (\case 
                         (Arg (Recv _ bnd)) -> Just bnd
-                        (Drop (Recv _ bnd)) -> Just bnd
+                        (Drop (Left (Recv _ bnd))) -> Just bnd
+                        (Drop _) -> Nothing
                         (Converted _) -> Nothing)
         

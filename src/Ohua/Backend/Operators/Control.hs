@@ -11,22 +11,24 @@ import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
 import qualified Text.Show -- for implementing the Show instance
 
-
 type CtrlInput = Binding
-type Inputs = NonEmpty Recv
-type Outputs = NonEmpty Binding
 type OutputChannel = Binding
 
+-- FIXME remove the functions from the data type.
 data Ctrl f where
     Ctrl :: (Foldable f)
         => (Binding -> TaskExpr -> TaskExpr) -- signal state init
         -> CtrlInput
         -> f (OutputChannel, Recv) -- var(s)
         -- below here is computation code
-        -> (Binding -> TaskExpr -> TaskExpr -> TaskExpr) -- signal state receive code
+        -> (Binding -> TaskExpr -> TaskExpr) -- signal state receive code
         -> (TaskExpr -> TaskExpr) -- ctxt loop
         -> (Binding -> TaskExpr) -- signal state renewal
         -> Ctrl f
+
+data LittedCtrl = LittedCtrl CtrlInput Lit Binding deriving (Eq, Show, Generic)
+
+instance Hashable LittedCtrl
 
 instance Eq (Ctrl f) where
     (Ctrl _ cInp insOuts _ _ _) == (Ctrl _ cInp' insOuts' _ _ _) = 
@@ -66,15 +68,27 @@ from :: VarReceive -> (OutputChannel, Recv)
 from (StateVar c r) = (c,r)
 from (PureVar c r) = (c,r)
 
+-- FIXME remove the functions from the data type!
 data FusedCtrl
     = FusedCtrl
         (Binding -> TaskExpr -> TaskExpr) -- signal state init
         (NonEmpty VarReceive) -- vars
         -- below here is computation code
-        (Binding -> TaskExpr -> TaskExpr -> TaskExpr) -- signal state receive code
+        (Binding -> TaskExpr -> TaskExpr) -- signal state receive code
         TaskExpr -- comp
         (Binding -> TaskExpr) -- signal state renewal
         [Send] -- state outs
+
+-- FIXME I'm sure this will collapse with the above data type once the functions were removed.
+data FusedLittedCtrl
+    = FusedLittedCtrl
+        CtrlInput
+        Lit
+        OutputChannel
+        TaskExpr
+    deriving (Eq, Show, Generic)
+
+instance Hashable FusedLittedCtrl
 
 instance Show FusedCtrl where
     show (FusedCtrl _ ins _ comp _ outs) = 
@@ -120,7 +134,7 @@ fuseCtrl
             sigStateInit' "renew" $
             initVarsExpr' $
             While (Not $ Var "renew") $
-                sigStateRecv' "renew" receiveVarsExpr' $
+                sigStateRecv' "renew" $
                 Stmt
                     comp' $
                     sigStateRenewal' "renew")
@@ -128,7 +142,6 @@ fuseCtrl
         stateOuts'
     where
         initVarsExpr' = initVarsExpr (map from vars') $ NE.toList sendVars
-        receiveVarsExpr' = receiveVarsExpr (map from vars') $ NE.toList sendVars
         sendVars = NE.map fst vars
         stateVars = 
             HS.fromList $
@@ -177,7 +190,7 @@ fuseFun (Ctrl sigStateInit _ vars sigStateRecv ctxtLoop sigStateRenewal) =
                 maybe [] (\g -> [g $ fst $ stateVar stateArg]) stateRes
         where
             f (Arg (Recv _ ch)) | HS.member ch ctrled = Converted $ Var ch
-            f (Drop (Recv _ ch)) | HS.member ch ctrled = Converted $ Var ch
+            f (Drop (Left (Recv _ ch))) | HS.member ch ctrled = Drop $ Right $ Var ch
             f e  = e
             ctrled = HS.fromList $ NE.toList sendVars
             sendVars = NE.map fst vars
@@ -189,6 +202,20 @@ fuseFun (Ctrl sigStateInit _ vars sigStateRecv ctxtLoop sigStateRenewal) =
                             (bnd, a) | a == sArg -> StateVar bnd a
                             (bnd, a) -> PureVar bnd a)
                         vars
+
+fuseLittedCtrlIntoCtrl :: LittedCtrl -> FusedCtrl -> FusedLittedCtrl
+fuseLittedCtrlIntoCtrl (LittedCtrl ctrlInp lit out) = FusedLittedCtrl ctrlInp lit out . genFused'
+
+fuseLittedCtrlIntoFun :: LittedCtrl -> FusableFunction -> FusedLittedCtrl
+fuseLittedCtrlIntoFun (LittedCtrl ctrlInp lit out) = 
+    FusedLittedCtrl ctrlInp lit out . genFun .
+        (\case 
+            (PureFusable args app res) -> PureFusable (map f args) app res
+            (STFusable stateArg args app res stateRes) -> error "Invariant broken: only pure functions need to be contextified!")
+    where
+        f (Arg (Recv _ ch)) = Converted $ Var ch
+        f (Drop (Left (Recv _ ch))) = Drop $ Right $ Var ch
+        f e  = e
 
 {-|
   Now, we can easily merge the controls for a single function, so that the
@@ -239,42 +266,72 @@ merge
         sigStateRenewal
 
 genFused :: FusedCtrl -> TaskExpr
-genFused (FusedCtrl sigStateInit vars sigStateRecv comp sigStateRenewal stateOuts) =
-    EndlessLoop $
-        sigStateInit "renew" $
-        initVarsExpr' $
-        Stmt (
-            While (Not $ Var "renew") $
-            sigStateRecv "renew" receiveVarsExpr' $
-            Stmt
-                comp $
-                sigStateRenewal "renew"
-        ) stateOuts'
+genFused = EndlessLoop . genFused'
+
+genFused' :: FusedCtrl -> TaskExpr
+genFused' (FusedCtrl sigStateInit vars sigStateRecv comp sigStateRenewal stateOuts) =    
+    sigStateInit "renew" $
+    initVarsExpr' $
+    Stmt (
+        While (Not $ Var "renew") $
+        sigStateRecv "renew" $
+        Stmt
+            comp $
+            sigStateRenewal "renew"
+    ) stateOuts'
     where
         initVarsExpr' = initVarsExpr (map from vars) []
-        receiveVarsExpr' = receiveVarsExpr (map from vars) []
         stateOuts' = 
             foldr (\(Emit ch d) c -> Stmt (Send ch d) c) (Lit UnitLit) stateOuts
 
 genCtrl :: FunCtrl -> TaskExpr
 genCtrl (Ctrl sigStateInit _ vars sigStateRecv ctxtLoop sigStateRenewal) = 
+    -- refactor with genFused and genCtxtCtrl
     EndlessLoop $
         sigStateInit "renew" $
         initVarsExpr' $
         While (Not $ Var "renew") $
-            sigStateRecv "renew" receiveVarsExpr' $
+            sigStateRecv "renew" $
             Stmt
                 (ctxtLoop
                     sendCode) $
                 sigStateRenewal "renew"
     where
-        test = []
-        initVarsExpr' = initVarsExpr receiveVars test
-        receiveVarsExpr' = receiveVarsExpr receiveVars []
+        initVarsExpr' = initVarsExpr receiveVars []
         receiveVars = NE.map (first (("var_" <>) . show) . second snd) $ NE.zip [0..] vars
         sendVars = NE.map (first (("var_" <>) . show) . second fst) $ NE.zip [0..] vars
         sendCode = 
             foldr (\(bnd, ch) c -> Stmt (Send ch bnd) c) (Lit UnitLit) sendVars
+
+genLittedCtrl :: FusedLittedCtrl -> TaskExpr
+genLittedCtrl (FusedLittedCtrl ctrlInput input output comp) = 
+    -- TODO refactor with genCtrl and genFusedCtrl!
+    EndlessLoop $
+        sigStateInit "renew" $
+        Let output (Lit input) $
+        While (Not $ Var "renew") $
+            sigStateRecv "renew" $
+            Stmt
+                (ctxtLoop
+                    comp) $
+                sigStateRenew "renew"
+    where
+        sigStateInit :: Binding -> TaskExpr -> TaskExpr
+        sigStateInit bnd = Let bnd (Lit $ BoolLit False)
+
+        sigStateRecv :: Binding -> TaskExpr -> TaskExpr
+        sigStateRecv renew cont = 
+            Let "sig" (Receive 0 ctrlInput) $
+            Let "count" (L.Second "sig") cont
+        
+        ctxtLoop :: TaskExpr -> TaskExpr
+        ctxtLoop = Repeat $ Left "count"
+
+        sigStateRenew :: Binding -> TaskExpr
+        sigStateRenew bnd = 
+            Let "renew_next_time" (L.First "sig") $
+            Assign bnd $ Var "renew_next_time"
+
 
 initVarsExpr :: NonEmpty (Binding, Recv) -> [Binding] -> TaskExpr -> TaskExpr
 initVarsExpr rVars sVars cont = 
@@ -291,8 +348,15 @@ toExpr rVars sVars  = NE.map (second f) rVars
         f (Recv i ch)  = Receive i ch
         ctrled = HS.fromList sVars
 
+
 -- assumption: ctrl before merging and as such there is only a single input
--- assumption: length inputs = length outputs 
+-- the below two functions actually belong together: dependent types needed!
+
+-- | A context control marks the end of a fusion chain. It is the very last control
+--   and therefore can only be fused into.
+mkLittedCtrl :: CtrlInput -> Lit -> Binding -> LittedCtrl
+mkLittedCtrl = LittedCtrl
+
 mkCtrl :: CtrlInput -> Binding -> Binding -> VarCtrl
 mkCtrl ctrlInput input output = 
     Ctrl 
@@ -306,8 +370,8 @@ mkCtrl ctrlInput input output =
         sigStateInit :: Binding -> TaskExpr -> TaskExpr
         sigStateInit bnd = Let bnd (Lit $ BoolLit False)
 
-        sigStateRecv :: Binding -> TaskExpr -> TaskExpr -> TaskExpr
-        sigStateRecv renew recvCode cont = 
+        sigStateRecv :: Binding -> TaskExpr -> TaskExpr
+        sigStateRecv renew cont = 
             Let "sig" (Receive 0 ctrlInput) $
             Let "count" (L.Second "sig") cont
         
