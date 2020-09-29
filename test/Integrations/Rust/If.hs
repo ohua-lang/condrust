@@ -140,7 +140,7 @@ spec =
                 fn test(i: i32) -> String {
                     let a = f0(i);
                     let d = if a {
-                        g0()
+                        g0(5)
                     } else {
                         g1()
                     };
@@ -163,12 +163,12 @@ spec =
                             .push(Box::new(move || -> _ {
                             loop {
                                 let renew = false;
-                                let lit_unit_1 = ();
+                                let lit_unit_0 = ();
                                 while !renew {
                                     let sig = ctrlFalse_0.recv(0);
                                     let count = sig.1;
                                     for _ in [0; count] {
-                                        let _var_0 = lit_unit_1;
+                                        let _var_0 = lit_unit_0;
                                         let result = g1();
                                         c_0.send(result)
                                     };
@@ -182,13 +182,13 @@ spec =
                             .push(Box::new(move || -> _ {
                             loop {
                                 let renew = false;
-                                let lit_unit_0 = ();
+                                let lit_5_0 = 5;
                                 while !renew {
                                     let sig = ctrlTrue_0.recv(0);
                                     let count = sig.1;
                                     for _ in [0; count] {
-                                        let _var_0 = lit_unit_0;
-                                        let result = g0();
+                                        let var_0 = lit_5_0;
+                                        let result = g0(var_0);
                                         b_0.send(result)
                                     };
                                     let renew_next_time = sig.0;
