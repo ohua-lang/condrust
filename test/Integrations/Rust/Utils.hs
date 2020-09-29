@@ -32,7 +32,7 @@ import qualified Data.Text.Lazy.IO as LT
 
 
 debug :: Bool
-debug = True
+debug = False
 
 renderRustCode :: SourceFile Span -> L.ByteString
 renderRustCode = 
