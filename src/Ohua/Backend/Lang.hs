@@ -61,8 +61,8 @@ data TaskExpr
       TaskExpr
 -- FIXME use the types from above!
   | Receive Int -- copy index 
-            Binding -- channel
-  | Send Binding -- channel
+            Binding -- channel -- FIXME should be more precise and take something of type InputChannel
+  | Send Binding -- channel -- FIXME should be more precise and take something of type OutputChannel
          Binding -- data
 
   -- specific control flow:
