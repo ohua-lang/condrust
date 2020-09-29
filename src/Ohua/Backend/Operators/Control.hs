@@ -149,13 +149,13 @@ fuseFun (FunCtrl ctrlInput vars) =
             FusedFunCtrl
                 ctrlInput
                 (NE.map (uncurry PureVar) vars)
-                (F.genFun $  PureFusable (map f args) app res)
+                (F.genFun' $  PureFusable (map f args) app res)
                 []
         (STFusable stateArg args app res stateRes) ->
             FusedFunCtrl
                 ctrlInput
                 (vars' stateArg)
-                (F.genFun $ STFusable stateArg (map f args) app res Nothing)
+                (F.genFun' $ STFusable stateArg (map f args) app res Nothing)
                 (maybe 
                     [] 
                     (\g -> [g $ unwrapBnd $ fst $ stateVar stateArg]) 

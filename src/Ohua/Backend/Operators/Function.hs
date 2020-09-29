@@ -66,18 +66,25 @@ instance Hashable FusableFunction where
         `hashWithSalt` ((\f -> f "") <$> sOut)
 
 genFun :: FusableFunction -> TaskExpr
-genFun = \case
+genFun fun = loop $ genFun' fun
+    where
+        loop c = if null $ funReceives fun
+                then c
+                else EndlessLoop c
+
+
+
+genFun' :: FusableFunction -> TaskExpr
+genFun' = \case
     (PureFusable receives app send) ->
-        loop receives $
-            varsAndReceives receives $ 
-            app (bnds 0 receives) $
-            (\(Emit c d) -> Send c d) send
+        varsAndReceives receives $ 
+        app (bnds 0 receives) $
+        (\(Emit c d) -> Send c d) send
     (STFusable stateRecv receives app sendRes sendState) ->
-        loop receives $
-            varsAndReceives (Arg stateRecv : receives) $
-            app (bndsNE $ Arg stateRecv :| receives) $
-            foldr (\(Emit ch d) c -> Stmt (Send ch d) c) (Lit UnitLit) $ 
-            catMaybes [sendRes, (\f -> f "var_0") <$> sendState]
+        varsAndReceives (Arg stateRecv : receives) $
+        app (bndsNE $ Arg stateRecv :| receives) $
+        foldr (\(Emit ch d) c -> Stmt (Send ch d) c) (Lit UnitLit) $ 
+        catMaybes [sendRes, (\f -> f "var_0") <$> sendState]
     where
         bnds i = map (("var_" <>) . show . fst) . filter (\case (_, Drop _) -> False; _ -> True) . zip [i..]
         bndsNE = ("var_0" :|) . bnds 1 . NE.tail
@@ -90,9 +97,6 @@ genFun = \case
         generateReceiveCode (idx, Drop (Left (Recv cidx bnd))) = ("_var_" <> show idx, Receive cidx bnd)
         generateReceiveCode (idx, Drop (Right e)) = ("_var_" <> show idx, e)
         generateReceiveCode (idx, Converted e) = ("var_" <> show idx, e)
-        loop rcvs c = if any (\case (Converted _) -> False; (Drop (Right _)) -> False; _ -> True) rcvs
-                        then EndlessLoop c
-                        else c
 
 fun :: Function -> FusableFunction
 fun = \case 
