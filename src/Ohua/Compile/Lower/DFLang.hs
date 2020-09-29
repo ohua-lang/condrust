@@ -44,6 +44,9 @@ generateFunctionCode e@LetExpr {functionRef=DFFnRef{nodeType=FunctionNode}} = do
             Just s -> do
                 (stateOut,resOut) <- case output e of 
                                         [] -> return (Nothing, Nothing)
+                                        -- FIXME this is clearly ambiguous! How do I understand whether that is the state output or the data output?!
+                                        -- Again the type here is just not precise enough!
+                                        [r] -> return (Nothing, Just r)
                                         [st,r] -> return (Just st, Just r)
                                         _ -> lift $ lift $ throwError $ "Unsupported multiple outputs: " <> show e
                 stateReceive <- getStateVar s

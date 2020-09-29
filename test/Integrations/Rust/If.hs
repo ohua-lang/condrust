@@ -243,4 +243,3 @@ spec =
                         }                    
                     |]
                 compiled `shouldBe` expected)
-
