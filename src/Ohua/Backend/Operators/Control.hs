@@ -24,6 +24,11 @@ data Var deriving (Eq, Show, Generic)
 data Fun deriving (Eq, Show, Generic)
 data CtxtLit deriving (Eq, Show, Generic)
 
+-- TODO: We chose this to be a type variable but it invariably means that
+--       any other type would fit here as well.
+--       To limit this, we would need to promote the above annotations into
+--       the type level like so: 
+--       https://blog.jle.im/entry/introduction-to-singletons-1.html
 data Ctrl anno where
     VarCtrl :: CtrlInput -> (OutputChannel, Recv) -> Ctrl Var
     -- TODO this is not the right type! It does not transport the 
