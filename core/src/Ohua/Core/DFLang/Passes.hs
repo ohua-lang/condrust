@@ -175,7 +175,7 @@ expectVar a =
 
 -- In this function I use the so called 'Tardis' monad, which is a special state
 -- monad. It has one state that travels "forward" in time, which is the same as
--- the regular state monad, bu it also has a second state that uses lazyness to
+-- the regular state monad, but it also has a second state that uses lazyness to
 -- travel "backwards" in time, meaning that reading the state gives you the
 -- value you'll be setting later. This works fine so long as there are no cyclic
 -- dependencies between the states (which is fairly easy to get wrong).
@@ -201,14 +201,14 @@ collapseNth selectionFunction =
     traverse go .
     toList
   where
-    go e@LetExpr {output = [oldOut], functionRef = DFFnRef _ fun}
+    go e@LetExpr {output = [oldOut], functionRef = DFFnRef ty fun}
         | selectionFunction fun = do
             removedVals <- requestRemoval oldOut
               -- TODO do error handling here. Make sure no index is missing
             let newOuts = IM.elems removedVals
             return $
                 Just
-                    e {output = newOuts, functionRef = DFFnRef OperatorNode fun}
+                    e {output = newOuts, functionRef = DFFnRef ty fun}
         | [DFEnvVar (NumericLit index), _len, DFVar source] <- callArguments e =
             ifM
                 (queryRemoval source)

@@ -116,7 +116,6 @@ import Ohua.Core.ALang.Util
     )
 import Ohua.Core.Unit
 
-import Control.Monad (foldM)
 import Control.Category ((>>>))
 import qualified Data.Text as T
 
@@ -124,7 +123,10 @@ selectSf :: Expression
 selectSf = Lit $ FunRefLit $ FunRef Refs.select Nothing
 
 ifFunSf :: Expression
-ifFunSf = Lit $ FunRefLit $ FunRef "ohua.lang/ifFun" Nothing
+ifFunSf = Lit $ FunRefLit $ FunRef Refs.ifFun Nothing
+
+ifSf :: Expression
+ifSf = Lit $ FunRefLit $ FunRef Refs.ifThenElse Nothing
 
 #if 1
 -- This is a proposal for `ifRewrite` that uses plated to make sure the
@@ -134,9 +136,10 @@ ifFunSf = Lit $ FunRefLit $ FunRef "ohua.lang/ifFun" Nothing
 --             However scrapping the boilerplate is definitely a good thing. It should be
 --             a transformM though.
 ifRewrite :: (Monad m, MonadGenBnd m, MonadError Error m) => Expression -> m Expression
-ifRewrite = rewriteM $ \case
-    "ohua.lang/if" `Apply` cond `Apply` trueBranch `Apply` falseBranch
-        | Lambda trueIn trueBody <- trueBranch
+ifRewrite = transformM $ \case
+    f `Apply` cond `Apply` trueBranch `Apply` falseBranch
+        | f == ifSf
+        , Lambda trueIn trueBody <- trueBranch
         , isUnit trueIn
         , Lambda falseIn falseBody <- falseBranch
         , isUnit falseIn -> do
@@ -150,7 +153,7 @@ ifRewrite = rewriteM $ \case
                 trueResult <- generateBindingWith "trueResult"
                 falseResult <- generateBindingWith "falseResult"
                 result <- generateBindingWith "result"
-                return $ Just $
+                return $
                     Let ctrls (Apply ifFunSf cond) $
                     mkDestructured [ctrlTrue, ctrlFalse] ctrls $
                     Let trueResult trueBranch' $
@@ -166,13 +169,14 @@ ifRewrite = rewriteM $ \case
         -- FIXME The proper way to do this would actually define a cond type! Then also
         --       the above error would immediately go away.
         isUnit = unwrap >>> T.isPrefixOf "_"
-    _ -> pure Nothing
+    e -> pure e
 
 #else
 
+ifRewrite :: MonadGenBnd f => Expr -> f Expr
 ifRewrite (Let v a b) = Let v <$> ifRewrite a <*> ifRewrite b
 ifRewrite (Lambda v e) = Lambda v <$> ifRewrite e
-ifRewrite (Apply (Apply (Apply (Lit (FunRefLit (FunRef "ohua.lang/if" Nothing))) cond) trueBranch) falseBranch)
+ifRewrite (Apply (Apply (Apply f cond) trueBranch) falseBranch) | f == ifSf
     -- traceM $ "true branch: " <> (show trueBranch)
     -- traceM $ "false branch: " <> (show falseBranch)
  = do
@@ -186,8 +190,8 @@ ifRewrite (Apply (Apply (Apply (Lit (FunRefLit (FunRef "ohua.lang/if" Nothing)))
     -- now these can become normal expressions
     -- TODO match against "()" - unit symbol for args
     -- FIXME This is an assumption that should be covered by the type of this call!
-    let ((_:[]), trueBranch''') = lambdaArgsAndBody trueBranch''
-    let ((_:[]), falseBranch''') = lambdaArgsAndBody falseBranch''
+    let ([_], trueBranch''') = lambdaArgsAndBody trueBranch''
+    let ([_], falseBranch''') = lambdaArgsAndBody falseBranch''
     -- return $
     --     [ohualang|
     --       let ($var:ctrlTrue, $var:ctrlFalse) = ohua.lang/ifFun $var:cond in
