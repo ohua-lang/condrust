@@ -62,6 +62,13 @@ prelude explicitly.
 
 The following are some notes on using `Universum`, assembled for your convenience:
 
+- Be very careful when using `[]` in your code. 
+
+  If your module also includes `NonEmpty` then this will always result in a runtime 
+  error! The reason for that is because we have the `OverloadedLists` extension enabled
+  and `NonEmpty` implements an instance of `IsList`. So `[]` desugars into `NE.fromList []`
+  which will always fail!
+
 - `error` from `Universum` uses `Text` rather than `String`
 
   This should not be an issue, most value we manipulate in this library are
