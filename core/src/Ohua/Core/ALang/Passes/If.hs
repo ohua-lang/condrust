@@ -108,13 +108,7 @@ import Ohua.Core.Prelude
 import Ohua.Core.ALang.Lang
 import Ohua.Core.ALang.Passes.Control (liftIntoCtrlCtxt)
 import qualified Ohua.Core.ALang.Refs as Refs (ifFun, ifThenElse, select)
-import Ohua.Core.ALang.Util
-    ( fromListToApply
-    , lambdaArgsAndBody
-    , lambdaLifting
-    , mkDestructured
-    )
-import Ohua.Core.Unit
+import Ohua.Core.ALang.Util (mkDestructured)
 
 import Control.Category ((>>>))
 import qualified Data.Text as T

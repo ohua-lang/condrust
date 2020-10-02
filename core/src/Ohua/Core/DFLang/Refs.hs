@@ -3,54 +3,38 @@ module Ohua.Core.DFLang.Refs where
 import Ohua.Core.Prelude
 
 import qualified Ohua.Core.ALang.Refs as Refs
-import Ohua.Core.DFLang.Lang
 
-import Data.HashMap.Lazy as HM
 
-lowerBuiltinFunctions :: QualifiedBinding -> Maybe DFFnRef
-lowerBuiltinFunctions = flip HM.lookup builtInFunctions
-  where
-    builtInFunctions =
-        HM.fromList
-            [ (Refs.collect, collect)
-            , (Refs.smapFun, smapFun)
-            , (Refs.ifFun, ifFun)
-            , (Refs.select, select)
-            , (Refs.ctrl, ctrl)
-            , (recurFunBnd, recurFun)
-            , (Refs.seqFun, seqFun)
-            ]
+collect :: QualifiedBinding
+collect = Refs.collect
 
-collect :: DFFnRef
-collect = DFFunction Refs.collect
+smapFun :: QualifiedBinding
+smapFun = Refs.smapFun
 
-smapFun :: DFFnRef
-smapFun = DFFunction Refs.smapFun
+ifFun :: QualifiedBinding
+ifFun = Refs.ifFun
 
-ifFun :: DFFnRef
-ifFun = EmbedSf Refs.ifFun
+select :: QualifiedBinding
+select = Refs.select
 
-select :: DFFnRef
-select = DFFunction Refs.select
-
-ctrl :: DFFnRef
-ctrl = DFFunction Refs.ctrl
+ctrl :: QualifiedBinding
+ctrl = Refs.ctrl
 
 recurFunBnd :: QualifiedBinding
 recurFunBnd = "ohua.lang/recurFun"
 
-recurFun :: DFFnRef
-recurFun = DFFunction recurFunBnd
+recurFun :: QualifiedBinding
+recurFun = recurFunBnd
 
-seqFun :: DFFnRef
-seqFun = EmbedSf Refs.seqFun
+seqFun :: QualifiedBinding
+seqFun = Refs.seqFun
 
-unitFun :: DFFnRef
-unitFun = EmbedSf Refs.unitFun
+unitFun :: QualifiedBinding
+unitFun = Refs.unitFun
 
-runSTCLangSMap :: DFFnRef
-runSTCLangSMap = DFFunction Refs.runSTCLangSMap
+runSTCLangSMap :: QualifiedBinding
+runSTCLangSMap = Refs.runSTCLangSMap
 
-runSTCLangIf :: DFFnRef
-runSTCLangIf = DFFunction Refs.runSTCLangIf
+runSTCLangIf :: QualifiedBinding
+runSTCLangIf = Refs.runSTCLangIf
 

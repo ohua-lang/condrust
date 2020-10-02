@@ -4,7 +4,7 @@ synopsis: Fundamental, platform independent functionality of the ohua compiler.
 description: |
   Components for compiling a portable dataflow graph from an expression-based language.
   Performs tasks such as rewriting, lowering and optimizations.
-  Resulting graphs can be executed by any runtime, regardles of platform or language
+  Resulting graphs can be executed by any runtime, regardless of platform or language
   that implements the ohua core operators and execution semantics.
 
   For the standalone executable compiler see https://github.com/sertel/ohuac
@@ -24,16 +24,13 @@ dependencies:
 - mtl
 - aeson # >= 1.0.0.0
 - lens
-#- microlens
-#- microlens-mtl
 - containers
 - bytestring
-#- deepseq
 - data-default-class
 - universum >= 1.0 # on version 1.6.1
-- tardis
 - generic-lens >= 1.0.0.2
 - ohuac-commons
+- extra
 default-extensions:
 - OverloadedStrings
 - OverloadedLists

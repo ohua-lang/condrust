@@ -8,7 +8,7 @@ import Ohua.Core.DFLang.Lang
 data CustomPasses = CustomPasses
   { passBeforeNormalize  :: Expression -> OhuaM Expression
   , passAfterNormalize  :: Expression -> OhuaM Expression
-  , passAfterDFLowering :: DFExpr -> OhuaM DFExpr
+  , passAfterDFLowering :: NormalizedDFExpr -> OhuaM NormalizedDFExpr
   }
 
 noCustomPasses :: CustomPasses

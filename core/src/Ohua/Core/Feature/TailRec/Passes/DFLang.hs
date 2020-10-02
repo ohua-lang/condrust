@@ -6,44 +6,38 @@ import Ohua.Core.Prelude
 
 import Ohua.Core.DFLang.Lang
 import Ohua.Core.DFLang.Refs as Refs
-import Ohua.Core.DFLang.Util
 import qualified Ohua.Core.Feature.TailRec.Passes.ALang as ALangPass
+import Ohua.Core.DFLang.Passes (checkDefinedUsage)
 
 import Data.Sequence as DS (fromList)
 
-recurLowering :: DFExpr -> DFExpr
-recurLowering (DFExpr letExprs returnVar)
+-- | Here, we are actually tying the knot and create the final recurFun node (replacing recurStart)
+--   the has the loop-back connection to the start of the recursion.
+recurLowering :: (MonadOhua m) => NormalizedDFExpr -> m NormalizedDFExpr
+recurLowering expr
   -- 1. Find the recurFun with two outputs
- =
-    flip DFExpr returnVar $
-    DS.fromList $
-    filter ((/= ALangPass.recurEndMarker) . nodeRef . functionRef) $
-    transform transformator (toList letExprs)
+ = checkDefinedUsage expr >> -- expresses a precondition for the below transformation
+    transformM f expr
   where
-    transformator [] = []
-    transformator l@(recurStart:rest) =
-        if nodeRef (functionRef recurStart) /= ALangPass.recurStartMarker
-            then l
-            else assert (length (output recurStart) == 2) $
-                 let findEnd l@(LetExpr {functionRef = f})
-                         | nodeRef f == ALangPass.recurEndMarker = l
-                              -- all paths lead to the final recurFun because this is a connected component where
-                            -- the recurFun at the very end has the only outgoing arc.
-                     findEnd e = findEnd $ allSuccessors e
-                     allSuccessors b = (head b) $ (flip findUsages rest <=< output) b
-                     endFunction = findEnd $ allSuccessors recurStart
-                     fixRef:cond:recurArgs = callArguments endFunction
-                  in recurStart
-                         { output = output recurStart <> output endFunction
-                         , functionRef = Refs.recurFun
-                              -- FIXME we don't need the var lists when we use the assertion
-                              -- that these two lists have the same size! and this is always
-                              -- true because these are the arguments to a call to the same
-                              -- function, i.e, the recursion!
-                         , callArguments =
-                               fixRef :
-                               cond : callArguments recurStart <> recurArgs
-                         } :
-                     rest
-    head b (x:_) = x
-    head b _ = error $ "head: unable to find usages for " <> show b
+    f l@(LetPureFun (PureFun (Destruct [out1, out2]) fun inp) rest) 
+      | fun == ALangPass.recurStartMarker =
+        let (endFunction, rest') = findEnd rest
+            fixRef:cond:recurArgs = insDFApp endFunction
+        in LetPureDFFun 
+            (PureDFFun 
+              (Destruct $ [out1, out2] <> outsDFApp endFunction) 
+              Refs.recurFun 
+                -- FIXME we don't need the var lists when we use the assertion
+                -- that these two lists have the same size! and this is always
+                -- true because these are the arguments to a call to the same
+                -- function, i.e, the recursion!
+              $ fixRef : cond :| inp <> recurArgs)
+            rest'
+    f e = e
+
+    findEnd (LetPureDFFun app cont) | fnDFApp app == ALangPass.recurEndMarker = return (app, cont)
+    findEnd (LetPureDFFun app cont) = second (LetPureDFFun app) <$> findEnd cont
+    findEnd (LetStateDFFun app cont) = second (LetStateDFFun app) <$> findEnd cont
+    -- FIXME This looks like we should perform this transformation differently, so we
+    -- can avoid this failure case. 
+    findEnd (VarDFFun _) = failWith "Did not find end marker for recursion"

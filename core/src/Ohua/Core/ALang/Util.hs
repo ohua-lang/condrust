@@ -97,13 +97,15 @@ mkLambda args expr = go expr $ reverse args
     go e (a:as) = flip go as $ Lambda a e
     go e [] = e
 
+-- FIXME pattern match failure because ALang not precise enough (see issue #8)
 replaceLit :: Expression -> (Expression, Binding) -> Expression
 replaceLit e (Lit old, new) =
     flip transform e $ \case
         Lit l
             | l == old -> Var new
         other -> other
-
+        
+-- FIXME pattern match failure because ALang not precise enough (see issue #8)
 renameVar :: Expression -> (Expression, Binding) -> Expression
 renameVar e (Var old, new) =
     flip transform e $ \case
@@ -221,18 +223,28 @@ mkDestructured :: [Binding] -> Binding -> Expression -> Expression
 mkDestructured formals compound = destructure (Var compound) formals
 
 findDestructured :: Expression -> Binding -> [Binding]
-findDestructured e bnd = 
-    map snd $
-    sort 
-        [ (i,v) 
-        | Let v 
+findDestructured expr bnd = map (\(v,_,_) -> v) $ findDestructuredWithExpr expr bnd
+
+-- | Returns the letted nth nodes and their continuations such that they can later on be
+--   removed. Assumes SSA form.
+findDestructuredWithExpr :: Expression -> Binding -> [(Binding, Expression, Expression)]
+findDestructuredWithExpr e bnd = 
+    map (\(_,v,l,c) -> (v,l,c)) $
+    sortOn (\(i,_,_,_) -> i)
+        [ (i,v,l,c) 
+        | l@(Let v 
             (PureFunction "ohua.lang/nth" _ `Apply` 
                 Lit (NumericLit i) `Apply` 
                 _ `Apply` 
                 Var bnd')
-            _  
+            c)  
             <- universe e
         , bnd == bnd']
+
+replaceExpr :: (Expression, Expression) -> Expression -> Expression
+replaceExpr (old,new) = transform f
+    where 
+        f expr | expr == old = new
 
 pattern NthFunction :: Binding -> Expression
 pattern NthFunction bnd <- PureFunction "ohua.lang/nth" _ `Apply` _ `Apply` _ `Apply` Var bnd

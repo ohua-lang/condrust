@@ -6,11 +6,11 @@ import Ohua.Core.ALang.Lang
 import Ohua.Core.DFLang.Lang
 
 
-cleanUnits :: Applicative m => DFExpr -> m DFExpr
-cleanUnits (DFExpr lets ret) = pure $ DFExpr (fmap f lets) ret
-  where
-    f e@(LetExpr{callArguments=[a]}) | a == dfVarUnit = e {callArguments = []}
-    f e                              = e
+-- cleanUnits :: Applicative m => DFExpr -> m DFExpr
+-- cleanUnits (DFExpr lets ret) = pure $ DFExpr (fmap f lets) ret
+--   where
+--     f e@(LetExpr{callArguments=[a]}) | a == dfVarUnit = e {callArguments = []}
+--     f e                              = e
 
 unitSym :: Lit
 unitSym = UnitLit

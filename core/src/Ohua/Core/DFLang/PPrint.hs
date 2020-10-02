@@ -9,38 +9,38 @@ import Data.Text.Prettyprint.Doc as PP
 import Ohua.Core.ALang.PPrint ()
 import Ohua.Core.DFLang.Lang
 
-prettyDFExpr :: DFExpr -> Doc a
-prettyDFExpr DFExpr {..} =
-    vsep $ map prettyLetExpr (toList letExprs) <> [pretty returnVar]
 
-instance Pretty DFExpr where
-    pretty = prettyDFExpr
+instance Pretty NormalizedExpr where
+    pretty = \case
+        (LetPureFun app cont) -> printIt app cont
+        (LetStateFun app cont) -> printIt app cont
+        (VarFun bnd) -> vsep [pretty bnd]
+        where
+            printIt app cont = vsep $ pretty app : [pretty cont]
 
-prettyLetExpr :: LetExpr -> Doc a
-prettyLetExpr LetExpr {..} =
-    hsep $
-    [ "let"
-    , align $ tupled $ map pretty output
-    , "="
-    , pretty functionRef <> angles (pretty callSiteId)
-    ] <>
-    maybe [] (pure . brackets . pretty) stateArgument <>
-    [align $ tupled $ map pretty callArguments, "in"]
+instance Pretty (ABinding a) where
+    pretty = pretty . unwrapABnd
 
-instance Pretty LetExpr where
-    pretty = prettyLetExpr
-
-prettyDFVar :: DFVar -> Doc a
-prettyDFVar = \case
-    DFEnvVar he -> pretty he
-    DFVar b -> pretty b
+instance Pretty (App a) where
+    pretty (PureFun output fun inps) =
+        hsep $
+            [ "let"
+            , align $ pretty output
+            , "="
+            , pretty fun
+            ] <>
+            [align $ tupled $ toList $ map pretty inps, "in"]
+    pretty (StateFun (stateOut, out) fun stateIn inps) =
+        hsep $
+            [ "let"
+            , align $ tupled [maybe "_" pretty stateOut, pretty out]
+            , "="
+            , pretty fun
+            ] <>
+            (pure . brackets . pretty) stateIn <>
+            [align $ tupled $ toList $ map pretty inps, "in"]
 
 instance Pretty DFVar where
-    pretty = prettyDFVar
-
-prettyDFFnRef :: DFFnRef -> Doc a
-prettyDFFnRef (DFFunction f) = "dataflow" <+> pretty f
-prettyDFFnRef (EmbedSf f) = pretty f
-
-instance Pretty DFFnRef where
-    pretty = prettyDFFnRef
+    pretty = \case
+        DFEnvVar he -> pretty he
+        DFVar b -> pretty b
