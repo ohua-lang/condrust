@@ -53,16 +53,6 @@ default-extensions:
 - RankNTypes
 - ViewPatterns
 - QuasiQuotes
-executables:
-  test-graph-gen:
-    main: GenJSONGraph.hs
-    other-modules: []
-    source-dirs:
-    - src
-    - ./.
-    dependencies:
-    - ohua-core
-    - QuickCheck
 tests:
   ohua-tests:
     main: Spec.hs

@@ -8,7 +8,7 @@
 -- Stability   : experimental
 
 -- This source code is licensed under the terms described in the associated LICENSE.TXT file
-{-# LANGUAGE OverloadedStrings, LambdaCase, TupleSections, TypeFamilies, FlexibleContexts #-}
+{-# LANGUAGE OverloadedStrings, LambdaCase, TupleSections, TypeFamilies, FlexibleContexts, DataKinds #-}
 module Ohua.Core.DFLang.Parser
     ( parseExp
     ) where
@@ -41,7 +41,6 @@ import Prelude ((!!))
 
     let             { KWLet }
     in              { KWIn }
-    dataflow        { KWDataflow }
     '('             { LParen }
     ')'             { RParen }
     '['             { LBracket }
@@ -86,19 +85,30 @@ ModId
     : id    { makeThrow [$1] :: NSRef }
     | nsid  { $1 }
 
-Exp :: { DFExpr }
-Exp : many(LetExpr) id { DFExpr (Seq.fromList $1) $2 }
+Exp :: { NormalizedExpr }
+Exp : LetExpr Exp   { $1 $2 }
+    | id            { Var $1 }
 
-FnId :: { FnId }
-FnId : int { makeThrow $ fromInteger $1 }
-
-LetExpr :: { LetExpr }
-LetExpr : let Pat '=' FnRef '<' FnId '>' opt(StateArg) tuple(DFVar) in { LetExpr $6 $2 $4 $8 $9 }
+LetExpr :: { NormalizedExpr -> NormalizedExpr }
+LetExpr : let Pat '=' FnRef opt(StateArg) tuple(DFVar) in 
+    { 
+        let outs = $2 in
+        let fun = $4 in
+        let state = $5 in
+        let inp = case $6 of
+                    [] -> DFEnvVar UnitLit :| []
+                    (a:r) -> a :| r
+        in case state of
+            Just s -> Let $ StateFun outs fun s inp
+            Nothing -> case outs of 
+                        (Nothing, out) -> Let $ PureFun out fun inp
+                        _ -> error "Wrong output format. Only single result allowed."
+    }
 
 DFVar :: { DFVar }
 DFVar
     : Lit { DFEnvVar $1 }
-    | id      { DFVar $1 }
+    | id  { DFVar $ DataBinding $1 }
 
 Lit :: { Lit }
     : int { NumericLit $1 }
@@ -106,14 +116,15 @@ Lit :: { Lit }
     | unit { UnitLit }
     | qualid { FunRefLit $ FunRef $1 Nothing }
 
-FnRef :: { DFFnRef }
-FnRef : opt(dataflow) qualid { maybe EmbedSf (const DFFunction) $1 $2 }
+FnRef :: { QualifiedBinding }
+FnRef : qualid { $1 }
 
-StateArg :: { DFVar }
-StateArg : '[' DFVar ']' { $2 }
+StateArg :: { ABinding 'State }
+StateArg : '[' id ']' { StateBinding $2 }
 
-Pat :: { Pat }
-Pat : tuple(id) { $1 }
+Pat :: {( Maybe (ABinding 'State), ABinding 'Data) }
+Pat : '(' id ',' id ')' { (Just $ StateBinding $2, DataBinding $4) }
+    | id { (Nothing, DataBinding $1)}
 
 {
 
@@ -134,7 +145,7 @@ parseError token = do
   (line, col) <- getLexerPos
   alexError $ ("Parse error at line " <> show line <> ", column " <> show col <> ", on token " <> show token :: String)
 
-parseExp :: Input -> DFExpr
+parseExp :: Input -> NormalizedExpr
 parseExp = runPM parseExpRaw
 
 }

@@ -10,8 +10,7 @@ import qualified Data.HashSet as HS
 import qualified Data.Text as T
 import Test.QuickCheck
 
-import Ohua.Core.ALang.Lang
-import Ohua.Core.DFGraph
+import Ohua.Core.ALang.Lang as ALang
 import Ohua.Core.DFLang.Lang
 
 genFromMake :: (HasCallStack, Make t, Arbitrary (SourceType t)) => Gen t
@@ -37,27 +36,28 @@ reservedWords =
 instance Arbitrary T.Text where
     arbitrary = T.pack <$> arbitrary
 
-instance Arbitrary NodeType where
-    arbitrary = oneof [pure OperatorNode, pure FunctionNode]
+-- instance Arbitrary NodeType where
+--     arbitrary = oneof [pure OperatorNode, pure FunctionNode]
 
-instance Arbitrary Operator where
-    arbitrary = Operator <$> arbitrary <*> arbitrary <*> arbitrary
+-- instance Arbitrary Operator where
+--     arbitrary = Operator <$> arbitrary <*> arbitrary <*> arbitrary
 
-instance Arbitrary Target where
-    arbitrary = liftM2 Target arbitrary arbitrary
+-- instance Arbitrary Target where
+--     arbitrary = liftM2 Target arbitrary arbitrary
 
-instance Arbitrary a => Arbitrary (Arcs a) where
-    arbitrary = liftM3 Arcs arbitrary arbitrary arbitrary
+-- instance Arbitrary a => Arbitrary (Arcs a) where
+--     arbitrary = liftM3 Arcs arbitrary arbitrary arbitrary
 
-instance ( Arbitrary a, Arbitrary b ) => Arbitrary (Arc a b) where
-    arbitrary = Arc <$> arbitrary <*> arbitrary
+-- instance ( Arbitrary a, Arbitrary b ) => Arbitrary (Arc a b) where
+--     arbitrary = Arc <$> arbitrary <*> arbitrary
 
-instance Arbitrary a => Arbitrary (Source a) where
-    arbitrary = oneof [LocalSource <$> arbitrary, EnvSource <$> arbitrary]
+-- instance Arbitrary a => Arbitrary (Source a) where
+--     arbitrary = oneof [LocalSource <$> arbitrary, EnvSource <$> arbitrary]
 
-instance Arbitrary a => Arbitrary (AbstractOutGraph a) where
-    arbitrary = liftM3 OutGraph arbitrary arbitrary arbitrary
+-- instance Arbitrary a => Arbitrary (AbstractOutGraph a) where
+--     arbitrary = liftM3 OutGraph arbitrary arbitrary arbitrary
 
+isValidForBinding :: Binding -> Bool
 isValidForBinding = not . flip HS.member reservedWords
 
 instance Arbitrary Binding where
@@ -101,41 +101,42 @@ instance Arbitrary Lit where
             , pure UnitLit
             ]
 
-instance Arbitrary Expr where
+instance Arbitrary ALang.Expr where
     arbitrary = sized expr
       where
-        expr :: Int -> Gen Expr
-        expr 0 = Var <$> arbitrary
+        expr :: Int -> Gen ALang.Expr
+        expr 0 = ALang.Var <$> arbitrary
         expr n | n>0 =
             oneof
-                [ liftM3 Let arbitrary nestExpr nestExpr
+                [ liftM3 ALang.Let arbitrary nestExpr nestExpr
                 , liftM2 Apply nestExpr nestExpr
                 , liftM2 Lambda arbitrary nestExpr
                 , Lit <$> arbitrary
-                , Var <$> arbitrary
+                , ALang.Var <$> arbitrary
                 ]
           where
             nestExpr = expr $ n `div` 2
-    shrink (Let a b c) = b : c : [Let a b' c' | (b', c') <- shrink (b, c)]
+    shrink (ALang.Let a b c) = b : c : [ALang.Let a b' c' | (b', c') <- shrink (b, c)]
     shrink (Apply a b) = a : b : [Apply a' b' | (a', b') <- shrink (a, b)]
     shrink (Lambda a b) = b : map (Lambda a) (shrink b)
     shrink _ = []
 
-instance Arbitrary DFExpr where
-    arbitrary = DFExpr <$> arbitrary <*> arbitrary
-    shrink (DFExpr lets ret) = map (`DFExpr` ret) $ shrink lets
+--- TODO
+-- instance Arbitrary DFExpr where
+--     arbitrary = DFExpr <$> arbitrary <*> arbitrary
+--     shrink (DFExpr lets ret) = map (`DFExpr` ret) $ shrink lets
 
-instance Arbitrary LetExpr where
-    arbitrary = LetExpr <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-    shrink (LetExpr id r fr sa ca) =
-        [LetExpr id' r' fr' sa' ca' | (id', r', fr', ca', sa') <- shrink (id, r, fr, ca, sa)]
+-- instance Arbitrary LetExpr where
+--     arbitrary = LetExpr <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+--     shrink (LetExpr id r fr sa ca) =
+--         [LetExpr id' r' fr' sa' ca' | (id', r', fr', ca', sa') <- shrink (id, r, fr, ca, sa)]
 
-instance Arbitrary DFVar where
-    arbitrary = oneof [DFEnvVar <$> arbitrary, DFVar <$> arbitrary]
-    shrink (DFEnvVar e) = map DFEnvVar $ shrink e
-    shrink (DFVar b) = map DFVar $ shrink b
+-- instance Arbitrary DFVar where
+--     arbitrary = oneof [DFEnvVar <$> arbitrary, DFVar <$> arbitrary]
+--     shrink (DFEnvVar e) = map DFEnvVar $ shrink e
+--     shrink (DFVar b) = map DFVar $ shrink b
 
-instance Arbitrary DFFnRef where
-    arbitrary = oneof [DFFunction <$> arbitrary, EmbedSf <$> arbitrary]
-    shrink (DFFunction f) = map DFFunction $ shrink f
-    shrink (EmbedSf f) = map EmbedSf $ shrink f
+-- instance Arbitrary DFFnRef where
+--     arbitrary = oneof [DFFunction <$> arbitrary, EmbedSf <$> arbitrary]
+--     shrink (DFFunction f) = map DFFunction $ shrink f
+--     shrink (EmbedSf f) = map EmbedSf $ shrink f

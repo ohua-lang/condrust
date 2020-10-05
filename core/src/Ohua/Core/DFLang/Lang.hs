@@ -187,7 +187,8 @@ deriving instance Lift (DFApp a)
 
 -- deriving instance Show NormalizedDFExpr
 -- deriving instance Eq NormalizedDFExpr
--- deriving instance Lift NormalizedDFExpr
+deriving instance Lift NormalizedExpr
+deriving instance Lift NormalizedDFExpr
 -- makeBaseFunctor ''NormalizedDFExpr
 -- deriving instance Lift a => Lift (NormalizedDFExprF a)
 
