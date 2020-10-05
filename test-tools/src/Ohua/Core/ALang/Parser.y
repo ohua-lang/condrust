@@ -22,7 +22,6 @@ import Ohua.Core.ParseTools.Refs (ifBuiltin, mkTuple, smapBuiltin, seqBuiltin)
 import qualified Data.HashMap.Strict as HM
 import qualified Ohua.Core.ParseTools.Refs as Refs
 import qualified Ohua.Core.ALang.Refs as Refs
-import Ohua.Core.Unit (someUnitExpr)
 import Data.List.NonEmpty (NonEmpty((:|)))
 
 import Prelude ((!!))

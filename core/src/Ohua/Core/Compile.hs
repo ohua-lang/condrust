@@ -17,7 +17,7 @@ import Ohua.Core.Prelude
 import qualified Data.HashSet as HS
 
 import Control.Lens (view)
-import Ohua.Core.ALang.Lang
+import Ohua.Core.ALang.Lang as ALang
 import Ohua.Core.ALang.Passes
 import Ohua.Core.ALang.Passes.SSA
 import Ohua.Core.Feature.TailRec (loadTailRecPasses)
@@ -53,15 +53,15 @@ pipeline CustomPasses {..} e = do
     whenDebug $ do
         Ohua.Core.ALang.Passes.SSA.checkSSA coreE
         Ohua.Core.ALang.Passes.Verify.checkInvariants coreE
-    dfE <- lowerALang =<< normalize coreE
+    dfE <- lowerToDF =<< normalize coreE
     stage initialDflang dfE
-    Ohua.Core.DFLang.Verify.verify dfE
-    whenDebug $ Ohua.Core.DFLang.Passes.checkSSAExpr dfE
-    dfAfterCustom <- passAfterDFLowering dfE
-    stage customDflang dfAfterCustom
-    coreDfE <- Ohua.Core.DFLang.Passes.runCorePasses dfAfterCustom
+    -- Ohua.Core.DFLang.Verify.verify dfE
+    whenDebug $ Ohua.Core.DFLang.Passes.checkSSA dfE
+    coreDfE <- Ohua.Core.DFLang.Passes.runCorePasses dfE
     stage coreDflang coreDfE
-    whenDebug $ Ohua.Core.DFLang.Passes.checkSSAExpr coreDfE
+    dfAfterCustom <- passAfterDFLowering coreDfE
+    stage customDflang dfAfterCustom
+    whenDebug $ Ohua.Core.DFLang.Passes.checkSSA dfAfterCustom
     pure coreDfE
 
 -- | Run the pipeline in an arbitrary monad that supports error reporting.
@@ -77,9 +77,10 @@ compile opts passes exprs = do
 hofNames :: HashSet QualifiedBinding
 hofNames = HS.fromList [Refs.smap, Refs.ifThenElse, Refs.seq, Refs.recur, y]
 
+-- FIXME I don't think this is needed anymore once issue #8 is resolved.
 -- | Verify that only higher order functions have lambdas as arguments
 checkHigherOrderFunctionSupport :: MonadOhua m => Expression -> m ()
-checkHigherOrderFunctionSupport (Let _ e rest) = do
+checkHigherOrderFunctionSupport (ALang.Let _ e rest) = do
     void $ checkNestedExpr e
     checkHigherOrderFunctionSupport rest
   where
@@ -91,10 +92,10 @@ checkHigherOrderFunctionSupport (Let _ e rest) = do
             show f
         pure True
     checkNestedExpr (PureFunction n _) = pure $ HS.member n hofNames
-    checkNestedExpr (Var _) = pure False
+    checkNestedExpr (ALang.Var _) = pure False
     checkNestedExpr a = failWith $ "Expected var or apply expr, got " <> show a
     isLambda (Lambda _ _) = True
     isLambda _ = False
-checkHigherOrderFunctionSupport (Var _) = pure ()
+checkHigherOrderFunctionSupport (ALang.Var _) = pure ()
 checkHigherOrderFunctionSupport a =
     failWith $ "Expected let or var, got " <> show a

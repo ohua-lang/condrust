@@ -223,28 +223,30 @@ mkDestructured :: [Binding] -> Binding -> Expression -> Expression
 mkDestructured formals compound = destructure (Var compound) formals
 
 findDestructured :: Expression -> Binding -> [Binding]
-findDestructured expr bnd = map (\(v,_,_) -> v) $ findDestructuredWithExpr expr bnd
-
--- | Returns the letted nth nodes and their continuations such that they can later on be
---   removed. Assumes SSA form.
-findDestructuredWithExpr :: Expression -> Binding -> [(Binding, Expression, Expression)]
-findDestructuredWithExpr e bnd = 
-    map (\(_,v,l,c) -> (v,l,c)) $
-    sortOn (\(i,_,_,_) -> i)
-        [ (i,v,l,c) 
-        | l@(Let v 
-            (PureFunction "ohua.lang/nth" _ `Apply` 
-                Lit (NumericLit i) `Apply` 
-                _ `Apply` 
-                Var bnd')
-            c)  
-            <- universe e
-        , bnd == bnd']
+findDestructured expr bnd = map (\(v,_,_) -> v) $ findDestructuredWithExpr expr
+    where
+        -- | Returns the letted nth nodes and their continuations such that they can later on be
+        --   removed. Assumes SSA form.
+        --   Be careful with this function because the returned expressions maybe nested with each other!
+        findDestructuredWithExpr :: Expression -> [(Binding, Expression, Expression)]
+        findDestructuredWithExpr e = 
+            map (\(_,v,l,c) -> (v,l,c)) $
+            sortOn (\(i,_,_,_) -> i)
+                [ (i,v,l,c) 
+                | l@(Let v 
+                    (PureFunction "ohua.lang/nth" _ `Apply` 
+                        Lit (NumericLit i) `Apply` 
+                        _ `Apply` 
+                        Var bnd')
+                    c)  
+                    <- universe e
+                , bnd == bnd']
 
 replaceExpr :: (Expression, Expression) -> Expression -> Expression
 replaceExpr (old,new) = transform f
     where 
         f expr | expr == old = new
+        f expr = expr
 
 pattern NthFunction :: Binding -> Expression
 pattern NthFunction bnd <- PureFunction "ohua.lang/nth" _ `Apply` _ `Apply` _ `Apply` Var bnd

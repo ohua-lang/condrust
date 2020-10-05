@@ -1,13 +1,10 @@
 {-# LANGUAGE DataKinds #-}
--- {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DeriveLift #-}
-{-# LANGUAGE TemplateHaskell #-}
 module Ohua.Core.DFLang.Lang where
 
 import Ohua.Core.Prelude
-import Data.Functor.Foldable.TH (makeBaseFunctor)
 import Language.Haskell.TH.Syntax (Lift)
-import Control.Lens.Plated
 
 import qualified Data.List.NonEmpty as NE
 
@@ -36,21 +33,13 @@ data DFVar
     | DFVar (ABinding 'Data) -- TODO should be polymorph in the annotation
     deriving (Eq, Show, Generic, Lift)
 
--- | Annotations for the first normal formal
-data FunANF 
+-- | Annotations for functions
+data FunANF :: Type where
     -- | a pure function
-    = Fun
+    Fun :: FunANF
     -- | a state thread
-    | ST
+    ST :: FunANF
     deriving (Show, Eq, Generic, Lift)
-
--- -- | Annotations for the second normal formal
--- data DataflowANF 
---     -- | a pure function
---     = DfFun
---     -- | a state thread
---     | DfST
---     deriving (Show, Eq, Generic, Lift)
 
 -- | The applicative normal form with the ops resolved.
 --   (a function with a single result)
@@ -62,18 +51,21 @@ data App :: FunANF -> Type where
     --      whole expression. This would then immediately remove the unwrapABnd function.
     PureFun :: forall (b::BindingType).
         ABinding b -> QualifiedBinding -> NonEmpty DFVar -> App 'Fun
-    StateFun :: (Maybe (ABinding 'State), ABinding 'Data) -> QualifiedBinding -> ABinding 'State -> NonEmpty DFVar -> App 'ST
+    StateFun :: (Maybe (ABinding 'State), ABinding 'Data) 
+            -> QualifiedBinding -> ABinding 'State -> NonEmpty DFVar -> App 'ST
     -- TODO define the builtin functions right here:
     -- SMap :: Binding -> '[Binding, Binding] -> App 'SMapFun
     -- If
     -- (no need to introduce Nth here at all!)
+
 
 -- | The applicative normal form with the ops resolved.
 --   (a function with output destructuring and dispatched result)
 data DFApp :: FunANF -> Type where
     PureDFFun ::  forall (b::BindingType).
         OutData b -> QualifiedBinding -> NonEmpty DFVar -> DFApp 'Fun
-    StateDFFun :: (Maybe (OutData 'State), OutData 'Data) -> QualifiedBinding -> ABinding 'State -> NonEmpty DFVar -> DFApp 'ST
+    StateDFFun :: (Maybe (OutData 'State), OutData 'Data) 
+                -> QualifiedBinding -> ABinding 'State -> NonEmpty DFVar -> DFApp 'ST
     -- SMapFun
     -- Collect
     -- Ctrl
@@ -81,21 +73,30 @@ data DFApp :: FunANF -> Type where
     -- Select
     -- RecurFun
 
-data NormalizedExpr 
-    = LetPureFun (App 'Fun) NormalizedExpr
-    | LetStateFun (App 'ST) NormalizedExpr
-    | VarFun Binding
-    deriving (Show, Eq, Generic)
+data Expr :: (FunANF -> Type) -> Type where
+     Let :: forall (a::FunANF) f. 
+            (Show (f a), Function (f a)) => 
+            f a -> Expr f -> Expr f
+     Var :: Binding -> Expr f
+    -- deriving (Show, Eq, Generic)
+
+-- data NormalizedExpr
+--     -- FIXME this is polymorph! maybe even like f a, so the below definitions collapse.
+--     = LetPureFun (App 'Fun) NormalizedExpr
+--     | LetStateFun (App 'ST) NormalizedExpr
+--     | VarFun Binding
+--     deriving (Show, Eq, Generic)
 
 -- TODO I believe this is not yet clean enough because it essentially says that two transformations have been performed:
 --      destructuring was resolved and output replication was applied.
 --      But I hope that the former transformation goes away completely once ALang has been refined and the transformations
 --      that introduce nodes that require output destructuring have been moved to this normal form.
-data NormalizedDFExpr 
-    = LetPureDFFun (DFApp 'Fun) NormalizedDFExpr
-    | LetStateDFFun (DFApp 'ST) NormalizedDFExpr
-    | VarDFFun Binding
-    deriving (Generic)
+-- data NormalizedDFExpr 
+--     -- FIXME this is polymorph!
+--     = LetPureDFFun (DFApp 'Fun) NormalizedDFExpr
+--     | LetStateDFFun (DFApp 'ST) NormalizedDFExpr
+--     | VarDFFun Binding
+--     deriving (Generic)
 
 ----------------------------
 -- Accessor functions
@@ -112,17 +113,17 @@ outsDFApp (StateDFFun (Nothing, out) _ _ _) = outBnds out
 outsDFApp (StateDFFun (Just stateOut, out) _ _ _) = outBnds stateOut <> outBnds out
 
 outBnds :: OutData a -> NonEmpty Binding
-outBnds (Destruct outs) = sconcat $ NE.map outBnds outs
-outBnds (Dispatch outs) = NE.map unwrapABnd outs
+outBnds (Destruct o) = sconcat $ NE.map outBnds o
+outBnds (Dispatch o) = NE.map unwrapABnd o
 outBnds (Direct bnd) = unwrapABnd bnd :| []
 
 insApp :: App a -> [Binding]
-insApp (PureFun _ _ ins) = extractBndsFromInputs ins
-insApp (StateFun _ _ _ ins) = extractBndsFromInputs ins
+insApp (PureFun _ _ i) = extractBndsFromInputs i
+insApp (StateFun _ _ _ i) = extractBndsFromInputs i
 
 insDFApp :: DFApp a -> [Binding]
-insDFApp (PureDFFun _ _ ins) = extractBndsFromInputs ins
-insDFApp (StateDFFun _ _ _ ins) = extractBndsFromInputs ins
+insDFApp (PureDFFun _ _ i) = extractBndsFromInputs i
+insDFApp (StateDFFun _ _ _ i) = extractBndsFromInputs i
 
 extractBndsFromInputs :: NonEmpty DFVar -> [Binding]
 extractBndsFromInputs = 
@@ -162,13 +163,14 @@ instance Eq (App a) where
 -- We should think about these implications a little harder though!
 deriving instance Lift (App a)
 
--- deriving instance Eq NormalizedExpr
-deriving instance Lift NormalizedExpr
-makeBaseFunctor ''NormalizedExpr
-deriving instance Lift a => Lift (NormalizedExprF a)
+-- deriving instance (Show b, Show (f b)) => Show (Expr (f b))
+-- deriving instance Eq f => Eq (NormalizedExpr f)
+-- deriving instance Lift NormalizedExpr
+-- makeBaseFunctor ''NormalizedExpr
+-- deriving instance Lift a => Lift (NormalizedExprF a)
 
-instance Plated NormalizedExpr where
-  plate = gplate
+-- instance Plated NormalizedExpr where
+--   plate = gplate
 
 deriving instance Show (DFApp a)
 -- instance Eq (DFApp a) where
@@ -183,8 +185,42 @@ instance Eq (DFApp a) where
 
 deriving instance Lift (DFApp a)
 
-deriving instance Show NormalizedDFExpr
-deriving instance Eq NormalizedDFExpr
-deriving instance Lift NormalizedDFExpr
-makeBaseFunctor ''NormalizedDFExpr
-deriving instance Lift a => Lift (NormalizedDFExprF a)
+-- deriving instance Show NormalizedDFExpr
+-- deriving instance Eq NormalizedDFExpr
+-- deriving instance Lift NormalizedDFExpr
+-- makeBaseFunctor ''NormalizedDFExpr
+-- deriving instance Lift a => Lift (NormalizedDFExprF a)
+
+----------------------------------
+-- Types and traversals/helpers
+----------------------------------
+
+type NormalizedExpr = Expr App
+type NormalizedDFExpr = Expr DFApp
+-- TODO
+-- data family Expression (a::FunANF -> Type)
+-- data instance Expression (a::FunANF -> Type) where
+--     NormalizedExpr :: Expression App
+--     NormalizedDFExpr :: Expression DFApp
+
+class Function a where
+    outBindings :: a -> NonEmpty Binding
+    inBindings :: a -> [Binding]
+
+instance Function (App a) where
+    outBindings = outsApp
+    inBindings = insApp
+
+instance Function (DFApp a) where
+    outBindings = outsDFApp
+    inBindings = insDFApp
+
+transformExpr :: (NormalizedDFExpr -> NormalizedDFExpr) -> NormalizedDFExpr -> NormalizedDFExpr
+transformExpr f = runIdentity . transformExprM go
+    where
+        go :: NormalizedDFExpr -> Identity NormalizedDFExpr
+        go = pure . f
+
+transformExprM :: Monad m => (NormalizedDFExpr -> m NormalizedDFExpr) -> NormalizedDFExpr -> m NormalizedDFExpr
+transformExprM f (Let app cont) = f . Let app =<< transformExprM f cont
+transformExprM f v@(Var _) = f v

@@ -4,7 +4,6 @@ module Ohua.Core.Feature.TailRec where
 import Ohua.Core.Prelude
 
 import Ohua.Core.Compile.Configuration
-import Ohua.Core.DFLang.Passes (collapseNth)
 
 import Ohua.Core.Feature.TailRec.Passes.ALang
 import Ohua.Core.Feature.TailRec.Passes.DFLang
@@ -21,8 +20,8 @@ loadTailRecPasses enabled passes =
                    else pure) >=>
               passAfterNormalize passes
         , passAfterDFLowering =
-              passAfterDFLowering passes .
+              passAfterDFLowering passes <=<
               if enabled
-                  then recurLowering . collapseNth (== recurStartMarker)
-                  else id
+                  then recurLowering -- . collapseNth (== recurStartMarker)
+                  else pure
         }

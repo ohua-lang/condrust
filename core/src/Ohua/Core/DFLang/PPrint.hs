@@ -10,11 +10,15 @@ import Ohua.Core.ALang.PPrint ()
 import Ohua.Core.DFLang.Lang
 
 
+instance Pretty NormalizedDFExpr where
+    pretty = \case
+        (Let app cont) -> vsep $ pretty app : [pretty cont]
+        (Var bnd) -> vsep [pretty bnd]
+
 instance Pretty NormalizedExpr where
     pretty = \case
-        (LetPureFun app cont) -> printIt app cont
-        (LetStateFun app cont) -> printIt app cont
-        (VarFun bnd) -> vsep [pretty bnd]
+        (Let app cont) -> printIt app cont
+        (Var bnd) -> vsep [pretty bnd]
         where
             printIt app cont = vsep $ pretty app : [pretty cont]
 
@@ -39,6 +43,30 @@ instance Pretty (App a) where
             ] <>
             (pure . brackets . pretty) stateIn <>
             [align $ tupled $ toList $ map pretty inps, "in"]
+
+instance Pretty (DFApp a) where
+    pretty (PureDFFun output fun inps) =
+        hsep $
+            [ "let"
+            , align $ pretty output
+            , "="
+            , pretty fun
+            ] <>
+            [align $ tupled $ toList $ map pretty inps, "in"]
+    pretty (StateDFFun (stateOut, out) fun stateIn inps) =
+        hsep $
+            [ "let"
+            , align $ tupled [maybe "_" pretty stateOut, pretty out]
+            , "="
+            , pretty fun
+            ] <>
+            (pure . brackets . pretty) stateIn <>
+            [align $ tupled $ toList $ map pretty inps, "in"]
+
+instance Pretty (OutData a) where
+    pretty (Direct b) = pretty b
+    pretty (Destruct ds) = align $ tupled $ map pretty $ toList ds
+    pretty (Dispatch ds) = align $ tupled $ map pretty $ toList ds
 
 instance Pretty DFVar where
     pretty = \case
