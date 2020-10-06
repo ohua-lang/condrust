@@ -129,37 +129,47 @@ checkSSA e =
 --     return $ DFExpr exprs var
 
 lowerToDF :: MonadOhua m => ALang.Expression -> m NormalizedExpr
-lowerToDF = transfer'
+lowerToDF expr = evalStateT (transfer' expr) HS.empty
     where
-        transfer' (ALang.Var bnd) = pure $ DFLang.Var bnd
-        transfer' (ALang.Let _ (NthFunction _) e) = transfer' e
-        transfer' (ALang.Let bnd a e) = do 
+        transfer' :: (MonadState (HS.HashSet Binding) m, MonadOhua m) 
+                => ALang.Expression -> m NormalizedExpr
+        transfer' (ALang.Var bnd) = return $ DFLang.Var bnd
+        transfer' (ALang.Let bnd a@(NthFunction b) e) = do
+                    isStateDestruct <- HS.member b <$> get
+                    if isStateDestruct 
+                    then transfer' e
+                    else transferLet bnd a e
+        transfer' (ALang.Let bnd a e) = transferLet bnd a e
+        transfer' e = failWith $ "Invariant broken. Unexpected expression: " <> show e -- FIXME only here because of ALang type (see issue #8)
+        transferLet bnd a e = do 
             e' <- transfer' e
             app <- handleDefinitionalExpr' bnd a e
             return $ app e'
-        transfer' e = failWith $ "Invariant broken. Unexpected expression: " <> show e -- FIXME only here because of ALang type (see issue #8)
 
-handleDefinitionalExpr' :: (MonadOhua m)
+handleDefinitionalExpr' :: (MonadState (HS.HashSet Binding) m, MonadOhua m)
     => Binding -> ALang.Expression -> ALang.Expression -> m (NormalizedExpr -> NormalizedExpr)
 handleDefinitionalExpr' assign l@(Apply _ _) cont = do
     (fn, s, args) <- handleApplyExpr l
     args' <- mapM expectVar args
-    return $ 
-        case s of
-            Just stateBnd -> DFLang.Let $ st fn stateBnd args'
-            Nothing -> DFLang.Let $ fun fn assign args'
+    case s of
+        Just stateBnd -> DFLang.Let <$> st fn stateBnd args'
+        Nothing -> return $ DFLang.Let $ fun fn assign args'
     where 
-        st :: QualifiedBinding -> ABinding 'State -> [DFVar] -> App 'ST
-        st fn stateBnd args' = (\outs -> StateFun outs fn stateBnd (erroringNE args')) $ 
+        st :: (MonadState (HS.HashSet Binding) m) 
+            => QualifiedBinding -> ABinding 'State -> [DFVar] -> m (App 'ST)
+        st fn stateBnd args' = (\outs -> StateFun outs fn stateBnd (erroringNE args')) <$> 
                     findSTOuts assign
         fun :: QualifiedBinding -> Binding -> [DFVar] -> App 'Fun
         fun fn bnd args' = PureFun (DataBinding bnd) fn $ erroringNE args'
         erroringNE = fromMaybe (error "Invariant broken: Every function has at least one argument!") . nonEmpty
-        findSTOuts :: Binding -> (Maybe (ABinding 'State), ABinding 'Data)
+        findSTOuts :: (MonadState (HS.HashSet Binding) m) 
+                => Binding -> m (Maybe (ABinding 'State), ABinding 'Data)
         findSTOuts bnd = 
             case findDestructured cont bnd of
-                [stateOut, dataOut] -> (Just $ StateBinding stateOut, DataBinding dataOut)
-                _ -> (Nothing, DataBinding bnd)
+                [stateOut, dataOut] -> do
+                    modify (HS.insert bnd)
+                    return (Just $ StateBinding stateOut, DataBinding dataOut)
+                _ -> return (Nothing, DataBinding bnd)
 handleDefinitionalExpr' _ e _ =
     failWith $ "Definitional expressions in a let can only be 'apply' but got: " <>
     show e

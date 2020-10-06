@@ -41,6 +41,15 @@ data FunANF :: Type where
     ST :: FunANF
     deriving (Show, Eq, Generic, Lift)
 
+-- (TODO: As a matter of fact, it is possible to prevent this annotation all together and instead
+--  do what singletons would do: promote App directly. Then we would not have types 'Fun and 'ST but
+--  'PureFun and 'StateFun. This may be much simpler because then we do not have the type-level function
+--  in all of the types!)
+
+-- (TODO: It becomes all clear no how this looks: both App's will have to be extended with the
+--        specific functions that the form incorporates. Question is: can ALang also just be encoded as what it is
+--        while the let itself remindes defined like it is now?!)
+
 -- | The applicative normal form with the ops resolved.
 --   (a function with a single result)
 data App :: FunANF -> Type where
@@ -74,11 +83,9 @@ data DFApp :: FunANF -> Type where
     -- RecurFun
 
 data Expr :: (FunANF -> Type) -> Type where
-     Let :: forall (a::FunANF) f. 
-            (Show (f a), Function (f a)) => 
-            f a -> Expr f -> Expr f
+     Let :: (Show (f a), Function (f a)) => f a -> Expr f -> Expr f
+     -- FIXME this also should probably have a BindingType!
      Var :: Binding -> Expr f
-    -- deriving (Show, Eq, Generic)
 
 -- data NormalizedExpr
 --     -- FIXME this is polymorph! maybe even like f a, so the below definitions collapse.
@@ -163,9 +170,9 @@ instance Eq (App a) where
 -- We should think about these implications a little harder though!
 deriving instance Lift (App a)
 
--- deriving instance (Show b, Show (f b)) => Show (Expr (f b))
--- deriving instance Eq f => Eq (NormalizedExpr f)
--- deriving instance Lift NormalizedExpr
+deriving instance Show NormalizedExpr
+-- deriving instance Eq NormalizedExpr
+deriving instance Lift NormalizedExpr
 -- makeBaseFunctor ''NormalizedExpr
 -- deriving instance Lift a => Lift (NormalizedExprF a)
 
@@ -185,9 +192,8 @@ instance Eq (DFApp a) where
 
 deriving instance Lift (DFApp a)
 
--- deriving instance Show NormalizedDFExpr
+deriving instance Show NormalizedDFExpr
 -- deriving instance Eq NormalizedDFExpr
-deriving instance Lift NormalizedExpr
 deriving instance Lift NormalizedDFExpr
 -- makeBaseFunctor ''NormalizedDFExpr
 -- deriving instance Lift a => Lift (NormalizedDFExprF a)
@@ -207,14 +213,17 @@ type NormalizedDFExpr = Expr DFApp
 class Function a where
     outBindings :: a -> NonEmpty Binding
     inBindings :: a -> [Binding]
+    funRef :: a -> QualifiedBinding
 
 instance Function (App a) where
     outBindings = outsApp
     inBindings = insApp
+    funRef = fnApp
 
 instance Function (DFApp a) where
     outBindings = outsDFApp
     inBindings = insDFApp
+    funRef = fnDFApp
 
 transformExpr :: (NormalizedDFExpr -> NormalizedDFExpr) -> NormalizedDFExpr -> NormalizedDFExpr
 transformExpr f = runIdentity . transformExprM go
@@ -225,3 +234,7 @@ transformExpr f = runIdentity . transformExprM go
 transformExprM :: Monad m => (NormalizedDFExpr -> m NormalizedDFExpr) -> NormalizedDFExpr -> m NormalizedDFExpr
 transformExprM f (Let app cont) = f . Let app =<< transformExprM f cont
 transformExprM f v@(Var _) = f v
+
+-- This is what I want!
+-- paraExpr :: ('Let -> a -> a) -> ('Var -> a) -> NormalizedDFExpr -> a
+-- paraExpr = undefined

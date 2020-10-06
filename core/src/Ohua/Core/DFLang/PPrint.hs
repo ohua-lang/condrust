@@ -9,18 +9,27 @@ import Data.Text.Prettyprint.Doc as PP
 import Ohua.Core.ALang.PPrint ()
 import Ohua.Core.DFLang.Lang
 
+import Data.Text.Prettyprint.Doc.Render.Text
+
+import Data.Text.Lazy as T (Text)
+import qualified Data.Text.Lazy.IO as LT
+
+
+prettyExpr :: Pretty a => a -> T.Text
+prettyExpr = renderLazy . layoutSmart ohuaDefaultLayoutOpts . pretty
+
+prettyExprM :: Pretty a => a -> IO ()
+prettyExprM = LT.putStr . prettyExpr
 
 instance Pretty NormalizedDFExpr where
     pretty = \case
-        (Let app cont) -> vsep $ pretty app : [pretty cont]
+        (Let app cont) -> vsep $ hsep ["let", pretty app, "in"] : [pretty cont]
         (Var bnd) -> vsep [pretty bnd]
 
 instance Pretty NormalizedExpr where
     pretty = \case
-        (Let app cont) -> printIt app cont
+        (Let app cont) -> vsep $ hsep [pretty app, "in"] : [pretty cont]
         (Var bnd) -> vsep [pretty bnd]
-        where
-            printIt app cont = vsep $ pretty app : [pretty cont]
 
 instance Pretty (ABinding a) where
     pretty = pretty . unwrapABnd
@@ -28,40 +37,36 @@ instance Pretty (ABinding a) where
 instance Pretty (App a) where
     pretty (PureFun output fun inps) =
         hsep $
-            [ "let"
-            , align $ pretty output
+            [ align $ pretty output
             , "="
             , pretty fun
             ] <>
-            [align $ tupled $ toList $ map pretty inps, "in"]
+            [align $ tupled $ toList $ map pretty inps]
     pretty (StateFun (stateOut, out) fun stateIn inps) =
         hsep $
-            [ "let"
-            , align $ tupled [maybe "_" pretty stateOut, pretty out]
+            [ align $ tupled [maybe "_" pretty stateOut, pretty out]
             , "="
             , pretty fun
             ] <>
             (pure . brackets . pretty) stateIn <>
-            [align $ tupled $ toList $ map pretty inps, "in"]
+            [align $ tupled $ toList $ map pretty inps]
 
 instance Pretty (DFApp a) where
     pretty (PureDFFun output fun inps) =
         hsep $
-            [ "let"
-            , align $ pretty output
+            [ align $ pretty output
             , "="
             , pretty fun
             ] <>
-            [align $ tupled $ toList $ map pretty inps, "in"]
+            [align $ tupled $ toList $ map pretty inps]
     pretty (StateDFFun (stateOut, out) fun stateIn inps) =
         hsep $
-            [ "let"
-            , align $ tupled [maybe "_" pretty stateOut, pretty out]
+            [ align $ tupled [maybe "_" pretty stateOut, pretty out]
             , "="
             , pretty fun
             ] <>
             (pure . brackets . pretty) stateIn <>
-            [align $ tupled $ toList $ map pretty inps, "in"]
+            [align $ tupled $ toList $ map pretty inps]
 
 instance Pretty (OutData a) where
     pretty (Direct b) = pretty b
