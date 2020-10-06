@@ -19,7 +19,7 @@ import Ohua.Frontend.Types (CompilationScope)
 import Ohua.Core.Types.Environment (Options)
 import Ohua.Core.Compile.Configuration as CoreConfig
 import Ohua.Core.Compile as Core (compile)
-import Ohua.Core.Unit (cleanUnits)
+-- import Ohua.Core.Unit (cleanUnits)
 import Ohua.Backend as B (backend)
 import Ohua.Compile.Lower.FrLang (toAlang)
 import Ohua.Compile.Lower.DFLang (toTCLang)
@@ -51,7 +51,5 @@ compilation inFile compScope coreOpts outDir integration arch = do
     B.backend outDir n' ctxt arch
 
     where
-        core = Core.compile
-            coreOpts
-            (def {CoreConfig.passAfterDFLowering = cleanUnits})
+        core = Core.compile coreOpts def
 
