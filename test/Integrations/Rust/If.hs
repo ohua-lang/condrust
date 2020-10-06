@@ -27,7 +27,7 @@ spec =
                 expected <- showCode "Expected:"
                     [sourceFile| 
                         fn test(i: i32) -> String {
-                        let a_0_0 = ohua::arcs::Channel::new(2);
+                        let a_0_0 = ohua::arcs::Channel::new(1);
                         let b_0_0 = ohua::arcs::Channel::new(1);
                         let c_0_0 = ohua::arcs::Channel::new(1);
                         let ctrlTrue_0 = ohua::arcs::Channel::new(1);
@@ -151,7 +151,7 @@ spec =
                 expected <- showCode "Expected:"
                     [sourceFile| 
                         fn test(i: i32) -> String {
-                        let a_0_0 = ohua::arcs::Channel::new(2);
+                        let a_0_0 = ohua::arcs::Channel::new(1);
                         let ctrlTrue_0 = ohua::arcs::Channel::new(1);
                         let ctrlFalse_0 = ohua::arcs::Channel::new(1);
                         let b_0 = ohua::arcs::Channel::new(1);

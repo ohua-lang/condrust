@@ -20,7 +20,7 @@ spec =
                 expected <- showCode "Expected:"
                     [sourceFile| 
                         fn test(i: i32) -> String {
-                            let state_0_0 = ohua::arcs::Channel::new(0);
+                            let state_0_0 = ohua::arcs::Channel::new(1);
                             let result_0_0 = ohua::arcs::Channel::new(1);
                             let a_0 = ohua::arcs::Channel::new(1);
                             let mut tasks: Vec<Box<FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
@@ -66,7 +66,7 @@ spec =
                 expected <- showCode "Expected:"
                     [sourceFile| 
                         fn test(i: i32) -> String {
-                            let state_0_0 = ohua::arcs::Channel::new(0);
+                            let state_0_0 = ohua::arcs::Channel::new(1);
                             let r1_0_0 = ohua::arcs::Channel::new(1);
                             let mut tasks: Vec<Box<FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
                             tasks

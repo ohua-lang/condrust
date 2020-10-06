@@ -25,10 +25,8 @@ import Language.Rust.Syntax (SourceFile)
 import Language.Rust.Parser (parse', readInputStream, Span)
 import Data.Text.Prettyprint.Doc
 import Data.Text.Prettyprint.Doc.Render.Text
-import Data.Text.Prettyprint.Doc.Render.String (renderShowS)
 import Data.Text as T (concat, Text)
 import qualified Data.ByteString.Lazy.Char8 as L
-import qualified Data.Text.Lazy.IO as LT
 
 
 debug :: Bool
@@ -46,7 +44,9 @@ debugOptions = def & stageHandling .~ debugStageHandling
 
 debugStageHandling = 
     intoStageHandling DumpStdOut
-        $ Just [Stage coreDflang True False]
+        $ Just [Stage coreDflang True False
+                , Stage coreAlang True False
+                , Stage initialDflang True False]
 
 compileCode :: SourceFile Span -> IO (SourceFile Span)
 compileCode inCode = 

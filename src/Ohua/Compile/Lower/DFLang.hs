@@ -80,12 +80,12 @@ generateNodeCode e@(PureDFFun out fun inp)  | fun == smapFun = do
         case inp of
             [x] -> case x of 
                         (DFVar v) -> return $ unwrapABnd v
-                        _ -> invariantBroken $ "Input to SMap must var not literal: " <> show e
+                        _ -> invariantBroken $ "Input to SMap must var not literal:\n" <> show e
             _ -> invariantBroken $ "SMap should only have a single input." <> show e
     (dataOut, ctrlOut, collectOut) <- 
         case out of -- FIXME: I can not even be sure here whether the order is the correct one!
             Destruct [Direct x, Direct y, Direct z] -> return (unwrapABnd x, unwrapABnd y, unwrapABnd z)
-            _ -> invariantBroken $ "SMap must have 3 outputs: " <> show e
+            _ -> invariantBroken $ "SMap must have 3 outputs:\n" <> show e
     return $ Unfusable $
         EndlessLoop $
             Ops.smapFun input dataOut ctrlOut collectOut
@@ -94,11 +94,11 @@ generateNodeCode e@(PureDFFun out fun inp) | fun == collect = do
     (sizeIn, dataIn) <-
         case inp of
             [DFVar s, DFVar d] -> return (unwrapABnd s, unwrapABnd d)
-            _ -> invariantBroken $ "Collect arguments don't match: " <> show e
+            _ -> invariantBroken $ "Collect arguments don't match:\n" <> show e
     collectedOutput <- 
         case out of
             Direct x -> return $ unwrapABnd x
-            _ -> invariantBroken $ "Collect outputs don't match" <> show e
+            _ -> invariantBroken $ "Collect outputs don't match:\n" <> show e
     return $ Unfusable $
         EndlessLoop $ 
             Ops.collect sizeIn dataIn collectedOutput
@@ -107,11 +107,11 @@ generateNodeCode e@(PureDFFun out fun inp) | fun == ifFun = do
     condIn <- 
         case inp of
             [DFVar x] -> return $ unwrapABnd x
-            _ -> invariantBroken $ "IfFun arguments don't match: " <> show e
+            _ -> invariantBroken $ "IfFun arguments don't match:\n" <> show e
     (ctrlTrueOut, ctrlFalseOut) <-
         case out of
             Destruct [Direct t, Direct fa] -> return (unwrapABnd t, unwrapABnd fa)
-            _ -> invariantBroken $ "IfFun outputs don't match" <> show e
+            _ -> invariantBroken $ "IfFun outputs don't match:\n" <> show e
     return $ Unfusable $
         EndlessLoop $
             Ops.ifFun condIn ctrlTrueOut ctrlFalseOut
@@ -120,11 +120,11 @@ generateNodeCode e@(PureDFFun out fun inp) | fun == select = do
     (condIn, trueIn, falseIn) <- 
         case inp of
             [DFVar x, DFVar y, DFVar z] -> return (unwrapABnd x, unwrapABnd y, unwrapABnd z)
-            _ -> invariantBroken $ "Select arguments don't match: " <> show e
+            _ -> invariantBroken $ "Select arguments don't match:\n" <> show e
     out <-
         case out of
             (Direct bnd) -> return $ unwrapABnd bnd
-            _ -> invariantBroken $ "Select outputs don't match" <> show e
+            _ -> invariantBroken $ "Select outputs don't match:\n" <> show e
     return $ Unfusable $
         EndlessLoop $
             Ops.select condIn trueIn falseIn out
@@ -133,11 +133,11 @@ generateNodeCode e@(PureDFFun out fun inp) | fun == Refs.runSTCLangSMap = do
     (sizeIn, stateIn) <- 
         case inp of
             [DFVar x, DFVar y] -> return (unwrapABnd x, unwrapABnd y)
-            _ -> invariantBroken $ "STCLangSMap arguments don't match: " <> show e
+            _ -> invariantBroken $ "STCLangSMap arguments don't match:\n" <> show e
     out <-
         case out of
             Direct x -> return $ unwrapABnd x
-            _ -> invariantBroken $ "STCLangSMap outputs don't match" <> show e
+            _ -> invariantBroken $ "STCLangSMap outputs don't match:\n" <> show e
     return $ STC $
             Ops.mkSTCLangSMap 
                 sizeIn
@@ -168,7 +168,8 @@ generateNodeCode e@(PureDFFun out fun inp) | fun == ctrl = do
     out' <-
         case out of
             Direct x -> return $ unwrapABnd x
-            _ -> invariantBroken $ "Control outputs don't match" <> show e    
+            Destruct [Direct x] -> return $ unwrapABnd x
+            _ -> invariantBroken $ "Control outputs don't match:\n" <> show e    
     case inp of
         DFVar ctrlInp :| [DFVar inp'] ->
             return $ Control $ Left $ 
@@ -176,7 +177,7 @@ generateNodeCode e@(PureDFFun out fun inp) | fun == ctrl = do
         DFVar ctrlInp :| [DFEnvVar lit] ->
             return $ Control $ Right $ 
                 Ops.mkLittedCtrl (unwrapABnd ctrlInp) lit out'
-        _ -> invariantBroken $ "Control arguments don't match: " <> show e
+        _ -> invariantBroken $ "Control arguments don't match:\n" <> show e
 
 -- generateNodeCode e@LetExpr {functionRef=f} | f == runSTCLang = do
 --     (sizeIn, dataIn, stateIn, collectFun) <-
