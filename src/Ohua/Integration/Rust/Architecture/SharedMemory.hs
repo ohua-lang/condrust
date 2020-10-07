@@ -24,9 +24,9 @@ import System.FilePath (takeFileName)
 build (Module (_, SourceFile _ _ items)) ns = 
     return $ ns & algos %~ map (\algo -> algo & algoCode %~ createTasksAndChannels)
     where
-        createTasksAndChannels (TCProgram chans retChan tasks) = 
+        createTasksAndChannels (TCProgram chans retChan@(SRecv chan) tasks) = 
             TCProgram
-                (createChannels chans ++ createChannels [retChan])
+                (createChannels chans ++ createChannels [chan])
                 retChan
                 (map createTask tasks)
 
@@ -51,14 +51,14 @@ serialize (Module (path, SourceFile modName atts items)) ns =
     in return $ (path', render src) :| []
     where
         replaceAlgo algos = \case
-                f@(Fn atts vis ident decl@(FnDecl args _ _ _) s c abi gen _ span) ->
+                f@(Fn atts vis ident decl@(FnDecl _args _ _ _) s c abi gen _ span) ->
                     case HM.lookup (toBinding ident) algos of
                         Just algo -> 
                             Fn atts vis ident decl s c abi gen (span <$ createProgram algo) span
                         Nothing -> f
                 i -> i
         
-        createProgram (TCProgram chans (Channel retChan _) tasks) =
+        createProgram (TCProgram chans retChan tasks) =
             let taskInitStmt = noSpan <$ [stmt| let mut tasks:Vec<Box<dyn FnOnce() -> Result<(), RunError>+ Send >> = Vec::new(); |]
                 box task =
                     Call 
@@ -76,18 +76,18 @@ serialize (Module (path, SourceFile modName atts items)) ns =
                         noSpan
                 taskStmts = map (flip Semi noSpan . push . box) tasks
                 taskRunStmt = () <$ [stmt| run(tasks); |]
-                resultExpr = convertExpr $ Receive 0 retChan
+                resultExpr = convertExpr $ ReceiveData retChan
                 program = chans ++ [taskInitStmt] ++ taskStmts ++ [taskRunStmt]
             in Block (program ++ [NoSemi resultExpr noSpan]) Normal noSpan
 
 instance ConvertChannel (Stmt ()) where
-    convertChannel (Channel bnd numCopies) = 
+    convertChannel (SChan bnd) = 
         let stmt = Apply $ 
                     Stateless 
-                        (QualifiedBinding (makeThrow ["ohua", "arcs", "Channel"]) "new") 
-                        [TCLang.Lit $ NumericLit $ fromIntegral numCopies]
-        in Local 
-                (mkSimpleBinding bnd)
+                        (QualifiedBinding (makeThrow ["std","sync","mpsc"]) "channel") 
+                        []
+        in Local
+                (TupleP [mkSimpleBinding $ bnd <> "_tx", mkSimpleBinding $ bnd <> "_rx"] Nothing noSpan)
                 Nothing
                 (Just $ convertExpr stmt)
                 []

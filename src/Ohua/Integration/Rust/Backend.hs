@@ -91,18 +91,18 @@ instance ConvertExpr (Expr ()) where
             [Semi (Rust.Assign [] (convertExpr $ Var bnd) (convertExpr expr) noSpan) noSpan]
             $ convertExpr $ TCLang.Lit UnitLit
 
-    convertExpr (Receive rcvIdx channel) =
+    convertExpr (ReceiveData (SRecv (SChan channel))) =
         convertExpr $
             Apply $ 
                 Stateful 
-                    channel 
+                    (channel <> "_rx")
                     (mkFunRefUnqual "recv") 
-                    [TCLang.Lit $ NumericLit $ fromIntegral rcvIdx]
-    convertExpr (Send channel d) =
+                    []
+    convertExpr (SendData (SSend (SChan channel) d)) =
         convertExpr $
             Apply $ 
                 Stateful 
-                    channel 
+                    (channel <> "_tx")
                     (mkFunRefUnqual "send")
                     [Var d]
 
