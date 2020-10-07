@@ -22,26 +22,26 @@ type LoweringM m a = m a
 invariantBroken :: CompM m => Text -> LoweringM m a
 invariantBroken msg = throwError $ "Compiler invariant broken! " <> msg
 
-generateNodesCode :: CompM m => NormalizedDFExpr ->  LoweringM m ([FusableExpr],Channel)
+generateNodesCode :: CompM m => NormalizedDFExpr ->  LoweringM m ([FusableExpr], Com 'Recv)
 generateNodesCode = go
     where 
         go (DFLang.Let app cont) = do
             task <- generateNodeCode app
             (tasks, resChan) <- go cont
             return (task:tasks,resChan)
-        go (DFLang.Var bnd) = return ([], Channel bnd 1) 
+        go (DFLang.Var bnd) = return ([], SRecv $ SChan bnd) 
 
 generateFunctionCode :: CompM m => DFApp a ->  LoweringM m FusableExpr
 generateFunctionCode = \case
     (PureDFFun out fn inp) -> do
         (fun', args) <- lowerFnRef fn inp
         out' <- pureOut out 
-        return $ Fusion.Fun $ Ops.PureFusable args fun' out'
+        return $ Fusion.Fun $ Ops.PureFusable args fun' $ SChan out'
     (StateDFFun out fn stateIn inp) -> do
         (fun', args) <- lowerFnRef fn inp
         (sOut, dataOut) <- stateOut out 
         return $ Fusion.Fun
-            $ Ops.STFusable (Recv 0 $ unwrapABnd stateIn) args fun' dataOut sOut
+            $ Ops.STFusable (SRecv $ SChan $ unwrapABnd stateIn) args fun' (SChan <$> dataOut) (SChan <$> sOut)
     where
         pureOut (Direct out) = return $ unwrapABnd out
         pureOut e = throwError $ "Unsupported multiple outputs: " <> show e
@@ -53,14 +53,14 @@ convertDFVar (DFVar bnd) = BLang.Var $ unwrapABnd bnd
 convertDFVar (DFEnvVar l) = Lit l 
 
 generateReceive :: DFVar -> Ops.CallArg
-generateReceive (DFVar bnd) = Ops.Arg $ Recv 0 $ unwrapABnd bnd
+generateReceive (DFVar bnd) = Ops.Arg $ SRecv $ SChan $ unwrapABnd bnd
 generateReceive (DFEnvVar l) = Ops.Converted $ Lit l
 
 lowerFnRef :: CompM m => QualifiedBinding -> NonEmpty DFVar -> LoweringM m (QualifiedBinding, [Ops.CallArg])
 lowerFnRef fun vars | fun == Refs.unitFun = do -- FIXME Why not give a unit function a unit literal as an input?!
     (f,vars') <- case vars of
             [DFEnvVar (FunRefLit (FunRef p _)), DFVar bnd] -> 
-                return (p, [Ops.Drop $ Left $ Recv 0 $ unwrapABnd bnd])
+                return (p, [Ops.Drop $ Left $ SRecv $ SChan $ unwrapABnd bnd])
             [DFEnvVar (FunRefLit (FunRef p _)), DFEnvVar UnitLit] -> 
                 return (p, [])
             _ -> invariantBroken "unitFun must always have two arguments!"
@@ -70,7 +70,7 @@ lowerFnRef f vars = return (f, toList $ map generateReceive vars)
 generateArcsCode :: NormalizedDFExpr -> [Channel]
 generateArcsCode = go
     where
-        go (DFLang.Let app cont) = map (`Channel` 1) (toList $ outBindings app) ++ go cont
+        go (DFLang.Let app cont) = map SChan (toList $ outBindings app) ++ go cont
         go (DFLang.Var _) = []
 
 -- FIXME see sertel/ohua-core#7: all these errors would immediately go away
@@ -79,12 +79,13 @@ generateNodeCode e@(PureDFFun out fun inp)  | fun == smapFun = do
     input <- 
         case inp of
             [x] -> case x of 
-                        (DFVar v) -> return $ unwrapABnd v
+                        (DFVar v) -> return $ SRecv $ SChan $ unwrapABnd v
                         _ -> invariantBroken $ "Input to SMap must var not literal:\n" <> show e
             _ -> invariantBroken $ "SMap should only have a single input." <> show e
     (dataOut, ctrlOut, collectOut) <- 
         case out of -- FIXME: I can not even be sure here whether the order is the correct one!
-            Destruct [Direct x, Direct y, Direct z] -> return (unwrapABnd x, unwrapABnd y, unwrapABnd z)
+            Destruct [Direct x, Direct y, Direct z] -> 
+                return (SChan $ unwrapABnd x, SChan $ unwrapABnd y, SChan $ unwrapABnd z)
             _ -> invariantBroken $ "SMap must have 3 outputs:\n" <> show e
     return $ Unfusable $
         EndlessLoop $
@@ -93,11 +94,12 @@ generateNodeCode e@(PureDFFun out fun inp)  | fun == smapFun = do
 generateNodeCode e@(PureDFFun out fun inp) | fun == collect = do
     (sizeIn, dataIn) <-
         case inp of
-            [DFVar s, DFVar d] -> return (unwrapABnd s, unwrapABnd d)
+            [DFVar s, DFVar d] -> 
+                return (SRecv $ SChan $ unwrapABnd s, SRecv $ SChan $ unwrapABnd d)
             _ -> invariantBroken $ "Collect arguments don't match:\n" <> show e
     collectedOutput <- 
         case out of
-            Direct x -> return $ unwrapABnd x
+            Direct x -> return $ SChan $ unwrapABnd x
             _ -> invariantBroken $ "Collect outputs don't match:\n" <> show e
     return $ Unfusable $
         EndlessLoop $ 
@@ -106,11 +108,11 @@ generateNodeCode e@(PureDFFun out fun inp) | fun == collect = do
 generateNodeCode e@(PureDFFun out fun inp) | fun == ifFun = do
     condIn <- 
         case inp of
-            [DFVar x] -> return $ unwrapABnd x
+            [DFVar x] -> return $ SRecv $ SChan $ unwrapABnd x
             _ -> invariantBroken $ "IfFun arguments don't match:\n" <> show e
     (ctrlTrueOut, ctrlFalseOut) <-
         case out of
-            Destruct [Direct t, Direct fa] -> return (unwrapABnd t, unwrapABnd fa)
+            Destruct [Direct t, Direct fa] -> return (SChan $ unwrapABnd t, SChan $ unwrapABnd fa)
             _ -> invariantBroken $ "IfFun outputs don't match:\n" <> show e
     return $ Unfusable $
         EndlessLoop $
@@ -119,11 +121,12 @@ generateNodeCode e@(PureDFFun out fun inp) | fun == ifFun = do
 generateNodeCode e@(PureDFFun out fun inp) | fun == select = do
     (condIn, trueIn, falseIn) <- 
         case inp of
-            [DFVar x, DFVar y, DFVar z] -> return (unwrapABnd x, unwrapABnd y, unwrapABnd z)
+            [DFVar x, DFVar y, DFVar z] -> 
+                return (SRecv $ SChan $ unwrapABnd x, SRecv $ SChan $ unwrapABnd y, SRecv $ SChan $ unwrapABnd z)
             _ -> invariantBroken $ "Select arguments don't match:\n" <> show e
     out <-
         case out of
-            (Direct bnd) -> return $ unwrapABnd bnd
+            (Direct bnd) -> return $ SChan $ unwrapABnd bnd
             _ -> invariantBroken $ "Select outputs don't match:\n" <> show e
     return $ Unfusable $
         EndlessLoop $
@@ -132,11 +135,12 @@ generateNodeCode e@(PureDFFun out fun inp) | fun == select = do
 generateNodeCode e@(PureDFFun out fun inp) | fun == Refs.runSTCLangSMap = do
     (sizeIn, stateIn) <- 
         case inp of
-            [DFVar x, DFVar y] -> return (unwrapABnd x, unwrapABnd y)
+            [DFVar x, DFVar y] -> 
+                return (SRecv $ SChan $ unwrapABnd x, SRecv $ SChan $ unwrapABnd y)
             _ -> invariantBroken $ "STCLangSMap arguments don't match:\n" <> show e
     out <-
         case out of
-            Direct x -> return $ unwrapABnd x
+            Direct x -> return $ SChan $ unwrapABnd x
             _ -> invariantBroken $ "STCLangSMap outputs don't match:\n" <> show e
     return $ STC $
             Ops.mkSTCLangSMap 
@@ -167,16 +171,19 @@ generateNodeCode e@(PureDFFun out fun inp) | fun == Refs.runSTCLangSMap = do
 generateNodeCode e@(PureDFFun out fun inp) | fun == ctrl = do
     out' <-
         case out of
-            Direct x -> return $ unwrapABnd x
-            Destruct [Direct x] -> return $ unwrapABnd x
+            Direct x -> return $ SChan $ unwrapABnd x
+            Destruct [Direct x] -> return $ SChan $ unwrapABnd x
             _ -> invariantBroken $ "Control outputs don't match:\n" <> show e    
     case inp of
         DFVar ctrlInp :| [DFVar inp'] ->
             return $ Control $ Left $ 
-                Ops.mkCtrl (unwrapABnd ctrlInp) (unwrapABnd inp') out'
+                Ops.mkCtrl 
+                    (SRecv $ SChan $ unwrapABnd ctrlInp) 
+                    (SRecv $ SChan $ unwrapABnd inp') 
+                    out'
         DFVar ctrlInp :| [DFEnvVar lit] ->
             return $ Control $ Right $ 
-                Ops.mkLittedCtrl (unwrapABnd ctrlInp) lit out'
+                Ops.mkLittedCtrl (SRecv $ SChan $ unwrapABnd ctrlInp) lit out'
         _ -> invariantBroken $ "Control arguments don't match:\n" <> show e
 
 -- generateNodeCode e@LetExpr {functionRef=f} | f == runSTCLang = do

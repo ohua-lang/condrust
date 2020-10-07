@@ -20,25 +20,25 @@ spec =
                 expected <- showCode "Expected:"
                     [sourceFile| 
                         fn test(i: i32) -> String {
-                            let state_0_0 = ohua::arcs::Channel::new(1);
-                            let result_0_0 = ohua::arcs::Channel::new(1);
-                            let a_0 = ohua::arcs::Channel::new(1);
+                            let (state_0_0_tx, state_0_0_rx) = std::sync::mpsc::channel();
+                            let (result_0_0_tx, result_0_0_rx) = std::sync::mpsc::channel();
+                            let (a_0_tx, a_0_rx) = std::sync::mpsc::channel();
                             let mut tasks: Vec<Box<FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
                             tasks
                                 .push(Box::new(move || -> _ {
                                 loop {
-                                    let var_0 = result_0_0.recv(0);
+                                    let var_0 = result_0_0_rx.recv();
                                     let result = h(var_0);
-                                    a_0.send(result)
+                                    a_0_tx.send(result)
                                 }
                                 }));
                             tasks
                                 .push(Box::new(move || -> _ {
                                 loop {
-                                    let var_0 = state_0_0.recv(0);
+                                    let var_0 = state_0_0_rx.recv();
                                     let var_1 = 5;
                                     let result = var_0.g(var_1);
-                                    result_0_0.send(result);
+                                    result_0_0_tx.send(result);
                                     ()
                                 }
                                 }));
@@ -46,10 +46,10 @@ spec =
                                 .push(Box::new(move || -> _ {
                                 let var_0 = i;
                                 let result = f(var_0);
-                                state_0_0.send(result)
+                                state_0_0_tx.send(result)
                                 }));
                             run(tasks);
-                            a_0.recv(0)
+                            a_0_rx.recv()
                         }
                     |]
                 compiled `shouldBe` expected)
@@ -67,27 +67,27 @@ spec =
         --         expected <- showCode "Expected:"
         --             [sourceFile| 
         --                 fn test(i: i32) -> String {
-        --                     let state_0_0 = ohua::arcs::Channel::new(1);
-        --                     let r1_0_0 = ohua::arcs::Channel::new(1);
+        --                     let state_0_0 = std::sync::mpsc::channel();
+        --                     let r1_0_0 = std::sync::mpsc::channel();
         --                     let mut tasks: Vec<Box<FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
         --                     tasks
         --                         .push(Box::new(move || -> _ {
-        --                             let var_0 = state_0_0.recv(0);
+        --                             let var_0 = state_0_0_rx.recv();
         --                             let var_1 = 5;
         --                             let _result = var_0.g(var_1);
         --                             let var_2 = 6;
         --                             let result = var_0.h(var_2);
-        --                             r1_0_0.send(result);
+        --                             r1_0_0_tx.send(result);
         --                             ()
         --                         }));
         --                     tasks
         --                         .push(Box::new(move || -> _ {
         --                             let var_0 = i;
         --                             let result = f(var_0);
-        --                             state_0_0.send(result)
+        --                             state_0_0_tx.send(result)
         --                         }));
         --                     run(tasks);
-        --                     r1_0_0.recv(0)
+        --                     r1_0_0_rx.recv()
         --                 }
         --             |]
         --         compiled `shouldBe` expected)

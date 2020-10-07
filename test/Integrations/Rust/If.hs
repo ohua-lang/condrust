@@ -27,28 +27,28 @@ spec =
                 expected <- showCode "Expected:"
                     [sourceFile| 
                         fn test(i: i32) -> String {
-                        let a_0_0 = ohua::arcs::Channel::new(1);
-                        let b_0_0 = ohua::arcs::Channel::new(1);
-                        let c_0_0 = ohua::arcs::Channel::new(1);
-                        let ctrlTrue_0 = ohua::arcs::Channel::new(1);
-                        let ctrlFalse_0 = ohua::arcs::Channel::new(1);
-                        let e_0 = ohua::arcs::Channel::new(1);
-                        let f_0 = ohua::arcs::Channel::new(1);
-                        let result_0 = ohua::arcs::Channel::new(1);
-                        let g_0 = ohua::arcs::Channel::new(1);
+                        let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel();
+                        let (b_0_0_tx, b_0_0_rx) = std::sync::mpsc::channel();
+                        let (c_0_0_tx, c_0_0_rx) = std::sync::mpsc::channel();
+                        let (ctrlTrue_0_tx, ctrlTrue_0_rx) = std::sync::mpsc::channel();
+                        let (ctrlFalse_0_tx, ctrlFalse_0_rx) = std::sync::mpsc::channel();
+                        let (e_0_tx, e_0_rx) = std::sync::mpsc::channel();
+                        let (f_0_tx, f_0_rx) = std::sync::mpsc::channel();
+                        let (result_0_tx, result_0_rx) = std::sync::mpsc::channel();
+                        let (g_0_tx, g_0_rx) = std::sync::mpsc::channel();
                         let mut tasks: Vec<Box<FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
                         tasks
                             .push(Box::new(move || -> _ {
                             loop {
                                 let renew = false;
-                                let c_0_0_0 = c_0_0.recv(0);
+                                let c_0_0_0 = c_0_0_rx.recv();
                                 while !renew {
-                                let sig = ctrlFalse_0.recv(0);
+                                let sig = ctrlFalse_0_rx.recv();
                                 let count = sig.1;
                                 for _ in [0; count] {
                                     let var_0 = c_0_0_0;
                                     let result = g1(var_0);
-                                    f_0.send(result)
+                                    f_0_tx.send(result)
                                 };
                                 let renew_next_time = sig.0;
                                 renew = renew_next_time;
@@ -61,14 +61,14 @@ spec =
                             .push(Box::new(move || -> _ {
                             loop {
                                 let renew = false;
-                                let b_0_0_0 = b_0_0.recv(0);
+                                let b_0_0_0 = b_0_0_rx.recv();
                                 while !renew {
-                                let sig = ctrlTrue_0.recv(0);
+                                let sig = ctrlTrue_0_rx.recv();
                                 let count = sig.1;
                                 for _ in [0; count] {
                                     let var_0 = b_0_0_0;
                                     let result = g0(var_0);
-                                    e_0.send(result)
+                                    e_0_tx.send(result)
                                 };
                                 let renew_next_time = sig.0;
                                 renew = renew_next_time;
@@ -80,35 +80,35 @@ spec =
                         tasks
                             .push(Box::new(move || -> _ {
                             loop {
-                                let var_0 = result_0.recv(0);
+                                let var_0 = result_0_rx.recv();
                                 let result = h(var_0);
-                                g_0.send(result)
+                                g_0_tx.send(result)
                             }
                             }));
                         tasks
                             .push(Box::new(move || -> _ {
                             loop {
-                                let branchSelection = a_0_0.recv(0);
+                                let branchSelection = a_0_0_rx.recv();
                                 if branchSelection {
-                                let result = e_0.recv(0);
-                                result_0.send(result)
-                                } else { let result = f_0.recv(0); result_0.send(result) }
+                                let result = e_0_rx.recv();
+                                result_0_tx.send(result)
+                                } else { let result = f_0_rx.recv(); result_0_tx.send(result) }
                             }
                             }));
                         tasks
                             .push(Box::new(move || -> _ {
                             loop {
-                                let branchSelection = a_0_0.recv(0);
+                                let branchSelection = a_0_0_rx.recv();
                                 if branchSelection {
                                 let ctrlTrue = (true, 1);
                                 let ctrlFalse = (true, 0);
-                                ctrlTrue_0.send(ctrlTrue);
-                                ctrlFalse_0.send(ctrlFalse)
+                                ctrlTrue_0_tx.send(ctrlTrue);
+                                ctrlFalse_0_tx.send(ctrlFalse)
                                 } else {
                                 let ctrlTrue = (true, 0);
                                 let ctrlFalse = (true, 1);
-                                ctrlTrue_0.send(ctrlTrue);
-                                ctrlFalse_0.send(ctrlFalse)
+                                ctrlTrue_0_tx.send(ctrlTrue);
+                                ctrlFalse_0_tx.send(ctrlFalse)
                                 }
                             }
                             }));
@@ -116,22 +116,22 @@ spec =
                             .push(Box::new(move || -> _ {
                             let var_0 = i;
                             let result = f2(var_0);
-                            c_0_0.send(result)
+                            c_0_0_tx.send(result)
                             }));
                         tasks
                             .push(Box::new(move || -> _ {
                             let var_0 = i;
                             let result = f1(var_0);
-                            b_0_0.send(result)
+                            b_0_0_tx.send(result)
                             }));
                         tasks
                             .push(Box::new(move || -> _ {
                             let var_0 = i;
                             let result = f0(var_0);
-                            a_0_0.send(result)
+                            a_0_0_tx.send(result)
                             }));
                         run(tasks);
-                        g_0.recv(0)
+                        g_0_rx.recv()
                         }                    
                     |]
                 compiled `shouldBe` expected)
@@ -151,13 +151,13 @@ spec =
                 expected <- showCode "Expected:"
                     [sourceFile| 
                         fn test(i: i32) -> String {
-                        let a_0_0 = ohua::arcs::Channel::new(1);
-                        let ctrlTrue_0 = ohua::arcs::Channel::new(1);
-                        let ctrlFalse_0 = ohua::arcs::Channel::new(1);
-                        let b_0 = ohua::arcs::Channel::new(1);
-                        let c_0 = ohua::arcs::Channel::new(1);
-                        let result_0 = ohua::arcs::Channel::new(1);
-                        let e_0 = ohua::arcs::Channel::new(1);
+                        let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel();
+                        let (ctrlTrue_0_tx, ctrlTrue_0_rx) = std::sync::mpsc::channel();
+                        let (ctrlFalse_0_tx, ctrlFalse_0_rx) = std::sync::mpsc::channel();
+                        let (b_0_tx, b_0_rx) = std::sync::mpsc::channel();
+                        let (c_0_tx, c_0_rx) = std::sync::mpsc::channel();
+                        let (result_0_tx, result_0_rx) = std::sync::mpsc::channel();
+                        let (e_0_tx, e_0_rx) = std::sync::mpsc::channel();
                         let mut tasks: Vec<Box<FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
                         tasks
                             .push(Box::new(move || -> _ {
@@ -165,12 +165,12 @@ spec =
                                 let renew = false;
                                 let lit_unit_0 = ();
                                 while !renew {
-                                    let sig = ctrlFalse_0.recv(0);
+                                    let sig = ctrlFalse_0_rx.recv();
                                     let count = sig.1;
                                     for _ in [0; count] {
                                         let _var_0 = lit_unit_0;
                                         let result = g1();
-                                        c_0.send(result)
+                                        c_0_tx.send(result)
                                     };
                                     let renew_next_time = sig.0;
                                     renew = renew_next_time;
@@ -184,12 +184,12 @@ spec =
                                 let renew = false;
                                 let lit_5_0 = 5;
                                 while !renew {
-                                    let sig = ctrlTrue_0.recv(0);
+                                    let sig = ctrlTrue_0_rx.recv();
                                     let count = sig.1;
                                     for _ in [0; count] {
                                         let var_0 = lit_5_0;
                                         let result = g0(var_0);
-                                        b_0.send(result)
+                                        b_0_tx.send(result)
                                     };
                                     let renew_next_time = sig.0;
                                     renew = renew_next_time;
@@ -200,35 +200,35 @@ spec =
                         tasks
                             .push(Box::new(move || -> _ {
                             loop {
-                                let var_0 = result_0.recv(0);
+                                let var_0 = result_0_rx.recv();
                                 let result = h(var_0);
-                                e_0.send(result)
+                                e_0_tx.send(result)
                             }
                             }));
                         tasks
                             .push(Box::new(move || -> _ {
                             loop {
-                                let branchSelection = a_0_0.recv(0);
+                                let branchSelection = a_0_0_rx.recv();
                                 if branchSelection {
-                                let result = b_0.recv(0);
-                                result_0.send(result)
-                                } else { let result = c_0.recv(0); result_0.send(result) }
+                                let result = b_0_rx.recv();
+                                result_0_tx.send(result)
+                                } else { let result = c_0_rx.recv(); result_0_tx.send(result) }
                             }
                             }));
                         tasks
                             .push(Box::new(move || -> _ {
                             loop {
-                                let branchSelection = a_0_0.recv(0);
+                                let branchSelection = a_0_0_rx.recv();
                                 if branchSelection {
                                 let ctrlTrue = (true, 1);
                                 let ctrlFalse = (true, 0);
-                                ctrlTrue_0.send(ctrlTrue);
-                                ctrlFalse_0.send(ctrlFalse)
+                                ctrlTrue_0_tx.send(ctrlTrue);
+                                ctrlFalse_0_tx.send(ctrlFalse)
                                 } else {
                                 let ctrlTrue = (true, 0);
                                 let ctrlFalse = (true, 1);
-                                ctrlTrue_0.send(ctrlTrue);
-                                ctrlFalse_0.send(ctrlFalse)
+                                ctrlTrue_0_tx.send(ctrlTrue);
+                                ctrlFalse_0_tx.send(ctrlFalse)
                                 }
                             }
                             }));
@@ -236,10 +236,10 @@ spec =
                             .push(Box::new(move || -> _ {
                             let var_0 = i;
                             let result = f0(var_0);
-                            a_0_0.send(result)
+                            a_0_0_tx.send(result)
                             }));
                         run(tasks);
-                        e_0.recv(0)
+                        e_0_rx.recv()
                         }                    
                     |]
                 compiled `shouldBe` expected)
