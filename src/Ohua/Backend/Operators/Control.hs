@@ -9,8 +9,6 @@ import Ohua.Backend.Operators.Function as F
 
 import qualified Data.List.NonEmpty as NE
 import qualified Data.HashSet as HS
-import qualified Data.HashMap.Lazy as HM
-import qualified Text.Show -- for implementing the Show instance
 
 
 newtype CtrlInput = CtrlInput Binding deriving (Eq, Show, Generic)
@@ -42,15 +40,8 @@ type VarCtrl = Ctrl Var
 type FunCtrl = Ctrl Fun
 type LitCtrl = Ctrl CtxtLit
 
-instance Show (Ctrl anno) where
-    show (VarCtrl cInp inOut) = "VarCtrl {" <>  show cInp <> "," <> show inOut <> "}"
-    show (FunCtrl cInp inOut) = "FunCtrl {" <>  show cInp <> "," <> show inOut <> "}"
-    show (LitCtrl cInp inOut) = "LitCtrl {" <>  show cInp <> "," <> show inOut <> "}"
-
-instance Eq (Ctrl anno) where
-    (VarCtrl cInp inOut) == (VarCtrl cInp' inOut') = cInp == cInp' && inOut == inOut'
-    (FunCtrl cInp inOut) == (FunCtrl cInp' inOut') = cInp == cInp' && inOut == inOut'
-    (LitCtrl cInp inOut) == (LitCtrl cInp' inOut') = cInp == cInp' && inOut == inOut'
+deriving instance Show (Ctrl anno)
+deriving instance Eq (Ctrl anno)
 
 instance Hashable (Ctrl anno) where
     hashWithSalt s (VarCtrl cInp inOut) = s `hashWithSalt` cInp `hashWithSalt` inOut
@@ -86,17 +77,8 @@ data FusedCtrl anno where
 type FusedFunCtrl = FusedCtrl Fun
 type FusedLitCtrl = FusedCtrl Lit
 
-instance Show (FusedCtrl anno) where
-    show (FusedFunCtrl cInp inOut comp stateOuts) = 
-        "FusedFunCtrl {" <> show cInp <> ", " <> show inOut <> ", "<> show comp <> ", " <> show stateOuts <> "}"
-    show (FusedLitCtrl cInp inOut comp) = 
-        "FusedFunCtrl {" <> show cInp <> ", " <> show inOut <> ", "<> show comp <> "}"
-
-instance Eq (FusedCtrl anno) where
-    (FusedFunCtrl cInp inOut comp stateOuts) == (FusedFunCtrl cInp' inOut' comp' stateOuts') = 
-        cInp == cInp' && inOut == inOut' && comp == comp' && stateOuts == stateOuts'
-    (FusedLitCtrl cInp inOut comp) == (FusedLitCtrl cInp' inOut' comp') = 
-        cInp == cInp' && inOut == inOut' && comp == comp'
+deriving instance Show (FusedCtrl anno)
+deriving instance Eq (FusedCtrl anno)
 
 instance Hashable (FusedCtrl anno) where
     hashWithSalt s (FusedFunCtrl cInp inOut comp stateOuts) = 
@@ -163,7 +145,7 @@ fuseFun (FunCtrl ctrlInput vars) =
                 (F.genFun' $ STFusable stateArg (map f args) app res Nothing)
                 (maybe 
                     [] 
-                    (\g -> [g $ unwrapBnd $ fst $ stateVar stateArg]) 
+                    (\g -> [Emit g $ unwrapBnd $ fst $ stateVar stateArg]) 
                     stateRes)
         where
             f (Arg (Recv _ ch)) | HS.member (OutputChannel ch) ctrled = Converted $ Var ch

@@ -27,10 +27,10 @@ data Fusable ctrl0 ctrl1
 
 instance Bifunctor Fusable where
     first f (Control (Left l)) = Control $ Left $ f l
-    first f (Control (Right c)) = Control $ Right c
-    first f (Fun fun) = Fun fun
-    first f (STC s) = STC s
-    first f (Unfusable u) = Unfusable u
+    first _ (Control (Right c)) = Control $ Right c
+    first _ (Fun fun) = Fun fun
+    first _ (STC s) = STC s
+    first _ (Unfusable u) = Unfusable u
     second = fmap
 
 instance (Hashable ctrl0, Hashable ctrl1) => Hashable (Fusable ctrl0 ctrl1)
@@ -224,8 +224,7 @@ fuseSTCLang (TCProgram chans resultChan exprs) =
         isSource inp (Control (Left (FusedFunCtrl _ _ _ outs))) = 
             HS.member inp $ HS.fromList $ map (\(Emit c _) -> c) outs
         isSource inp (Control (Right (FusedLitCtrl _ (OutputChannel out,_) _))) = inp == out
-        isSource inp (Unfusable _) = False
-        isSource inp (Fun PureFusable{}) = False
-        isSource inp (Fun (STFusable _ _ _ _ send)) =
-            maybe False (\(Emit outp _) -> outp == inp) ((\f -> f "0") <$> send)
+        isSource _inp (Unfusable _) = False
+        isSource _inp (Fun PureFusable{}) = False
+        isSource inp (Fun (STFusable _ _ _ _ send)) = (== Just inp) send
 
