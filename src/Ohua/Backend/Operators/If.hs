@@ -4,44 +4,44 @@ import Ohua.Prelude
 
 import Ohua.Backend.Lang hiding (TCExpr)
 
-type CondInput = Binding
-type CtrlTrueOutput = Binding
-type CtrlFalseOutput = Binding
+type CondInput = Com 'Recv
+type CtrlTrueOutput = Com 'Channel
+type CtrlFalseOutput = Com 'Channel
 
 ifFun :: CondInput -> CtrlTrueOutput -> CtrlFalseOutput -> TaskExpr
 ifFun condInput ctrlTrue ctrlFalse = 
-    Let "branchSelection" (Receive 0 condInput) $
+    Let "branchSelection" (ReceiveData condInput) $
     Cond 
         (Var "branchSelection")
         (
             Let "ctrlTrue" (Tuple (Right $ BoolLit True) (Right $ NumericLit 1)) $
             Let "ctrlFalse" (Tuple (Right $ BoolLit True) (Right $ NumericLit 0)) $
             Stmt 
-                (Send ctrlTrue "ctrlTrue")
-                (Send ctrlFalse "ctrlFalse")
+                (SendData $ SSend ctrlTrue "ctrlTrue")
+                (SendData $ SSend ctrlFalse "ctrlFalse")
         )
         (
             Let "ctrlTrue" (Tuple (Right $ BoolLit True) (Right $ NumericLit 0)) $
             Let "ctrlFalse" (Tuple (Right $ BoolLit True) (Right $ NumericLit 1)) $
             Stmt 
-                (Send ctrlTrue "ctrlTrue")
-                (Send ctrlFalse "ctrlFalse")
+                (SendData $ SSend ctrlTrue "ctrlTrue")
+                (SendData $ SSend ctrlFalse "ctrlFalse")
         )
 
-type TrueBranchInput = Binding
-type FalseBranchInput = Binding
-type ResultOutput = Binding
+type TrueBranchInput = Com 'Recv
+type FalseBranchInput = Com 'Recv
+type ResultOutput = Com 'Channel
 
 select :: CondInput -> TrueBranchInput -> FalseBranchInput -> ResultOutput -> TaskExpr
 select condInput trueBranchInput falseBranchInput resultOut = 
-    Let "branchSelection" (Receive 0 condInput) $
+    Let "branchSelection" (ReceiveData condInput) $
         Cond 
             (Var "branchSelection")
             (
-                Let "result" (Receive 0 trueBranchInput) $
-                    Send resultOut "result"
+                Let "result" (ReceiveData trueBranchInput) $
+                    SendData $ SSend resultOut "result"
             )
             (
-                Let "result" (Receive 0 falseBranchInput) $
-                    Send resultOut "result"
+                Let "result" (ReceiveData falseBranchInput) $
+                    SendData $ SSend resultOut "result"
             )

@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 module Ohua.Backend.Operators.Function where
 
 import Ohua.Prelude
@@ -9,7 +10,7 @@ import qualified Data.List.NonEmpty as NE
 
 -- FIXME Seems to be like this: Arg Recv (Either Recv TaskExpr) | Drop (Either Recv TaskExpr)
 data CallArg 
-    = Arg Recv | Drop (Either Recv TaskExpr) | Converted TaskExpr
+    = Arg (Com 'Recv) | Drop (Either (Com 'Recv) TaskExpr) | Converted TaskExpr
     deriving (Eq, Show, Generic)
 
 instance Hashable CallArg
@@ -26,15 +27,14 @@ data FusableFunction
     = PureFusable
         [CallArg]  -- data receive
         QualifiedBinding
-        Binding -- send result
+        (Com 'Channel) -- send result
     | STFusable
-        Recv -- state receive
+        (Com 'Recv) -- state receive
         [CallArg]  -- data receive
         QualifiedBinding
-        (Maybe Binding) -- send result
-        (Maybe Binding) -- send state
+        (Maybe (Com 'Channel)) -- send result
+        (Maybe (Com 'Channel)) -- send state
     deriving (Show, Eq, Generic)
-
 
 instance Hashable FusableFunction 
 
@@ -52,7 +52,7 @@ genFun' = \case
             callArgs = getCallArgs varsAndReceives
         in flip letReceives varsAndReceives $
             Let "result" (Apply $ Stateless app callArgs) $
-            Send out "result"
+            SendData $ SSend out "result"
     (STFusable stateRecv receives app sendRes sendState) ->
         let varsAndReceives = NE.zipWith (curry generateReceiveCode) [0 ..] $ Arg stateRecv :| receives
             callArgs = getCallArgs $ NE.tail varsAndReceives
@@ -60,25 +60,25 @@ genFun' = \case
         in flip letReceives (toList varsAndReceives) $
             Let "result" (Apply $ Stateful stateArg app callArgs) $
             foldr Stmt (Lit UnitLit) $ 
-            catMaybes [(`Send` "result") <$> sendRes, (`Send` stateArg) <$> sendState]
+            catMaybes [SendData . (`SSend` "result") <$> sendRes, SendData . (`SSend` stateArg) <$> sendState]
     where
         getCallArgs = map (\(_,v,_) -> Var v) . filter (\case (Drop _, _, _) -> False; _ -> True)
         letReceives = foldr ((\ (v, r) c -> Let v r c) . (\(_,v,r) -> (v,r)))
-        generateReceiveCode (idx, a@(Arg (Recv cidx bnd))) = (a, "var_" <> show idx, Receive cidx bnd)
-        generateReceiveCode (idx, a@(Drop (Left (Recv cidx bnd)))) = (a, "_var_" <> show idx, Receive cidx bnd)
+        generateReceiveCode (idx, a@(Arg r)) = (a, "var_" <> show idx, ReceiveData r)
+        generateReceiveCode (idx, a@(Drop (Left r))) = (a, "_var_" <> show idx, ReceiveData r)
         generateReceiveCode (idx, a@(Drop (Right e))) = (a, "_var_" <> show idx, e)
         generateReceiveCode (idx, a@(Converted e)) = (a, "var_" <> show idx, e)
 
-funReceives :: FusableFunction -> [Binding]
+funReceives :: FusableFunction -> [Com 'Recv]
 funReceives = 
     \case
         (PureFusable vars _ _) -> extract vars
-        (STFusable (Recv _ bnd) vars _ _ _) -> bnd : extract vars
+        (STFusable r vars _ _ _) -> r : extract vars
     where 
         extract = mapMaybe 
                     (\case 
-                        (Arg (Recv _ bnd)) -> Just bnd
-                        (Drop (Left (Recv _ bnd))) -> Just bnd
+                        (Arg r) -> Just r
+                        (Drop (Left r)) -> Just r
                         (Drop _) -> Nothing
                         (Converted _) -> Nothing)
         

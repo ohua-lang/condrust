@@ -5,52 +5,52 @@ import Ohua.Prelude
 import Ohua.Backend.Lang
 
 
-type Input = Binding
-type DataOut = Binding
-type CtrlOut = Binding
-type CollectOut = Binding
+type Input = Com 'Recv
+type DataOut = Com 'Channel
+type CtrlOut = Com 'Channel
+type CollectOut = Com 'Channel
 
 smapFun :: Input -> DataOut -> CtrlOut -> CollectOut -> TaskExpr
 smapFun input dataOut ctrlOut collectOut = 
-    Let "data" (Receive 0 input) $
+    Let "data" (ReceiveData input) $
     Let "hasSize" (HasSize "data") $
         Cond (Var "hasSize")
             -- known size
             (
                 Let "size" (Size "data") $
-                Stmt (Send collectOut "size") $
+                Stmt (SendData $ SSend collectOut "size") $
                 Let "ctrl" (Tuple (Right $ BoolLit True) (Left "size")) $
-                Stmt (Send ctrlOut "ctrl") $ Lit UnitLit
+                Stmt (SendData $ SSend ctrlOut "ctrl") $ Lit UnitLit
             )
             -- unknown size --> generator-style
             (
                 Let "size" (Lit $ NumericLit 0) $
                 Stmt
                     (ForEach "d" "data" $
-                        Stmt (Send dataOut "d") $
+                        Stmt (SendData $ SSend dataOut "d") $
                         Let "ctrl" (Tuple (Right $ BoolLit False) (Right $ NumericLit 1)) $
-                        Stmt (Send ctrlOut "ctrl") $ Increment "size") $
-                Stmt (Send collectOut "size") $
+                        Stmt (SendData $ SSend ctrlOut "ctrl") $ Increment "size") $
+                Stmt (SendData $ SSend collectOut "size") $
                 Let "ctrl" (Tuple (Right $ BoolLit True) (Right $ NumericLit 0)) $
-                Stmt (Send ctrlOut "ctrl") $ Lit UnitLit
+                Stmt (SendData $ SSend ctrlOut "ctrl") $ Lit UnitLit
             )
 
-type SizeInput = Binding
-type DataInput = Binding
-type CollectedOutput = Binding
+type SizeInput = Com 'Recv
+type DataInput = Com 'Recv
+type CollectedOutput = Com 'Channel
 
 collect :: SizeInput 
         -> DataInput 
         -> CollectedOutput 
         -> TaskExpr
 collect sizeInput dataInput collectedOutput = 
-    Let "num" (Receive 0 sizeInput) $
+    Let "num" (ReceiveData sizeInput) $
     Let "collection" (ListOp Create) $
     Let "receives" (Generate "num" UnitLit) $
     Stmt 
         (
             ForEach "_receive" "receives" $
-                Let "data" (Receive 0 dataInput) $
+                Let "data" (ReceiveData dataInput) $
                     ListOp $ Append "collection" $ Var "data"
         ) $
-        Send collectedOutput "collection"
+        SendData $ SSend collectedOutput "collection"

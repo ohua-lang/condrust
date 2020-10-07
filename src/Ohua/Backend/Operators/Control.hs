@@ -11,8 +11,8 @@ import qualified Data.List.NonEmpty as NE
 import qualified Data.HashSet as HS
 
 
-newtype CtrlInput = CtrlInput Binding deriving (Eq, Show, Generic)
-newtype OutputChannel = OutputChannel Binding deriving (Eq, Show, Generic)
+newtype CtrlInput = CtrlInput (Com 'Recv) deriving (Eq, Show, Generic)
+newtype OutputChannel = OutputChannel (Com 'Channel) deriving (Eq, Show, Generic)
 
 instance Hashable CtrlInput
 instance Hashable OutputChannel
@@ -28,12 +28,12 @@ data CtxtLit deriving (Eq, Show, Generic)
 --       the type level like so: 
 --       https://blog.jle.im/entry/introduction-to-singletons-1.html
 data Ctrl anno where
-    VarCtrl :: CtrlInput -> (OutputChannel, Recv) -> Ctrl Var
+    VarCtrl :: CtrlInput -> (OutputChannel, Com 'Recv) -> Ctrl Var
     -- TODO this is not the right type! It does not transport the 
     -- invariant that all output channels have the same target.
     -- This is what `merge` establishes.
     -- Is this again something that can be created with LiquidHaskell?
-    FunCtrl :: CtrlInput -> NonEmpty (OutputChannel, Recv) -> Ctrl Fun
+    FunCtrl :: CtrlInput -> NonEmpty (OutputChannel, Com 'Recv) -> Ctrl Fun
     LitCtrl :: CtrlInput -> (OutputChannel, Lit) -> Ctrl CtxtLit
 
 type VarCtrl = Ctrl Var
@@ -48,30 +48,33 @@ instance Hashable (Ctrl anno) where
     hashWithSalt s (FunCtrl cInp inOut) = s `hashWithSalt` cInp `hashWithSalt` inOut
     hashWithSalt s (LitCtrl cInp inOut) = s `hashWithSalt` cInp `hashWithSalt` inOut
 
-ctrlReceives :: FunCtrl -> NonEmpty Binding
-ctrlReceives (FunCtrl _ vars) = map ((\(Recv _ b) -> b) . snd) vars
+ctrlReceives :: FunCtrl -> NonEmpty (Com 'Recv)
+ctrlReceives (FunCtrl _ vars) = map snd vars
 
 toFunCtrl :: VarCtrl -> FunCtrl
 toFunCtrl (VarCtrl ctrlVar var) = FunCtrl ctrlVar (var:|[])
 
 data VarReceive 
-    = StateVar OutputChannel Recv 
-    | PureVar OutputChannel Recv
+    = StateVar OutputChannel (Com 'Recv)
+    | PureVar OutputChannel (Com 'Recv)
     deriving (Eq, Show, Generic)
 
 instance Hashable VarReceive
 
-fromVarReceive :: VarReceive -> (OutputChannel, Recv)
+fromVarReceive :: VarReceive -> (OutputChannel, Com 'Recv)
 fromVarReceive (StateVar c r) = (c,r)
 fromVarReceive (PureVar c r) = (c,r)
 
-unwrapBnd :: OutputChannel -> Binding
-unwrapBnd (OutputChannel b) = b
+unwrapChan :: OutputChannel -> Com 'Channel
+unwrapChan (OutputChannel c) = c
+
+unwrapBnd :: OutputChannel -> Binding 
+unwrapBnd (OutputChannel (SChan b)) = b
 
 data FusedCtrl anno where
     -- there is another assumption here that needs to be enforced: 
     -- state inputs in NonEmpty VarReceive map to state outputs in [Send]!
-    FusedFunCtrl :: CtrlInput -> NonEmpty VarReceive -> TaskExpr -> [Send] -> FusedCtrl Fun
+    FusedFunCtrl :: CtrlInput -> NonEmpty VarReceive -> TaskExpr -> [Com 'Send] -> FusedCtrl Fun
     FusedLitCtrl :: CtrlInput -> (OutputChannel, Lit) -> TaskExpr -> FusedCtrl Lit
 
 type FusedFunCtrl = FusedCtrl Fun
@@ -88,13 +91,13 @@ instance Hashable (FusedCtrl anno) where
 
 fuseSTCSMap :: STCLangSMap -> FusedFunCtrl -> FusedFunCtrl
 fuseSTCSMap
-    (STCLangSMap init ctxtLoop stateReceive stateOut)
+    (STCLangSMap _init _ctxtLoop (SRecv stateReceive) stateOut)
     (FusedFunCtrl ctrlInput vars comp stateOuts)
     = FusedFunCtrl ctrlInput vars comp stateOuts'
     where
-        stateOuts' = map (\(Emit ch d) -> if ch == stateReceive
-                                            then Emit stateOut d
-                                            else Emit ch d) 
+        stateOuts' = map (\(SSend ch d) -> if ch == stateReceive
+                                            then SSend stateOut d
+                                            else SSend ch d) 
                          stateOuts
 
 fuseCtrl :: FunCtrl -> FusedFunCtrl -> FusedFunCtrl
@@ -113,21 +116,21 @@ fuseCtrl
             HS.fromList $
             catMaybes $
             NE.toList $
-            NE.map (\case StateVar _outChan (Recv _ b) -> Just b; _ -> Nothing)
+            NE.map (\case StateVar _outChan (SRecv b) -> Just b; _ -> Nothing)
             vars'
         vars'' = 
             NE.map 
-                (\(out@(OutputChannel b), re@(Recv _ r)) -> 
+                (\(out@(OutputChannel b), re) -> 
                     if HS.member b stateVars
                     then StateVar out re
                     else PureVar out re) 
                 vars
         stateOuts' = map g stateOuts
-        g (Emit ch d) = 
-            let d' = case NE.filter (\(OutputChannel o,_r) -> o == d) vars of
-                        [(OutputChannel o,_)] -> o
+        g (SSend ch d) = 
+            let d' = case NE.filter (\(OutputChannel (SChan o),_r) -> o == d) vars of
+                        [(OutputChannel (SChan o),_)] -> o
                         _ -> error "invariant broken"
-            in Emit ch d' -- the var that I assign the state to becomes the new data out for the state
+            in SSend ch d' -- the var that I assign the state to becomes the new data out for the state
 
 fuseFun :: FunCtrl -> FusableFunction -> FusedFunCtrl
 fuseFun (FunCtrl ctrlInput vars) =
@@ -145,11 +148,11 @@ fuseFun (FunCtrl ctrlInput vars) =
                 (F.genFun' $ STFusable stateArg (map f args) app res Nothing)
                 (maybe 
                     [] 
-                    (\g -> [Emit g $ unwrapBnd $ fst $ stateVar stateArg]) 
+                    (\g -> [SSend g $ unwrapBnd $ fst $ stateVar stateArg]) 
                     stateRes)
         where
-            f (Arg (Recv _ ch)) | HS.member (OutputChannel ch) ctrled = Converted $ Var ch
-            f (Drop (Left (Recv _ ch))) | HS.member (OutputChannel ch) ctrled = Drop $ Right $ Var ch
+            f (Arg (SRecv (SChan ch))) | HS.member (OutputChannel (SChan ch)) ctrled = Converted $ Var ch
+            f (Drop (Left (SRecv (SChan ch)))) | HS.member (OutputChannel (SChan ch)) ctrled = Drop $ Right $ Var ch
             f e  = e
             ctrled = HS.fromList $ NE.toList sendVars
             sendVars = NE.map fst vars
@@ -172,8 +175,8 @@ fuseLitCtrlIntoFun (LitCtrl ctrlInp outIn) =
             (PureFusable args app res) -> PureFusable (map f args) app res
             (STFusable stateArg args app res stateRes) -> error "Invariant broken: only pure functions need to be contextified!")
     where
-        f (Arg (Recv _ ch)) = Converted $ Var ch
-        f (Drop (Left (Recv _ ch))) = Drop $ Right $ Var ch
+        f (Arg (SRecv (SChan ch))) = Converted $ Var ch
+        f (Drop (Left (SRecv (SChan ch)))) = Drop $ Right $ Var ch
         f e  = e
 
 {-|
@@ -221,7 +224,7 @@ genFused' (FusedFunCtrl ctrlInput vars comp stateOuts) =
     where
         initVarsExpr' = initVarsExpr (map (first unwrapBnd . fromVarReceive) vars) []
         stateOuts' = 
-            foldr (\(Emit ch d) c -> Stmt (Send ch d) c) (Lit UnitLit) stateOuts
+            foldr (Stmt . SendData) (Lit UnitLit) stateOuts
 
 genCtrl :: FunCtrl -> TaskExpr
 genCtrl (FunCtrl ctrlInput vars) = 
@@ -231,11 +234,11 @@ genCtrl (FunCtrl ctrlInput vars) =
         initVarsExpr' = initVarsExpr receiveVars []
         receiveVars = NE.map (first (("var_" <>) . show) . second snd) $ NE.zip [0..] vars
         sendCode = 
-            foldr (\(bnd, OutputChannel ch) c -> Stmt (Send ch bnd) c) (Lit UnitLit) sendVars
+            foldr (\(bnd, OutputChannel ch) c -> Stmt (SendData $ SSend ch bnd) c) (Lit UnitLit) sendVars
         sendVars = NE.map (first (("var_" <>) . show) . second fst) $ NE.zip [0..] vars
 
 genLitCtrl :: FusedLitCtrl -> TaskExpr
-genLitCtrl (FusedLitCtrl ctrlInput (OutputChannel output, input) comp) = 
+genLitCtrl (FusedLitCtrl ctrlInput (OutputChannel (SChan output), input) comp) = 
     EndlessLoop $ 
         genCtrl' ctrlInput (Let output (Lit input)) comp Nothing
 
@@ -253,19 +256,19 @@ genCtrl' ctrlInput initVars comp cont =
     where 
         stmt loop = maybe loop (Stmt loop) cont
 
-initVarsExpr :: NonEmpty (Binding, Recv) -> [OutputChannel] -> TaskExpr -> TaskExpr
+initVarsExpr :: NonEmpty (Binding, Com 'Recv) -> [OutputChannel] -> TaskExpr -> TaskExpr
 initVarsExpr rVars sVars cont = 
     foldr (\(bnd, e) c -> Let bnd e c) cont $ toExpr rVars sVars
 
-receiveVarsExpr :: NonEmpty (OutputChannel, Recv) -> [OutputChannel] -> TaskExpr
+receiveVarsExpr :: NonEmpty (OutputChannel, Com 'Recv) -> [OutputChannel] -> TaskExpr
 receiveVarsExpr rVars sVars = 
-    foldr (\(OutputChannel bnd, e) c -> Stmt (Assign bnd e) c) (Lit UnitLit) $ toExpr rVars sVars
+    foldr (\(OutputChannel (SChan bnd), e) c -> Stmt (Assign bnd e) c) (Lit UnitLit) $ toExpr rVars sVars
 
-toExpr :: NonEmpty (a, Recv) -> [OutputChannel] -> NonEmpty (a, TaskExpr)
+toExpr :: NonEmpty (a, Com 'Recv) -> [OutputChannel] -> NonEmpty (a, TaskExpr)
 toExpr rVars sVars  = NE.map (second f) rVars
     where
-        f (Recv _ ch) | HS.member (OutputChannel ch) ctrled = Var ch
-        f (Recv i ch)  = Receive i ch
+        f (SRecv ch@(SChan bnd)) | HS.member (OutputChannel ch) ctrled = Var bnd
+        f r  = ReceiveData r
         ctrled = HS.fromList sVars
 
 
@@ -274,18 +277,20 @@ toExpr rVars sVars  = NE.map (second f) rVars
 
 -- | A context control marks the end of a fusion chain. It is the very last control
 --   and therefore can only be fused into.
-mkLittedCtrl :: Binding -> Lit -> Binding -> LitCtrl
-mkLittedCtrl ctrl lit out = LitCtrl (CtrlInput ctrl) (OutputChannel out, lit)
+mkLittedCtrl :: Com 'Recv -> Lit -> Com 'Channel -> LitCtrl
+mkLittedCtrl ctrl lit out = 
+    LitCtrl (CtrlInput ctrl) (OutputChannel out, lit)
 
-mkCtrl :: Binding -> Binding -> Binding -> VarCtrl
-mkCtrl ctrlInput input output = VarCtrl (CtrlInput ctrlInput) (OutputChannel output, Recv 0 input)
+mkCtrl :: Com 'Recv -> Com 'Recv -> Com 'Channel -> VarCtrl
+mkCtrl ctrlInput input output = 
+    VarCtrl (CtrlInput ctrlInput) (OutputChannel output, input)
 
 sigStateInit :: Binding -> TaskExpr -> TaskExpr
 sigStateInit bnd = Let bnd (Lit $ BoolLit False)
 
 sigStateRecv :: CtrlInput -> TaskExpr -> TaskExpr
 sigStateRecv (CtrlInput ctrlInput) cont = 
-    Let "sig" (Receive 0 ctrlInput) $
+    Let "sig" (ReceiveData ctrlInput) $
     Let "count" (L.Second "sig") cont
 
 ctxtLoop :: TaskExpr -> TaskExpr

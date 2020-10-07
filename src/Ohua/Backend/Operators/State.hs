@@ -4,17 +4,16 @@ import Ohua.Prelude
 
 import Ohua.Backend.Lang
 
-import Data.Functor.Foldable.TH (makeBaseFunctor)
-import Language.Haskell.TH.Syntax (Lift)
 import qualified Text.Show
 
 
-type DataSizeInput = Binding
-type StateInput = Binding
-type StateOutput = Binding
+type DataSizeInput = Com 'Recv
+type StateInput = Com 'Recv
+type StateOutput = Com 'Channel
 
 type StateBnd = Binding
 
+-- FIXME remove the functions from the type and derive the type classes normally
 data STCLangSMap = 
     STCLangSMap
         (TaskExpr -> TaskExpr) -- init
@@ -38,18 +37,18 @@ genSTCLangSMap (STCLangSMap init ctxtLoop stateReceive emit) =
     Stmt
     (
         ctxtLoop $
-            Stmt (Receive 0 stateReceive) $
+            Stmt (ReceiveData stateReceive) $
             Lit UnitLit
     ) $
-    Let "s" (Receive 0 stateReceive)
-        $ Send emit "s"
+    Let "s" (ReceiveData stateReceive)
+        $ SendData $ SSend emit "s"
 
 mkSTCLangSMap :: DataSizeInput -> StateInput -> StateOutput -> STCLangSMap
 mkSTCLangSMap sizeInput = STCLangSMap init ctxtLoop
     where
         init :: TaskExpr -> TaskExpr
         init c =  
-            Let "num" (Receive 0 sizeInput) $
+            Let "num" (ReceiveData sizeInput) $
             Let "toDrop" (Decrement "num") $
             Let "drops" (Generate "toDrop" UnitLit) c
 

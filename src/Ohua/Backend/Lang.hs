@@ -1,6 +1,8 @@
 {-# LANGUAGE DeriveLift #-}
 {-# LANGUAGE TemplateHaskell #-}
-
+{-# LANGUAGE DataKinds #-}
+-- {-# LANGUAGE PolyKinds #-}
+-- {-# LANGUAGE QuantifiedConstraints #-}
 module Ohua.Backend.Lang where
 
 import Ohua.Prelude
@@ -17,28 +19,41 @@ data App expr
 
 instance (Hashable expr) => Hashable (App expr)
 
-data Recv 
-  = Recv
-      Int -- copy index 
-      Binding -- channel
-  deriving (Eq, Show, Generic)
+data ComType = Channel | Recv | Send deriving (Show, Eq, Generic)
 
-instance Hashable Recv
+data Com :: ComType -> Type where
+  SChan :: Binding -> Com 'Channel
+  SRecv :: Com 'Channel -> Com 'Recv
+  SSend :: Com 'Channel -> Binding -> Com 'Send
 
-data Send
-  = Emit 
-      Binding -- channel
-      Binding -- data
-  deriving (Eq, Show, Generic)
+type Channel = Com 'Channel
 
-instance Hashable Send
+deriving instance Show (Com a)
+deriving instance Eq (Com a)
+deriving instance Lift (Com a)
 
-data Channel = Channel 
-                Binding -- channel id
-                Int -- num of copies
-                deriving (Show, Eq, Lift, Generic)
+instance Hashable (Com a) where
+  hashWithSalt s (SChan bnd) = s `hashWithSalt` bnd
+  hashWithSalt s (SRecv chan) = s `hashWithSalt` chan
+  hashWithSalt s (SSend chan bnd) = s `hashWithSalt` chan `hashWithSalt` bnd
 
-instance Hashable Channel
+-- newtype Channel = Channel Binding
+--     deriving (Show, Eq, Lift, Generic)
+
+-- instance Hashable Channel
+
+-- newtype Recv = Recv Binding -- channel
+--   deriving (Eq, Show, Generic)
+
+-- instance Hashable Recv
+
+-- data Send
+--   = Emit 
+--       Binding -- channel
+--       Binding -- data
+--   deriving (Eq, Show, Generic)
+
+-- instance Hashable Send
 
 data List expr = Create | Append Binding expr 
   deriving (Show, Eq, Lift, Generic, Functor, Foldable, Traversable)
@@ -59,11 +74,8 @@ data TaskExpr
   | Assign -- side-effect
       Binding
       TaskExpr
--- FIXME use the types from above!
-  | Receive Int -- copy index 
-            Binding -- channel -- FIXME should be more precise and take something of type InputChannel
-  | Send Binding -- channel -- FIXME should be more precise and take something of type OutputChannel
-         Binding -- data
+  | ReceiveData (Com 'Recv)
+  | SendData (Com 'Send)
 
   -- specific control flow:
   | EndlessLoop TaskExpr

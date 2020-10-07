@@ -4,7 +4,6 @@ import Ohua.Prelude
 
 import Ohua.Backend.Operators
 import Ohua.Backend.Lang
-    ( TaskExpr(Receive), Channel(..), Send(Emit), Recv(Recv) )
 import Ohua.Backend.Types
 
 import qualified Data.HashSet as HS
@@ -58,9 +57,9 @@ concludeFusion (TCProgram chans resultChan exprs) = TCProgram chans resultChan $
 -- invariant length in >= length out
 evictUnusedChannels :: TCProgram Channel TaskExpr -> TCProgram Channel TaskExpr
 evictUnusedChannels (TCProgram chans resultChan exprs) = 
-    let findBnds e = [ chan | Receive _ chan <- universe e]
-        usedChans = HS.fromList $ concatMap findBnds exprs
-        chans' = filter (\(Channel chan _) -> chan `HS.member` usedChans) chans
+    let findChannels e = [ chan | ReceiveData (SRecv chan) <- universe e]
+        usedChans = HS.fromList $ concatMap findChannels exprs
+        chans' = filter (`HS.member` usedChans) chans
     in TCProgram chans' resultChan exprs
 
 fuseStateThreads :: TCProgram Channel (Fusable VarCtrl LitCtrl) -> TCProgram Channel (Fusable FusedFunCtrl FusedLitCtrl)
@@ -71,7 +70,7 @@ mergeCtrls (TCProgram chans resultChan exprs) =
     let (ctrls',mergedCtrls) = mergeLevel funReceives (HM.fromList ctrls) [f | (Fun f) <- exprs]
         mergedCtrls' = 
             mergedCtrls ++ mergeNextLevel (NE.toList . ctrlReceives) ctrls' mergedCtrls
-        mergedCtrls'' = map (Control . Left) mergedCtrls :: [Fusable FunCtrl LitCtrl]
+        mergedCtrls'' = map (Control . Left) mergedCtrls' :: [Fusable FunCtrl LitCtrl]
         noCtrlExprs = filter (isNothing . findCtrl) exprs
     in TCProgram chans resultChan $ 
         foldl 
@@ -79,7 +78,7 @@ mergeCtrls (TCProgram chans resultChan exprs) =
             mergedCtrls'' 
             noCtrlExprs
     where
-        mergeNextLevel :: (FunCtrl -> [Binding]) 
+        mergeNextLevel :: (FunCtrl -> [Com 'Recv]) 
                         -> HashMap OutputChannel VarCtrl 
                         -> [FunCtrl] 
                         -> [FunCtrl]
@@ -90,7 +89,7 @@ mergeCtrls (TCProgram chans resultChan exprs) =
                 else mcs' <> mergeNextLevel receives cs' mcs'
 
         -- TODO: refactor to use a state monad instead for better readability
-        mergeLevel :: (b -> [Binding])
+        mergeLevel :: (b -> [Com 'Recv])
                     -> HashMap OutputChannel VarCtrl 
                     -> [b] 
                     -> (HashMap OutputChannel VarCtrl, [FunCtrl])
@@ -98,7 +97,7 @@ mergeCtrls (TCProgram chans resultChan exprs) =
             let (ctrls', ctrlsPerFun) = 
                     foldl 
                         (\(ctrls, fs) f -> 
-                            let rs = map OutputChannel $ receives f
+                            let rs = map (\(SRecv c) -> OutputChannel c) $ receives f
                                 fs' = mapMaybe (`HM.lookup` ctrls) rs
                                 ctrls' = foldl (flip HM.delete) ctrls rs
                             in (ctrls', fs':fs))
@@ -159,7 +158,7 @@ fuseCtrls (TCProgram chans resultChan exprs) =
         findTarget:: Either FunCtrl LitCtrl -> [Fusable FusedFunCtrl FusedLitCtrl] -> Maybe (Either FunCtrl LitCtrl, Either FusableFunction FusedFunCtrl)
         findTarget fc es = 
             let chan = case fc of
-                        (Left (FunCtrl _ outsAndIns)) -> unwrapBnd $ fst $ NE.head outsAndIns
+                        (Left (FunCtrl _ outsAndIns)) -> unwrapChan $ fst $ NE.head outsAndIns
                         (Right (LitCtrl _ (OutputChannel out,_))) -> out
             in case filter (isTarget chan) es of
                 [] -> Nothing
@@ -168,10 +167,11 @@ fuseCtrls (TCProgram chans resultChan exprs) =
                                 (Control (Left c)) -> Just (fc, Right c)
                                 _ -> error "Invariant broken!"
                 _ -> error "Invariant broken: a control always has exactly one target!"
+        isTarget :: Com 'Channel -> Fusable (FusedCtrl anno) ctrl1 -> Bool
         isTarget bnd (Control (Left (FusedFunCtrl _ vars _ _))) = 
-            HS.member bnd $ HS.fromList $ NE.toList $ 
-            NE.map ((\(Recv _ b) -> b) . snd . fromVarReceive) vars
-        isTarget bnd (Fun f) = HS.member bnd $ HS.fromList $ funReceives f
+            HS.member (SRecv bnd) $ HS.fromList $ NE.toList $ 
+            NE.map (snd . fromVarReceive) vars
+        isTarget bnd (Fun f) = HS.member (SRecv bnd) $ HS.fromList $ funReceives f
         isTarget _ _ = False
 
 fuseSTCLang :: TCProgram Channel (Fusable FusedFunCtrl FusedLitCtrl) -> TCProgram Channel (Fusable FusedFunCtrl FusedLitCtrl)
@@ -210,7 +210,7 @@ fuseSTCLang (TCProgram chans resultChan exprs) =
                     xs
     
         findSource :: STCLangSMap -> Fusable FusedFunCtrl FusedLitCtrl
-        findSource (STCLangSMap _ _ inp _) = 
+        findSource (STCLangSMap _ _ (SRecv inp) _) = 
             case filter (isSource inp) exprs of
                     [src] -> src
                     _ -> error "Invariant broken: every STC has exactly one source by definition!"
@@ -219,10 +219,10 @@ fuseSTCLang (TCProgram chans resultChan exprs) =
         findSTCLang (STC s) = Just s
         findSTCLang _ = Nothing
         
-        isSource :: Binding -> Fusable FusedFunCtrl FusedLitCtrl -> Bool
+        isSource :: Com 'Channel -> Fusable FusedFunCtrl FusedLitCtrl -> Bool
         isSource inp (STC (STCLangSMap _ _ _ outp)) = outp == inp
         isSource inp (Control (Left (FusedFunCtrl _ _ _ outs))) = 
-            HS.member inp $ HS.fromList $ map (\(Emit c _) -> c) outs
+            HS.member inp $ HS.fromList $ map (\(SSend c _) -> c) outs
         isSource inp (Control (Right (FusedLitCtrl _ (OutputChannel out,_) _))) = inp == out
         isSource _inp (Unfusable _) = False
         isSource _inp (Fun PureFusable{}) = False

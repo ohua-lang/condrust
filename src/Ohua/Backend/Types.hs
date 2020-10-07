@@ -3,16 +3,14 @@ module Ohua.Backend.Types where
 import Ohua.Prelude
 
 import Ohua.Backend.Lang
-import Ohua.Backend.Convert
 
-import System.FilePath
 import qualified Data.ByteString.Lazy.Char8 as L
 
 
 data TCProgram chan expr = 
     TCProgram 
         [chan] -- ^ Channels
-        Channel -- ^ Result channel
+        (Com 'Recv) -- ^ Result channel
         [expr] -- ^ Tasks
         -- [Function expr] -- ^ Functions
         deriving (Show, Eq)
@@ -23,8 +21,8 @@ class Integration lang where
     lower :: 
         CompM m
         => lang
-        -> Namespace (TCProgram Channel TaskExpr)
-        -> m (Namespace (TCProgram Channel (Code lang)))
+        -> Namespace (TCProgram (Com 'Channel) TaskExpr)
+        -> m (Namespace (TCProgram (Com 'Channel) (Code lang)))
 
 class Architecture arch where
     type Integ arch :: *
@@ -37,7 +35,7 @@ class Architecture arch where
         )
         => arch
         -> Integ arch
-        -> Namespace (TCProgram Channel (Code (Integ arch)))
+        -> Namespace (TCProgram (Com 'Channel) (Code (Integ arch)))
         -> m (Namespace (TCProgram (Chan arch) (Task arch)))
 
     serialize :: 

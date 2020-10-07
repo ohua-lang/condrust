@@ -9,4 +9,4 @@ class ConvertExpr a where
     convertExpr :: TaskExpr -> a
 
 class ConvertChannel a where
-    convertChannel :: Channel -> a
+    convertChannel :: Com 'Channel -> a
