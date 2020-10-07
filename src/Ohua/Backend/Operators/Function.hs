@@ -22,32 +22,15 @@ instance Hashable CallArg
 --   5) certainly this definition of a function really is no different
 --      from the newly defined DFLang! (one more reason to move this into common.)
 
-data Function 
-    = Pure
-        QualifiedBinding
-        [CallArg] -- call args
-        -- Assumption: if there is no one that needs this result, then this should not be computed
-        --             in the first place!
-        Binding -- out
-    | ST
-        QualifiedBinding
-        Recv -- state
-        [CallArg] -- call args
-        (Maybe Binding) -- state out
-        (Maybe Binding) -- out
-    deriving (Show, Eq, Generic)
-
 data FusableFunction 
     = PureFusable
         [CallArg]  -- data receive
         QualifiedBinding
-        -- ([Binding] -> TaskExpr -> TaskExpr) -- application
         Binding -- send result
     | STFusable
         Recv -- state receive
         [CallArg]  -- data receive
         QualifiedBinding
-        -- (NonEmpty Binding -> TaskExpr -> TaskExpr) -- application
         (Maybe Binding) -- send result
         (Maybe Binding) -- send state
     deriving (Show, Eq, Generic)
@@ -85,12 +68,6 @@ genFun' = \case
         generateReceiveCode (idx, a@(Drop (Left (Recv cidx bnd)))) = (a, "_var_" <> show idx, Receive cidx bnd)
         generateReceiveCode (idx, a@(Drop (Right e))) = (a, "_var_" <> show idx, e)
         generateReceiveCode (idx, a@(Converted e)) = (a, "var_" <> show idx, e)
-
--- FIXME obviously the first type just became obsolete!
-fun :: Function -> FusableFunction
-fun = \case 
-    (Pure funRef callArgs out) -> PureFusable callArgs funRef out
-    (ST funRef stateVar callArgs stateOut out) -> STFusable stateVar callArgs funRef out stateOut
 
 funReceives :: FusableFunction -> [Binding]
 funReceives = 
