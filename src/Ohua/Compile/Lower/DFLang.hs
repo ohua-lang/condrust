@@ -34,14 +34,14 @@ generateNodesCode = go
 generateFunctionCode :: CompM m => DFApp a ->  LoweringM m FusableExpr
 generateFunctionCode = \case
     (PureDFFun out fn inp) -> do
-        (fun', argReceives) <- lowerFnRef fn inp
+        (fun', args) <- lowerFnRef fn inp
         out' <- pureOut out 
-        return $ Fusion.Fun $ Ops.fun $ Ops.Pure fun' argReceives out'
+        return $ Fusion.Fun $ Ops.fun $ Ops.Pure fun' args out'
     (StateDFFun out fn stateIn inp) -> do
-        (fun', argReceives) <- lowerFnRef fn inp
+        (fun', args) <- lowerFnRef fn inp
         (sOut, dataOut) <- stateOut out 
         return $ Fusion.Fun $ Ops.fun 
-            $ Ops.ST fun' (Recv 0 $ unwrapABnd stateIn) argReceives sOut dataOut
+            $ Ops.ST fun' (Recv 0 $ unwrapABnd stateIn) args sOut dataOut
     where
         pureOut (Direct out) = return $ unwrapABnd out
         pureOut e = throwError $ "Unsupported multiple outputs: " <> show e
