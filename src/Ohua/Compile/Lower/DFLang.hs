@@ -36,12 +36,12 @@ generateFunctionCode = \case
     (PureDFFun out fn inp) -> do
         (fun', args) <- lowerFnRef fn inp
         out' <- pureOut out 
-        return $ Fusion.Fun $ Ops.fun $ Ops.Pure fun' args out'
+        return $ Fusion.Fun $ Ops.PureFusable args fun' out'
     (StateDFFun out fn stateIn inp) -> do
         (fun', args) <- lowerFnRef fn inp
         (sOut, dataOut) <- stateOut out 
-        return $ Fusion.Fun $ Ops.fun 
-            $ Ops.ST fun' (Recv 0 $ unwrapABnd stateIn) args sOut dataOut
+        return $ Fusion.Fun
+            $ Ops.STFusable (Recv 0 $ unwrapABnd stateIn) args fun' dataOut sOut
     where
         pureOut (Direct out) = return $ unwrapABnd out
         pureOut e = throwError $ "Unsupported multiple outputs: " <> show e
