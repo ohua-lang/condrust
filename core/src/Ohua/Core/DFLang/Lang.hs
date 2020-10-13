@@ -126,11 +126,11 @@ outBnds (Direct bnd) = unwrapABnd bnd :| []
 
 insApp :: App a -> [Binding]
 insApp (PureFun _ _ i) = extractBndsFromInputs i
-insApp (StateFun _ _ _ i) = extractBndsFromInputs i
+insApp (StateFun _ _ s i) = unwrapABnd s : extractBndsFromInputs i
 
 insDFApp :: DFApp a -> [Binding]
 insDFApp (PureDFFun _ _ i) = extractBndsFromInputs i
-insDFApp (StateDFFun _ _ _ i) = extractBndsFromInputs i
+insDFApp (StateDFFun _ _ s i) = unwrapABnd s : extractBndsFromInputs i
 
 extractBndsFromInputs :: NonEmpty DFVar -> [Binding]
 extractBndsFromInputs = 
