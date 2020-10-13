@@ -37,24 +37,6 @@ instance Hashable (Com a) where
   hashWithSalt s (SRecv chan) = s `hashWithSalt` chan
   hashWithSalt s (SSend chan bnd) = s `hashWithSalt` chan `hashWithSalt` bnd
 
--- newtype Channel = Channel Binding
---     deriving (Show, Eq, Lift, Generic)
-
--- instance Hashable Channel
-
--- newtype Recv = Recv Binding -- channel
---   deriving (Eq, Show, Generic)
-
--- instance Hashable Recv
-
--- data Send
---   = Emit 
---       Binding -- channel
---       Binding -- data
---   deriving (Eq, Show, Generic)
-
--- instance Hashable Send
-
 data List expr = Create | Append Binding expr 
   deriving (Show, Eq, Lift, Generic, Functor, Foldable, Traversable)
 

@@ -3,44 +3,59 @@ module Ohua.Backend.Types where
 import Ohua.Prelude
 
 import Ohua.Backend.Lang
-
 import qualified Data.ByteString.Lazy.Char8 as L
 
 
-data TCProgram chan expr = 
+data TCProgram chan retChan expr = 
     TCProgram 
-        [chan] -- ^ Channels
-        (Com 'Recv) -- ^ Result channel
-        [expr] -- ^ Tasks
+        (NonEmpty chan) -- ^ Channels
+        retChan -- ^ Receive on result channel
+        [expr] -- TODO (NonEmpty expr) -- ^ Tasks
         -- [Function expr] -- ^ Functions
         deriving (Show, Eq)
 
 class Integration lang where
-    type Code lang :: *
-    
-    lower :: 
-        CompM m
-        => lang
-        -> Namespace (TCProgram (Com 'Channel) TaskExpr)
-        -> m (Namespace (TCProgram (Com 'Channel) (Code lang)))
+    type RetChan lang :: *
+    type Expr lang :: *
+    type Task lang :: *
 
-class Architecture arch where
-    type Integ arch :: *
+    convertExpr :: (Architecture arch, Lang arch ~ lang) => arch -> TaskExpr -> Expr lang
+
+    lower :: 
+        ( CompM m
+        , Architecture arch
+        , Lang arch ~ lang)
+        => lang
+        -> arch
+        -> Namespace (TCProgram (Chan arch) TaskExpr TaskExpr)
+        -> m (Namespace (TCProgram (Chan arch) (RetChan lang) (Task lang)))
+
+class (ConvertTaskCom arch) => Architecture arch where
+    type Lang arch :: *
     type Chan arch :: *
-    type Task arch :: *
+    type ARetChan arch :: *
+    type ATask arch :: *
+
+    convertChannel :: arch -> Channel -> Chan arch
 
     build :: 
-        ( CompM m
-        , Integration (Integ arch)
-        )
+        ( Integration (Lang arch)
+        , lang ~ (Lang arch)
+        , CompM m)
         => arch
-        -> Integ arch
-        -> Namespace (TCProgram (Com 'Channel) (Code (Integ arch)))
-        -> m (Namespace (TCProgram (Chan arch) (Task arch)))
+        -> lang
+        -> Namespace (TCProgram (Chan arch) (RetChan lang) (Task lang))
+        -> m (Namespace (TCProgram (Chan arch) (ARetChan arch) (ATask arch)))
 
     serialize :: 
-        CompM m
+        ( CompM m
+        , Integration (Lang arch)
+        , lang ~ (Lang arch))
         => arch
-        -> Integ arch
-        -> Namespace (TCProgram (Chan arch) (Task arch))
+        -> lang
+        -> Namespace (TCProgram (Chan arch) (ARetChan arch) (ATask arch))
         -> m (NonEmpty (FilePath, L.ByteString))
+
+class ConvertTaskCom arch where
+    convertRecv :: arch -> Com 'Recv -> TaskExpr
+    convertSend:: arch -> Com 'Send -> TaskExpr

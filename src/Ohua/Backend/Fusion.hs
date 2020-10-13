@@ -38,14 +38,14 @@ type FusableExpr = Fusable VarCtrl LitCtrl
 
 -- TODO add config flag to make fusion optional
 
-fuse :: CompM m => Namespace (TCProgram Channel (Fusable VarCtrl LitCtrl)) -> m (Namespace (TCProgram Channel TaskExpr))
+fuse :: CompM m => Namespace (TCProgram Channel (Com 'Recv) (Fusable VarCtrl LitCtrl)) -> m (Namespace (TCProgram Channel (Com 'Recv) TaskExpr))
 fuse ns = 
     return $ ns & algos %~ map (\algo -> algo & algoCode %~ go)
     where 
-        go :: TCProgram Channel (Fusable VarCtrl LitCtrl) -> TCProgram Channel TaskExpr
+        go :: TCProgram Channel (Com 'Recv) (Fusable VarCtrl LitCtrl) -> TCProgram Channel (Com 'Recv) TaskExpr
         go = evictUnusedChannels . concludeFusion . fuseStateThreads
 
-concludeFusion :: TCProgram Channel (Fusable FusedFunCtrl FusedLitCtrl) -> TCProgram Channel TaskExpr
+concludeFusion :: TCProgram Channel (Com 'Recv) (Fusable FusedFunCtrl FusedLitCtrl) -> TCProgram Channel (Com 'Recv) TaskExpr
 concludeFusion (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ map go exprs
     where
         go (Fun function) = genFun function
@@ -55,17 +55,17 @@ concludeFusion (TCProgram chans resultChan exprs) = TCProgram chans resultChan $
         go (Unfusable e) = e
 
 -- invariant length in >= length out
-evictUnusedChannels :: TCProgram Channel TaskExpr -> TCProgram Channel TaskExpr
-evictUnusedChannels (TCProgram chans resultChan exprs) = 
+evictUnusedChannels :: TCProgram Channel (Com 'Recv) TaskExpr -> TCProgram Channel (Com 'Recv) TaskExpr
+evictUnusedChannels (TCProgram chans resultChan@(SRecv resChan) exprs) = 
     let findChannels e = [ chan | ReceiveData (SRecv chan) <- universe e]
         usedChans = HS.fromList $ concatMap findChannels exprs
-        chans' = filter (`HS.member` usedChans) chans
-    in TCProgram chans' resultChan exprs
+        chans' = NE.filter (`HS.member` usedChans) chans
+    in TCProgram (resChan :| chans') resultChan exprs
 
-fuseStateThreads :: TCProgram Channel (Fusable VarCtrl LitCtrl) -> TCProgram Channel (Fusable FusedFunCtrl FusedLitCtrl)
+fuseStateThreads :: TCProgram Channel (Com 'Recv) (Fusable VarCtrl LitCtrl) -> TCProgram Channel (Com 'Recv) (Fusable FusedFunCtrl FusedLitCtrl)
 fuseStateThreads = fuseSTCLang . fuseCtrls . mergeCtrls
 
-mergeCtrls :: TCProgram Channel (Fusable VarCtrl LitCtrl) -> TCProgram Channel (Fusable FunCtrl LitCtrl)
+mergeCtrls :: TCProgram Channel (Com 'Recv) (Fusable VarCtrl LitCtrl) -> TCProgram Channel (Com 'Recv) (Fusable FunCtrl LitCtrl)
 mergeCtrls (TCProgram chans resultChan exprs) =
     let (ctrls',mergedCtrls) = mergeLevel funReceives (HM.fromList ctrls) [f | (Fun f) <- exprs]
         mergedCtrls' = 
@@ -121,7 +121,7 @@ mergeCtrls (TCProgram chans resultChan exprs) =
         ctrls :: [(OutputChannel, VarCtrl)]
         ctrls = mapMaybe findCtrl exprs
 
-fuseCtrls :: TCProgram Channel (Fusable FunCtrl LitCtrl) -> TCProgram Channel (Fusable FusedFunCtrl FusedLitCtrl)
+fuseCtrls :: TCProgram Channel (Com 'Recv) (Fusable FunCtrl LitCtrl) -> TCProgram Channel (Com 'Recv) (Fusable FusedFunCtrl FusedLitCtrl)
 fuseCtrls (TCProgram chans resultChan exprs) = 
     let (ctrls, noFunCtrls) = split exprs
     in TCProgram chans resultChan $ go ctrls noFunCtrls
@@ -174,7 +174,7 @@ fuseCtrls (TCProgram chans resultChan exprs) =
         isTarget bnd (Fun f) = HS.member (SRecv bnd) $ HS.fromList $ funReceives f
         isTarget _ _ = False
 
-fuseSTCLang :: TCProgram Channel (Fusable FusedFunCtrl FusedLitCtrl) -> TCProgram Channel (Fusable FusedFunCtrl FusedLitCtrl)
+fuseSTCLang :: TCProgram Channel (Com 'Recv) (Fusable FusedFunCtrl FusedLitCtrl) -> TCProgram Channel (Com 'Recv) (Fusable FusedFunCtrl FusedLitCtrl)
 fuseSTCLang (TCProgram chans resultChan exprs) = 
     let noSTC = filter (isNothing . findSTCLang) exprs
         fused = go stclangs
