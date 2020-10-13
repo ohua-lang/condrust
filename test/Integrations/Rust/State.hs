@@ -20,9 +20,9 @@ spec =
                 expected <- showCode "Expected:"
                     [sourceFile| 
                         fn test(i: i32) -> String {
+                            let (a_0_tx, a_0_rx) = std::sync::mpsc::channel();
                             let (state_0_0_tx, state_0_0_rx) = std::sync::mpsc::channel();
                             let (result_0_0_tx, result_0_0_rx) = std::sync::mpsc::channel();
-                            let (a_0_tx, a_0_rx) = std::sync::mpsc::channel();
                             let mut tasks: Vec<Box<FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
                             tasks
                                 .push(Box::new(move || -> _ {

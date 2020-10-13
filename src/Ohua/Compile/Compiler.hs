@@ -19,12 +19,12 @@ import Ohua.Frontend.Types (CompilationScope)
 import Ohua.Core.Types.Environment (Options)
 import Ohua.Core.Compile.Configuration as CoreConfig
 import Ohua.Core.Compile as Core (compile)
--- import Ohua.Core.Unit (cleanUnits)
 import Ohua.Backend as B (backend)
 import Ohua.Compile.Lower.FrLang (toAlang)
 import Ohua.Compile.Lower.DFLang (toTCLang)
 
 import Ohua.Integration
+import Ohua.Integration.Architecture
 
 import System.FilePath
 
@@ -37,11 +37,11 @@ compile inFile compScope coreOpts outDir =
         "sm" -- TODO integrate backend architecture option into config
         (compilation inFile compScope coreOpts outDir)
     
-compilation :: 
+compilation :: forall lang integ (arch::Arch) m.
     (CompM m, FullIntegration lang integ arch)
     => 
     FilePath -> CompilationScope -> Options -> FilePath
-    -> lang -> arch -> m ()
+    -> lang -> Architectures arch -> m ()
 compilation inFile compScope coreOpts outDir integration arch = do
     -- frontend
     (ctxt, n) <- Fr.frontend integration compScope inFile

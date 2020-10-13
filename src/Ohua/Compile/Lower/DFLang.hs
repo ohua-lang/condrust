@@ -9,9 +9,11 @@ import Ohua.Backend.Types
 import qualified Ohua.Backend.Operators as Ops
 import Ohua.Backend.Fusion as Fusion
 
+import Data.List.NonEmpty ((<|))
+
 
 -- Invariant in the result type: the result channel is already part of the list of channels.
-toTCLang :: CompM m => NormalizedDFExpr -> m (TCProgram Channel FusableExpr)
+toTCLang :: CompM m => NormalizedDFExpr -> m (TCProgram Channel (Com 'Recv) FusableExpr)
 toTCLang gr = do
     let channels = generateArcsCode gr
     (tasks,resultChan) <- generateNodesCode gr
@@ -27,8 +29,8 @@ generateNodesCode = go
     where 
         go (DFLang.Let app cont) = do
             task <- generateNodeCode app
-            (tasks, resChan) <- go cont
-            return (task:tasks,resChan)
+            (tasks, resRecv) <- go cont
+            return (task:tasks,resRecv)
         go (DFLang.Var bnd) = return ([], SRecv $ SChan bnd) 
 
 generateFunctionCode :: CompM m => DFApp a ->  LoweringM m FusableExpr
@@ -67,11 +69,11 @@ lowerFnRef fun vars | fun == Refs.unitFun = do -- FIXME Why not give a unit func
     return (f, vars')
 lowerFnRef f vars = return (f, toList $ map generateReceive vars)
 
-generateArcsCode :: NormalizedDFExpr -> [Channel]
+generateArcsCode :: NormalizedDFExpr -> NonEmpty Channel
 generateArcsCode = go
     where
-        go (DFLang.Let app cont) = map SChan (toList $ outBindings app) ++ go cont
-        go (DFLang.Var _) = []
+        go (DFLang.Let app cont) = foldl (\l b -> SChan b <| l) (go cont) (inBindings app) 
+        go (DFLang.Var bnd) = SChan bnd :|[]
 
 -- FIXME see sertel/ohua-core#7: all these errors would immediately go away
 generateNodeCode :: CompM m => DFApp a ->  LoweringM m FusableExpr
