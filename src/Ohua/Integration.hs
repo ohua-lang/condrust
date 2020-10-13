@@ -5,9 +5,10 @@ module Ohua.Integration where
 import Ohua.Prelude
 
 import qualified Ohua.Frontend.Types as F (Integration, Lang, frontend)
-import qualified Ohua.Backend.Types as B (Integration, lower, Architecture, Integ)
+import qualified Ohua.Backend.Types as B (Integration, lower, Architecture, Lang)
 import Ohua.Integration.Rust.Types (Rust(..))
-import Ohua.Integration.Rust.Architecture (Architectures(..))
+import Ohua.Integration.Architecture
+import Ohua.Integration.Rust.Architecture.SharedMemory ()
 import Ohua.Integration.Rust.Frontend ()
 import Ohua.Integration.Rust.Backend ()
 
@@ -20,12 +21,12 @@ type FullIntegration lang integ arch =
         ( F.Integration lang
         , integ ~ F.Lang lang
         , B.Integration integ
-        , B.Architecture arch
-        , integ ~ B.Integ arch
+        , B.Architecture (Architectures arch)
+        , B.Lang (Architectures arch) ~ integ
         )
 
 data Integration = 
-    forall lang integ arch. FullIntegration lang integ arch => I lang arch
+    forall lang integ (arch::Arch). FullIntegration lang integ arch => I lang (Architectures arch)
 
 class Apply integration where
     apply :: CompM m 
@@ -33,7 +34,7 @@ class Apply integration where
         -> (forall lang integ arch.
             FullIntegration lang integ arch
             => lang 
-            -> arch
+            -> Architectures arch
             -> m a)
         -> m a
 
@@ -41,14 +42,14 @@ instance Apply Integration where
     apply (I lang arch) comp = comp lang arch
 
 definedIntegrations :: [(FileExtension, ArchId, Description, Integration)]
-definedIntegrations = [(".rs", "sm", "Rust integration", I Rust SharedMemory)]
+definedIntegrations = [(".rs", "sm", "Rust integration", I Rust SSharedMemory)]
 
 runIntegration :: CompM m 
                 => Text 
                 -> Text
                 -> (forall lang integ arch.
                     FullIntegration lang integ arch
-                    => lang -> arch -> m a)
+                    => lang -> Architectures arch -> m a)
                 -> m a
 runIntegration ext _arch comp
     | Just a <- find ((== ext) . view _1) definedIntegrations = apply (a ^. _4) comp

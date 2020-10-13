@@ -47,6 +47,7 @@ default-extensions:
 - ViewPatterns
 - NoImplicitPrelude
 - StandaloneDeriving
+- DataKinds
 
 dependencies:
 - base >= 4.7 && < 5
