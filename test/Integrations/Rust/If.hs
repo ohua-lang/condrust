@@ -28,13 +28,13 @@ spec =
                     [sourceFile| 
                         fn test(i: i32) -> String {
                             let (g_0_tx, g_0_rx) = std::sync::mpsc::channel();
-                            let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel();
                             let (b_0_0_tx, b_0_0_rx) = std::sync::mpsc::channel();
-                            let (c_0_0_tx, c_0_0_rx) = std::sync::mpsc::channel();
                             let (ctrlTrue_0_tx, ctrlTrue_0_rx) = std::sync::mpsc::channel();
+                            let (c_0_0_tx, c_0_0_rx) = std::sync::mpsc::channel();
                             let (ctrlFalse_0_tx, ctrlFalse_0_rx) = std::sync::mpsc::channel();
-                            let (e_0_tx, e_0_rx) = std::sync::mpsc::channel();
                             let (f_0_tx, f_0_rx) = std::sync::mpsc::channel();
+                            let (e_0_tx, e_0_rx) = std::sync::mpsc::channel();
+                            let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel();
                             let (result_0_tx, result_0_rx) = std::sync::mpsc::channel();
                             let mut tasks: Vec<Box<FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
                             tasks
@@ -152,11 +152,11 @@ spec =
                     [sourceFile| 
                         fn test(i: i32) -> String {
                             let (e_0_tx, e_0_rx) = std::sync::mpsc::channel();
-                            let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel();
                             let (ctrlTrue_0_tx, ctrlTrue_0_rx) = std::sync::mpsc::channel();
                             let (ctrlFalse_0_tx, ctrlFalse_0_rx) = std::sync::mpsc::channel();
-                            let (b_0_tx, b_0_rx) = std::sync::mpsc::channel();
                             let (c_0_tx, c_0_rx) = std::sync::mpsc::channel();
+                            let (b_0_tx, b_0_rx) = std::sync::mpsc::channel();
+                            let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel();
                             let (result_0_tx, result_0_rx) = std::sync::mpsc::channel();
                             let mut tasks: Vec<Box<FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
                             tasks

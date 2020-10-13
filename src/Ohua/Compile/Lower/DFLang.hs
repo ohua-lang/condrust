@@ -9,7 +9,8 @@ import Ohua.Backend.Types
 import qualified Ohua.Backend.Operators as Ops
 import Ohua.Backend.Fusion as Fusion
 
-import Data.List.NonEmpty ((<|))
+import qualified Data.List.NonEmpty as NE ((<|), toList)
+import qualified Data.HashSet as HS
 
 
 -- Invariant in the result type: the result channel is already part of the list of channels.
@@ -72,7 +73,11 @@ lowerFnRef f vars = return (f, toList $ map generateReceive vars)
 generateArcsCode :: NormalizedDFExpr -> NonEmpty Channel
 generateArcsCode = go
     where
-        go (DFLang.Let app cont) = foldl (\l b -> SChan b <| l) (go cont) (inBindings app) 
+        go (DFLang.Let app cont) = 
+            let collected = go cont
+                collected' = HS.fromList $ NE.toList collected
+                current = filter (not . (`HS.member` collected')) $ map SChan $ inBindings app
+            in foldl (flip (NE.<|)) collected current
         go (DFLang.Var bnd) = SChan bnd :|[]
 
 -- FIXME see sertel/ohua-core#7: all these errors would immediately go away
