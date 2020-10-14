@@ -58,7 +58,7 @@ genFun' = \case
             callArgs = getCallArgs $ NE.tail varsAndReceives
             stateArg = (\(_,v,_) -> v) $ NE.head varsAndReceives
         in flip letReceives (toList varsAndReceives) $
-            Let "result" (Apply $ Stateful stateArg app callArgs) $
+            Let "result" (Apply $ Stateful (Var stateArg) app callArgs) $
             foldr Stmt (Lit UnitLit) $ 
             catMaybes [SendData . (`SSend` "result") <$> sendRes, SendData . (`SSend` stateArg) <$> sendState]
     where

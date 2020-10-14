@@ -14,7 +14,7 @@ import Control.Lens.Plated
 
 data App expr
   = Stateless QualifiedBinding [expr]
-  | Stateful Binding QualifiedBinding [expr]
+  | Stateful expr QualifiedBinding [expr]
   deriving (Show, Eq, Lift, Generic, Functor, Foldable, Traversable)
 
 instance (Hashable expr) => Hashable (App expr)
