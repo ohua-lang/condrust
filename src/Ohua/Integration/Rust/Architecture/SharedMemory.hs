@@ -8,17 +8,11 @@ import Ohua.Backend.Lang as TCLang
 import Ohua.Integration.Rust.Backend
 import Ohua.Integration.Architecture
 import Ohua.Integration.Rust.Types as RT
-import Ohua.Integration.Rust.Util
+import Ohua.Integration.Rust.Architecture.Common as C
 
 import Language.Rust.Syntax as Rust hiding (Rust)
 import Language.Rust.Quote
-import Language.Rust.Pretty ( pretty' )
 import Language.Rust.Data.Ident
-import Data.Text.Prettyprint.Doc
-import Data.Text.Prettyprint.Doc.Render.Text
-
-import qualified Data.HashMap.Lazy as HM
-import System.FilePath (takeFileName)
 
 
 instance Architecture (Architectures 'SharedMemory) where
@@ -39,7 +33,7 @@ instance Architecture (Architectures 'SharedMemory) where
                 []
                 noSpan
 
-    build SSharedMemory (Module (_, SourceFile _ _ items)) ns = 
+    build SSharedMemory (Module (_, SourceFile _ _ _items)) ns = 
         return $ ns & algos %~ map (\algo -> algo & algoCode %~ createTasksAndChannels)
         where
             createTasksAndChannels (TCProgram chans retChan tasks) = 
@@ -55,21 +49,8 @@ instance Architecture (Architectures 'SharedMemory) where
                     (BlockExpr [] code noSpan)
                     noSpan
 
-    serialize SSharedMemory (Module (path, SourceFile modName atts items)) ns =
-        let algos' = HM.fromList $ map (\(Algo name expr) -> (name, expr)) $ ns^.algos
-            src    = SourceFile modName atts $ map (replaceAlgo algos') items
-            render = encodeUtf8 . (<> "\n") . renderLazy . layoutSmart defaultLayoutOptions . pretty'
-            path' = takeFileName path -- TODO verify this!
-        in return $ (path', render src) :| []
+    serialize SSharedMemory mod ns = C.serialize mod ns createProgram
         where
-            replaceAlgo algos = \case
-                    f@(Fn atts vis ident decl@(FnDecl _args _ _ _) s c abi gen _ span) ->
-                        case HM.lookup (toBinding ident) algos of
-                            Just algo -> 
-                                Fn atts vis ident decl s c abi gen (span <$ createProgram algo) span
-                            Nothing -> f
-                    i -> i
-            
             createProgram (TCProgram chans resultExpr tasks) =
                 let taskInitStmt = noSpan <$ [stmt| let mut tasks:Vec<Box<dyn FnOnce() -> Result<(), RunError>+ Send >> = Vec::new(); |]
                     box task =
