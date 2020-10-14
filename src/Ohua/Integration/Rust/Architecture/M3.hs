@@ -84,4 +84,7 @@ instance Architecture (Architectures 'M3) where
 instance ConvertTaskCom (Architectures 'M3) where
     convertRecv _ (SRecv (SChan channel)) = undefined -- this needs the type information!
     convertSend _ (SSend (SChan channel) d) =
-        Apply $ Stateful (channel <> "_tx") (mkFunRefUnqual "send_msg") [Var d]
+        Apply $ Stateful
+            (Apply $ Stateful (Var $ channel <> "_tx") (mkFunRefUnqual "send_msg") [Var d])
+            (mkFunRefUnqual "unwrap")
+            []

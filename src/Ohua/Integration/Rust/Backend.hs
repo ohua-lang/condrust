@@ -10,7 +10,6 @@ import Ohua.Integration.Rust.Util
 
 import Language.Rust.Syntax as Rust hiding (Rust)
 import Language.Rust.Data.Ident
-import Language.Rust.Quote (expr)
 import Data.Text (unpack)
 import Data.List ((!!))
 import Data.Functor.Foldable (cata, embed)
@@ -18,6 +17,7 @@ import Data.Maybe
 import qualified Data.HashMap.Lazy as HM
 
 
+noSpan :: ()
 noSpan = ()
 
 convertIntoBlock :: (Architecture arch, Lang arch ~ Module) => arch -> TaskExpr -> Block ()
@@ -57,20 +57,19 @@ instance Integration Module where
             argToVar :: Rust.Arg a -> TCLang.TaskExpr
             argToVar (Arg (Just (IdentP _ i _ _ )) _ _) = Var $ toBinding i
 
--- instance ConvertTaskExpr (Expr ()) where
     convertExpr _ (Var bnd) = PathExpr [] Nothing (convertVar bnd) noSpan
 
     convertExpr _ (TCLang.Lit (NumericLit i)) = Rust.Lit [] (Int Dec i Unsuffixed noSpan) noSpan
     convertExpr _ (TCLang.Lit (BoolLit b)) = Rust.Lit [] (Bool b Unsuffixed noSpan) noSpan
     convertExpr _ (TCLang.Lit UnitLit) = TupExpr [] [] noSpan -- FIXME this means *our* unit, I believe.
-    convertExpr _ (TCLang.Lit (EnvRefLit hostExpr)) = error "Host expression encountered! This is a compiler error. Please report!"
+    convertExpr _ (TCLang.Lit (EnvRefLit _hostExpr)) = error "Host expression encountered! This is a compiler error. Please report!"
     convertExpr _ (TCLang.Lit (FunRefLit (FunRef qBnd _))) = PathExpr [] Nothing (convertQualBnd qBnd) noSpan
 
     convertExpr arch (Apply (Stateless bnd args)) = convertFunCall arch bnd args
-    convertExpr arch (Apply (Stateful var (QualifiedBinding _ bnd) args)) =
+    convertExpr arch (Apply (Stateful stateExpr (QualifiedBinding _ bnd) args)) =
         MethodCall
             []
-            (convertExpr arch $ Var var)
+            (convertExpr arch stateExpr)
             (mkIdent $ unpack $ unwrap bnd)
             Nothing
             (map (convertExpr arch) args)
@@ -128,14 +127,9 @@ instance Integration Module where
 
     convertExpr arch (TCLang.ListOp Create) = convertExpr arch $ Apply $ Stateless "Vec/new" []
     convertExpr arch (TCLang.ListOp (Append bnd expr)) = 
-        convertExpr arch $ Apply $ Stateful bnd (mkFunRefUnqual "push") [expr]
+        convertExpr arch $ Apply $ Stateful (Var bnd) (mkFunRefUnqual "push") [expr]
     convertExpr arch (TCLang.Size bnd) =         
-        convertExpr arch $
-            Apply $ 
-                Stateful 
-                    bnd 
-                    (mkFunRefUnqual "len")
-                    []
+        convertExpr arch $ Apply $ Stateful (Var bnd) (mkFunRefUnqual "len") []
 
     convertExpr arch (TCLang.Tuple one two) = 
         let conv = convertExpr arch . either TCLang.Var TCLang.Lit
@@ -151,12 +145,13 @@ instance Integration Module where
         TCLang.Assign bnd $ Apply $ Stateless (mkFunRefUnqual "-") [Var bnd, TCLang.Lit $ NumericLit 1]
     convertExpr arch (TCLang.Not expr) = convertExpr arch $ Apply $ Stateless (mkFunRefUnqual "!") [expr]
     
-    convertExpr _ (TCLang.HasSize bnd) = undefined -- TODO This is really something that we need to reconsider/redesign!
-    convertExpr _ (TCLang.Generate bnd lit) = undefined -- TODO 
+    convertExpr _ (TCLang.HasSize _bnd) = undefined -- TODO This is really something that we need to reconsider/redesign!
+    convertExpr _ (TCLang.Generate _bnd lit) = undefined -- TODO 
 
 pattern UnqualFun :: Binding -> QualifiedBinding
 pattern UnqualFun bnd <- QualifiedBinding [] bnd
 
+mkFunRefUnqual :: Binding -> QualifiedBinding
 mkFunRefUnqual = QualifiedBinding (makeThrow [])
 
 mkSimpleBinding :: Binding -> Pat ()

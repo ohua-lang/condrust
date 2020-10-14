@@ -74,6 +74,6 @@ instance Architecture (Architectures 'SharedMemory) where
 
 instance ConvertTaskCom (Architectures 'SharedMemory) where
     convertRecv _ (SRecv (SChan channel)) =             
-        Apply $ Stateful (channel <> "_rx") (mkFunRefUnqual "recv") []
+        Apply $ Stateful (Var $ channel <> "_rx") (mkFunRefUnqual "recv") []
     convertSend _ (SSend (SChan channel) d) =
-        Apply $ Stateful (channel <> "_tx") (mkFunRefUnqual "send") [Var d]
+        Apply $ Stateful (Var $ channel <> "_tx") (mkFunRefUnqual "send") [Var d]
