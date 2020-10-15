@@ -28,21 +28,49 @@ instance Architecture (Architectures 'M3) where
                 (rgate, sgate)
             } |]
         in Local
-                (TupleP [mkSimpleBinding $ bnd <> "_tx", mkSimpleBinding $ bnd <> "_rx"] Nothing noSpan)
-                Nothing
-                (Just channel)
-                []
-                noSpan
+            (TupleP [mkSimpleBinding $ bnd <> "_tx", mkSimpleBinding $ bnd <> "_rx"] Nothing noSpan)
+            Nothing
+            (Just channel)
+            []
+            noSpan
 
     build SM3 (Module (_, SourceFile _ _ _items)) ns = 
         return $ ns & algos %~ map (\algo -> algo & algoCode %~ createTasksAndRetChan)
         where
             createTasksAndRetChan (Program chans retChan tasks) = 
-                Program chans (convertExpr SM3 retChan) (map (createTask <$>) tasks)
+                Program chans (convertExpr SM3 retChan) (map create tasks)
 
-            -- TODO: A task is a block that initializes a new VPE and its channels.
-            --       A task should always have its input and output channels associated!
-            createTask :: Rust.Block () -> Rust.Expr ()
+            create task@(FullTask _ _ taskE) = 
+                let initVPE = createVPE : delegateCom task
+                    taskE' = createTask $ prependToBlock (activateCom task) $ BlockExpr [] taskE noSpan
+                    all = prependToBlock initVPE taskE'
+                in all <$ task
+
+            createVPE :: Rust.Stmt ()
+            createVPE = noSpan <$ [stmt| let mut vpe = VPE::new_child_vpe("test").unwrap(); |]
+
+            activateCom :: FullTask a -> [Rust.Stmt ()]
+            activateCom (FullTask sends recvs _) =
+                map ((flip Semi noSpan . convertExpr SM3) .
+                    (\c -> 
+                        Apply $ Stateful 
+                            (Apply $ Stateful (Var c) (mkFunRefUnqual "activate") [])
+                            (mkFunRefUnqual "unwrap") []))
+                    (map (\(SSend (SChan c) _) -> c) sends ++
+                     map (\(SRecv (SChan c)) -> c) recvs)
+
+            delegateCom :: FullTask a -> [Rust.Stmt ()]
+            delegateCom (FullTask sends recvs _) = 
+                map ((flip Semi noSpan . convertExpr SM3) .
+                    (\c -> 
+                        Apply $ Stateful 
+                            (Apply $ Stateful (Var "vpe") (mkFunRefUnqual "delegate_obj") 
+                                [Apply $ Stateful (Var c) (mkFunRefUnqual "sel") []])
+                            (mkFunRefUnqual "unwrap") []))
+                    (map (\(SSend (SChan c) _) -> c) sends ++
+                     map (\(SRecv (SChan c)) -> c) recvs)
+
+            createTask :: Rust.Expr () -> Rust.Expr ()
             createTask code = 
                 let closure = 
                         Closure
@@ -50,10 +78,10 @@ instance Architecture (Architectures 'M3) where
                             Movable
                             Value
                             (FnDecl [] (Just $ Infer noSpan) False noSpan)
-                            (BlockExpr [] code noSpan)
+                            code
                             noSpan
                     box =
-                        Call 
+                        Call
                             []
                             (PathExpr [] Nothing (convertQualBnd (QualifiedBinding (makeThrow ["Box"]) "new")) noSpan)
                             [closure]

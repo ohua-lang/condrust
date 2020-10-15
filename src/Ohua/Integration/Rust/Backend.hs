@@ -30,7 +30,7 @@ convertIntoBlock arch expr =
 instance Integration Module where
     type RetChan Module = TaskExpr
     type Expr Module = Rust.Expr ()
-    type Task Module = Block ()
+    type Task Module = Rust.Block ()
 
     lower (Module (path, SourceFile _ _ items)) arch ns = 
         return $ 
