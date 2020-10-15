@@ -36,8 +36,8 @@ instance Architecture (Architectures 'SharedMemory) where
     build SSharedMemory (Module (_, SourceFile _ _ _items)) ns = 
         return $ ns & algos %~ map (\algo -> algo & algoCode %~ createTasksAndChannels)
         where
-            createTasksAndChannels (TCProgram chans retChan tasks) = 
-                TCProgram chans (convertExpr SSharedMemory retChan) (map createTask tasks)
+            createTasksAndChannels (Program chans retChan tasks) = 
+                Program chans (convertExpr SSharedMemory retChan) (map (createTask <$>) tasks)
 
             createTask :: Rust.Block () -> Rust.Expr ()
             createTask code = 
@@ -51,7 +51,7 @@ instance Architecture (Architectures 'SharedMemory) where
 
     serialize SSharedMemory mod ns = C.serialize mod ns createProgram
         where
-            createProgram (TCProgram chans resultExpr tasks) =
+            createProgram (Program chans resultExpr tasks) =
                 let taskInitStmt = noSpan <$ [stmt| let mut tasks:Vec<Box<dyn FnOnce() -> Result<(), RunError>+ Send >> = Vec::new(); |]
                     box task =
                         Call 
@@ -67,7 +67,7 @@ instance Architecture (Architectures 'SharedMemory) where
                             Nothing
                             [t]
                             noSpan
-                    taskStmts = map (flip Semi noSpan . push . box) tasks
+                    taskStmts = map (flip Semi noSpan . push . box . taskExpression) tasks
                     taskRunStmt = () <$ [stmt| run(tasks); |]
                     program = toList chans ++ [taskInitStmt] ++ taskStmts ++ [taskRunStmt]
                 in Block (program ++ [NoSemi resultExpr noSpan]) Normal noSpan

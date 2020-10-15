@@ -37,9 +37,11 @@ instance Architecture (Architectures 'M3) where
     build SM3 (Module (_, SourceFile _ _ _items)) ns = 
         return $ ns & algos %~ map (\algo -> algo & algoCode %~ createTasksAndRetChan)
         where
-            createTasksAndRetChan (TCProgram chans retChan tasks) = 
-                TCProgram chans (convertExpr SM3 retChan) (map createTask tasks)
+            createTasksAndRetChan (Program chans retChan tasks) = 
+                Program chans (convertExpr SM3 retChan) (map (createTask <$>) tasks)
 
+            -- TODO: A task is a block that initializes a new VPE and its channels.
+            --       A task should always have its input and output channels associated!
             createTask :: Rust.Block () -> Rust.Expr ()
             createTask code = 
                 let closure = 
@@ -76,8 +78,8 @@ instance Architecture (Architectures 'M3) where
 
     serialize SM3 mod ns = C.serialize mod ns createProgram
         where 
-            createProgram (TCProgram chans resultExpr tasks) =
-                let taskStmts = map (flip Semi noSpan) tasks
+            createProgram (Program chans resultExpr tasks) =
+                let taskStmts = map (flip Semi noSpan . taskExpression) tasks
                     program = toList chans ++ taskStmts
                 in Block (program ++ [NoSemi resultExpr noSpan]) Normal noSpan
 

@@ -36,7 +36,7 @@ instance Integration Module where
         return $ 
             ns & algos %~ map (\algo -> algo & algoCode %~ convertTasks (algo^.algoName))
         where
-            convertTasks algo (TCProgram chans retChan tasks) = 
+            convertTasks algo (Program chans retChan tasks) = 
                 let algosAndArgs = HM.fromList $ 
                         map (\(Fn _ _ ident (FnDecl args _ _ _) _ _ _ _ _ _) -> 
                                 (toBinding ident, args))
@@ -47,7 +47,7 @@ instance Integration Module where
                             --        to what we are compiling!
                             Nothing -> error "Compiler invariant broken: Algo not found in source module."
                             (Just as) -> as
-                in TCProgram chans retChan $ map (convertIntoBlock arch . convertEnvs args) tasks 
+                in Program chans retChan $ map (convertIntoBlock arch . convertEnvs args <$>) tasks 
                             
             convertEnvs :: [Arg a] -> TCLang.TaskExpr -> TCLang.TaskExpr
             convertEnvs args = cata $ \case

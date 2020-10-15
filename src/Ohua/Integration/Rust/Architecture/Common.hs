@@ -18,8 +18,8 @@ import Language.Rust.Pretty (pretty')
 
 serialize :: CompM m
         => Module
-        -> Namespace (TCProgram (Stmt ()) (Rust.Expr ()) (Rust.Expr ()))
-        -> (TCProgram (Stmt ()) (Rust.Expr ()) (Rust.Expr ()) -> Block ())
+        -> Namespace (Program (Stmt ()) (Rust.Expr ()) (Rust.Expr ()))
+        -> (Program (Stmt ()) (Rust.Expr ()) (Rust.Expr ()) -> Block ())
         -> m (NonEmpty (FilePath, L.ByteString))
 serialize (Module (path, SourceFile modName atts items)) ns createProgram =         
     let algos' = HM.fromList $ map (\(Algo name expr) -> (name, expr)) $ ns^.algos
