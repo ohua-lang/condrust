@@ -6,13 +6,46 @@ import Ohua.Backend.Lang
 import qualified Data.ByteString.Lazy.Char8 as L
 
 
+-- data TaskType = PureTask | STTask
+
+-- data TaskFun :: TaskType -> Type -> Type where
+--     SPureTask :: [Com 'Send] -> expr -> [Com 'Recv] -> TaskFun 'PureTask expr 
+--     SSTTask :: (Maybe (Com 'Send), Maybe (Com 'Send)) -> expr -> Com 'Recv -> [Com 'Recv] -> TaskFun 'STTask expr
+
+-- deriving instance Functor (TaskFun exprType)
+
+-- data TCProgram chan retChan expr = 
+--     forall (exprType::TaskType). (Show (TaskFun expr exprType), Eq (TaskFun expr exprType)) =>
+--         TCProgram 
+--         (NonEmpty chan) -- ^ Channels
+--         retChan -- ^ Receive on result channel
+--         [TaskFun expr exprType] -- TODO (NonEmpty expr) -- ^ Tasks
+--         -- [Function expr] -- ^ Functions
+
+-- deriving instance (Show chan, Show retChan, Show expr) => Show (TCProgram chan retChan expr)
+-- deriving instance (Eq chan, Eq retChan) => Eq (TCProgram chan retChan expr)
+
 data TCProgram chan retChan expr = 
     TCProgram 
         (NonEmpty chan) -- ^ Channels
         retChan -- ^ Receive on result channel
         [expr] -- TODO (NonEmpty expr) -- ^ Tasks
-        -- [Function expr] -- ^ Functions
-        deriving (Show, Eq)
+
+data Program chan retChan expr = 
+    Program
+        (NonEmpty chan)
+        retChan
+        [FullTask expr]
+
+data FullTask expr = 
+    FullTask 
+        [Com 'Send] 
+        [Com 'Recv] -- TODO Do not unwrap the binding to understand where state comes from!
+        expr
+    deriving (Show, Eq, Functor)
+
+taskExpression :: FullTask expr -> expr
+taskExpression (FullTask _ _ e) = e
 
 class Integration lang where
     type RetChan lang :: *
@@ -27,8 +60,8 @@ class Integration lang where
         , Lang arch ~ lang)
         => lang
         -> arch
-        -> Namespace (TCProgram (Chan arch) TaskExpr TaskExpr)
-        -> m (Namespace (TCProgram (Chan arch) (RetChan lang) (Task lang)))
+        -> Namespace (Program (Chan arch) TaskExpr TaskExpr)
+        -> m (Namespace (Program (Chan arch) (RetChan lang) (Task lang)))
 
 class (ConvertTaskCom arch) => Architecture arch where
     type Lang arch :: *
@@ -44,8 +77,8 @@ class (ConvertTaskCom arch) => Architecture arch where
         , CompM m)
         => arch
         -> lang
-        -> Namespace (TCProgram (Chan arch) (RetChan lang) (Task lang))
-        -> m (Namespace (TCProgram (Chan arch) (ARetChan arch) (ATask arch)))
+        -> Namespace (Program (Chan arch) (RetChan lang) (Task lang))
+        -> m (Namespace (Program (Chan arch) (ARetChan arch) (ATask arch)))
 
     serialize :: 
         ( CompM m
@@ -53,7 +86,7 @@ class (ConvertTaskCom arch) => Architecture arch where
         , lang ~ (Lang arch))
         => arch
         -> lang
-        -> Namespace (TCProgram (Chan arch) (ARetChan arch) (ATask arch))
+        -> Namespace (Program (Chan arch) (ARetChan arch) (ATask arch))
         -> m (NonEmpty (FilePath, L.ByteString))
 
 class ConvertTaskCom arch where

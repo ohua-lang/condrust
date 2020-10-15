@@ -33,3 +33,16 @@ lowerChannels arch ns = ns & algos %~ map (\algo -> algo & algoCode %~ convert)
                 (map (convertChannel arch) chans)
                 retChan
                 tasks
+
+intoProgram :: Namespace (TCProgram chan retChan TaskExpr) 
+            -> Namespace (Program chan retChan TaskExpr) 
+intoProgram ns = ns & algos %~ map (\algo -> algo & algoCode %~ convert)
+    where
+        convert (TCProgram chans retChan tasks) = 
+            Program chans retChan (map createFullTask tasks)
+
+        createFullTask taskExpr = 
+            FullTask 
+                [s | SendData s <- universe taskExpr]
+                [r | ReceiveData r <- universe taskExpr]
+                taskExpr
