@@ -37,12 +37,10 @@ import Ohua.Core.Types.Stage
 import Ohua.Core.Types.Environment (Options, stageHandling, transformRecursiveFunctions)
 import Ohua.Frontend.Types (CompilationScope)
 
-import qualified Data.Text as T (Text, unpack, pack, intercalate)
+import qualified Data.Text as T (unpack, pack)
 import qualified Data.Yaml as Y
 import Data.Yaml (FromJSON(..), (.:), (.:?), (.!=), decodeFileThrow)
-import Data.ByteString (ByteString)
 import qualified Data.HashMap.Strict as HM
-import Control.Applicative
 import System.FilePath (joinPath, addExtension)
 import System.FilePath.Posix (splitDirectories, splitExtension)
 import System.Directory (doesFileExist)
