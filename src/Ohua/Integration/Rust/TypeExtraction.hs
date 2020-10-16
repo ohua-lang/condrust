@@ -17,6 +17,8 @@ data ArgType a = Self (Ty a) Mutability | Normal (Ty a) deriving (Show, Eq)
 
 data FunType a = FunType [ArgType a] (Maybe (Ty a)) deriving (Show, Eq)
 
+type FunTypes = HM.HashMap FunRef (FunType Span)
+
 extractFromFile :: CompM m => FilePath -> m (HM.HashMap FunRef (FunType Span))
 extractFromFile srcFile = extract srcFile =<< liftIO (load srcFile)
 
@@ -32,24 +34,22 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
                         (: []) . Just . (createFunRef ident, ) <$> extractFunType convertArg decl
                     (Impl _ _ _ _ _ _ _ selfType items _) -> 
                         mapM (extractFromImplItem selfType) items
-                    -- (Trait _ _ ident _ _ _ _ items _) -> 
-                    --     mapM (extractFromTraitItem (toTraitType ident)) items
+                    (Trait _ _ ident _ _ _ _ items span) -> 
+                        mapM (extractFromTraitItem (toTraitType ident span)) items
                     _ -> return [])
                 items
         
-        -- TODO I'm not sure here how to create a value because the code is polymorph over the
-        --      annotation on the data structure.
-        -- toTraitType ident = 
-        --     TraitObject 
-        --         (TraitTyParamBound 
-        --             (PolyTraitRef 
-        --                 [] 
-        --                 (TraitRef (Path False [PathSegment ident Nothing span] span) span) 
-        --                 span) 
-        --             None
-        --             span)
-        --         span
-        --         :| []
+        toTraitType ident span = 
+            TraitObject 
+                (TraitTyParamBound 
+                    (PolyTraitRef 
+                        [] 
+                        (TraitRef $ Path False [PathSegment ident Nothing span] span)
+                        span) 
+                    None
+                    span
+                :| [])
+                span
 
         createFunRef :: Ident -> FunRef
         createFunRef = 

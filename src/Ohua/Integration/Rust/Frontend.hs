@@ -6,25 +6,26 @@ import Ohua.Frontend.Lang as FrLang
 import Ohua.Frontend.Types
 import Ohua.Frontend.Convert
 
+import Ohua.Integration.Lang
 import Ohua.Integration.Rust.Types
 import Ohua.Integration.Rust.Util
+import Ohua.Integration.Rust.TypeExtraction
 
 import Language.Rust.Syntax as Rust hiding (Rust)
 import Language.Rust.Data.Ident
-import Language.Rust.Parser ( parse' , Span )
-import Data.Text as T hiding (map, concat, reverse)
+import Language.Rust.Parser ( Span )
 
 import qualified Data.HashMap.Lazy as HM
-import System.FilePath ((</>), splitDirectories, dropExtension)
 
 
-instance Integration Rust where
-    type Lang Rust = Module
+instance Integration (Language 'Rust) where
+    type NS (Language 'Rust) = Module
+    type Types (Language 'Rust) = FunTypes
 
-    frontend _ srcFile = do
+    loadNs _ srcFile = do
         mod <- liftIO $ load srcFile
         ns <- extractNs mod
-        return (Module (srcFile, mod), ns)
+        return (Module srcFile mod, ns)
         where
             extractNs :: CompM m => SourceFile Span -> m (Namespace FrLang.Expr)
             -- TODO we might need to retrieve this from the file path.
@@ -74,7 +75,7 @@ instance Integration Rust where
                     (PathSegment ident Nothing _) -> return $ toBinding ident
                     (PathSegment _ (Just _) _) -> throwError $ "We currently do not support import paths with path parameters.\n" <> show p
                     
-
+    loadTypes _ _ ohuaNS = undefined
 
 instance (Show a) => ConvertExpr (Rust.Expr a) where 
     convertExpr e@Box{} = throwError $ "Currently, we do not support the construction of boxed values. Please do so in a function." <> show e
@@ -95,7 +96,7 @@ instance (Show a) => ConvertExpr (Rust.Expr a) where
     convertExpr (TupExpr [] vars _) = do
         vars' <- mapM convertExpr vars
         return $ TupE vars'
-    convertExpr e@TupExpr{} = throwError $ "Currently, we do not support attributes on tuple exressions.\n" <> show e
+    convertExpr e@TupExpr{} = throwError $ "Currently, we do not support attributes on tuple expressions.\n" <> show e
     convertExpr (Binary [] op left right _) = do
         op' <- convertExpr op
         left' <- convertExpr left
@@ -179,7 +180,7 @@ instance (Show a) => ConvertExpr (Rust.Expr a) where
     convertExpr e@Try{} = throwError $ "Currently, we do not support error handling expressions. Please use a function.\n" <> show e
     convertExpr e@Yield{} = throwError $ "Currently, we do not support generator/yield expressions. Please use a function.\n" <> show e
 
-instance (Show a) => ConvertExpr (Path a) where
+instance (Show a) => ConvertExpr (Rust.Path a) where
     -- This needs context information to distinguish a path from a variable.
     -- A transformation is performing this disambiguation later on.
     convertExpr (Path _ segments _) = 
@@ -193,12 +194,12 @@ instance (Show a) => ConvertExpr (Path a) where
             convertSegment (PathSegment Ident{name=n} Nothing _) = return n
             convertSegment e@PathSegment{} = throwError $ "Currently, we do not support type parameters in paths.\n" <> show e
 
-instance (Show a) => ConvertExpr (Block a) where
+instance (Show a) => ConvertExpr (Rust.Block a) where
     convertExpr (Block [] _ _) = return $ LitE UnitLit
     -- TODO extend this into a higher-order function "unsafe" that we can leverage in our compiler
     --      to separate safe from unsafe parts of a program.
     convertExpr b@(Block _ Unsafe _) = throwError $ "Currently, we do not support unsafe blocks.\n" <> show b
-    convertExpr (Block stmts Normal _) = 
+    convertExpr (Block stmts Rust.Normal _) = 
         foldM 
             (\cont stmt -> (\e -> e cont) <$> convertStmt stmt) 
             (LitE UnitLit) 

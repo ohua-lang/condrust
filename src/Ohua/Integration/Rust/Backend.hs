@@ -5,8 +5,10 @@ import Ohua.Prelude
 import Ohua.Backend.Lang as TCLang
 import Ohua.Backend.Types as B
 
+import Ohua.Integration.Lang hiding (Lang)
 import Ohua.Integration.Rust.Types
 import Ohua.Integration.Rust.Util
+import Ohua.Integration.Rust.TypeExtraction (FunTypes)
 
 import Language.Rust.Syntax as Rust hiding (Rust)
 import Language.Rust.Data.Ident
@@ -20,19 +22,22 @@ import qualified Data.HashMap.Lazy as HM
 noSpan :: ()
 noSpan = ()
 
-convertIntoBlock :: (Architecture arch, Lang arch ~ Module) => arch -> TaskExpr -> Block ()
+convertIntoBlock :: (Architecture arch, Lang arch ~ (Language 'Rust)) => arch -> TaskExpr -> Block ()
 convertIntoBlock arch expr = 
     let expr' = convertExpr arch expr
     in case expr' of
         BlockExpr _ block _ -> block
         e -> Block [NoSemi e noSpan] Normal noSpan
 
-instance Integration Module where
-    type RetChan Module = TaskExpr
-    type Expr Module = Rust.Expr ()
-    type Task Module = Rust.Block ()
+instance Integration (Language 'Rust) where
+    type NS (Language 'Rust) = Module
+    type Types (Language 'Rust) = FunTypes
 
-    lower (Module (path, SourceFile _ _ items)) arch ns = 
+    type RetChan (Language 'Rust) = TaskExpr
+    type Expr (Language 'Rust) = Rust.Expr ()
+    type Task (Language 'Rust) = Rust.Block ()
+
+    lower (Module _path (SourceFile _ _ items), _) arch ns = 
         return $ 
             ns & algos %~ map (\algo -> algo & algoCode %~ convertTasks (algo^.algoName))
         where
@@ -163,7 +168,7 @@ mkSimpleBinding bnd =
         noSpan
 
 -- TODO we probably want a Literal for common operations
-convertFunCall :: (Architecture arch, Lang arch ~ Module) => arch -> QualifiedBinding -> [TCLang.TaskExpr] -> Rust.Expr ()
+convertFunCall :: (Architecture arch, Lang arch ~ (Language 'Rust)) => arch -> QualifiedBinding -> [TCLang.TaskExpr] -> Rust.Expr ()
 convertFunCall arch op [arg1, arg2] | isJust $ binOp op = 
     Binary [] (fromJust $ binOp op) (convertExpr arch arg1) (convertExpr arch arg2) noSpan
     where

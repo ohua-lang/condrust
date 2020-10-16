@@ -1,8 +1,9 @@
 module Ohua.Integration.Rust.Types where
 
-import System.FilePath
-import Language.Rust.Syntax hiding (Rust)
-import Language.Rust.Parser ( Span )
+import Ohua.Prelude
 
-data Rust = Rust
-newtype Module = Module (FilePath, SourceFile Span)
+import Language.Rust.Syntax
+import Language.Rust.Parser
+
+
+data Module = Module FilePath (SourceFile Span)

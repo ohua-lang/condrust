@@ -5,6 +5,7 @@ import Ohua.Prelude
 
 import Ohua.Backend.Types
 import Ohua.Backend.Lang as TCLang
+import Ohua.Integration.Lang hiding (Lang)
 import Ohua.Integration.Architecture
 import Ohua.Integration.Rust.Types as RT
 import Ohua.Integration.Rust.Backend
@@ -16,7 +17,7 @@ import Language.Rust.Quote
 
 
 instance Architecture (Architectures 'M3) where
-    type Lang (Architectures 'M3) = Module
+    type Lang (Architectures 'M3) = Language 'Rust
     type Chan (Architectures 'M3) = Stmt ()
     type ARetChan (Architectures 'M3) = Rust.Expr ()
     type ATask (Architectures 'M3) = Rust.Expr ()
@@ -34,7 +35,7 @@ instance Architecture (Architectures 'M3) where
             []
             noSpan
 
-    build SM3 (Module (_, SourceFile _ _ _items)) ns = 
+    build SM3 (Module _ (SourceFile _ _ _items), _) ns = 
         return $ ns & algos %~ map (\algo -> algo & algoCode %~ createTasksAndRetChan)
         where
             createTasksAndRetChan (Program chans retChan tasks) = 

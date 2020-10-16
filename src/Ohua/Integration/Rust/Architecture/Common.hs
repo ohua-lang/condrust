@@ -17,11 +17,11 @@ import Language.Rust.Pretty (pretty')
 
 
 serialize :: CompM m
-        => Module
+        => (Module, a)
         -> Namespace (Program (Stmt ()) (Rust.Expr ()) (Rust.Expr ()))
         -> (Program (Stmt ()) (Rust.Expr ()) (Rust.Expr ()) -> Block ())
         -> m (NonEmpty (FilePath, L.ByteString))
-serialize (Module (path, SourceFile modName atts items)) ns createProgram =         
+serialize (Module path (SourceFile modName atts items), _) ns createProgram =         
     let algos' = HM.fromList $ map (\(Algo name expr) -> (name, expr)) $ ns^.algos
         src    = SourceFile modName atts $ map (replaceAlgo algos') items
         render = encodeUtf8 . (<> "\n") . renderLazy . layoutSmart defaultLayoutOptions . pretty'

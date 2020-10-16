@@ -6,6 +6,7 @@ import Ohua.Prelude
 import Ohua.Backend.Types
 import Ohua.Backend.Lang as TCLang
 import Ohua.Integration.Rust.Backend
+import Ohua.Integration.Lang hiding (Lang)
 import Ohua.Integration.Architecture
 import Ohua.Integration.Rust.Types as RT
 import Ohua.Integration.Rust.Architecture.Common as C
@@ -16,7 +17,7 @@ import Language.Rust.Data.Ident
 
 
 instance Architecture (Architectures 'SharedMemory) where
-    type Lang (Architectures 'SharedMemory) = Module
+    type Lang (Architectures 'SharedMemory) = Language 'Rust
     type Chan (Architectures 'SharedMemory) = Stmt ()
     type ARetChan (Architectures 'SharedMemory) = Rust.Expr ()
     type ATask (Architectures 'SharedMemory) = Rust.Expr ()
@@ -33,7 +34,7 @@ instance Architecture (Architectures 'SharedMemory) where
                 []
                 noSpan
 
-    build SSharedMemory (Module (_, SourceFile _ _ _items)) ns = 
+    build SSharedMemory (Module _ (SourceFile _ _ _items), _) ns = 
         return $ ns & algos %~ map (\algo -> algo & algoCode %~ createTasksAndChannels)
         where
             createTasksAndChannels (Program chans retChan tasks) = 
