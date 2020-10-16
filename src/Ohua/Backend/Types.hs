@@ -48,6 +48,9 @@ taskExpression :: FullTask expr -> expr
 taskExpression (FullTask _ _ e) = e
 
 class Integration lang where
+    type Types lang :: *
+    type NS lang :: *
+
     type RetChan lang :: *
     type Expr lang :: *
     type Task lang :: *
@@ -58,7 +61,7 @@ class Integration lang where
         ( CompM m
         , Architecture arch
         , Lang arch ~ lang)
-        => lang
+        => (NS lang, Types lang)
         -> arch
         -> Namespace (Program (Chan arch) TaskExpr TaskExpr)
         -> m (Namespace (Program (Chan arch) (RetChan lang) (Task lang)))
@@ -76,7 +79,7 @@ class (ConvertTaskCom arch) => Architecture arch where
         , lang ~ (Lang arch)
         , CompM m)
         => arch
-        -> lang
+        -> (NS lang, Types lang)
         -> Namespace (Program (Chan arch) (RetChan lang) (Task lang))
         -> m (Namespace (Program (Chan arch) (ARetChan arch) (ATask arch)))
 
@@ -85,7 +88,7 @@ class (ConvertTaskCom arch) => Architecture arch where
         , Integration (Lang arch)
         , lang ~ (Lang arch))
         => arch
-        -> lang
+        -> (NS lang, Types lang)
         -> Namespace (Program (Chan arch) (ARetChan arch) (ATask arch))
         -> m (NonEmpty (FilePath, L.ByteString))
 
