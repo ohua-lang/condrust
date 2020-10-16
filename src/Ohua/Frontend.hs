@@ -13,12 +13,13 @@ import Ohua.Frontend.Transform.State ( check )
 
 
 frontend :: (CompM m, Integration lang) 
-        => lang -> CompilationScope -> FilePath -> m (Lang lang, Namespace Expr)
+        => lang -> CompilationScope -> FilePath -> m ((NS lang, Types lang), Namespace Expr)
 frontend lang compScope inFile = do
-        (lang', ns) <- load lang compScope inFile
+        (langNs, ns) <- load lang compScope inFile
         ns' <- resolveNS ns
         ns'' <- updateExprs ns' transform
-        return (lang', ns'')
+        types <- loadTypes lang langNs ns''
+        return ((langNs, types), ns'')
     where
         transform :: CompM m => Expr -> m Expr
         transform e = 

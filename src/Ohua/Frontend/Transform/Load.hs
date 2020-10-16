@@ -37,7 +37,7 @@ toFilePath (nsRef, suffix) = addExtension (nsToFilePath nsRef) $ T.unpack suffix
 loadDeps :: (CompM m, Integration lang) => lang -> CompilationScope -> Namespace Expr -> m NamespaceRegistry
 loadDeps lang scope currentNs = do
     let registry' = registerAlgos HM.empty currentNs
-    modules <- mapM (\path -> snd <$> frontend lang (toFilePath path)) $ HM.toList scope
+    modules <- mapM (\path -> snd <$> loadNs lang (toFilePath path)) $ HM.toList scope
     let registry'' = foldl registerAlgos registry' modules
     return registry''
     where
@@ -52,10 +52,10 @@ loadDeps lang scope currentNs = do
                 registry
                 $ ns^.algos
 
-load :: (CompM m, Integration lang) => lang -> CompilationScope -> FilePath -> m (Lang lang, (Namespace Expr, NamespaceRegistry))
+load :: (CompM m, Integration lang) => lang -> CompilationScope -> FilePath -> m (NS lang, (Namespace Expr, NamespaceRegistry))
 load lang scope inFile = do
     logDebugN $ "Loading module: " <> show inFile <> "..."
-    (ctxt, ns) <- frontend lang inFile
+    (ctxt, ns) <- loadNs lang inFile
     logDebugN $ "Loaded ns: " <> show ns
     -- verify scope ns
     logDebugN "Loading dependencies ..."

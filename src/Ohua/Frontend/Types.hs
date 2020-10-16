@@ -3,14 +3,17 @@ module Ohua.Frontend.Types where
 import Ohua.Prelude
 
 import Ohua.Frontend.Lang
-import System.FilePath
 import qualified Data.HashMap.Lazy as HM
 
+-- TODO: What is the proper type constellation here, so that the first parameter of
+--       both functions in the interface become unnecessary/obsolete.
+
 class Integration lang where
-    type Lang lang :: *
+    type NS lang :: *
+    type Types lang :: *
 
-    frontend :: (CompM m) => lang -> FilePath -> m (Lang lang, Namespace Expr)
-
+    loadNs :: CompM m => lang -> FilePath -> m (NS lang, Namespace Expr)
+    loadTypes :: CompM m => lang -> NS lang -> Namespace Expr -> m (Types lang)
 
 type LanguageFileSuffix = Text
 type CompilationScope = HM.HashMap NSRef LanguageFileSuffix

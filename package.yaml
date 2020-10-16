@@ -60,6 +60,7 @@ default-extensions:
 - NoImplicitPrelude
 - RankNTypes
 - ViewPatterns
+- DataKinds
 
 library:
   source-dirs: src
