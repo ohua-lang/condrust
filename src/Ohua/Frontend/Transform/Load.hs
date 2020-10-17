@@ -13,12 +13,6 @@ import System.Directory (doesFileExist)
 import System.FilePath.Posix (addExtension)
 
 
-nsToFilePath :: NSRef -> FilePath
-nsToFilePath = joinPath . map (T.unpack . unwrap) . unwrap 
-
-toFilePath :: (NSRef, Text) -> FilePath
-toFilePath (nsRef, suffix) = addExtension (nsToFilePath nsRef) $ T.unpack suffix
-
 -- FIXME This wants to check whether an import is registered in the global list. 
 --       But this can only be performed the other way around because other imports may refer to functions instead of algos.
 --       So what is this supposed to verify at all???
@@ -29,6 +23,7 @@ toFilePath (nsRef, suffix) = addExtension (nsToFilePath nsRef) $ T.unpack suffix
 --                  then return ()
 --                  else throwError $ "No such module registered: " <> show (imp^.nsRef))
 --         $ ns^.imports
+
 
 -- | This function loads all dependencies into the current namespace.
 --   We currently use a very simple but easily maintainable approach:
