@@ -8,9 +8,10 @@ import Ohua.Backend.Types as B
 import Ohua.Integration.Lang hiding (Lang)
 import Ohua.Integration.Rust.Types
 import Ohua.Integration.Rust.Util
-import Ohua.Integration.Rust.TypeExtraction (FunTypes)
+import Ohua.Integration.Rust.TypeExtraction (FunType)
 
 import Language.Rust.Syntax as Rust hiding (Rust)
+import Language.Rust.Parser (Span)
 import Language.Rust.Data.Ident
 import Data.Text (unpack)
 import Data.List ((!!))
@@ -31,7 +32,7 @@ convertIntoBlock arch expr =
 
 instance Integration (Language 'Rust) where
     type NS (Language 'Rust) = Module
-    type Types (Language 'Rust) = FunTypes
+    type Types (Language 'Rust) = HashMap QualifiedBinding (FunType Span)
 
     type RetChan (Language 'Rust) = TaskExpr
     type Expr (Language 'Rust) = Rust.Expr ()

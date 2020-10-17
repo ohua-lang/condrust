@@ -9,23 +9,20 @@ import Language.Rust.Data.Ident (Ident)
 import Language.Rust.Parser (Span)
 import qualified Data.HashMap.Lazy as HM
 
--- That could be a type family where there exists only one type for `typ` 
--- per instance of the type class that defines this method.
--- extract :: FilePath -> HS FunRef typ
 
 data ArgType a = Self (Ty a) Mutability | Normal (Ty a) deriving (Show, Eq)
 
 data FunType a = FunType [ArgType a] (Maybe (Ty a)) deriving (Show, Eq)
 
-type FunTypes = HM.HashMap FunRef (FunType Span)
+type FunTypes = HM.HashMap QualifiedBinding (FunType Span)
 
-extractFromFile :: CompM m => FilePath -> m (HM.HashMap FunRef (FunType Span))
+extractFromFile :: CompM m => FilePath -> m FunTypes
 extractFromFile srcFile = extract srcFile =<< liftIO (load srcFile)
 
-extract :: (CompM m, Show a) => FilePath -> SourceFile a -> m (HM.HashMap FunRef (FunType a))
+extract :: (CompM m, Show a) => FilePath -> SourceFile a -> m (HM.HashMap QualifiedBinding (FunType a))
 extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
     where
-        extractTypes :: (CompM m, Show a) => [Item a] -> m [(FunRef, FunType a)]
+        extractTypes :: (CompM m, Show a) => [Item a] -> m [(QualifiedBinding, FunType a)]
         extractTypes items = 
             catMaybes . concat <$>
             mapM
@@ -51,9 +48,8 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
                 :| [])
                 span
 
-        createFunRef :: Ident -> FunRef
+        createFunRef :: Ident -> QualifiedBinding
         createFunRef = 
-            flip FunRef Nothing . 
             QualifiedBinding (filePathToNsRef srcFile) .
             toBinding
         
@@ -75,12 +71,12 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
         convertArg (Arg _ typ _) = return $ Normal typ
         convertArg a = throwError $ "Please report: The impossible happened at argument: " <> show a
 
-        extractFromImplItem :: (CompM m, Show a) => Ty a -> ImplItem a -> m (Maybe (FunRef, FunType a))
+        extractFromImplItem :: (CompM m, Show a) => Ty a -> ImplItem a -> m (Maybe (QualifiedBinding, FunType a))
         extractFromImplItem selfType (MethodI _ _ _ ident _ (MethodSig _ _ _ decl) _ _) = 
             Just . (createFunRef ident, ) <$> extractFunType (convertImplArg selfType) decl
         extractFromImplItem _ _ = return Nothing
 
-        extractFromTraitItem :: (CompM m, Show a) => Ty a -> TraitItem a -> m (Maybe (FunRef, FunType a))
+        extractFromTraitItem :: (CompM m, Show a) => Ty a -> TraitItem a -> m (Maybe (QualifiedBinding, FunType a))
         extractFromTraitItem selfType (MethodT _ ident _ (MethodSig _ _ _ decl) _ _) =
             Just . (createFunRef ident, ) <$> extractFunType (convertImplArg selfType) decl
         extractFromTraitItem _ _ = return Nothing

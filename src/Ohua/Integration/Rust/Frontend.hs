@@ -16,11 +16,12 @@ import Language.Rust.Data.Ident
 import Language.Rust.Parser ( Span )
 
 import qualified Data.HashMap.Lazy as HM
+import qualified Data.HashSet as HS
 
 
 instance Integration (Language 'Rust) where
     type NS (Language 'Rust) = Module
-    type Types (Language 'Rust) = FunTypes
+    type Types (Language 'Rust) = HashMap QualifiedBinding (FunType Span)
 
     loadNs _ srcFile = do
         mod <- liftIO $ load srcFile
@@ -75,7 +76,48 @@ instance Integration (Language 'Rust) where
                     (PathSegment ident Nothing _) -> return $ toBinding ident
                     (PathSegment _ (Just _) _) -> throwError $ "We currently do not support import paths with path parameters.\n" <> show p
                     
-    loadTypes _ _ ohuaNS = undefined
+    loadTypes _ _ ohuaNs = do
+        filesAndPaths <- concat <$> mapM funsForAlgo (ohuaNs^.algos)
+        types <- load $ HS.toList $ HS.fromList $ concatMap fst filesAndPaths
+        HM.fromList <$> mapM (verifyAndRegister types) filesAndPaths
+        where
+            resolvedImports :: HM.HashMap Binding NSRef
+            resolvedImports = HM.fromList $ mapMaybe resolveImport (ohuaNs^.imports)
+
+            resolveImport :: Import -> Maybe (Binding, NSRef)
+            resolveImport (Full ns binding) = Just (binding, ns)
+            resolveImport (Alias ns alias) = Just (alias, ns)
+            resolveImport (Glob _) = Nothing
+
+            globs :: [NSRef]
+            globs = mapMaybe (\case (Glob ns) -> Just ns; _ -> Nothing) (ohuaNs^.imports)
+                
+            funsForAlgo :: CompM m => Algo FrLang.Expr -> m [([NSRef], QualifiedBinding)]
+            funsForAlgo (Algo _name code) = 
+                mapM lookupFunTypes [f | LitE (FunRefLit (FunRef f _)) <- universe code]
+
+            lookupFunTypes :: CompM m => QualifiedBinding -> m ([NSRef], QualifiedBinding)
+            lookupFunTypes q@(QualifiedBinding [] name) =
+                return $ (,q) $ maybe globs (:[]) $ HM.lookup name resolvedImports
+            lookupFunTypes q@(QualifiedBinding nsRef _name) = 
+                let (alias:rest) = unwrap nsRef
+                in case HM.lookup alias resolvedImports of
+                    Just a -> return ([NSRef $ unwrap a ++ rest], q)
+                    Nothing -> throwError $ "Invariant broken: I found a module alias reference that is not listed in the imports: " <> show q <> "\n Please move it into this module if you happen to import this via a mod.rs file."
+
+            load :: CompM m => [NSRef] -> m FunTypes
+            load nsRefs = HM.unions <$> mapM (extractFromFile . toFilePath . (,".rs")) nsRefs
+
+            verifyAndRegister :: CompM m => FunTypes -> ([NSRef], QualifiedBinding) -> m (QualifiedBinding, FunType Span)
+            verifyAndRegister types ([candidate], qp@(QualifiedBinding _ name)) =
+                case HM.lookup (QualifiedBinding candidate name) types of
+                    Just t -> return (qp, t)
+                    Nothing -> throwError $ "Function `" <> show name <> "` not found in module `" <> show candidate <> "`. I need these types to generate the code. Please check that the function actually exists by compiling again with `rustc`."
+            verifyAndRegister types (globs, qp@(QualifiedBinding _ name)) =
+                case mapMaybe ((`HM.lookup` types) . (`QualifiedBinding` name)) globs of
+                    [] -> throwError $ "Function `" <> show name <> "` not found in modules `" <> show globs <> "`. I need these types to generate the code. Please check that the function actually exists by compiling again with `rustc`."
+                    [t] -> return (qp, t)
+                    _ -> throwError $ "Multiple definitions of function `" <> show name <> "` in modules " <> show globs <> " detected!\nPlease verify again that your code compiles properly by running `rustc`. If the problem persists then please file a bug. (See issue sertel/ohua-frontend#1)"
 
 instance (Show a) => ConvertExpr (Rust.Expr a) where 
     convertExpr e@Box{} = throwError $ "Currently, we do not support the construction of boxed values. Please do so in a function." <> show e
