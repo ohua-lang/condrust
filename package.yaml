@@ -61,10 +61,10 @@ dependencies:
 - template-haskell
 - th-lift-instances
 - text
-- vector
 - unordered-containers
 - fast-logger
 - bytestring
+- filepath
 
 library:
   source-dirs: src

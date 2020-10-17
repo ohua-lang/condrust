@@ -7,11 +7,13 @@ import Control.Lens.Plated
 import Control.Lens.TH
 import Control.Monad.Error.Class (MonadError, throwError)
 import qualified Data.Text as T
-import qualified Data.Vector as V
 import GHC.Exts (IsList(..))
 import Instances.TH.Lift ()
 import Language.Haskell.TH.Syntax (Lift)
 import Ohua.LensClasses
+
+import System.FilePath.Posix (addExtension)
+import System.FilePath as Path (joinPath)
 
 import Ohua.Util
 
@@ -25,7 +27,7 @@ newtype Binding =
 
 -- | Hierarchical reference to a namespace
 newtype NSRef =
-    NSRef (V.Vector Binding)
+    NSRef [Binding]
     deriving (Eq, Generic, NFData, Ord, Show, Lift)
 
 -- | A qualified binding. References a particular bound value inside a
@@ -74,7 +76,7 @@ instance UnsafeMake FnId where unsafeMake = FnId
 instance UnsafeMake Binding where unsafeMake = Binding
 instance UnsafeMake HostExpr where unsafeMake = HostExpr
 instance UnsafeMake NSRef where
-    unsafeMake = NSRef . V.fromList
+    unsafeMake = NSRef
 
 
 
@@ -102,7 +104,7 @@ instance Unwrap Binding where
     unwrap (Binding b) = b
 
 instance Unwrap NSRef where
-    unwrap (NSRef l) = V.toList l
+    unwrap (NSRef l) = l
 
 instance Unwrap FnId where
     unwrap (FnId i) = i
@@ -167,3 +169,10 @@ symbolFromString s
             _ ->
                 throwError $
                 "Leading slash expected after `break` in the binding " <> show s
+
+
+nsToFilePath :: NSRef -> FilePath
+nsToFilePath = joinPath . map (T.unpack . unwrap) . unwrap 
+
+toFilePath :: (NSRef, Text) -> FilePath
+toFilePath (nsRef, suffix) = addExtension (nsToFilePath nsRef) $ T.unpack suffix

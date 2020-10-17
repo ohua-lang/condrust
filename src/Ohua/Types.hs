@@ -1,8 +1,9 @@
 module Ohua.Types
     ( FnId
     , Binding
-    , NSRef
+    , NSRef(..)
     , QualifiedBinding(..)
+    , toFilePath
     , symbolFromString
     , HostExpr
     , FunRef(..)

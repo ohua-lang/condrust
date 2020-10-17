@@ -25,8 +25,7 @@ import Control.Monad.Writer (WriterT)
 import Control.Monad.Error.Class hiding (Error)
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
-import qualified Data.Vector as V
-import Control.Lens.Operators ((%=), (.=))
+import Control.Lens.Operators ((.=))
 import Control.Lens.TH
 
 import Ohua.Types.Error

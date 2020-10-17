@@ -1,1 +1,4 @@
 resolver: lts-14.22 # ghc-8.6.5
+
+packages:
+- .
