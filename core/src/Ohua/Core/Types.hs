@@ -15,10 +15,7 @@
 
 -- This source code is licensed under the terms described in the associated LICENSE.TXT file
 {-# LANGUAGE CPP                        #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiWayIf                 #-}
-{-# LANGUAGE DeriveLift #-}
-{-# LANGUAGE TemplateHaskell #-}
 
 #include "compat.h"
 
@@ -38,16 +35,8 @@ module Ohua.Core.Types
     , OhuaState
     , nameGenerator
     , idCounter
-    , Annotated(Annotated)
-    , TyExpr(TyApp, TyRef)
-    , TyExprF(..)
-    , TyVar(..)
-    , SomeTyVar
-    , DefaultTyExpr
     ) where
 
-import Ohua.Core.Types.Annotated
 import Ohua.Core.Types.Environment
 import Ohua.Core.Types.Reference
 import Ohua.Core.Types.Stage
-import Ohua.Core.Types.TyExpr

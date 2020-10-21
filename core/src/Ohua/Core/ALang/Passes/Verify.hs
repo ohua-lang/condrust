@@ -5,23 +5,15 @@ import Ohua.Core.Prelude
 import Ohua.Core.ALang.Lang
 
 
--- FIXME Why does this not work?
--- ensureNthStructure :: MonadOhua m => Expression -> m ()
--- ensureNthStructure =
---     para $ \case
---         Apply (Apply (Lit (FunRefLit (FunRef "ohua.lang/nth" Nothing))) (Lit (NumericLit _))) (Var _) ->
---             failWith $ "Missing total length argument to nth "
---         e -> return ()
-ensureNthStructure :: MonadOhua m => Expression -> m ()
+ensureNthStructure :: MonadOhua m => Expr ty -> m ()
 ensureNthStructure e =
     mapM_
         (failWith .
          ("Missing total length argument to nth call bound to " <>) . show)
         [ x
-        | Let x (Apply (Lit (FunRefLit (FunRef "ohua.lang/nth" Nothing))) e1) _ <-
+        | Let x (Apply (Lit (FunRefLit (FunRef "ohua.lang/nth" Nothing _))) _e1) _ <-
               universe e
         ]
 
-checkInvariants :: MonadOhua m => Expression -> m ()
-checkInvariants = do
-    ensureNthStructure
+checkInvariants :: MonadOhua m => Expr ty -> m ()
+checkInvariants = ensureNthStructure

@@ -24,19 +24,20 @@ For example:
 @
 Here, f has side-effects to a and we sequence further execution.
 -}
-literalsToFunctions :: MonadOhua m => Expression -> m Expression
+literalsToFunctions :: MonadOhua m => Expr ty -> m (Expr ty)
 literalsToFunctions e =
     flip transformM e $ \case
         Let v u@(Lit lit) ie ->
             case lit of
                 UnitLit      -> mkFun v u ie
                 NumericLit _ -> mkFun v u ie
+                BoolLit _ -> mkFun v u ie
                 EnvRefLit _  -> mkFun v u ie
-                _other -> throwError $ "Compiler invariant broken. Trying to convert literal to function: " <> show lit 
+                FunRefLit (FunRef qb _ _) -> throwError $ "Compiler invariant broken. Trying to convert function literal to function: " <> show qb 
         other -> return other
     where 
         mkFun v lit body = return $ 
             Let
                 v
-                ((Lit $ FunRefLit $ FunRef R.id Nothing) `Apply` lit)
+                ((Lit $ FunRefLit $ FunRef R.id Nothing Untyped) `Apply` lit)
                 body

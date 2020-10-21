@@ -35,7 +35,7 @@ forceLog :: (MonadLogger m, NFData a) => Text -> a -> m ()
 forceLog msg a = a `deepseq` logDebugN msg
 
 -- | The canonical order of transformations and lowerings performed in a full compilation.
-pipeline :: CustomPasses -> Expression -> OhuaM NormalizedDFExpr
+pipeline :: CustomPasses -> ALang.Expr ty -> OhuaM (NormalizedDFExpr ty)
 pipeline CustomPasses {..} e = do
     stage resolvedAlang e
     ssaE <- performSSA e
@@ -65,7 +65,7 @@ pipeline CustomPasses {..} e = do
     pure coreDfE
 
 -- | Run the pipeline in an arbitrary monad that supports error reporting.
-compile :: CompM m => Options -> CustomPasses -> Expression -> m NormalizedDFExpr
+compile :: CompM m => Options -> CustomPasses -> ALang.Expr ty -> m (NormalizedDFExpr ty)
 compile opts passes exprs = do
     logFn <- askLoggerIO
     let passes' =
@@ -79,7 +79,7 @@ hofNames = HS.fromList [Refs.smap, Refs.ifThenElse, Refs.seq, Refs.recur, y]
 
 -- FIXME I don't think this is needed anymore once issue #8 is resolved.
 -- | Verify that only higher order functions have lambdas as arguments
-checkHigherOrderFunctionSupport :: MonadOhua m => Expression -> m ()
+checkHigherOrderFunctionSupport :: MonadOhua m => ALang.Expr ty -> m ()
 checkHigherOrderFunctionSupport (ALang.Let _ e rest) = do
     void $ checkNestedExpr e
     checkHigherOrderFunctionSupport rest

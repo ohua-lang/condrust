@@ -9,7 +9,7 @@ Portability : portable
 This source code is licensed under the terms described in the associated LICENSE.TXT file
 
 -}
-
+{-# LANGUAGE ScopedTypeVariables #-}
 module Ohua.Core.ALang.Passes.State where
 
 import Ohua.Core.Prelude
@@ -26,26 +26,26 @@ import Control.Lens.Plated (plate)
 
 -- TODO recursion support is still pending here!
 
-preControlPasses :: MonadOhua m => Expression -> m Expression
+preControlPasses :: MonadOhua m => Expr ty -> m (Expr ty)
 preControlPasses = addCtxtExit >=> performSSA
 
-postControlPasses :: Expression -> Expression
+postControlPasses :: Expr ty -> Expr ty
 postControlPasses = transformCtxtExits
 
-runSTCLangSMapFun :: Expression
-runSTCLangSMapFun = Lit $ FunRefLit $ FunRef Refs.runSTCLangSMap Nothing
+runSTCLangSMapFun :: Expr ty
+runSTCLangSMapFun = Lit $ FunRefLit $ FunRef Refs.runSTCLangSMap Nothing Untyped
 
-runSTCLangIfFun :: Expression
-runSTCLangIfFun = Lit $ FunRefLit $ FunRef Refs.runSTCLangIf Nothing
+runSTCLangIfFun :: Expr ty
+runSTCLangIfFun = Lit $ FunRefLit $ FunRef Refs.runSTCLangIf Nothing Untyped
 
 -- invariant: this type of node has at least one var as input (the computation result)
 ctxtExit :: QualifiedBinding
 ctxtExit = "ohua.lang/ctxtExit"
 
-ctxtExitFunRef :: Expression
-ctxtExitFunRef = Lit $ FunRefLit $ FunRef ctxtExit Nothing
+ctxtExitFunRef :: Expr ty
+ctxtExitFunRef = Lit $ FunRefLit $ FunRef ctxtExit Nothing Untyped
 
-addCtxtExit :: MonadGenBnd m => Expression -> m Expression
+addCtxtExit :: MonadGenBnd m => Expr ty -> m (Expr ty)
 addCtxtExit = transformM f
     where
         f (Let v (fun@(PureFunction op _) `Apply` trueBranch `Apply` falseBranch) cont)
@@ -58,7 +58,7 @@ addCtxtExit = transformM f
                     addMissing = 
                         HS.foldr 
                             (\missingState c -> 
-                                Let missingState (PureFunction Refs.id Nothing `Apply` Var missingState) 
+                                Let missingState (pureFunction Refs.id Nothing `Apply` Var missingState) 
                                     c) 
                     trueBranch' = applyToBody (`addMissing` trueBranchStatesMissing) trueBranch
                     falseBranch' = applyToBody (`addMissing` falseBranchStatesMissing) falseBranch
@@ -87,17 +87,17 @@ addCtxtExit = transformM f
 
 -- Assumptions: This function is applied to a normalized and SSAed expression.
 --              This transformation executes after the control rewrites.
-transformCtxtExits :: Expression -> Expression
+transformCtxtExits :: forall ty. Expr ty -> Expr ty
 transformCtxtExits = evictOrphanedDestructured . f
     where
-        f :: Expression -> Expression
+        f :: Expr ty -> Expr ty
         f (Let v e@(PureFunction op _ `Apply` _) cont)
             | op == ctxtExit =
                 let (_, compOut:stateArgs) = fromApplyToList e
                 in descend (g v compOut stateArgs) cont
         f e = descend f e
 
-        g :: Binding -> Expression -> [Expression] -> Expression -> Expression
+        g :: Binding -> Expr ty -> [Expr ty] -> Expr ty -> Expr ty
         g compound compOut stateArgs (Let v e@(PureFunction op _ `Apply` _) cont)
             | op == ctxtExit = 
                 -- Must be a conditional
@@ -119,10 +119,10 @@ transformCtxtExits = evictOrphanedDestructured . f
                     descend f cont
         g co c s e = descend (g co c s) e
 
-        h :: Binding -> Expression -> [Expression]
-          -> Binding -> Expression -> [Expression]
-          -> Expression
-          -> Expression
+        h :: Binding -> Expr ty -> [Expr ty]
+          -> Binding -> Expr ty -> [Expr ty]
+          -> Expr ty
+          -> Expr ty
         h compound compOut stateOuts _compound' compOut' stateOuts' 
             (Let v (fun@(PureFunction op _) `Apply` cond `Apply` Var trueBranch `Apply` _falseBranch) cont)
             | op == Refs.select = 
@@ -145,14 +145,14 @@ transformCtxtExits = evictOrphanedDestructured . f
 
         descend = over plate -- note composOp = descend = over plate -> https://www.stackage.org/haddock/lts-14.25/lens-4.17.1/Control-Lens-Plated.html#v:para (below)
 
-applyToBody :: (Expression -> Expression) -> Expression -> Expression
+applyToBody :: (Expr ty -> Expr ty) -> Expr ty -> Expr ty
 applyToBody f (Lambda _ body) = applyToBody f body
 applyToBody f e = f e
 
-collectStates :: Expression -> [Binding]
+collectStates :: Expr ty -> [Binding]
 collectStates e = [ s | (BindState (Var s) _) <- universe e ] 
 
-mkST :: (MonadGenBnd m) => [Expression] -> Expression -> m Expression
+mkST :: (MonadGenBnd m) => [Expr ty] -> Expr ty -> m (Expr ty)
 mkST states = \case
     Let v e res -> Let v e <$> mkST states res
     e -> do

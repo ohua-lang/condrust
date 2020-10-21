@@ -2,13 +2,13 @@ module Ohua.Core.Compile.Configuration where
 
 import Ohua.Core.Prelude
 
-import Ohua.Core.ALang.Lang
-import Ohua.Core.DFLang.Lang
+import Ohua.Core.ALang.Lang (Expr)
+import Ohua.Core.DFLang.Lang (NormalizedDFExpr)
 
 data CustomPasses = CustomPasses
-  { passBeforeNormalize  :: Expression -> OhuaM Expression
-  , passAfterNormalize  :: Expression -> OhuaM Expression
-  , passAfterDFLowering :: NormalizedDFExpr -> OhuaM NormalizedDFExpr
+  { passBeforeNormalize  :: forall ty. Expr ty -> OhuaM (Expr ty)
+  , passAfterNormalize  :: forall ty. Expr ty -> OhuaM (Expr ty)
+  , passAfterDFLowering :: forall ty. NormalizedDFExpr ty -> OhuaM (NormalizedDFExpr ty)
   }
 
 noCustomPasses :: CustomPasses

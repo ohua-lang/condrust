@@ -1,15 +1,14 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE DeriveLift #-}
+-- {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Ohua.Core.DFLang.Lang where
 
 import Ohua.Core.Prelude
-import Language.Haskell.TH.Syntax (Lift)
 
 import qualified Data.List.NonEmpty as NE
 
 
-data BindingType = State | Data deriving (Show, Eq, Generic, Lift)
+data BindingType = State | Data deriving (Show, Eq, Generic)
 
 data ABinding :: BindingType -> Type where
     DataBinding :: Binding -> ABinding 'Data
@@ -17,7 +16,6 @@ data ABinding :: BindingType -> Type where
 
 deriving instance Show (ABinding a)
 deriving instance Eq (ABinding a) 
-deriving instance Lift (ABinding a) 
 
 data OutData :: BindingType -> Type where
     -- | Direct output
@@ -26,12 +24,18 @@ data OutData :: BindingType -> Type where
     Destruct :: NonEmpty (OutData b) -> OutData b
     -- | Copying of output data
     Dispatch :: NonEmpty (ABinding b) -> OutData b
-    deriving (Show, Eq, Generic, Lift)
+    deriving (Show, Eq, Generic)
 
-data DFVar
-    = DFEnvVar !Lit
-    | DFVar (ABinding 'Data) -- TODO should be polymorph in the annotation
-    deriving (Eq, Show, Generic, Lift)
+-- data DFVar ty
+--     = DFEnvVar ty (Lit ty)
+--     | DFVar ty (ABinding 'Data) -- TODO should be polymorph in the annotation
+--     | DFStateVar ty (ABinding 'State) -- TODO should be polymorph in the annotation
+--     deriving (Show, Generic)
+
+data DFVar (semType::BindingType) (ty::Type) :: Type where
+    DFEnvVar :: ArgType ty -> Lit ty -> DFVar 'Data ty
+    DFVar :: ArgType ty -> ABinding a -> DFVar a ty
+    -- DFStateVar :: ArgType ty -> ABinding 'State -> DFVar 'State ty
 
 -- | Annotations for functions
 data FunANF :: Type where
@@ -39,7 +43,7 @@ data FunANF :: Type where
     Fun :: FunANF
     -- | a state thread
     ST :: FunANF
-    deriving (Show, Eq, Generic, Lift)
+    deriving (Show, Eq, Generic)
 
 -- (TODO: As a matter of fact, it is possible to prevent this annotation all together and instead
 --  do what singletons would do: promote App directly. Then we would not have types 'Fun and 'ST but
@@ -52,16 +56,15 @@ data FunANF :: Type where
 
 -- | The applicative normal form with the ops resolved.
 --   (a function with a single result)
-data App :: FunANF -> Type where
+data App (f::FunANF) (ty::Type) :: Type where
     -- TODO To do this properly, I would actually have to state that certain pure functions
     --      return data that becomes state. They are the state init functions. (This is really important in CodeGen.)
     --      Then this should propagate through the type system an make sure that this state is used only
     --      as a state. Currently, we really only tag the types of an app with almost no implication on the
     --      whole expression. This would then immediately remove the unwrapABnd function.
-    PureFun :: forall (b::BindingType).
-        ABinding b -> QualifiedBinding -> NonEmpty DFVar -> App 'Fun
+    PureFun :: ABinding b -> QualifiedBinding -> NonEmpty (DFVar 'Data ty) -> App 'Fun ty
     StateFun :: (Maybe (ABinding 'State), ABinding 'Data) 
-            -> QualifiedBinding -> ABinding 'State -> NonEmpty DFVar -> App 'ST
+            -> QualifiedBinding -> DFVar 'State ty -> NonEmpty (DFVar 'Data ty) -> App 'ST ty
     -- TODO define the builtin functions right here:
     -- SMap :: Binding -> '[Binding, Binding] -> App 'SMapFun
     -- If
@@ -70,11 +73,10 @@ data App :: FunANF -> Type where
 
 -- | The applicative normal form with the ops resolved.
 --   (a function with output destructuring and dispatched result)
-data DFApp :: FunANF -> Type where
-    PureDFFun ::  forall (b::BindingType).
-        OutData b -> QualifiedBinding -> NonEmpty DFVar -> DFApp 'Fun
+data DFApp (f::FunANF) (ty::Type) :: Type where
+    PureDFFun :: OutData b -> QualifiedBinding -> NonEmpty (DFVar 'Data ty) -> DFApp 'Fun ty 
     StateDFFun :: (Maybe (OutData 'State), OutData 'Data) 
-                -> QualifiedBinding -> ABinding 'State -> NonEmpty DFVar -> DFApp 'ST
+                -> QualifiedBinding -> DFVar 'State ty -> NonEmpty (DFVar 'Data ty) -> DFApp 'ST ty
     -- SMapFun
     -- Collect
     -- Ctrl
@@ -82,39 +84,21 @@ data DFApp :: FunANF -> Type where
     -- Select
     -- RecurFun
 
-data Expr :: (FunANF -> Type) -> Type where
-     Let :: (Show (f a), Function (f a)) => f a -> Expr f -> Expr f
+data Expr (fun:: FunANF -> Type -> Type) (ty::Type) :: Type where
+     Let :: (Show (fun a ty), Function (fun a ty)) => fun a ty -> Expr fun ty -> Expr fun ty
      -- FIXME this also should probably have a BindingType!
-     Var :: Binding -> Expr f
-
--- data NormalizedExpr
---     -- FIXME this is polymorph! maybe even like f a, so the below definitions collapse.
---     = LetPureFun (App 'Fun) NormalizedExpr
---     | LetStateFun (App 'ST) NormalizedExpr
---     | VarFun Binding
---     deriving (Show, Eq, Generic)
-
--- TODO I believe this is not yet clean enough because it essentially says that two transformations have been performed:
---      destructuring was resolved and output replication was applied.
---      But I hope that the former transformation goes away completely once ALang has been refined and the transformations
---      that introduce nodes that require output destructuring have been moved to this normal form.
--- data NormalizedDFExpr 
---     -- FIXME this is polymorph!
---     = LetPureDFFun (DFApp 'Fun) NormalizedDFExpr
---     | LetStateDFFun (DFApp 'ST) NormalizedDFExpr
---     | VarDFFun Binding
---     deriving (Generic)
+     Var :: Binding -> Expr fun ty
 
 ----------------------------
 -- Accessor functions
 ----------------------------
 
-outsApp :: App a -> NonEmpty Binding
+outsApp :: App ty a -> NonEmpty Binding
 outsApp (PureFun out _ _) = unwrapABnd out :| []
 outsApp (StateFun (Nothing, out) _ _ _) = unwrapABnd out :| []
 outsApp (StateFun (Just stateOut, out) _ _ _) = unwrapABnd stateOut :| [unwrapABnd out]
 
-outsDFApp :: DFApp a -> NonEmpty Binding
+outsDFApp :: DFApp ty a -> NonEmpty Binding
 outsDFApp (PureDFFun out _ _) = outBnds out
 outsDFApp (StateDFFun (Nothing, out) _ _ _) = outBnds out
 outsDFApp (StateDFFun (Just stateOut, out) _ _ _) = outBnds stateOut <> outBnds out
@@ -124,23 +108,23 @@ outBnds (Destruct o) = sconcat $ NE.map outBnds o
 outBnds (Dispatch o) = NE.map unwrapABnd o
 outBnds (Direct bnd) = unwrapABnd bnd :| []
 
-insApp :: App a -> [Binding]
+insApp :: App ty a -> [Binding]
 insApp (PureFun _ _ i) = extractBndsFromInputs i
-insApp (StateFun _ _ s i) = unwrapABnd s : extractBndsFromInputs i
+insApp (StateFun _ _ (DFVar _ s) i) = unwrapABnd s : extractBndsFromInputs i
 
-insDFApp :: DFApp a -> [Binding]
+insDFApp :: DFApp ty a -> [Binding]
 insDFApp (PureDFFun _ _ i) = extractBndsFromInputs i
-insDFApp (StateDFFun _ _ s i) = unwrapABnd s : extractBndsFromInputs i
+insDFApp (StateDFFun _ _ (DFVar _ s) i) = unwrapABnd s : extractBndsFromInputs i
 
-extractBndsFromInputs :: NonEmpty DFVar -> [Binding]
+extractBndsFromInputs :: NonEmpty (DFVar a ty) -> [Binding]
 extractBndsFromInputs = 
-    mapMaybe  (\case DFVar bnd -> Just $ unwrapABnd bnd; _ -> Nothing) . NE.toList
+    mapMaybe  (\case DFVar _ bnd -> Just $ unwrapABnd bnd; _ -> Nothing) . NE.toList
 
-fnApp :: App a -> QualifiedBinding
+fnApp :: App ty a -> QualifiedBinding
 fnApp (PureFun _ f _) = f
 fnApp (StateFun _ f _ _) = f
 
-fnDFApp :: DFApp a -> QualifiedBinding
+fnDFApp :: DFApp ty a -> QualifiedBinding
 fnDFApp (PureDFFun _ f _) = f
 fnDFApp (StateDFFun _ f _ _) = f
 
@@ -152,7 +136,11 @@ unwrapABnd (StateBinding bnd) = bnd
 -- Instances:
 ----------------------
 
-deriving instance Show (App a)
+deriving instance Show (DFVar semTy ty)
+deriving instance Eq (DFVar semTy ty)
+
+deriving instance Show (App ty a)
+-- deriving instance Eq (App ty a)
 -- This just does not work because of the rank-2 type in the GADT. The type parameter must match, otherwise
 -- this results in a compile-time error while this is actually a runtime equality check!
 -- instance Eq (App a) where
@@ -163,38 +151,39 @@ deriving instance Show (App a)
 --     (StateFun out fn stateIn inp) == (StateFun out' fn' stateIn' inp') =
 --         out == out' && fn == fn' && stateIn == stateIn' && inp == inp'
 -- So we remove the compile-time safety here and resort entirely to the runtime check:
-instance Eq (App a) where
+instance Eq (App ty a) where
     (PureFun out fn inp) == (PureFun out' fn' inp') = unwrapABnd out == unwrapABnd out' && fn == fn' && inp == inp'
     (StateFun out fn stateIn inp) == (StateFun out' fn' stateIn' inp') =
         out == out' && fn == fn' && stateIn == stateIn' && inp == inp'
 -- We should think about these implications a little harder though!
-deriving instance Lift (App a)
+-- deriving instance Lift (App a)
 
-deriving instance Show NormalizedExpr
--- deriving instance Eq NormalizedExpr
-deriving instance Lift NormalizedExpr
+deriving instance Show (NormalizedExpr ty)
+-- deriving instance Eq (NormalizedExpr ty)
+-- deriving instance Lift NormalizedExpr
 -- makeBaseFunctor ''NormalizedExpr
 -- deriving instance Lift a => Lift (NormalizedExprF a)
 
 -- instance Plated NormalizedExpr where
 --   plate = gplate
 
-deriving instance Show (DFApp a)
+deriving instance Show (DFApp ty a)
+-- deriving instance Eq (DFApp ty a)
 -- instance Eq (DFApp a) where
 --     (PureDFFun out fn inp) == (PureDFFun out' fn' inp') = out == out' && fn == fn' && inp == inp'
 --     (StateDFFun out fn stateIn inp) == (StateDFFun out' fn' stateIn' inp') =
 --         out == out' && fn == fn' && stateIn == stateIn' && inp == inp'
 -- This does not work for the same reasons as in the case of App a.
-instance Eq (DFApp a) where
-    (PureDFFun out fn inp) == (PureDFFun out' fn' inp') = outBnds out == outBnds out' && fn == fn' && inp == inp'
-    (StateDFFun out fn stateIn inp) == (StateDFFun out' fn' stateIn' inp') =
-        out == out' && fn == fn' && stateIn == stateIn' && inp == inp'
+-- instance Eq (DFApp a ty) where
+--     (PureDFFun out fn inp) == (PureDFFun out' fn' inp') = outBnds out == outBnds out' && fn == fn' && inp == inp'
+--     (StateDFFun out fn stateIn inp) == (StateDFFun out' fn' stateIn' inp') =
+--         out == out' && fn == fn' && stateIn == stateIn' && inp == inp'
 
-deriving instance Lift (DFApp a)
+-- deriving instance Lift (DFApp ty a)
 
-deriving instance Show NormalizedDFExpr
+-- deriving instance Show NormalizedDFExpr
 -- deriving instance Eq NormalizedDFExpr
-deriving instance Lift NormalizedDFExpr
+-- deriving instance Lift NormalizedDFExpr
 -- makeBaseFunctor ''NormalizedDFExpr
 -- deriving instance Lift a => Lift (NormalizedDFExprF a)
 
@@ -202,8 +191,8 @@ deriving instance Lift NormalizedDFExpr
 -- Types and traversals/helpers
 ----------------------------------
 
-type NormalizedExpr = Expr App
-type NormalizedDFExpr = Expr DFApp
+type NormalizedExpr ty = Expr App ty
+type NormalizedDFExpr ty = Expr DFApp ty
 -- TODO
 -- data family Expression (a::FunANF -> Type)
 -- data instance Expression (a::FunANF -> Type) where
@@ -215,23 +204,23 @@ class Function a where
     inBindings :: a -> [Binding]
     funRef :: a -> QualifiedBinding
 
-instance Function (App a) where
+instance Function (App ty a) where
     outBindings = outsApp
     inBindings = insApp
     funRef = fnApp
 
-instance Function (DFApp a) where
+instance Function (DFApp ty a) where
     outBindings = outsDFApp
     inBindings = insDFApp
     funRef = fnDFApp
 
-transformExpr :: (NormalizedDFExpr -> NormalizedDFExpr) -> NormalizedDFExpr -> NormalizedDFExpr
+transformExpr :: forall ty.(NormalizedDFExpr ty -> NormalizedDFExpr ty) -> NormalizedDFExpr ty -> NormalizedDFExpr ty
 transformExpr f = runIdentity . transformExprM go
     where
-        go :: NormalizedDFExpr -> Identity NormalizedDFExpr
+        go :: NormalizedDFExpr ty -> Identity (NormalizedDFExpr ty)
         go = pure . f
 
-transformExprM :: Monad m => (NormalizedDFExpr -> m NormalizedDFExpr) -> NormalizedDFExpr -> m NormalizedDFExpr
+transformExprM :: Monad m => (NormalizedDFExpr ty -> m (NormalizedDFExpr ty)) -> NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
 transformExprM f (Let app cont) = f . Let app =<< transformExprM f cont
 transformExprM f v@(Var _) = f v
 

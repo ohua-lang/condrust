@@ -13,9 +13,7 @@ import Ohua.Core.Prelude
 import Control.Comonad (extract)
 import Control.Comonad.Trans.Cofree (headF, tailF)
 import Data.Functor.Foldable
-import qualified Data.HashMap.Strict as HM
 import Data.Text.Prettyprint.Doc
-import Data.Text.Prettyprint.Doc.Render.Text
 
 import Ohua.Core.ALang.Lang
 
@@ -46,7 +44,7 @@ needParens prec = (, prec)
 discardParens :: WPrec a -> Doc a
 discardParens = fst
 
-prettyExpr :: Expr -> Doc a
+prettyExpr :: Expr ty -> Doc a
 prettyExpr = fst . histo worker
   where
     worker =
@@ -80,18 +78,18 @@ prettyExpr = fst . histo worker
                         (sep [ sep (map pretty (assign : assigns) <> ["->"])
                              , discardParens e
                              ])
-            BindStateF (extract -> state) (extract -> fun) ->
+            BindStateF (extract -> s) (extract -> fun) ->
                 needParens BindPrec $
-                hsep [discardParens fun, "with", discardParens state]
+                hsep [discardParens fun, "with", discardParens s]
     collectLambdas =
         para $ \case
             (tailF -> LambdaF assign (_, (assigns, e))) -> (assign : assigns, e)
             (headF -> other) -> ([], other)
 
-prettyFunRef :: FunRef -> Doc ann
-prettyFunRef (FunRef sf fid) = pretty sf <> maybe emptyDoc (angles . pretty) fid
+prettyFunRef :: FunRef ty -> Doc ann
+prettyFunRef (FunRef sf fid _) = pretty sf <> maybe emptyDoc (angles . pretty) fid
 
-prettyLit :: Lit -> Doc ann
+prettyLit :: Lit ty -> Doc ann
 prettyLit =
     \case
         FunRefLit funRef -> pretty funRef
@@ -108,7 +106,7 @@ instance Pretty FnId where
 instance Pretty Binding where
     pretty = pretty . (unwrap :: Binding -> Text)
 
-instance Pretty FunRef where
+instance Pretty (FunRef ty) where
     pretty = prettyFunRef
 
 instance Pretty QualifiedBinding where
@@ -117,10 +115,10 @@ instance Pretty QualifiedBinding where
 instance Pretty NSRef where
     pretty = hcat . punctuate dot . map pretty . unwrap
 
-instance Pretty Expr where
+instance Pretty (Expr ty) where
     pretty = prettyExpr
 
-instance Pretty Lit where
+instance Pretty (Lit ty) where
     pretty = prettyLit
 
 instance Pretty SomeBinding where

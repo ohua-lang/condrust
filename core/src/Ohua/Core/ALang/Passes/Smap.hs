@@ -31,13 +31,13 @@ import qualified Ohua.Core.ALang.Refs as Refs
 import Ohua.Core.ALang.Util (lambdaArgsAndBody, mkDestructured, renameVar)
 import Ohua.Core.Prelude
 
-smapSfFun :: Expression
-smapSfFun = Lit $ FunRefLit $ FunRef Refs.smapFun Nothing
+smapSfFun :: Expr ty
+smapSfFun = Lit $ FunRefLit $ FunRef Refs.smapFun Nothing Untyped
 
-collectSf :: Expression
-collectSf = Lit $ FunRefLit $ FunRef Refs.collect Nothing
+collectSf :: Expr ty
+collectSf = Lit $ FunRefLit $ FunRef Refs.collect Nothing Untyped
 
-smapRewrite :: (Monad m, MonadGenBnd m) => Expression -> m Expression
+smapRewrite :: (Monad m, MonadGenBnd m) => Expr ty -> m (Expr ty)
 smapRewrite =
     rewriteM $ \case
         PureFunction op _ `Apply` lamExpr `Apply` dataGen

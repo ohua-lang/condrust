@@ -45,12 +45,12 @@ ssaRename oldBnd cont = do
     newBnd <- generateBindingWith oldBnd
     local (HM.insert oldBnd newBnd) $ cont newBnd
 
-performSSA :: MonadOhua m => Expression -> m Expression
+performSSA :: MonadOhua m => Expr ty -> m (Expr ty)
 performSSA = flip runReaderT mempty . ssa
 
 ssa :: (MonadOhua m, MonadReader LocalScope m)
-    => Expression
-    -> m Expression
+    => Expr ty
+    -> m (Expr ty)
 ssa =
     cata $ \case
         VarF bnd -> Var <$> ssaResolve bnd
@@ -61,14 +61,14 @@ ssa =
 -- Check if an expression is in ssa form. Returns @Nothing@ if it is
 -- SSA Returns @Just aBinding@ where @aBinding@ is a binding which was
 -- defined (at least) twice
-isSSA :: Expression -> [Binding]
+isSSA :: Expr ty -> [Binding]
 isSSA e = [b | (b, count) <- HM.toList counts, count > 1]
   where
     counts = HM.fromListWith (+) [(b, 1 :: Word) | b <- definedBindings e]
 
 
 
-checkSSA :: MonadOhua m => Expression -> m ()
+checkSSA :: MonadOhua m => Expr ty -> m ()
 checkSSA = isSSA >>> \case
     [] -> return ()
     other -> throwErrorDebugS $ mkMsg other

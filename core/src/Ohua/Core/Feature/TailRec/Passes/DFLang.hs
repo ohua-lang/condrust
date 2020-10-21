@@ -13,13 +13,13 @@ import Data.List.NonEmpty ((<|))
 
 -- | Here, we are actually tying the knot and create the final recurFun node (replacing recurStart)
 --   the has the loop-back connection to the start of the recursion.
-recurLowering :: MonadOhua m => NormalizedDFExpr -> m NormalizedDFExpr
+recurLowering :: MonadOhua m => NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
 recurLowering expr
   -- 1. Find the recurFun with two outputs
  = checkDefinedUsage expr >> -- expresses a precondition for the below transformation
       transformExprM f expr
   where
-      f :: MonadOhua m => NormalizedDFExpr -> m NormalizedDFExpr
+      f :: MonadOhua m => NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
       f (Let app@(PureDFFun (Destruct [_, _]) fun inp) rest) 
         | fun == ALangPass.recurStartMarker = findEnd (outsANew app) inp rest
       f (Let _ rest) = f rest
@@ -30,15 +30,15 @@ recurLowering expr
       -- initializer function, i.e., it does not output anything that is later used as state.
       outsANew = map (Direct . DataBinding) . outsDFApp
 
-      findEnd :: MonadOhua m => NonEmpty (OutData 'Data) -> NonEmpty DFVar -> NormalizedDFExpr -> m NormalizedDFExpr
+      findEnd :: MonadOhua m => NonEmpty (OutData 'Data) -> NonEmpty (DFVar 'Data ty) -> NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
       findEnd outs inp (Let app cont) | fnDFApp app == ALangPass.recurEndMarker = 
           let fixRef:(cond:recurArgs) = insDFApp app
                 -- FIXME we don't need the var lists when we use the assertion
                 -- that these two lists have the same size! and this is always
                 -- true because these are the arguments to a call to the same
                 -- function, i.e, the recursion!
-              inp' = (DFVar $ DataBinding fixRef) <| [DFVar $ DataBinding cond] <> inp 
-              inp'' = maybe inp' (inp' <>) $ nonEmpty $ map (DFVar . DataBinding) recurArgs
+              inp' = DFVar TypeVar (DataBinding fixRef) <| [DFVar TypeVar $ DataBinding cond] <> inp 
+              inp'' = maybe inp' (inp' <>) $ nonEmpty $ map (DFVar TypeVar . DataBinding) recurArgs
               outs'' = Destruct (outs <> map (Direct . DataBinding) (outsDFApp app))
           in pure $
               Let (PureDFFun outs'' Refs.recurFun inp'') cont

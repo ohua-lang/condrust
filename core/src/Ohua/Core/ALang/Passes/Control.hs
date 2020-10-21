@@ -183,7 +183,7 @@ import Control.Monad.Trans.Writer.Lazy
 -- if e0 == Lambda args body then Lambda args body'
 -- otherwise Lambda [] e0' 
 liftIntoCtrlCtxt ::
-       (Monad m, MonadGenBnd m) => Binding -> Expression -> m Expression
+       (Monad m, MonadGenBnd m) => Binding -> Expr ty -> m (Expr ty)
 liftIntoCtrlCtxt ctrlIn e0 = do
     (lam', actuals) <- lambdaLifting e0
     let (originalFormals, _) = lambdaArgsAndBody e0
@@ -192,8 +192,8 @@ liftIntoCtrlCtxt ctrlIn e0 = do
     let formals = reverse $ take (length actuals) $ reverse allFormals
 
     if null formals
-        then do
-            dAssertM $ lam' == e0
+        then 
+            -- TODO Assumption: $ lam' == e0
             pure lam'
         else do
             let actuals' = Var ctrlIn : actuals
@@ -202,14 +202,14 @@ liftIntoCtrlCtxt ctrlIn e0 = do
                 mkLambda originalFormals $
                 Let
                     ctrlOut
-                    (fromListToApply (FunRef Refs.ctrl Nothing) actuals')
+                    (fromListToApply (FunRef Refs.ctrl Nothing Untyped) actuals')
                     ie
 
 
 -- | The following passes belong together.
 --  They are meant to make fusion of control nodes in the backend easier.
 
-fusionPasses :: MonadGenBnd m => Expression -> m Expression
+fusionPasses :: MonadGenBnd m => Expr ty -> m (Expr ty)
 fusionPasses = uniqueCtrls . evictOrphanedDestructured . splitCtrls
 
 {-|
@@ -232,10 +232,10 @@ fusionPasses = uniqueCtrls . evictOrphanedDestructured . splitCtrls
            y ---> ctrl2 ----------------+------+
   This removes all destructuring (nth-nodes) for the output of ctrl! 
 -}
-splitCtrls :: Expression -> Expression
+splitCtrls :: Expr ty -> Expr ty
 splitCtrls = transform go
     where
-        go :: Expression -> Expression
+        go :: Expr ty -> Expr ty
         go (Let v e@(f@(PureFunction op _) `Apply` _) cont) | op == Refs.ctrl = 
             let (_, ctrlSig:vars) = fromApplyToList e
                 outs = findDestructured cont v
@@ -274,10 +274,10 @@ splitCtrls = transform go
         |           |
         +-----------+
 -}
-uniqueCtrls :: MonadGenBnd m => Expression -> m Expression
+uniqueCtrls :: MonadGenBnd m => Expr ty -> m (Expr ty)
 uniqueCtrls = transformM go
     where
-        go :: MonadGenBnd m => Expression -> m Expression
+        go :: MonadGenBnd m => Expr ty -> m (Expr ty)
         go e@(Let v ctrl@(PureFunction op _ `Apply` _) cont) | op == Refs.ctrl = 
             let usages = [ bnd | Var bnd <- universe cont 
                                , bnd == v]
@@ -290,7 +290,7 @@ uniqueCtrls = transformM go
                   foldr (\newBnd c -> Let newBnd ctrl c) cont' newBnds
         go e = return e
 
-        renameUsages :: MonadGenBnd m => Binding -> Expression -> WriterT [Binding] m Expression
+        renameUsages :: MonadGenBnd m => Binding -> Expr ty -> WriterT [Binding] m (Expr ty)
         renameUsages v (Var bnd) | bnd == v = do
             newBnd <- lift $ generateBindingWith v
             tell [newBnd]

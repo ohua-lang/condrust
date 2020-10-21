@@ -26,16 +26,16 @@ import Ohua.Core.ALang.Passes.Control
 import qualified Ohua.Core.ALang.Refs as Refs (seqFun)
 import Ohua.Core.ALang.Util (lambdaArgsAndBody)
 
-seqFunSf :: Expression
-seqFunSf = Lit $ FunRefLit $ FunRef Refs.seqFun Nothing
+seqFunSf :: Expr ty
+seqFunSf = Lit $ FunRefLit $ FunRef Refs.seqFun Nothing Untyped
 
 -- | Assumes seq is applied as
 --   seq(dep, \_ -> g)
 --   This is to be enforced in the translation from the frontend language into ALang.
-seqRewrite :: (Monad m, MonadGenBnd m) => Expression -> m Expression
+seqRewrite :: (Monad m, MonadGenBnd m) => Expr ty -> m (Expr ty)
 seqRewrite (Let v a b) = Let v <$> seqRewrite a <*> seqRewrite b
 seqRewrite (Lambda v e) = Lambda v <$> seqRewrite e
-seqRewrite (Apply (Apply (Lit (FunRefLit (FunRef "ohua.lang/seq" Nothing))) dep) expr) = do
+seqRewrite (Apply (Apply (Lit (FunRefLit (FunRef "ohua.lang/seq" Nothing _))) dep) expr) = do
     expr' <- seqRewrite expr
     -- post traversal optimization
     ctrl <- generateBindingWith "ctrl"

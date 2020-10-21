@@ -23,14 +23,14 @@ This way, we can now contextify the execution of f.
 (Otherwise, this would not have been possible because in the imperative
 host language, these functions do not take an argument.)
 -}
-mkUnitFunctionsExplicit :: Expression -> Expression
+mkUnitFunctionsExplicit :: Expr ty -> Expr ty
 mkUnitFunctionsExplicit e =
     flip transform e $ \case
-        Let v (Apply (Lit (FunRefLit (FunRef f _))) u@(Lit UnitLit)) ie ->
+        Let v (Apply (Lit (FunRefLit fun@(FunRef _ _ t))) u@(Lit UnitLit)) ie ->
             Let
                 v
-                ((Lit $ FunRefLit $ FunRef unitFun Nothing) `Apply`
-                 (Lit $ FunRefLit $ FunRef f Nothing) `Apply`
+                ((Lit $ FunRefLit $ FunRef unitFun Nothing t) `Apply`
+                 (Lit $ FunRefLit fun) `Apply`
                  u)
                 ie
         other -> other

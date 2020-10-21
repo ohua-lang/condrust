@@ -113,14 +113,14 @@ import Ohua.Core.ALang.Util (mkDestructured)
 import Control.Category ((>>>))
 import qualified Data.Text as T
 
-selectSf :: Expression
-selectSf = Lit $ FunRefLit $ FunRef Refs.select Nothing
+selectSf :: Expr ty
+selectSf = Lit $ FunRefLit $ FunRef Refs.select Nothing Untyped
 
-ifFunSf :: Expression
-ifFunSf = Lit $ FunRefLit $ FunRef Refs.ifFun Nothing
+ifFunSf :: Expr ty
+ifFunSf = Lit $ FunRefLit $ FunRef Refs.ifFun Nothing Untyped
 
-ifSf :: Expression
-ifSf = Lit $ FunRefLit $ FunRef Refs.ifThenElse Nothing
+ifSf :: Expr ty
+ifSf = Lit $ FunRefLit $ FunRef Refs.ifThenElse Nothing Untyped
 
 #if 1
 -- This is a proposal for `ifRewrite` that uses plated to make sure the
@@ -129,10 +129,10 @@ ifSf = Lit $ FunRefLit $ FunRef Refs.ifThenElse Nothing
 -- (Sebastian) The recursion is handled properly below and this version is incorrect.
 --             However scrapping the boilerplate is definitely a good thing. It should be
 --             a transformM though.
-ifRewrite :: (Monad m, MonadGenBnd m, MonadError Error m) => Expression -> m Expression
+ifRewrite :: (Monad m, MonadGenBnd m, MonadError Error m) => Expr ty -> m (Expr ty)
 ifRewrite = transformM $ \case
-    f `Apply` cond `Apply` trueBranch `Apply` falseBranch
-        | f == ifSf
+    Lit (FunRefLit (FunRef f _ _)) `Apply` cond `Apply` trueBranch `Apply` falseBranch
+        | f == Refs.ifThenElse
         , Lambda trueIn trueBody <- trueBranch
         , isUnit trueIn
         , Lambda falseIn falseBody <- falseBranch
@@ -167,7 +167,7 @@ ifRewrite = transformM $ \case
 
 #else
 
-ifRewrite :: MonadGenBnd f => Expr -> f Expr
+ifRewrite :: MonadGenBnd m => Expr ty -> m (Expr ty)
 ifRewrite (Let v a b) = Let v <$> ifRewrite a <*> ifRewrite b
 ifRewrite (Lambda v e) = Lambda v <$> ifRewrite e
 ifRewrite (Apply (Apply (Apply f cond) trueBranch) falseBranch) | f == ifSf

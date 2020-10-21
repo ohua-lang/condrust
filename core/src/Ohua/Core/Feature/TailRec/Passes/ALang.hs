@@ -196,7 +196,7 @@ The operator has two incoming arcs and two outgoing arcs:
   [2. outgoing arc] @result@
 
 -}
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE CPP, ScopedTypeVariables #-}
 
 module Ohua.Core.Feature.TailRec.Passes.ALang where
 
@@ -223,17 +223,18 @@ import qualified Ohua.Core.DFLang.Refs as DFRefs
 
 -- Currently not exposed by the frontend but only as the only part of recursion
 -- at the backend.
+recur :: QualifiedBinding
 recur = ALangRefs.recur -- allows me to use it in binding position
 
 -- This is a compiler-internal higher-order function.
-recur_hof :: QualifiedBinding
-recur_hof = "ohua.lang/recur_hof"
+recurHof :: QualifiedBinding
+recurHof = "ohua.lang/recur_hof"
 
-recur_sf :: Expression
-recur_sf = PureFunction recur Nothing
+recurSf :: Expr ty
+recurSf = pureFunction recur Nothing
 
-recur_hof_sf :: Expression
-recur_hof_sf = PureFunction recur_hof Nothing
+recurHofSf :: Expr ty
+recurHofSf = pureFunction recurHof Nothing
 
 recurStartMarker :: QualifiedBinding
 recurStartMarker = "ohua.lang.marker/recur_start"
@@ -245,31 +246,32 @@ recurEndMarker = "ohua.lang.marker/recur_end"
 y :: QualifiedBinding
 y = "ohua.lang/Y"
 
-y_sf :: Expression
-y_sf = PureFunction y Nothing
+ySf :: Expr ty
+ySf = pureFunction y Nothing
 
 recurFun :: QualifiedBinding
 recurFun = DFRefs.recurFunBnd
 
-recurFunPureFunction :: Expression
-recurFunPureFunction = PureFunction recurFun Nothing
+recurFunPureFunction :: Expr ty
+recurFunPureFunction = pureFunction recurFun Nothing
 
-idPureFunction = PureFunction "ohua.lang/id" Nothing
+idPureFunction :: Expr ty
+idPureFunction = pureFunction "ohua.lang/id" Nothing
 
 -- Phase 1:
 findTailRecs ::
        (Monad m, MonadGenBnd m, MonadError Error m)
     => Bool
-    -> Expression
-    -> m Expression
+    -> Expr ty
+    -> m (Expr ty)
 findTailRecs enabled e =
     snd <$> (flip runReaderT enabled . flip findRecCall HS.empty) e
 
 findRecCall ::
-       (Monad m, MonadGenBnd m, MonadError Error m)
-    => Expression
+       (MonadGenBnd m, MonadError Error m)
+    => Expr ty
     -> HS.HashSet Binding
-    -> ReaderT Bool m (HS.HashSet Binding, Expression)
+    -> ReaderT Bool m (HS.HashSet Binding, Expr ty)
 findRecCall (Let a expr inExpr) algosInScope
     -- for the assigment expr I add the reference and check the expression for references to the identifier
  = do
@@ -281,20 +283,20 @@ findRecCall (Let a expr inExpr) algosInScope
         -- hoferize right away:
         then do
             a' <- generateBindingWith a
-            return (iFound, Let a' e $ Let a (Apply y_sf (Var a')) iExpr)
+            return (iFound, Let a' e $ Let a (Apply ySf (Var a')) iExpr)
         else return (HS.union found iFound, Let a e iExpr)
 findRecCall (Let a expr inExpr) algosInScope = do
     (iFound, iExpr) <- findRecCall inExpr algosInScope
     return (iFound, Let a expr iExpr)
-findRecCall (Apply (Var binding) a) algosInScope
-    | HS.member binding algosInScope
+findRecCall (Apply (Var bnd) a) algosInScope
+    | HS.member bnd algosInScope
      -- no recursion here because if the expression is correct then these can be only nested APPLY statements
      = do
-        enabledTR <- ask
+        _enabledTR <- ask
         unlessM ask $
             throwErrorDebugS
                 "Detected recursion although tail recursion support is not enabled!"
-        return (HS.insert binding HS.empty, Apply recur_sf a)
+        return (HS.insert bnd HS.empty, Apply recurSf a)
             -- else error $ "Detected recursion (" ++ (show binding) ++ ") although tail recursion support is not enabled!"
 findRecCall (Apply a b) algosInScope = do
     (aFound, aExpr) <- findRecCall a algosInScope
@@ -308,43 +310,43 @@ findRecCall other _ = return (HS.empty, other)
 
 -- performed after normalization
 verifyTailRecursion ::
-       (Monad m, MonadGenBnd m, MonadError Error m)
-    => Expression
-    -> m Expression
-verifyTailRecursion e
-    | isCall y e = (performChecks $ snd $ fromApplyToList e) >> return e
+       (MonadGenBnd m, MonadError Error m)
+    => Expr ty
+    -> m (Expr ty)
+verifyTailRecursion expr
+    | isCall y expr = performChecks (snd $ fromApplyToList expr) >> return expr
   where
-    performChecks ((Lambda a e):_) = traverseToLastCall checkIf e
+    performChecks (Lambda _a e:_) = traverseToLastCall checkIf e
     performChecks (e:_) =
         throwErrorDebugS $ "Recursion is not inside a lambda but: " <> show e
-    traverseToLastCall check (Let v e ie)
+    traverseToLastCall check (Let _v e ie)
         | isLastStmt ie = check e
-    traverseToLastCall check (Let v e ie) =
+    traverseToLastCall check (Let _v e ie) =
         failOnRecur e >> traverseToLastCall check ie
     traverseToLastCall _ e =
         throwErrorDebugS $ "Invariant broken! Found expression: " <> quickRender e
     -- failOnRecur (Let _ e ie) | isCall recur e || isCall recur ie = error "Recursion is not tail recursive!"
     failOnRecur (Let _ e ie) = failOnRecur e >> failOnRecur ie
-    failOnRecur (Lambda v e) = failOnRecur e -- TODO maybe throw a better error message when this happens
-    failOnRecur (Apply (PureFunction recur _) _) =
+    failOnRecur (Lambda _v e) = failOnRecur e -- TODO maybe throw a better error message when this happens
+    failOnRecur (Apply (PureFunction _recur _) _) =
         error "Recursion is not tail recursive!"
-    failOnRecur (Apply a b) = return ()
+    failOnRecur (Apply _ _) = return ()
     failOnRecur e = error $ "Invariant broken! Found pattern: " <> show e
     checkIf e
         | isCall "ohua.lang/if" e
       -- assumes well-structured if
          = do
             let (_:tBranch:fBranch:_) = snd $ fromApplyToList e
-            let (Lambda v et) = tBranch
-            let (Lambda v ef) = fBranch
+            let (Lambda _v et) = tBranch
+            let (Lambda _v ef) = fBranch
             let lastFnOnBranch =
                     traverseToLastCall
                         (return .
-                         (\(FunRef f _) -> f :: QualifiedBinding) .
+                         (\(FunRef f _ _) -> f :: QualifiedBinding) .
                          fst . fromApplyToList)
             tFn <- lastFnOnBranch et
             fFn <- lastFnOnBranch ef
-            when (tFn == recur) $ do
+            when (tFn == recur) $ 
                 when (fFn == recur) $
                     throwErrorDebugS
                         "Endless loop detected: Tail recursion does not have a non-recursive branch!"
@@ -361,7 +363,7 @@ verifyTailRecursion e
         "Recursion is not tail recursive! Last stmt: " <> show (quickRender e)
     isLastStmt (Var _) = True
     isLastStmt _ = False
-verifyTailRecursion e@(Let v expr inExpr) =
+verifyTailRecursion e@(Let _ expr inExpr) =
     verifyTailRecursion expr >> verifyTailRecursion inExpr >> return e
 verifyTailRecursion e@(Var _) = return e
 verifyTailRecursion e =
@@ -375,18 +377,19 @@ verifyTailRecursion e =
 -- Its important here that we pattern match on `Let` because `rewriteM` is a
 -- bottom up traversal an hence `isCall` would match on partial applications on
 -- the `Y` combinator. By pattern matching on `Let` here that can be avoided.
-rewriteAll :: (MonadGenBnd m, MonadError Error m) => Expression -> m Expression
+rewriteAll :: (MonadGenBnd m) => Expr ty -> m (Expr ty)
 rewriteAll = rewriteM $ \case
     Let b e r | isCall y e -> (\e' -> Just $ Let b e' r) <$> rewriteCallExpr e
     _ -> pure Nothing
 
+isCall :: QualifiedBinding -> Expr ty -> Bool
 isCall f (Apply (PureFunction f' _) _)
     | f == f' = True
 isCall f (Apply e@(Apply _ _) _) = isCall f e
 isCall _ _ = False
 
-rewriteCallExpr ::
-       (MonadGenBnd m, MonadError Error m) => Expression -> m Expression
+rewriteCallExpr :: forall m ty.
+       (MonadGenBnd m) => Expr ty -> m (Expr ty)
 rewriteCallExpr e = do
     let (lam@(Lambda _ _):callArgs) = snd $ fromApplyToList e
     let (recurVars, expr) = lambdaArgsAndBody lam
@@ -407,14 +410,14 @@ rewriteCallExpr e = do
   -- this breaks haddock |]
     ctrls <- generateBindingWith "ctrls"
     return $
-        Let ctrls (fromListToApply (FunRef recurStartMarker Nothing) callArgs) $
+        Let ctrls (fromListToApply (FunRef recurStartMarker Nothing Untyped) callArgs) $
         mkDestructured (recurCtrl : recurVars) ctrls l''
   where
-    rewriteLastCond :: Expression -> Expression
-    rewriteLastCond (Let v e o@(Var b))
-        | v == b = Let v (rewriteCond e) o
+    rewriteLastCond :: Expr ty -> Expr ty
+    rewriteLastCond (Let v ex o@(Var b))
+        | v == b = Let v (rewriteCond ex) o
         | otherwise = error "Value returned from recursive function was not last value bound, this is not tail recursive!"
-    rewriteLastCond (Let v e ie) = Let v e $ rewriteLastCond ie
+    rewriteLastCond (Let v ex ie) = Let v ex $ rewriteLastCond ie
 
 
     -- This whole rewriteCond and rewriteBranch algorithm is not correct. That
@@ -425,23 +428,23 @@ rewriteCallExpr e = do
     -- least one branch that recurses and one branch that does not. I feel
     -- implementing this correctly however is going to require some effort, thus
     -- I think we should do so later.
-    rewriteCond :: Expression -> Expression
-    rewriteCond fullExpr@(Apply (Apply (Apply (PureFunction f0 _) cond) (Lambda a trueB)) (Lambda b falseB)) | f0 == ALangRefs.ifThenElse =
+    rewriteCond :: Expr ty -> Expr ty
+    rewriteCond fullExpr@(Apply (Apply (Apply (PureFunction f0 _) cond) (Lambda _ trueB)) (Lambda _ falseB)) | f0 == ALangRefs.ifThenElse =
         let trueB' = rewriteBranch trueB
             falseB' = rewriteBranch falseB
             (fixRef, recurVars) =
                 case (trueB', falseB') of
-                    (Left f, Right bnds) -> errorD $ flexText "I am sorry, but for now the recursion is required to be on the first (`then`) branch of the final condition. This is a bug of the implementation and will be fixed in the future. (Issue #36)\n\nYour code violating this invariant was\n" <> (PP.indent 4 $ PP.pretty fullExpr) -- (f, bnds)
+                    (Left _f, Right _bnds) -> errorD $ flexText "I am sorry, but for now the recursion is required to be on the first (`then`) branch of the final condition. This is a bug of the implementation and will be fixed in the future. (Issue #36)\n\nYour code violating this invariant was\n" <> PP.indent 4 (PP.pretty fullExpr) -- (f, bnds)
                     (Right bnds, Left f) -> (f, bnds)
                     _ -> error "invariant broken"
-         in fromListToApply (FunRef recurEndMarker Nothing) $
+         in fromListToApply (FunRef recurEndMarker Nothing Untyped) $
             cond : fixRef : recurVars
     rewriteCond _ =
         error
             "invariant broken: recursive function does not have the proper structure."
-    rewriteBranch :: Expression -> Either Expression [Expression]
+    rewriteBranch :: Expr ty -> Either (Expr ty) [Expr ty]
     -- normally this is "fix" instead of `id`
-    rewriteBranch (Let v (Apply (PureFunction "ohua.lang/id" _) result) _) = Left result
-    rewriteBranch (Let v e _)
-        | isCall recur e = (Right . snd . fromApplyToList) e
-    rewriteBranch e = error $ "invariant broken: " <> quickRender e
+    rewriteBranch (Let _v (Apply (PureFunction "ohua.lang/id" _) result) _) = Left result
+    rewriteBranch (Let _v ex _)
+        | isCall recur ex = (Right . snd . fromApplyToList) ex
+    rewriteBranch ex = error $ "invariant broken: " <> quickRender ex

@@ -26,7 +26,7 @@ import Ohua.Core.ALang.Util
 import Ohua.Core.DFLang.Lang as DFLang
 
 
-runCorePasses :: (MonadOhua m) => NormalizedExpr -> m NormalizedDFExpr
+runCorePasses :: (MonadOhua m) => NormalizedExpr ty -> m (NormalizedDFExpr ty)
 runCorePasses = removeNth
 
 -- I really should not have to do this in the first place.
@@ -35,7 +35,7 @@ runCorePasses = removeNth
 
 -- Currently, this code does not cover destructurings of destructurings but this is ok, because
 -- we do not create those.
-removeNth :: MonadOhua m => NormalizedExpr -> m NormalizedDFExpr
+removeNth :: forall ty m. MonadOhua m => NormalizedExpr ty -> m (NormalizedDFExpr ty)
 removeNth expr = do
     checkSSA expr
     let exp' = evalState (f expr) HM.empty
@@ -48,9 +48,9 @@ removeNth expr = do
                 (DFLang.Let app cont) -> go app cont
                 (DFLang.Var bnd) -> pure $ DFLang.Var bnd
             where 
-                go :: App a 
-                    -> NormalizedExpr 
-                    -> State (HM.HashMap Binding (NonEmpty (Integer, Binding))) NormalizedDFExpr
+                go :: App a ty
+                    -> NormalizedExpr ty
+                    -> State (HM.HashMap Binding (NonEmpty (Integer, Binding))) (NormalizedDFExpr ty)
                 go app cont = do 
                     cont' <- f cont
                     app' <- toDFAppFun app
@@ -58,8 +58,8 @@ removeNth expr = do
 
         -- Note how this makes sure to preserve the semantics of the functions!
         -- TODO we would normally say that the binding does not change its type!
-        toDFAppFun :: App a -> State (HM.HashMap Binding (NonEmpty (Integer, Binding))) (Maybe (DFApp a))
-        toDFAppFun (PureFun tgt "ohua.lang/nth" [DFEnvVar (NumericLit i),_ , DFVar (DataBinding src)]) =
+        toDFAppFun :: App a ty -> State (HM.HashMap Binding (NonEmpty (Integer, Binding))) (Maybe (DFApp a ty))
+        toDFAppFun (PureFun tgt "ohua.lang/nth" [DFEnvVar _ (NumericLit i),_ , DFVar _ (DataBinding src)]) =
             modify (HM.insertWith (<>) src ((i,unwrapABnd tgt) :| [])) >> pure Nothing
         toDFAppFun (PureFun out fun ins) = do
             hm <- get
@@ -81,12 +81,12 @@ removeNth expr = do
 
 -- | This pass makes sure no function application is using a binding that has not been defined.
 --   TODO: This is once more something that we should enforce via the type system or Liquid Haskell!
-checkDefinedUsage :: MonadOhua m => NormalizedDFExpr -> m ()
+checkDefinedUsage :: MonadOhua m => NormalizedDFExpr ty -> m ()
 checkDefinedUsage expr = evalStateT (f expr) HS.empty
     where
         f (DFLang.Let app cont) = checkAndDescend app cont 
         f _ = return ()
-        checkAndDescend :: (MonadOhua m, MonadState (HS.HashSet Binding) m) => DFApp a -> NormalizedDFExpr -> m ()
+        checkAndDescend :: (MonadOhua m, MonadState (HS.HashSet Binding) m) => DFApp a ty -> NormalizedDFExpr ty -> m ()
         checkAndDescend app cont = do
             let ins = insDFApp app
             let outs = outsDFApp app
@@ -100,7 +100,7 @@ checkDefinedUsage expr = evalStateT (f expr) HS.empty
 --       this anymore at runtime! (Use a function to tag an expression with SSA. 
 --       The tag is lost whenever a new binding is introduced.)
 -- | Check that a sequence of let expressions does not redefine bindings.
-checkSSA :: MonadOhua m => DFLang.Expr a -> m ()
+checkSSA :: forall ty a m.MonadOhua m => DFLang.Expr ty a -> m ()
 checkSSA e = 
     mapM_ 
         (\(out, fs) -> failWith $ "Rebinding of " <> show out <> " at " <> show fs)
@@ -112,7 +112,7 @@ checkSSA e =
         HM.filter ((>1) . length) $
         foldl (\hm (out,f) -> HM.insertWith (++) out [f] hm) HM.empty 
         (allOuts e)
-    allOuts :: DFLang.Expr a  -> [(Binding, Text)]
+    allOuts :: DFLang.Expr ty a  -> [(Binding, Text)]
     allOuts (DFLang.Let app cont) = NE.toList (map (,show app) (outBindings app)) ++ allOuts cont
     allOuts _ = []
 
@@ -120,7 +120,7 @@ checkSSA e =
 -- This assumes a certain structure in the expression.
 -- This can be achieved with the 'normalize' and 'performSSA' functions and tested with
 -- 'checkProgramValidity'.
--- lowerALang :: MonadOhua m => Expression -> m NormalizedExpr
+-- lowerALang :: MonadOhua m => Expression -> m (NormalizedExpr ty)
 -- lowerALang expr
 --     -- traceM $ "Lowering alang expr: " <> quickRender expr
 --  = do
@@ -128,11 +128,11 @@ checkSSA e =
 --     (var, exprs) <- runWriterT $ lowerToDF' expr
 --     return $ DFExpr exprs var
 
-lowerToDF :: MonadOhua m => ALang.Expression -> m NormalizedExpr
+lowerToDF :: MonadOhua m => ALang.Expr ty -> m (NormalizedExpr ty)
 lowerToDF expr = evalStateT (transfer' expr) HS.empty
     where
         transfer' :: (MonadState (HS.HashSet Binding) m, MonadOhua m) 
-                => ALang.Expression -> m NormalizedExpr
+                => ALang.Expr ty -> m (NormalizedExpr ty)
         transfer' (ALang.Var bnd) = return $ DFLang.Var bnd
         transfer' (ALang.Let bnd a@(NthFunction b) e) = do
                     isStateDestruct <- HS.member b <$> get
@@ -147,19 +147,19 @@ lowerToDF expr = evalStateT (transfer' expr) HS.empty
             return $ app e'
 
 handleDefinitionalExpr' :: (MonadState (HS.HashSet Binding) m, MonadOhua m)
-    => Binding -> ALang.Expression -> ALang.Expression -> m (NormalizedExpr -> NormalizedExpr)
+    => Binding -> ALang.Expr ty -> ALang.Expr ty -> m (NormalizedExpr ty -> NormalizedExpr ty)
 handleDefinitionalExpr' assign l@(Apply _ _) cont = do
     (fn, s, args) <- handleApplyExpr l
-    args' <- mapM expectVar args
+    args' <- mapM (uncurry expectVar) args
     case s of
         Just stateBnd -> DFLang.Let <$> st fn stateBnd args'
         Nothing -> return $ DFLang.Let $ fun fn assign args'
     where 
         st :: (MonadState (HS.HashSet Binding) m) 
-            => QualifiedBinding -> ABinding 'State -> [DFVar] -> m (App 'ST)
-        st fn stateBnd args' = (\outs -> StateFun outs fn stateBnd (erroringNE args')) <$> 
+            => QualifiedBinding -> (ArgType ty, ABinding 'State) -> [DFVar 'Data ty] -> m (App 'ST ty)
+        st fn (stateType, stateBnd) args' = (\outs -> StateFun outs fn (DFVar stateType stateBnd) (erroringNE args')) <$> 
                     findSTOuts assign
-        fun :: QualifiedBinding -> Binding -> [DFVar] -> App 'Fun
+        fun :: QualifiedBinding -> Binding -> [DFVar 'Data ty] -> App 'Fun ty
         fun fn bnd args' = PureFun (DataBinding bnd) fn $ erroringNE args'
         erroringNE = fromMaybe (error "Invariant broken: Every function has at least one argument!") . nonEmpty
         findSTOuts :: (MonadState (HS.HashSet Binding) m) 
@@ -177,60 +177,49 @@ handleDefinitionalExpr' _ e _ =
 -- FIXME This function should immediately turn into a pure function once issue #8 is done.
 -- | Analyze an apply expression, extracting the inner stateful
 -- function and the nested arguments as a list. 
-handleApplyExpr ::
+handleApplyExpr :: forall m ty.
        (MonadOhua m)
-    => ALang.Expression
-    -> m (QualifiedBinding, Maybe (ABinding 'State), [ALang.Expression])
+    => ALang.Expr ty
+    -> m (QualifiedBinding, Maybe (ArgType ty, ABinding 'State), [(ArgType ty, ALang.Expr ty)])
 handleApplyExpr l@(Apply _ _) = go [] l
   where
     go args =
         \case
             Apply fn arg -> go (arg : args) fn
-            -- ve@Var {} ->
-            --     fromEnv (options . callLocalFunction) >>= \case
-            --         Nothing ->
-            --             failWith
-            --                 "Calling local functions is not supported in this adapter"
-            --         Just fn -> return (fn, Nothing, ve : args)
-            PureFunction fn _fnId -> return (fn, Nothing, args)
-            StatefulFunction fn _fnId state0 -> do
+            Lit (FunRefLit (FunRef qb _ident (FunType argTypes))) -> do
+                dAssertM $ length argTypes == length args
+                return (qb, Nothing, zip argTypes args)
+            Lit (FunRefLit (FunRef qb _ Untyped)) -> 
+                failWith $ "Wrong function type 'untyped' for pure function: " <> show qb
+            Lit (FunRefLit (FunRef qb _ STFunType{})) -> 
+                failWith $ "Wrong function type 'st' for pure function: " <> show qb
+            BindState _state0 (Lit (FunRefLit (FunRef fn _ Untyped))) -> 
+                failWith $ "Wrong function type 'untyped' for st function: " <> show fn
+            BindState _state0 (Lit (FunRefLit (FunRef fn _ FunType{}))) -> 
+                failWith $ "Wrong function type 'pure' for st function: " <> show fn
+            BindState state0 (Lit (FunRefLit (FunRef fn _ (STFunType sType argTypes)))) -> do
+                dAssertM $ length argTypes == length args
                 state' <- expectStateBnd state0
-                return (fn, Just state', args)
-            -- ve@(Lit v) ->
-            --     case v of
-            --         EnvRefLit _ ->
-            --             fromEnv (options . callEnvExpr) >>= \case
-            --                 Nothing ->
-            --                     failWith
-            --                         "Calling environment functions is not supported in this adapter"
-            --                 Just fn -> (fn, Nothing, ve : args)
-            --         other ->
-            --             throwError $
-            --             "This literal cannot be used as a function :" <>
-            --             show (pretty other)
-            x ->
-                failWith $ "Expected Apply or Var but got: " <>
-                show (x :: ALang.Expression)
--- handleApplyExpr (PureFunction fn fnId) =
---     (fn, , Nothing, []) <$> maybe generateId return fnId -- what is this?
+                return (fn, Just (sType, state'), zip argTypes args)
+            x -> failWith $ "Expected Apply or Var but got: " <> show (x :: ALang.Expr ty)
 handleApplyExpr g = failWith $ "Expected apply but got: " <> show g
 
 -- FIXME This assumption would have been better defined at the type level.
 -- | Inspect an expression expecting something which can be captured
 -- in a DFVar otherwise throws appropriate errors.
-expectVar :: (HasCallStack, MonadError Error m) => ALang.Expression -> m DFVar
-expectVar (ALang.Var bnd) = pure $ DFVar $ DataBinding bnd
+expectVar :: (HasCallStack, MonadError Error m) => ArgType ty -> ALang.Expr ty -> m (DFVar 'Data ty)
+expectVar typ (ALang.Var bnd) = pure $ DFVar typ $ DataBinding bnd
 -- TODO currently only allowed for the unitFn function
 -- expectVar r@PureFunction {} =
 --     throwError $
 --     "Function references are not yet supported as arguments: " <>
 --     show (pretty r)
-expectVar (Lit l) = pure $ DFEnvVar l
-expectVar a =
+expectVar typ (Lit l) = pure $ DFEnvVar typ l
+expectVar _ a =
     throwErrorS $ "Argument must be local binding or literal, was " <> show a
 
 -- | This is again something that should have been there right at the very beginning.
-expectStateBnd :: (HasCallStack, MonadError Error m) => ALang.Expression -> m (ABinding 'State)
+expectStateBnd :: (HasCallStack, MonadError Error m) => ALang.Expr ty -> m (ABinding 'State)
 expectStateBnd (ALang.Var bnd) = pure $ StateBinding bnd
 expectStateBnd a =
     throwErrorS $ "State argument must be local binding, was " <> show a

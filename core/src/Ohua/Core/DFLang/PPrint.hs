@@ -21,12 +21,12 @@ prettyExpr = renderLazy . layoutSmart ohuaDefaultLayoutOpts . pretty
 prettyExprM :: Pretty a => a -> IO ()
 prettyExprM = LT.putStr . prettyExpr
 
-instance Pretty NormalizedDFExpr where
+instance Pretty (NormalizedDFExpr ty) where
     pretty = \case
         (Let app cont) -> vsep $ hsep ["let", pretty app, "in"] : [pretty cont]
         (Var bnd) -> vsep [pretty bnd]
 
-instance Pretty NormalizedExpr where
+instance Pretty (NormalizedExpr ty) where
     pretty = \case
         (Let app cont) -> vsep $ hsep [pretty app, "in"] : [pretty cont]
         (Var bnd) -> vsep [pretty bnd]
@@ -34,7 +34,7 @@ instance Pretty NormalizedExpr where
 instance Pretty (ABinding a) where
     pretty = pretty . unwrapABnd
 
-instance Pretty (App a) where
+instance Pretty (App a ty) where
     pretty (PureFun output fun inps) =
         hsep $
             [ align $ pretty output
@@ -51,7 +51,7 @@ instance Pretty (App a) where
             (pure . brackets . pretty) stateIn <>
             [align $ tupled $ toList $ map pretty inps]
 
-instance Pretty (DFApp a) where
+instance Pretty (DFApp a ty) where
     pretty (PureDFFun output fun inps) =
         hsep $
             [ align $ pretty output
@@ -73,7 +73,7 @@ instance Pretty (OutData a) where
     pretty (Destruct ds) = align $ tupled $ map pretty $ toList ds
     pretty (Dispatch ds) = align $ tupled $ map pretty $ toList ds
 
-instance Pretty DFVar where
+instance Pretty (DFVar a ty) where
     pretty = \case
-        DFEnvVar he -> pretty he
-        DFVar b -> pretty b
+        DFEnvVar _ he -> pretty he
+        DFVar _ b -> pretty b

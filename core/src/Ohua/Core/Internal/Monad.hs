@@ -128,8 +128,8 @@ type MonadOhua m
 -- If there are any errors during the compilation they are reported together at the end
 runFromExpr ::
        Options
-    -> (Expression -> OhuaM result)
-    -> Expression
+    -> (Expr ty -> OhuaM result)
+    -> Expr ty
     -> LoggingT IO (Either Error result)
 runFromExpr opts f tree =
     runFromBindings opts (f tree) $ HS.fromList [b | Var b <- universe tree]

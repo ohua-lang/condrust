@@ -35,10 +35,10 @@
 module Ohua.Core.ALang.Lang
   ( Expr(..)
   , AExpr
-  , Expression
   -- ** Convenience patterns
   , pattern PureFunction, pattern PureFunctionF
   , pattern StatefulFunction, pattern StatefulFunctionF
+  , pureFunction
   -- ** The recursion schemes base functor
   , ExprF(..)
   -- ** Additional Traversals
@@ -50,7 +50,7 @@ import Ohua.Prelude
 
 import Data.Functor.Foldable.TH (makeBaseFunctor)
 import Control.Lens.Plated
-import Language.Haskell.TH.Syntax (Lift)
+-- import Language.Haskell.TH.Syntax (Lift)
 import Control.Category ((>>>))
 
 import Ohua.Core.Types
@@ -58,77 +58,76 @@ import Ohua.Core.Types
 -------------------- Basic ALang types --------------------
 
 -- | An expression in the algorithm language.
-data Expr
+data Expr ty
     = Var Binding -- ^ Reference to a value via binding: @x@ -> @Var "x"@
-    | Lit Lit -- ^ A literal: @2@, @ns/func@ etc -> @Lit (NumericLit 2)@
-    | Let Binding Expr Expr -- ^ Create and assign a binding: @let bnd = val in expr@ -> @Let "bnd" val expr@
-    | Apply Expr Expr -- ^ Function application: @function arg@ -> @Apply function arg@
-    | Lambda Binding Expr -- ^ A lambda function: @\\arg -> body@ -> @Lambda "arg" body@
-    | BindState Expr Expr -- ^ Binding a state value @state#method@ -> @BindState state method@
-    deriving (Show, Eq, Lift, Generic)
+    | Lit (Lit ty) -- ^ A literal: @2@, @ns/func@ etc -> @Lit (NumericLit 2)@
+    | Let Binding (Expr ty) (Expr ty) -- ^ Create and assign a binding: @let bnd = val in expr@ -> @Let "bnd" val expr@
+    | Apply (Expr ty) (Expr ty) -- ^ Function application: @function arg@ -> @Apply function arg@
+    | Lambda Binding (Expr ty) -- ^ A lambda function: @\\arg -> body@ -> @Lambda "arg" body@
+    | BindState (Expr ty) (Expr ty) -- ^ Binding a state value @state#method@ -> @BindState state method@
+    deriving (Show, Eq, Generic)
 
 type AExpr = Expr
--- | Backward compatibility alias
-type Expression = Expr
-
 
 -------------------- Recursion schemes support --------------------
 
 makeBaseFunctor ''Expr
 
-deriving instance Lift a => Lift (ExprF a)
+-- deriving instance Lift a => Lift (ExprF ty a)
 
-deriving instance Eq a => Eq (ExprF a)
+-- deriving instance Eq a => Eq (ExprF ty a)
 --deriving instance (Ord bndType, Ord refType, Ord a) => Ord (AExprF bndType refType a)
 
-instance Container (ExprF a)
+instance Container (ExprF ty a)
 
 -------------------- Convenience patterns --------------------
 
-pattern PureFunction :: QualifiedBinding -> Maybe FnId -> Expr
-pattern PureFunction bnd id = Lit (FunRefLit (FunRef bnd id))
+pattern PureFunction :: QualifiedBinding -> Maybe FnId -> Expr ty
+pattern PureFunction bnd ident <- Lit (FunRefLit (FunRef bnd ident _))
 
-pattern PureFunctionF :: QualifiedBinding -> Maybe FnId -> ExprF a
-pattern PureFunctionF bnd id = LitF (FunRefLit (FunRef bnd id))
+pureFunction :: QualifiedBinding -> Maybe FnId -> Expr ty
+pureFunction bnd ident = Lit (FunRefLit (FunRef bnd ident Untyped))
 
-pattern StatefulFunction :: QualifiedBinding -> Maybe FnId -> Expr -> Expr
-pattern StatefulFunction bnd id expr = BindState expr (Lit (FunRefLit (FunRef bnd id)))
+pattern PureFunctionF :: QualifiedBinding -> Maybe FnId -> ExprF ty a
+pattern PureFunctionF bnd ident <- LitF (FunRefLit (FunRef bnd ident _))
 
-pattern StatefulFunctionF :: QualifiedBinding -> Maybe FnId -> Expr -> ExprF Expr
-pattern StatefulFunctionF bnd id expr = BindStateF expr (Lit (FunRefLit (FunRef bnd id)))
+pattern StatefulFunction :: QualifiedBinding -> Maybe FnId -> Expr ty -> Expr ty
+pattern StatefulFunction bnd ident expr <- BindState expr (Lit (FunRefLit (FunRef bnd ident _)))
+
+pattern StatefulFunctionF :: QualifiedBinding -> Maybe FnId -> Expr ty -> ExprF ty (Expr ty)
+pattern StatefulFunctionF bnd ident expr <- BindStateF expr (Lit (FunRefLit (FunRef bnd ident _)))
 
 -------------------- Additional type class instances --------------------
 
 
-instance IsString AExpr where
+instance IsString (AExpr ty) where
     fromString = fromString >>> \case
         Unqual bnd -> Var bnd
-        Qual q -> PureFunction q Nothing
+        Qual q -> pureFunction q Nothing 
 
-instance NFData Expr
-instance Plated Expr where plate = gplate
+instance Plated (Expr ty) where plate = gplate
 
-instance Embed Expr Int where
-    embedE = embedE . fromIntegral @Int @Integer
-instance Embed Expr Integer where
-    embedE = embedE . NumericLit 
-instance Embed Expr Lit where
+-- instance Embed (Expr ty) Int where
+--     embedE = embedE . fromIntegral @Int @Integer
+-- instance Embed (Expr ty) Integer where
+--     embedE = embedE . NumericLit 
+instance Embed (Expr ty) (Lit ty) where
     embedE = Lit
-instance Embed Expr Binding where
+instance Embed (Expr ty) Binding where
     embedE = Var
-instance Embed Expr FunRef where
+instance Embed (Expr ty) (FunRef ty) where
     embedE = embedE . FunRefLit
-instance Embed Expr QualifiedBinding where
-    embedE = embedE . (`FunRef` Nothing)
+-- instance Embed (Expr ty) QualifiedBinding where
+--     embedE = embedE . (\qb -> FunRef qb Nothing Untyped)
 
 -------------------- Additional Traversals --------------------
 
 -- | Traverse an ALang expression from left to right and top down, building a new expression.
 lrPrewalkExprM ::
        Monad m
-    => (Expr -> m Expr)
-    -> Expr
-    -> m Expr
+    => (Expr ty -> m (Expr ty))
+    -> Expr ty
+    -> m (Expr ty)
 lrPrewalkExprM f e =
     f e >>= \case
         Let bnd val body ->
@@ -140,9 +139,9 @@ lrPrewalkExprM f e =
 -- | Traverse an ALang expression from left to right and from the bottom up.
 lrPostwalkExprM ::
        Monad m
-    => (Expr -> m Expr)
-    -> Expr
-    -> m Expr
+    => (Expr ty -> m (Expr ty))
+    -> Expr ty
+    -> m (Expr ty)
 lrPostwalkExprM f e =
     f =<<
     case e of
@@ -153,5 +152,5 @@ lrPostwalkExprM f e =
         _ -> return e
 
 -- | Same as 'lrPostwalkExprM' but does not carry a monad.
-lrPostwalkExpr :: (Expr -> Expr) -> Expr -> Expr
+lrPostwalkExpr :: (Expr ty -> Expr ty) -> Expr ty -> Expr ty
 lrPostwalkExpr f = runIdentity . lrPostwalkExprM (return . f)
