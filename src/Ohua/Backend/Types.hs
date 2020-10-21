@@ -31,40 +31,38 @@ data TCProgram chan retChan expr =
         retChan -- ^ Receive on result channel
         [expr] -- TODO (NonEmpty expr) -- ^ Tasks
 
-data Program chan retChan expr = 
+data Program chan retChan expr ty = 
     Program
         (NonEmpty chan)
         retChan
-        [FullTask expr]
+        [FullTask expr ty]
 
-data FullTask expr = 
+data FullTask expr ty = 
     FullTask 
-        [Com 'Send] 
-        [Com 'Recv] -- TODO Do not unwrap the binding to understand where state comes from!
+        [Com 'Send ty] 
+        [Com 'Recv ty] -- TODO Do not unwrap the binding to understand where state comes from!
         expr
-    deriving (Show, Eq, Functor)
 
-taskExpression :: FullTask expr -> expr
+taskExpression :: FullTask expr ty -> expr
 taskExpression (FullTask _ _ e) = e
 
 class Integration lang where
-    type Types lang :: *
     type NS lang :: *
 
     type RetChan lang :: *
     type Expr lang :: *
     type Task lang :: *
 
-    convertExpr :: (Architecture arch, Lang arch ~ lang) => arch -> TaskExpr -> Expr lang
+    convertExpr :: (Architecture arch, Lang arch ~ lang) => arch -> TaskExpr ty -> Expr lang
 
     lower :: 
         ( CompM m
         , Architecture arch
         , Lang arch ~ lang)
-        => (NS lang, Types lang)
+        => NS lang
         -> arch
-        -> Namespace (Program (Chan arch) TaskExpr TaskExpr)
-        -> m (Namespace (Program (Chan arch) (RetChan lang) (Task lang)))
+        -> Namespace (Program (Chan arch) (TaskExpr ty) (TaskExpr ty) ty)
+        -> m (Namespace (Program (Chan arch) (RetChan lang) (Task lang) ty))
 
 class (ConvertTaskCom arch) => Architecture arch where
     type Lang arch :: *
@@ -72,26 +70,26 @@ class (ConvertTaskCom arch) => Architecture arch where
     type ARetChan arch :: *
     type ATask arch :: *
 
-    convertChannel :: arch -> Channel -> Chan arch
+    convertChannel :: arch -> Channel ty -> Chan arch
 
     build :: 
         ( Integration (Lang arch)
         , lang ~ (Lang arch)
         , CompM m)
         => arch
-        -> (NS lang, Types lang)
-        -> Namespace (Program (Chan arch) (RetChan lang) (Task lang))
-        -> m (Namespace (Program (Chan arch) (ARetChan arch) (ATask arch)))
+        -> NS lang
+        -> Namespace (Program (Chan arch) (RetChan lang) (Task lang) ty)
+        -> m (Namespace (Program (Chan arch) (ARetChan arch) (ATask arch) ty))
 
     serialize :: 
         ( CompM m
         , Integration (Lang arch)
         , lang ~ (Lang arch))
         => arch
-        -> (NS lang, Types lang)
-        -> Namespace (Program (Chan arch) (ARetChan arch) (ATask arch))
+        -> NS lang
+        -> Namespace (Program (Chan arch) (ARetChan arch) (ATask arch) ty)
         -> m (NonEmpty (FilePath, L.ByteString))
 
 class ConvertTaskCom arch where
-    convertRecv :: arch -> Com 'Recv -> TaskExpr
-    convertSend:: arch -> Com 'Send -> TaskExpr
+    convertRecv :: arch -> Com 'Recv ty -> TaskExpr ty
+    convertSend:: arch -> Com 'Send ty -> TaskExpr ty

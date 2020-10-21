@@ -8,8 +8,8 @@ import Ohua.Backend.Types
 
 lowerTaskCom :: ConvertTaskCom arch 
         => arch 
-        -> Namespace (TCProgram Channel (Com 'Recv) TaskExpr) 
-        -> Namespace (TCProgram Channel TaskExpr TaskExpr)
+        -> Namespace (TCProgram (Channel ty) (Com 'Recv ty) (TaskExpr ty)) 
+        -> Namespace (TCProgram (Channel ty) (TaskExpr ty) (TaskExpr ty))
 lowerTaskCom arch ns = ns & algos %~ map (\algo -> algo & algoCode %~ convertCommunication)
     where 
         convertCommunication (TCProgram chans retChan tasks) = 
@@ -24,8 +24,8 @@ lowerTaskCom arch ns = ns & algos %~ map (\algo -> algo & algoCode %~ convertCom
 
 lowerChannels :: Architecture arch
         => arch 
-        -> Namespace (TCProgram Channel TaskExpr TaskExpr) 
-        ->  Namespace (TCProgram (Chan arch) TaskExpr TaskExpr)
+        -> Namespace (TCProgram (Channel ty) (TaskExpr ty) (TaskExpr ty)) 
+        ->  Namespace (TCProgram (Chan arch) (TaskExpr ty) (TaskExpr ty))
 lowerChannels arch ns = ns & algos %~ map (\algo -> algo & algoCode %~ convert)
     where 
         convert (TCProgram chans retChan tasks) = 
@@ -34,8 +34,8 @@ lowerChannels arch ns = ns & algos %~ map (\algo -> algo & algoCode %~ convert)
                 retChan
                 tasks
 
-intoProgram :: Namespace (TCProgram chan retChan TaskExpr) 
-            -> Namespace (Program chan retChan TaskExpr) 
+intoProgram :: Namespace (TCProgram chan retChan (TaskExpr ty)) 
+            -> Namespace (Program chan retChan (TaskExpr ty) ty) 
 intoProgram ns = ns & algos %~ map (\algo -> algo & algoCode %~ convert)
     where
         convert (TCProgram chans retChan tasks) = 

@@ -5,5 +5,5 @@ import Ohua.Prelude
 import Ohua.Backend.Lang hiding (TCExpr)
 
 
-seqFun :: TaskExpr
+seqFun :: TaskExpr ty
 seqFun = Tuple (Right $ BoolLit True) (Right $ NumericLit 1)

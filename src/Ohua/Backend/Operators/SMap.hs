@@ -10,7 +10,7 @@ type DataOut = Com 'Channel
 type CtrlOut = Com 'Channel
 type CollectOut = Com 'Channel
 
-smapFun :: Input -> DataOut -> CtrlOut -> CollectOut -> TaskExpr
+smapFun :: Input ty -> DataOut ty -> CtrlOut ty -> CollectOut ty -> TaskExpr ty
 smapFun input dataOut ctrlOut collectOut = 
     Let "data" (ReceiveData input) $
     Let "hasSize" (HasSize "data") $
@@ -39,10 +39,10 @@ type SizeInput = Com 'Recv
 type DataInput = Com 'Recv
 type CollectedOutput = Com 'Channel
 
-collect :: SizeInput 
-        -> DataInput 
-        -> CollectedOutput 
-        -> TaskExpr
+collect :: SizeInput ty
+        -> DataInput ty
+        -> CollectedOutput ty
+        -> TaskExpr ty
 collect sizeInput dataInput collectedOutput = 
     Let "num" (ReceiveData sizeInput) $
     Let "collection" (ListOp Create) $

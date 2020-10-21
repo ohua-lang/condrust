@@ -18,8 +18,8 @@ backend ::
         , Lang arch ~ lang
         ) 
         => FilePath 
-        -> Namespace (TCProgram Channel (Com 'Recv) FusableExpr) 
-        -> (NS lang, Types lang)
+        -> Namespace (TCProgram (Channel ty) (Com 'Recv ty) (FusableExpr ty)) 
+        -> NS lang
         -> arch 
         -> m ()
 backend outDir compiled lang arch =

@@ -1,4 +1,3 @@
-{-# LANGUAGE DataKinds #-}
 module Ohua.Backend.Operators.Function where
 
 import Ohua.Prelude
@@ -9,11 +8,11 @@ import qualified Data.List.NonEmpty as NE
 
 
 -- FIXME Seems to be like this: Arg Recv (Either Recv TaskExpr) | Drop (Either Recv TaskExpr)
-data CallArg 
-    = Arg (Com 'Recv) | Drop (Either (Com 'Recv) TaskExpr) | Converted TaskExpr
-    deriving (Eq, Show, Generic)
+data CallArg ty
+    = Arg (Com 'Recv ty) | Drop (Either (Com 'Recv ty) (TaskExpr ty)) | Converted (TaskExpr ty)
+    deriving (Eq, Generic)
 
-instance Hashable CallArg
+instance Hashable (CallArg ty)
 
 -- TODO:
 --   1) no functions in data type -> done
@@ -23,29 +22,29 @@ instance Hashable CallArg
 --   5) certainly this definition of a function really is no different
 --      from the newly defined DFLang! (one more reason to move this into common.)
 
-data FusableFunction 
+data FusableFunction ty
     = PureFusable
-        [CallArg]  -- data receive
+        [CallArg ty]  -- data receive
         QualifiedBinding
-        (Com 'Channel) -- send result
+        (Com 'Channel ty) -- send result
     | STFusable
-        (Com 'Recv) -- state receive
-        [CallArg]  -- data receive
+        (Com 'Recv ty) -- state receive
+        [CallArg ty]  -- data receive
         QualifiedBinding
-        (Maybe (Com 'Channel)) -- send result
-        (Maybe (Com 'Channel)) -- send state
-    deriving (Show, Eq, Generic)
+        (Maybe (Com 'Channel ty)) -- send result
+        (Maybe (Com 'Channel ty)) -- send state
+    deriving (Eq,Generic)
 
-instance Hashable FusableFunction 
+instance Hashable (FusableFunction ty)
 
-genFun :: FusableFunction -> TaskExpr
+genFun :: FusableFunction ty -> TaskExpr ty
 genFun fun = loop $ genFun' fun
     where
         loop c = if null $ funReceives fun
                 then c
                 else EndlessLoop c
 
-genFun' :: FusableFunction -> TaskExpr
+genFun' :: FusableFunction ty -> TaskExpr ty
 genFun' = \case
     (PureFusable receives app out) ->
         let varsAndReceives = zipWith (curry generateReceiveCode) [0 ..] receives
@@ -69,7 +68,7 @@ genFun' = \case
         generateReceiveCode (idx, a@(Drop (Right e))) = (a, "_var_" <> show idx, e)
         generateReceiveCode (idx, a@(Converted e)) = (a, "var_" <> show idx, e)
 
-funReceives :: FusableFunction -> [Com 'Recv]
+funReceives :: FusableFunction ty -> [Com 'Recv ty]
 funReceives = 
     \case
         (PureFusable vars _ _) -> extract vars
