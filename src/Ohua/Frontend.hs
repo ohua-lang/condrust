@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 module Ohua.Frontend where
 
 import Ohua.Prelude
@@ -12,16 +13,16 @@ import Ohua.Frontend.Transform.Envs ( prepareRootAlgoVars )
 import Ohua.Frontend.Transform.State ( check )
 
 
-frontend :: (CompM m, Integration lang) 
-        => lang -> CompilationScope -> FilePath -> m ((NS lang, Types lang), Namespace Expr)
+frontend :: forall ty m lang. (CompM m, Integration lang) 
+        => lang -> CompilationScope -> FilePath -> m (NS lang, Namespace (Expr ty))
 frontend lang compScope inFile = do
         (langNs, ns) <- load lang compScope inFile
         ns' <- resolveNS ns
         ns'' <- updateExprs ns' transform
-        types <- loadTypes lang langNs ns''
-        return ((langNs, types), ns'')
+        ns''' <- loadTypes lang langNs ns''
+        return (langNs, ns''')
     where
-        transform :: CompM m => Expr -> m Expr
+        transform :: CompM m => Expr ty -> m (Expr ty)
         transform e = 
                 (\a -> check a >> return a) =<< 
                 ( prepareRootAlgoVars 

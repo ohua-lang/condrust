@@ -10,13 +10,12 @@ import qualified Data.HashMap.Lazy as HM
 
 class Integration lang where
     type NS lang :: *
-    type Types lang :: *
 
-    loadNs :: CompM m => lang -> FilePath -> m (NS lang, Namespace Expr)
-    loadTypes :: CompM m => lang -> NS lang -> Namespace Expr -> m (Types lang)
+    loadNs :: CompM m => lang -> FilePath -> m (NS lang, Namespace (Expr ty))
+    loadTypes :: CompM m => lang -> NS lang -> Namespace (Expr ty) -> m (Namespace (Expr ty))
 
 type LanguageFileSuffix = Text
 type CompilationScope = HM.HashMap NSRef LanguageFileSuffix
 
 -- | This registers all algos used in a given namespace with their qualified names.
-type NamespaceRegistry = HM.HashMap QualifiedBinding Expr
+type NamespaceRegistry ty = HM.HashMap QualifiedBinding (Expr ty)

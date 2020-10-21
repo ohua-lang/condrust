@@ -5,7 +5,7 @@ import Ohua.Prelude
 import Ohua.Frontend.Lang
 
 
-prepareRootAlgoVars :: CompM m => Expr -> m Expr
+prepareRootAlgoVars :: CompM m => Expr ty -> m (Expr ty)
 prepareRootAlgoVars (LamE vars body) =  go 0 vars body
   where
     go i (x:xs) rest =

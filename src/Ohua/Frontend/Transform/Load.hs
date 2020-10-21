@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 module Ohua.Frontend.Transform.Load (load) where
 
 import Ohua.Prelude
@@ -6,11 +7,6 @@ import Ohua.Frontend.Lang
 import Ohua.Frontend.Types
 
 import qualified Data.HashMap.Strict as HM
-import qualified Data.ByteString.Lazy.Char8 as L
-import qualified Data.Text as T
-import System.FilePath as Path ((<.>), takeExtension, joinPath)
-import System.Directory (doesFileExist)
-import System.FilePath.Posix (addExtension)
 
 
 -- FIXME This wants to check whether an import is registered in the global list. 
@@ -29,14 +25,14 @@ import System.FilePath.Posix (addExtension)
 --   We currently use a very simple but easily maintainable approach:
 --   Just load all algorithms that exist in the project scope. By using
 --   a lazy hashmap, this should only load the algo once actually needed.
-loadDeps :: (CompM m, Integration lang) => lang -> CompilationScope -> Namespace Expr -> m NamespaceRegistry
+loadDeps :: forall ty m lang.(CompM m, Integration lang) => lang -> CompilationScope -> Namespace (Expr ty) -> m (NamespaceRegistry ty)
 loadDeps lang scope currentNs = do
     let registry' = registerAlgos HM.empty currentNs
     modules <- mapM (\path -> snd <$> loadNs lang (toFilePath path)) $ HM.toList scope
     let registry'' = foldl registerAlgos registry' modules
     return registry''
     where
-        registerAlgos :: NamespaceRegistry -> Namespace Expr -> NamespaceRegistry
+        registerAlgos :: NamespaceRegistry ty -> Namespace (Expr ty) -> NamespaceRegistry ty
         registerAlgos registry ns = 
             foldl 
                 (\reg algo -> 
@@ -47,11 +43,11 @@ loadDeps lang scope currentNs = do
                 registry
                 $ ns^.algos
 
-load :: (CompM m, Integration lang) => lang -> CompilationScope -> FilePath -> m (NS lang, (Namespace Expr, NamespaceRegistry))
+load :: forall m lang ty.(CompM m, Integration lang) => lang -> CompilationScope -> FilePath -> m (NS lang, (Namespace (Expr ty), NamespaceRegistry ty))
 load lang scope inFile = do
     logDebugN $ "Loading module: " <> show inFile <> "..."
     (ctxt, ns) <- loadNs lang inFile
-    logDebugN $ "Loaded ns: " <> show ns
+    logDebugN $ "Loaded ns: " <> show (ns^.nsName)
     -- verify scope ns
     logDebugN "Loading dependencies ..."
     registry <- loadDeps lang scope ns

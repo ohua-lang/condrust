@@ -15,7 +15,7 @@ Function references in this transformation are just references to variable that 
 a function. That is, this transformation does not deal with namespaces or such.
 
 -}
-
+{-# LANGUAGE ScopedTypeVariables #-}
 module Ohua.Frontend.Transform.Resolve where
 
 import Ohua.Prelude
@@ -30,19 +30,19 @@ import qualified Data.HashSet as HS
 import qualified Data.Text as T
 
 
-resolveNS :: (MonadError Error m)
-          => (Namespace FrLang.Expr, NamespaceRegistry)
-          -> m (Namespace FrLang.Expr)
+resolveNS :: forall ty m.(MonadError Error m)
+          => (Namespace (Expr ty), NamespaceRegistry ty)
+          -> m (Namespace (Expr ty))
 resolveNS (ns, registry) = 
     return $ over algos (map (over algoCode work)) ns
     where
-        work :: FrLang.Expr -> FrLang.Expr
+        work :: Expr ty -> Expr ty
         work e = 
             let calledFunctions = collectAllFunctionRefs registry e
                 expr = foldl (flip addExpr) e calledFunctions
             in resolveExpr expr
 
-        collectAllFunctionRefs :: NamespaceRegistry -> FrLang.Expr -> HS.HashSet QualifiedBinding
+        collectAllFunctionRefs :: NamespaceRegistry ty -> Expr ty -> HS.HashSet QualifiedBinding
         collectAllFunctionRefs available =
             HS.unions .
             HS.toList . 
@@ -53,16 +53,16 @@ resolveNS (ns, registry) =
                     $ HM.lookup qb available) . 
             collectFunctionRefs
 
-        collectFunctionRefs :: FrLang.Expr -> HS.HashSet QualifiedBinding
+        collectFunctionRefs :: Expr ty -> HS.HashSet QualifiedBinding
         collectFunctionRefs e =
             -- FIXME we need to resolve this reference here against the namespace and the registry (for Globs).
-            HS.fromList [r | LitE (FunRefLit (FunRef r _)) <- universe e]
+            HS.fromList [r | LitE (FunRefLit (FunRef r _ _)) <- universe e]
         
         pathToVar :: QualifiedBinding -> Binding
         pathToVar (QualifiedBinding ns bnd) = 
             (makeThrow . T.intercalate ".") $ map unwrap $ unwrap ns ++ [bnd]
         
-        addExpr :: QualifiedBinding -> FrLang.Expr -> FrLang.Expr
+        addExpr :: QualifiedBinding -> Expr ty -> Expr ty
         -- TODO This is an assumption that fails in Ohua.Compile.Compiler.prepareRootAlgoVars
         --      We should enforce this via the type system rather than a runtime error!
         addExpr bnd (LamE vars body) = LamE vars $ addExpr bnd body
@@ -74,7 +74,7 @@ resolveNS (ns, registry) =
                     $ HM.lookup bnd registry)
                 e
 
-        resolveExpr :: FrLang.Expr -> FrLang.Expr
+        resolveExpr :: Expr ty -> Expr ty
         resolveExpr = cata $ \case
-            LitEF (FunRefLit (FunRef ref _id)) | HM.member ref registry -> VarE $ pathToVar ref
+            LitEF (FunRefLit (FunRef ref _id _)) | HM.member ref registry -> VarE $ pathToVar ref
             e -> embed e

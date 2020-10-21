@@ -21,31 +21,31 @@ data Pat
     | UnitP
     deriving (Show, Eq, Generic)
 
-data Expr
+data Expr ty
     = VarE Binding
-    | LitE Lit
+    | LitE (Lit ty)
     | LetE Pat
-           Expr
-           Expr
-    | AppE Expr
-           [Expr]
+           (Expr ty)
+           (Expr ty)
+    | AppE (Expr ty)
+           [Expr ty]
     | LamE [Pat]
-           Expr -- ^ An expression creating a function
-    | IfE Expr
-          Expr
-          Expr
-    | MapE Expr
-           Expr
-    | BindE Expr
-            Expr -- ^ @BindE state function@ binds @state@ to be operated on by @function@
-    | StmtE Expr
-            Expr -- ^ An expression with the return value ignored
-    | SeqE Expr
-           Expr
-    | TupE [Expr] -- ^ create a tuple value that can be destructured
-    deriving (Show, Eq, Generic)
+           (Expr ty) -- ^ An expression creating a function
+    | IfE (Expr ty)
+          (Expr ty)
+          (Expr ty)
+    | MapE (Expr ty)
+           (Expr ty)
+    | BindE (Expr ty)
+            (Expr ty) -- ^ @BindE state function@ binds @state@ to be operated on by @function@
+    | StmtE (Expr ty)
+            (Expr ty) -- ^ An expression with the return value ignored
+    | SeqE (Expr ty)
+           (Expr ty)
+    | TupE [Expr ty] -- ^ create a tuple value that can be destructured
+    deriving (Show, Generic)
 
-patterns :: Traversal' Expr Pat
+patterns :: Traversal' (Expr ty) Pat
 patterns f =
     \case
         LamE ps e -> flip LamE e <$> traverse f ps
@@ -62,26 +62,20 @@ instance Plated Pat where
 
 instance Hashable Pat
 
-instance NFData Pat
-
 makeBaseFunctor ''Expr
 
-instance Plated Expr where
+instance Plated (Expr ty) where
     plate f =
         \case
             TupE es -> TupE <$> traverse f es
             AppE e es -> AppE <$> f e <*> traverse f es
             other -> gplate f other
 
-instance Hashable Expr
-
-instance NFData Expr
-
-instance IsString Expr where
+instance IsString (Expr ty) where
     fromString = VarE . fromString
 
-instance IsList Expr where
-    type Item Expr = Expr
+instance IsList (Expr ty) where
+    type Item (Expr ty) = Expr ty
     fromList = TupE
 
 instance IsString Pat where

@@ -4,7 +4,6 @@ import Ohua.Prelude
 
 import Ohua.Frontend.Lang
 import Data.HashSet as HS 
-import Data.Functor.Foldable (cata, embed)
 import Control.Lens.Combinators (over)
 import Control.Lens.Plated (plate)
 
@@ -15,7 +14,7 @@ import Control.Lens.Plated (plate)
 --      to functions in the current namespace.
 -- TODO: Maybe this should check against a set of Namespace bindings?!
 --       What would it be if it wasn't in this set? Invariant?
-makeImplicitFunctionBindingsExplicit :: Expr -> Expr
+makeImplicitFunctionBindingsExplicit :: Expr ty -> Expr ty
 makeImplicitFunctionBindingsExplicit = go HS.empty
     where
         -- see example 5 in
@@ -27,7 +26,7 @@ makeImplicitFunctionBindingsExplicit = go HS.empty
             let scope' = HS.union scope $ HS.fromList $ join $ Ohua.Prelude.map goPat vs 
             in LamE vs (go scope' b)
         go scope (VarE bdg) | not (HS.member bdg scope) = 
-                LitE $ FunRefLit $ FunRef (QualifiedBinding (makeThrow []) bdg) Nothing 
+                LitE $ FunRefLit $ FunRef (QualifiedBinding (makeThrow []) bdg) Nothing Untyped
         go scope e = descend (go scope) e 
         descend = over plate -- note composOp = descend = over plate -> https://www.stackage.org/haddock/lts-14.25/lens-4.17.1/Control-Lens-Plated.html#v:para (below)
         goPat UnitP = []
