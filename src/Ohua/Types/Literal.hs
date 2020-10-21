@@ -1,20 +1,15 @@
-{-# LANGUAGE DeriveLift #-}
 module Ohua.Types.Literal where
 
 import Universum
-
-import Language.Haskell.TH.Syntax (Lift)
-
-import Ohua.Types.Reference
+import Ohua.Types.Reference ( FunRef(..), HostExpr )
 
 -- | Literals of kinds we expect any host language to support
-data Lit
+data Lit ty
     = NumericLit !Integer -- ^ an integer literal
     | BoolLit Bool -- ^ a boolean literal
     | UnitLit -- ^ aka @()@
     | EnvRefLit !HostExpr -- ^ A reference to some value from the environment
-    | FunRefLit FunRef -- ^ Reference to an external function
-    deriving (Show, Eq, Lift, Generic)
+    | FunRefLit (FunRef ty) -- ^ Reference to an external function
+    deriving (Show, Eq, Generic)
 
-instance NFData Lit
-instance Hashable Lit
+instance Hashable (Lit ty)

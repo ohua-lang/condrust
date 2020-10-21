@@ -9,16 +9,18 @@ import Control.Monad.Error.Class (MonadError, throwError)
 import qualified Data.Text as T
 import GHC.Exts (IsList(..))
 import Instances.TH.Lift ()
-import Language.Haskell.TH.Syntax (Lift)
+import Language.Haskell.TH.Syntax as TH (Lift(..))
 import Ohua.LensClasses
 
 import System.FilePath.Posix (addExtension)
 import System.FilePath as Path (joinPath)
-
 import Ohua.Util
-
 import Ohua.Types.Error
 import Ohua.Types.Make
+import Ohua.Types.Classes
+
+import qualified Text.Show 
+
 
 -- | A binding name
 newtype Binding =
@@ -49,28 +51,59 @@ newtype HostExpr = HostExpr
     { unwrapHostExpr :: Int
     } deriving (Eq, Ord, Generic, Show, Lift, Hashable, NFData)
 
-data FunRef = FunRef QualifiedBinding (Maybe FnId)
-    deriving (Show, Eq, Generic, Lift)
+data ArgType ty = TypeVar | Type ty deriving (Lift, Generic)
+data FunType ty where
+     Untyped :: FunType ty
+     FunType :: [ArgType ty] -> FunType ty 
+     STFunType :: ArgType ty -> [ArgType ty] -> FunType ty
 
+data FunRef ty where
+    FunRef :: QualifiedBinding -> Maybe FnId -> FunType ty -> FunRef ty
 
 --------------------------------------------------------------
 --                           Instances
 --------------------------------------------------------------
 
+instance EqNoType (ArgType ty) where
+    TypeVar ~= TypeVar = True
+    Type _ ~= Type _ = True -- skipping to type info here!
+    _ ~= _ = False
+
+instance Eq (ArgType ty) where
+    (==) = (~=)
+
+instance ShowNoType (ArgType ty) where
+    showNoType TypeVar = "TypeVar"
+    showNoType (Type _) = "Type _"
+
+instance Show (ArgType ty) where
+    show = T.unpack . showNoType
+
+instance Hashable (ArgType ty) where
+    hashWithSalt s TypeVar = s
+    hashWithSalt s (Type _) = s
+
+deriving instance Show (FunType ty)
+deriving instance Eq (FunType ty)
+deriving instance Generic (FunType ty)
+instance Hashable (FunType ty)
+
+deriving instance Show (FunRef ty)
+deriving instance Eq (FunRef ty)
+deriving instance Generic (FunRef ty)
+instance Hashable (FunRef ty)
+
 instance NFData QualifiedBinding
-instance NFData FunRef
 
 instance Hashable NSRef where
     hashWithSalt salt = hashWithSalt salt . unwrap
     {-# INLINE hashWithSalt #-}
 instance Hashable QualifiedBinding
-instance Hashable FunRef
 
 type instance SourceType FnId = Int
 type instance SourceType Binding = Text
 type instance SourceType NSRef = [Binding]
 type instance SourceType HostExpr = Int
-
 
 instance UnsafeMake FnId where unsafeMake = FnId
 instance UnsafeMake Binding where unsafeMake = Binding
@@ -155,7 +188,7 @@ symbolFromString s
                     "An unqualified name cannot start with a '/': " <> show s
                 | T.null slashName -> Left <$> make symNs
                 | Just ('/', symName) <- T.uncons slashName ->
-                    if | (== '/') `T.find` symName /= Nothing ->
+                    if | isJust ((== '/') `T.find` symName) ->
                            throwError $
                            "Too many '/' delimiters found in the binding " <>
                            show s

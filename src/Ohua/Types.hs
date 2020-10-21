@@ -3,12 +3,15 @@ module Ohua.Types
     , Binding
     , NSRef(..)
     , QualifiedBinding(..)
+    , ArgType(..)
+    , FunType(..)
     , toFilePath
     , symbolFromString
     , HostExpr
     , FunRef(..)
     , Lit(..)
     , module Ohua.Types.Computation
+    , module Ohua.Types.Classes
     , module Ohua.Types.Error
     , module Ohua.Types.Integration
 
@@ -25,6 +28,7 @@ module Ohua.Types
     ) where
 
 import Ohua.Types.Computation
+import Ohua.Types.Classes
 import Ohua.Types.Error
 import Ohua.Types.Integration
 import Ohua.Types.Literal
