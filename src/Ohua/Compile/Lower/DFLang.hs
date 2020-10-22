@@ -14,10 +14,10 @@ import qualified Data.HashSet as HS
 
 
 -- Invariant in the result type: the result channel is already part of the list of channels.
-toTCLang :: CompM m => NormalizedDFExpr -> m (TCProgram Channel (Com 'Recv) FusableExpr)
+toTCLang :: CompM m => NormalizedDFExpr ty -> m (TCProgram (Channel ty) (Com 'Recv ty) (FusableExpr ty))
 toTCLang gr = do
     let channels = generateArcsCode gr
-    (tasks,resultChan) <- generateNodesCode gr
+    (tasks, resultChan) <- generateNodesCode gr
     return $ TCProgram channels resultChan tasks
 
 type LoweringM m a = m a
@@ -25,52 +25,53 @@ type LoweringM m a = m a
 invariantBroken :: CompM m => Text -> LoweringM m a
 invariantBroken msg = throwError $ "Compiler invariant broken! " <> msg
 
-generateNodesCode :: CompM m => NormalizedDFExpr ->  LoweringM m ([FusableExpr], Com 'Recv)
+generateNodesCode :: CompM m => NormalizedDFExpr ty ->  LoweringM m ([FusableExpr ty], Com 'Recv ty)
 generateNodesCode = go
     where 
         go (DFLang.Let app cont) = do
             task <- generateNodeCode app
             (tasks, resRecv) <- go cont
             return (task:tasks,resRecv)
-        go (DFLang.Var bnd) = return ([], SRecv $ SChan bnd) 
+        go (DFLang.Var bnd) = return ([], SRecv TypeVar $ SChan bnd) -- FIXME needs a concrete type!
 
-generateFunctionCode :: CompM m => DFApp a ->  LoweringM m FusableExpr
+generateFunctionCode :: CompM m => DFApp a ty ->  LoweringM m (FusableExpr ty)
 generateFunctionCode = \case
     (PureDFFun out fn inp) -> do
         (fun', args) <- lowerFnRef fn inp
         out' <- pureOut out 
         return $ Fusion.Fun $ Ops.PureFusable args fun' $ SChan out'
-    (StateDFFun out fn stateIn inp) -> do
+    (StateDFFun out fn (DFVar stateT stateIn) inp) -> do
         (fun', args) <- lowerFnRef fn inp
         (sOut, dataOut) <- stateOut out 
         return $ Fusion.Fun
-            $ Ops.STFusable (SRecv $ SChan $ unwrapABnd stateIn) args fun' (SChan <$> dataOut) (SChan <$> sOut)
+            $ Ops.STFusable (SRecv stateT $ SChan $ unwrapABnd stateIn) args fun' (SChan <$> dataOut) (SChan <$> sOut)
     where
         pureOut (Direct out) = return $ unwrapABnd out
         pureOut e = throwError $ "Unsupported multiple outputs: " <> show e
         stateOut (stateOut, Direct out) = return ((\(Direct bnd) -> unwrapABnd bnd) <$> stateOut, Just $ unwrapABnd out)
         stateOut e = throwError $ "Unsupported multiple outputs: " <> show e
 
-convertDFVar :: DFVar -> TaskExpr
-convertDFVar (DFVar bnd) = BLang.Var $ unwrapABnd bnd
-convertDFVar (DFEnvVar l) = Lit l 
+-- -- FIXME looses type info!
+-- convertDFVar :: DFVar semTy ty -> TaskExpr ty
+-- convertDFVar (DFVar _ bnd) = BLang.Var $ unwrapABnd bnd
+-- convertDFVar (DFEnvVar _ l) = Lit l 
 
-generateReceive :: DFVar -> Ops.CallArg
-generateReceive (DFVar bnd) = Ops.Arg $ SRecv $ SChan $ unwrapABnd bnd
-generateReceive (DFEnvVar l) = Ops.Converted $ Lit l
+generateReceive :: DFVar semTy ty -> Ops.CallArg ty
+generateReceive (DFVar t bnd) = Ops.Arg $ SRecv t $ SChan $ unwrapABnd bnd
+generateReceive (DFEnvVar t l) = Ops.Converted $ Lit l -- FIXME looses type info!
 
-lowerFnRef :: CompM m => QualifiedBinding -> NonEmpty DFVar -> LoweringM m (QualifiedBinding, [Ops.CallArg])
+lowerFnRef :: CompM m => QualifiedBinding -> NonEmpty (DFVar semTy ty) -> LoweringM m (QualifiedBinding, [Ops.CallArg ty])
 lowerFnRef fun vars | fun == Refs.unitFun = do -- FIXME Why not give a unit function a unit literal as an input?!
     (f,vars') <- case vars of
-            [DFEnvVar (FunRefLit (FunRef p _)), DFVar bnd] -> 
-                return (p, [Ops.Drop $ Left $ SRecv $ SChan $ unwrapABnd bnd])
-            [DFEnvVar (FunRefLit (FunRef p _)), DFEnvVar UnitLit] -> 
+            [DFEnvVar _t (FunRefLit (FunRef p _ _)), DFVar t1 bnd] -> -- FIXME looses type info!
+                return (p, [Ops.Drop $ Left $ SRecv t1 $ SChan $ unwrapABnd bnd])
+            [DFEnvVar _t (FunRefLit (FunRef p _ _)), DFEnvVar _ UnitLit] -> 
                 return (p, [])
             _ -> invariantBroken "unitFun must always have two arguments!"
     return (f, vars')
 lowerFnRef f vars = return (f, toList $ map generateReceive vars)
 
-generateArcsCode :: NormalizedDFExpr -> NonEmpty Channel
+generateArcsCode :: NormalizedDFExpr ty -> NonEmpty (Channel ty)
 generateArcsCode = go
     where
         go (DFLang.Let app cont) = 
@@ -81,12 +82,12 @@ generateArcsCode = go
         go (DFLang.Var bnd) = SChan bnd :|[]
 
 -- FIXME see sertel/ohua-core#7: all these errors would immediately go away
-generateNodeCode :: CompM m => DFApp a ->  LoweringM m FusableExpr
+generateNodeCode :: CompM m => DFApp semTy ty ->  LoweringM m (FusableExpr ty)
 generateNodeCode e@(PureDFFun out fun inp)  | fun == smapFun = do
     input <- 
         case inp of
             [x] -> case x of 
-                        (DFVar v) -> return $ SRecv $ SChan $ unwrapABnd v
+                        (DFVar t v) -> return $ SRecv t $ SChan $ unwrapABnd v
                         _ -> invariantBroken $ "Input to SMap must var not literal:\n" <> show e
             _ -> invariantBroken $ "SMap should only have a single input." <> show e
     (dataOut, ctrlOut, collectOut) <- 
@@ -101,8 +102,8 @@ generateNodeCode e@(PureDFFun out fun inp)  | fun == smapFun = do
 generateNodeCode e@(PureDFFun out fun inp) | fun == collect = do
     (sizeIn, dataIn) <-
         case inp of
-            [DFVar s, DFVar d] -> 
-                return (SRecv $ SChan $ unwrapABnd s, SRecv $ SChan $ unwrapABnd d)
+            [DFVar sType s, DFVar dType d] -> 
+                return (SRecv sType $ SChan $ unwrapABnd s, SRecv dType $ SChan $ unwrapABnd d)
             _ -> invariantBroken $ "Collect arguments don't match:\n" <> show e
     collectedOutput <- 
         case out of
@@ -115,7 +116,7 @@ generateNodeCode e@(PureDFFun out fun inp) | fun == collect = do
 generateNodeCode e@(PureDFFun out fun inp) | fun == ifFun = do
     condIn <- 
         case inp of
-            [DFVar x] -> return $ SRecv $ SChan $ unwrapABnd x
+            [DFVar xType x] -> return $ SRecv xType $ SChan $ unwrapABnd x
             _ -> invariantBroken $ "IfFun arguments don't match:\n" <> show e
     (ctrlTrueOut, ctrlFalseOut) <-
         case out of
@@ -128,8 +129,11 @@ generateNodeCode e@(PureDFFun out fun inp) | fun == ifFun = do
 generateNodeCode e@(PureDFFun out fun inp) | fun == select = do
     (condIn, trueIn, falseIn) <- 
         case inp of
-            [DFVar x, DFVar y, DFVar z] -> 
-                return (SRecv $ SChan $ unwrapABnd x, SRecv $ SChan $ unwrapABnd y, SRecv $ SChan $ unwrapABnd z)
+            [DFVar xType x, DFVar yType y, DFVar zType z] -> 
+                return 
+                    ( SRecv xType $ SChan $ unwrapABnd x
+                    , SRecv yType $ SChan $ unwrapABnd y
+                    , SRecv zType $ SChan $ unwrapABnd z)
             _ -> invariantBroken $ "Select arguments don't match:\n" <> show e
     out <-
         case out of
@@ -142,8 +146,10 @@ generateNodeCode e@(PureDFFun out fun inp) | fun == select = do
 generateNodeCode e@(PureDFFun out fun inp) | fun == Refs.runSTCLangSMap = do
     (sizeIn, stateIn) <- 
         case inp of
-            [DFVar x, DFVar y] -> 
-                return (SRecv $ SChan $ unwrapABnd x, SRecv $ SChan $ unwrapABnd y)
+            [DFVar xType x, DFVar yType y] -> 
+                return 
+                    ( SRecv xType $ SChan $ unwrapABnd x
+                    , SRecv yType $ SChan $ unwrapABnd y)
             _ -> invariantBroken $ "STCLangSMap arguments don't match:\n" <> show e
     out <-
         case out of
@@ -182,15 +188,15 @@ generateNodeCode e@(PureDFFun out fun inp) | fun == ctrl = do
             Destruct [Direct x] -> return $ SChan $ unwrapABnd x
             _ -> invariantBroken $ "Control outputs don't match:\n" <> show e    
     case inp of
-        DFVar ctrlInp :| [DFVar inp'] ->
+        DFVar tc ctrlInp :| [DFVar ti inp'] ->
             return $ Control $ Left $ 
                 Ops.mkCtrl 
-                    (SRecv $ SChan $ unwrapABnd ctrlInp) 
-                    (SRecv $ SChan $ unwrapABnd inp') 
+                    (SRecv tc $ SChan $ unwrapABnd ctrlInp) 
+                    (SRecv ti $ SChan $ unwrapABnd inp') 
                     out'
-        DFVar ctrlInp :| [DFEnvVar lit] ->
+        DFVar tc ctrlInp :| [DFEnvVar ti lit] ->
             return $ Control $ Right $ 
-                Ops.mkLittedCtrl (SRecv $ SChan $ unwrapABnd ctrlInp) lit out'
+                Ops.mkLittedCtrl (SRecv tc $ SChan $ unwrapABnd ctrlInp) lit out' -- FIXME loosing the semantic type here!
         _ -> invariantBroken $ "Control arguments don't match:\n" <> show e
 
 -- generateNodeCode e@LetExpr {functionRef=f} | f == runSTCLang = do

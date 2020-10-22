@@ -1,7 +1,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 module Integrations.Rust.Basic where
 
-import Ohua.Prelude
+import Ohua.Prelude ( ($), Monad((>>=)), (=<<) )
 import Integrations.Rust.Utils
 
 
@@ -10,6 +10,8 @@ spec =
     describe "Basics" $ do
         it "a function" $
             (showCode "Compiled: " =<< compileCode [sourceFile| 
+                use funs::hello_world;
+
                 fn test() -> String {
                     hello_world()
                 }

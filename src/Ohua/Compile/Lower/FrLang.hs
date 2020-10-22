@@ -19,7 +19,7 @@ import Ohua.Core.ParseTools.Refs (ifBuiltin, mkTuple, smapBuiltin, seqBuiltin)
 -- a lambda
 --
 -- I am leaving it here in case we need it later.
-_ensureLambdaInSmap :: (Monad m, MonadGenBnd m) => Expr -> m Expr
+_ensureLambdaInSmap :: (Monad m, MonadGenBnd m) => Expr ty -> m (Expr ty)
 _ensureLambdaInSmap =
     rewriteM $ \case
         MapE (LamE _ _) _ -> pure Nothing
@@ -29,13 +29,13 @@ _ensureLambdaInSmap =
         _ -> pure Nothing
 
 -- | Ensures every lambda takes at most one argument.
-mkLamSingleArgument :: Expr -> Expr
+mkLamSingleArgument :: Expr ty -> Expr ty
 mkLamSingleArgument =
     rewrite $ \case
         LamE (x1:x2:xs) b -> Just $ LamE [x1] $ LamE (x2 : xs) b
         _ -> Nothing
 
-removeDestructuring :: MonadGenBnd m => Expr -> m Expr
+removeDestructuring :: MonadGenBnd m => Expr ty -> m (Expr ty)
 removeDestructuring =
     rewriteM $ \case
         LetE (TupP pats) e1 e2 -> do
@@ -46,16 +46,16 @@ removeDestructuring =
             pure $ Just $ LamE [VarP valBnd] $ unstructure valBnd pats e
         _ -> pure Nothing
 
-giveEmptyLambdaUnitArgument :: Expr -> Expr
+giveEmptyLambdaUnitArgument :: Expr ty -> Expr ty
 giveEmptyLambdaUnitArgument =
     rewrite $ \case
         LamE [] e -> Just $ LamE [UnitP] e
         _ -> Nothing
 
-nthFun :: Expr
-nthFun = LitE $ FunRefLit $ FunRef ARefs.nth Nothing
+nthFun :: Expr ty
+nthFun = LitE $ FunRefLit $ FunRef ARefs.nth Nothing Untyped
 
-unstructure :: Binding -> [Pat] -> Expr -> Expr
+unstructure :: Binding -> [Pat] -> Expr ty -> Expr ty
 unstructure valBnd pats = go (toInteger $ length pats) pats
   where
     go numPats =
@@ -71,7 +71,7 @@ unstructure valBnd pats = go (toInteger $ length pats) pats
                      ]) .
         zip [0 ..]
 
-trans :: Expr -> AL.Expr
+trans :: Expr ty -> AL.Expr ty
 trans =
     cata $ \case
         VarEF b -> Var b
@@ -95,7 +95,7 @@ trans =
         BindEF ref e -> BindState ref e
         StmtEF e1 cont -> Let "_" e1 cont
         SeqEF source target -> seqBuiltin `Apply` source `Apply` Lambda "_" target
-        TupEF parts -> foldl Apply (PureFunction mkTuple Nothing) parts
+        TupEF parts -> foldl Apply (pureFunction mkTuple Nothing) parts
   where
     patToBnd =
         \case
@@ -103,17 +103,17 @@ trans =
             UnitP -> "_"
             p -> error $ "Invariant broken, invalid pattern: " <> show p
 
-toAlang' :: CompM m => HS.HashSet Binding -> Expr -> m AL.Expr
+toAlang' :: CompM m => HS.HashSet Binding -> Expr ty -> m (AL.Expr ty)
 toAlang' taken expr = runGenBndT taken $ transform expr
     where 
         transform =
             giveEmptyLambdaUnitArgument >>>
             mkLamSingleArgument >>> removeDestructuring >=> pure . trans
 
-toAlang :: CompM m => Expr -> m AL.Expr
+toAlang :: CompM m => Expr ty -> m (AL.Expr ty)
 toAlang expr = toAlang' (definedBindings expr) expr
 
-definedBindings :: Expr -> HS.HashSet Binding
+definedBindings :: Expr ty -> HS.HashSet Binding
 definedBindings olang =
     HS.fromList $
     [v | VarE v <- universe olang] <>
