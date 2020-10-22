@@ -1,6 +1,6 @@
 module Ohua.Backend where
 
-import Ohua.Prelude
+import Ohua.Prelude hiding (Type)
 
 import Ohua.Backend.Types as Types
 import Ohua.Backend.Lang
@@ -16,6 +16,7 @@ backend ::
         , Integration lang
         , Architecture arch
         , Lang arch ~ lang
+        , ty ~ Type (Lang arch)
         ) 
         => FilePath 
         -> Namespace (TCProgram (Channel ty) (Com 'Recv ty) (FusableExpr ty)) 

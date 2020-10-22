@@ -5,8 +5,6 @@ import Ohua.Prelude
 
 import Ohua.Backend.Lang
 
-import qualified Text.Show
-
 
 type DataSizeInput ty = Com 'Recv ty
 type StateInput ty = Com 'Recv ty

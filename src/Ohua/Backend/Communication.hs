@@ -1,12 +1,12 @@
 module Ohua.Backend.Communication where
 
-import Ohua.Prelude
+import Ohua.Prelude hiding (Type)
 
 import Ohua.Backend.Lang
 import Ohua.Backend.Types
 
 
-lowerTaskCom :: ConvertTaskCom arch 
+lowerTaskCom :: (Architecture arch, ty ~ Type (Lang arch))
         => arch 
         -> Namespace (TCProgram (Channel ty) (Com 'Recv ty) (TaskExpr ty)) 
         -> Namespace (TCProgram (Channel ty) (TaskExpr ty) (TaskExpr ty))
@@ -22,7 +22,7 @@ lowerTaskCom arch ns = ns & algos %~ map (\algo -> algo & algoCode %~ convertCom
             SendData s -> convertSend arch s
             e -> e
 
-lowerChannels :: Architecture arch
+lowerChannels :: (Architecture arch, ty ~ Type (Lang arch))
         => arch 
         -> Namespace (TCProgram (Channel ty) (TaskExpr ty) (TaskExpr ty)) 
         ->  Namespace (TCProgram (Chan arch) (TaskExpr ty) (TaskExpr ty))

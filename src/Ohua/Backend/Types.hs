@@ -1,6 +1,6 @@
 module Ohua.Backend.Types where
 
-import Ohua.Prelude
+import Ohua.Prelude hiding (Type)
 
 import Ohua.Backend.Lang
 import qualified Data.ByteString.Lazy.Char8 as L
@@ -35,30 +35,33 @@ data Program chan retChan expr ty =
     Program
         (NonEmpty chan)
         retChan
-        [FullTask expr ty]
+        [FullTask ty expr]
 
-data FullTask expr ty = 
+data FullTask ty expr = 
     FullTask 
         [Com 'Send ty] 
         [Com 'Recv ty] -- TODO Do not unwrap the binding to understand where state comes from!
         expr
+    deriving (Functor)
 
-taskExpression :: FullTask expr ty -> expr
+taskExpression :: FullTask ty expr -> expr
 taskExpression (FullTask _ _ e) = e
 
 class Integration lang where
     type NS lang :: *
+    type Type lang :: *
 
     type RetChan lang :: *
     type Expr lang :: *
     type Task lang :: *
 
-    convertExpr :: (Architecture arch, Lang arch ~ lang) => arch -> TaskExpr ty -> Expr lang
+    convertExpr :: (Architecture arch, Lang arch ~ lang) => arch -> TaskExpr (Type lang) -> Expr lang
 
     lower :: 
         ( CompM m
         , Architecture arch
-        , Lang arch ~ lang)
+        , Lang arch ~ lang
+        , ty ~ (Type lang))
         => NS lang
         -> arch
         -> Namespace (Program (Chan arch) (TaskExpr ty) (TaskExpr ty) ty)
@@ -70,11 +73,12 @@ class (ConvertTaskCom arch) => Architecture arch where
     type ARetChan arch :: *
     type ATask arch :: *
 
-    convertChannel :: arch -> Channel ty -> Chan arch
+    convertChannel :: arch -> Channel (Type (Lang arch)) -> Chan arch
 
     build :: 
         ( Integration (Lang arch)
         , lang ~ (Lang arch)
+        , ty ~ (Type (Lang arch))
         , CompM m)
         => arch
         -> NS lang
@@ -84,7 +88,8 @@ class (ConvertTaskCom arch) => Architecture arch where
     serialize :: 
         ( CompM m
         , Integration (Lang arch)
-        , lang ~ (Lang arch))
+        , lang ~ (Lang arch)
+        , ty ~ (Type (Lang arch)))
         => arch
         -> NS lang
         -> Namespace (Program (Chan arch) (ARetChan arch) (ATask arch) ty)
