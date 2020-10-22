@@ -1,6 +1,6 @@
 module Ohua.Frontend.Types where
 
-import Ohua.Prelude
+import Ohua.Prelude hiding (Type)
 
 import Ohua.Frontend.Lang
 import qualified Data.HashMap.Lazy as HM
@@ -10,9 +10,10 @@ import qualified Data.HashMap.Lazy as HM
 
 class Integration lang where
     type NS lang :: *
+    type Type lang :: *
 
-    loadNs :: CompM m => lang -> FilePath -> m (NS lang, Namespace (Expr ty))
-    loadTypes :: CompM m => lang -> NS lang -> Namespace (Expr ty) -> m (Namespace (Expr ty))
+    loadNs :: CompM m => lang -> FilePath -> m (NS lang, Namespace (Expr (Type lang)))
+    loadTypes :: CompM m => lang -> NS lang -> Namespace (Expr (Type lang)) -> m (Namespace (Expr (Type lang)))
 
 type LanguageFileSuffix = Text
 type CompilationScope = HM.HashMap NSRef LanguageFileSuffix

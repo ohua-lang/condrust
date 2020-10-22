@@ -1,7 +1,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Ohua.Frontend where
 
-import Ohua.Prelude
+import Ohua.Prelude hiding (Type)
 
 import Ohua.Frontend.Types
 import Ohua.Frontend.Lang
@@ -13,8 +13,8 @@ import Ohua.Frontend.Transform.Envs ( prepareRootAlgoVars )
 import Ohua.Frontend.Transform.State ( check )
 
 
-frontend :: forall ty m lang. (CompM m, Integration lang) 
-        => lang -> CompilationScope -> FilePath -> m (NS lang, Namespace (Expr ty))
+frontend :: forall m lang. (CompM m, Integration lang) 
+        => lang -> CompilationScope -> FilePath -> m (NS lang, Namespace (Expr (Type lang)))
 frontend lang compScope inFile = do
         (langNs, ns) <- load lang compScope inFile
         ns' <- resolveNS ns

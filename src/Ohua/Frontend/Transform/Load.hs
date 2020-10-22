@@ -1,7 +1,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Ohua.Frontend.Transform.Load (load) where
 
-import Ohua.Prelude
+import Ohua.Prelude hiding (Type)
 
 import Ohua.Frontend.Lang
 import Ohua.Frontend.Types
@@ -25,7 +25,7 @@ import qualified Data.HashMap.Strict as HM
 --   We currently use a very simple but easily maintainable approach:
 --   Just load all algorithms that exist in the project scope. By using
 --   a lazy hashmap, this should only load the algo once actually needed.
-loadDeps :: forall ty m lang.(CompM m, Integration lang) => lang -> CompilationScope -> Namespace (Expr ty) -> m (NamespaceRegistry ty)
+loadDeps :: forall m lang.(CompM m, Integration lang) => lang -> CompilationScope -> Namespace (Expr (Type lang)) -> m (NamespaceRegistry (Type lang))
 loadDeps lang scope currentNs = do
     let registry' = registerAlgos HM.empty currentNs
     modules <- mapM (\path -> snd <$> loadNs lang (toFilePath path)) $ HM.toList scope
@@ -43,7 +43,7 @@ loadDeps lang scope currentNs = do
                 registry
                 $ ns^.algos
 
-load :: forall m lang ty.(CompM m, Integration lang) => lang -> CompilationScope -> FilePath -> m (NS lang, (Namespace (Expr ty), NamespaceRegistry ty))
+load :: forall m lang.(CompM m, Integration lang) => lang -> CompilationScope -> FilePath -> m (NS lang, (Namespace (Expr (Type lang)), NamespaceRegistry (Type lang)))
 load lang scope inFile = do
     logDebugN $ "Loading module: " <> show inFile <> "..."
     (ctxt, ns) <- loadNs lang inFile
