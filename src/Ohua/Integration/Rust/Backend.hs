@@ -1,6 +1,6 @@
 module Ohua.Integration.Rust.Backend where
 
-import Ohua.Prelude
+import Ohua.Prelude hiding (Type)
 
 import Ohua.Backend.Lang as TCLang
 import Ohua.Backend.Types as B
@@ -8,10 +8,9 @@ import Ohua.Backend.Types as B
 import Ohua.Integration.Lang hiding (Lang)
 import Ohua.Integration.Rust.Types
 import Ohua.Integration.Rust.Util
-import Ohua.Integration.Rust.TypeExtraction (FunType)
+import Ohua.Integration.Rust.TypeExtraction (RustTypeAnno)
 
 import Language.Rust.Syntax as Rust hiding (Rust)
-import Language.Rust.Parser (Span)
 import Language.Rust.Data.Ident
 import Data.Text (unpack)
 import Data.List ((!!))
@@ -23,7 +22,7 @@ import qualified Data.HashMap.Lazy as HM
 noSpan :: ()
 noSpan = ()
 
-convertIntoBlock :: (Architecture arch, Lang arch ~ (Language 'Rust)) => arch -> TaskExpr -> Block ()
+convertIntoBlock :: (Architecture arch, Lang arch ~ (Language 'Rust)) => arch -> TaskExpr RustTypeAnno -> Block ()
 convertIntoBlock arch expr = 
     let expr' = convertExpr arch expr
     in case expr' of
@@ -32,13 +31,13 @@ convertIntoBlock arch expr =
 
 instance Integration (Language 'Rust) where
     type NS (Language 'Rust) = Module
-    type Types (Language 'Rust) = HashMap QualifiedBinding (FunType Span)
+    type Type (Language 'Rust) = RustTypeAnno
 
-    type RetChan (Language 'Rust) = TaskExpr
+    type RetChan (Language 'Rust) = TaskExpr RustTypeAnno
     type Expr (Language 'Rust) = Rust.Expr ()
     type Task (Language 'Rust) = Rust.Block ()
 
-    lower (Module _path (SourceFile _ _ items), _) arch ns = 
+    lower (Module _path (SourceFile _ _ items)) arch ns = 
         return $ 
             ns & algos %~ map (\algo -> algo & algoCode %~ convertTasks (algo^.algoName))
         where
@@ -55,12 +54,12 @@ instance Integration (Language 'Rust) where
                             (Just as) -> as
                 in Program chans retChan $ map (convertIntoBlock arch . convertEnvs args <$>) tasks 
                             
-            convertEnvs :: [Arg a] -> TCLang.TaskExpr -> TCLang.TaskExpr
+            convertEnvs :: [Arg a] -> TCLang.TaskExpr RustTypeAnno -> TCLang.TaskExpr RustTypeAnno
             convertEnvs args = cata $ \case
                 LitF (EnvRefLit h) -> argToVar (args !! unwrap h)
                 e -> embed e
 
-            argToVar :: Rust.Arg a -> TCLang.TaskExpr
+            argToVar :: Rust.Arg a -> TCLang.TaskExpr RustTypeAnno
             argToVar (Arg (Just (IdentP _ i _ _ )) _ _) = Var $ toBinding i
 
     convertExpr _ (Var bnd) = PathExpr [] Nothing (convertVar bnd) noSpan
@@ -69,7 +68,7 @@ instance Integration (Language 'Rust) where
     convertExpr _ (TCLang.Lit (BoolLit b)) = Rust.Lit [] (Bool b Unsuffixed noSpan) noSpan
     convertExpr _ (TCLang.Lit UnitLit) = TupExpr [] [] noSpan -- FIXME this means *our* unit, I believe.
     convertExpr _ (TCLang.Lit (EnvRefLit _hostExpr)) = error "Host expression encountered! This is a compiler error. Please report!"
-    convertExpr _ (TCLang.Lit (FunRefLit (FunRef qBnd _))) = PathExpr [] Nothing (convertQualBnd qBnd) noSpan
+    convertExpr _ (TCLang.Lit (FunRefLit (FunRef qBnd _ _type))) = PathExpr [] Nothing (convertQualBnd qBnd) noSpan
 
     convertExpr arch (Apply (Stateless bnd args)) = convertFunCall arch bnd args
     convertExpr arch (Apply (Stateful stateExpr (QualifiedBinding _ bnd) args)) =
@@ -169,7 +168,8 @@ mkSimpleBinding bnd =
         noSpan
 
 -- TODO we probably want a Literal for common operations
-convertFunCall :: (Architecture arch, Lang arch ~ (Language 'Rust)) => arch -> QualifiedBinding -> [TCLang.TaskExpr] -> Rust.Expr ()
+convertFunCall :: (Architecture arch, Lang arch ~ (Language 'Rust), ty ~ Type (Lang arch))
+               => arch -> QualifiedBinding -> [TCLang.TaskExpr RustTypeAnno] -> Rust.Expr ()
 convertFunCall arch op [arg1, arg2] | isJust $ binOp op = 
     Binary [] (fromJust $ binOp op) (convertExpr arch arg1) (convertExpr arch arg2) noSpan
     where
@@ -190,7 +190,7 @@ convertFunCall arch op [arg] | isJust $ unOp op =
 convertFunCall arch f args = 
     Call 
         []
-        (convertExpr arch $ TCLang.Lit $ FunRefLit $ FunRef f Nothing)
+        (convertExpr arch $ TCLang.Lit $ FunRefLit $ FunRef f Nothing Untyped)
         (map (convertExpr arch) args)
         noSpan
 

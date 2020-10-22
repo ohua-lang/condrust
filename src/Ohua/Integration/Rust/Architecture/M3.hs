@@ -10,6 +10,7 @@ import Ohua.Integration.Architecture
 import Ohua.Integration.Rust.Types as RT
 import Ohua.Integration.Rust.Backend
 import Ohua.Integration.Rust.Architecture.Common as C
+import Ohua.Integration.Rust.TypeExtraction (RustTypeAnno)
 
 import Language.Rust.Syntax as Rust hiding (Rust)
 import Language.Rust.Data.Ident
@@ -35,7 +36,7 @@ instance Architecture (Architectures 'M3) where
             []
             noSpan
 
-    build SM3 (Module _ (SourceFile _ _ _items), _) ns = 
+    build SM3 (Module _ (SourceFile _ _ _items)) ns = 
         return $ ns & algos %~ map (\algo -> algo & algoCode %~ createTasksAndRetChan)
         where
             createTasksAndRetChan (Program chans retChan tasks) = 
@@ -50,7 +51,7 @@ instance Architecture (Architectures 'M3) where
             createVPE :: Rust.Stmt ()
             createVPE = noSpan <$ [stmt| let mut vpe = VPE::new_child_vpe("test").unwrap(); |]
 
-            activateCom :: FullTask a -> [Rust.Stmt ()]
+            activateCom :: FullTask RustTypeAnno a -> [Rust.Stmt ()]
             activateCom (FullTask sends recvs _) =
                 map ((flip Semi noSpan . convertExpr SM3) .
                     (\c -> 
@@ -58,9 +59,9 @@ instance Architecture (Architectures 'M3) where
                             (Apply $ Stateful (Var c) (mkFunRefUnqual "activate") [])
                             (mkFunRefUnqual "unwrap") []))
                     (map (\(SSend (SChan c) _) -> c) sends ++
-                     map (\(SRecv (SChan c)) -> c) recvs)
+                     map (\(SRecv _type (SChan c)) -> c) recvs)
 
-            delegateCom :: FullTask a -> [Rust.Stmt ()]
+            delegateCom :: FullTask RustTypeAnno a -> [Rust.Stmt ()]
             delegateCom (FullTask sends recvs _) = 
                 map ((flip Semi noSpan . convertExpr SM3) .
                     (\c -> 
@@ -69,7 +70,7 @@ instance Architecture (Architectures 'M3) where
                                 [Apply $ Stateful (Var c) (mkFunRefUnqual "sel") []])
                             (mkFunRefUnqual "unwrap") []))
                     (map (\(SSend (SChan c) _) -> c) sends ++
-                     map (\(SRecv (SChan c)) -> c) recvs)
+                     map (\(SRecv _typ (SChan c)) -> c) recvs)
 
             createTask :: Rust.Expr () -> Rust.Expr ()
             createTask code = 
@@ -113,7 +114,7 @@ instance Architecture (Architectures 'M3) where
                 in Block (program ++ [NoSemi resultExpr noSpan]) Normal noSpan
 
 instance ConvertTaskCom (Architectures 'M3) where
-    convertRecv _ (SRecv (SChan channel)) = undefined -- this needs the type information!
+    convertRecv _ (SRecv typ (SChan channel)) = undefined -- this needs the type information!
     convertSend _ (SSend (SChan channel) d) =
         Apply $ Stateful
             (Apply $ Stateful (Var $ channel <> "_tx") (mkFunRefUnqual "send_msg") [Var d])

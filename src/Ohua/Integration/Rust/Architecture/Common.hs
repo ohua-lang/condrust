@@ -5,6 +5,7 @@ import Ohua.Prelude
 import Ohua.Backend.Types
 import Ohua.Integration.Rust.Types
 import Ohua.Integration.Rust.Util
+import Ohua.Integration.Rust.TypeExtraction
 
 import Language.Rust.Syntax as Rust hiding (Rust)
 
@@ -17,11 +18,11 @@ import Language.Rust.Pretty (pretty')
 
 
 serialize :: CompM m
-        => (Module, a)
-        -> Namespace (Program (Stmt ()) (Rust.Expr ()) (Rust.Expr ()))
-        -> (Program (Stmt ()) (Rust.Expr ()) (Rust.Expr ()) -> Block ())
+        => Module
+        -> Namespace (Program (Stmt ()) (Rust.Expr ()) (Rust.Expr ()) RustTypeAnno)
+        -> (Program (Stmt ()) (Rust.Expr ()) (Rust.Expr ()) RustTypeAnno -> Block ())
         -> m (NonEmpty (FilePath, L.ByteString))
-serialize (Module path (SourceFile modName atts items), _) ns createProgram =         
+serialize (Module path (SourceFile modName atts items)) ns createProgram =         
     let algos' = HM.fromList $ map (\(Algo name expr) -> (name, expr)) $ ns^.algos
         src    = SourceFile modName atts $ map (replaceAlgo algos') items
         render = encodeUtf8 . (<> "\n") . renderLazy . layoutSmart defaultLayoutOptions . pretty'

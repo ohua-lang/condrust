@@ -34,7 +34,7 @@ instance Architecture (Architectures 'SharedMemory) where
                 []
                 noSpan
 
-    build SSharedMemory (Module _ (SourceFile _ _ _items), _) ns = 
+    build SSharedMemory (Module _ (SourceFile _ _ _items)) ns = 
         return $ ns & algos %~ map (\algo -> algo & algoCode %~ createTasksAndChannels)
         where
             createTasksAndChannels (Program chans retChan tasks) = 
@@ -74,7 +74,7 @@ instance Architecture (Architectures 'SharedMemory) where
                 in Block (program ++ [NoSemi resultExpr noSpan]) Normal noSpan
 
 instance ConvertTaskCom (Architectures 'SharedMemory) where
-    convertRecv _ (SRecv (SChan channel)) =             
+    convertRecv _ (SRecv _type (SChan channel)) =             
         Apply $ Stateful (Var $ channel <> "_rx") (mkFunRefUnqual "recv") []
     convertSend _ (SSend (SChan channel) d) =
         Apply $ Stateful (Var $ channel <> "_tx") (mkFunRefUnqual "send") [Var d]

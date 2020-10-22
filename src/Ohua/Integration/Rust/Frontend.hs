@@ -1,3 +1,4 @@
+{-# LANGUAGE InstanceSigs, ScopedTypeVariables #-}
 module Ohua.Integration.Rust.Frontend where
 
 import Ohua.Prelude
@@ -13,7 +14,7 @@ import Ohua.Integration.Rust.TypeExtraction
 
 import Language.Rust.Syntax as Rust hiding (Rust)
 import Language.Rust.Data.Ident
-import Language.Rust.Parser ( Span )
+import Language.Rust.Parser (Span)
 
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
@@ -21,14 +22,15 @@ import qualified Data.HashSet as HS
 
 instance Integration (Language 'Rust) where
     type NS (Language 'Rust) = Module
-    type Types (Language 'Rust) = HashMap QualifiedBinding (FunType Span)
+    type Type (Language 'Rust) = (RustArgType Span)
 
+    loadNs :: CompM m => Language 'Rust -> FilePath -> m (Module, Namespace (FrLang.Expr (RustArgType Span)))
     loadNs _ srcFile = do
         mod <- liftIO $ load srcFile
         ns <- extractNs mod
         return (Module srcFile mod, ns)
         where
-            extractNs :: CompM m => SourceFile Span -> m (Namespace FrLang.Expr)
+            extractNs :: CompM m => SourceFile Span -> m (Namespace (FrLang.Expr (RustArgType Span)))
             -- TODO we might need to retrieve this from the file path.
             -- extractNs (SourceFile Nothing a b) = extractNs $ SourceFile (Just $ takeFileName srcFile) a b
             extractNs (SourceFile _ _ items) = do
@@ -49,7 +51,7 @@ instance Integration (Language 'Rust) where
             extractImports :: CompM m => [Binding] -> UseTree Span -> m (NonEmpty Import)
             extractImports prefix (UseTreeSimple path (Just alias) _) = 
                 (:|[]) . flip Alias (toBinding alias) . makeThrow . (prefix <>) <$> toBindings path
-            extractImports prefix u@(UseTreeSimple path Nothing _) = do
+            extractImports _prefix u@(UseTreeSimple path Nothing _) = do
                 bnds <- reverse <$> toBindings path
                 case bnds of
                     [] -> throwError $ "Empty 'use' path detected. Impossible: This program certainly does not pass 'rustc'." <> show u
@@ -63,7 +65,7 @@ instance Integration (Language 'Rust) where
                                 Nothing -> throwError $ "Empty nested 'use' detected. Impossible: This program certainly does not pass 'rustc'." <> show u
                 join <$> mapM (extractImports path') nesteds'
 
-            extractAlgo :: CompM m => Ident -> FnDecl Span -> Block Span -> m (Algo FrLang.Expr)
+            extractAlgo :: CompM m => Ident -> FnDecl Span -> Block Span -> m (Algo (FrLang.Expr (RustArgType Span)))
             extractAlgo ident (FnDecl args _ _ _) block = do
                 args' <- mapM convertPat args
                 block' <- convertExpr block
@@ -76,11 +78,21 @@ instance Integration (Language 'Rust) where
                     (PathSegment ident Nothing _) -> return $ toBinding ident
                     (PathSegment _ (Just _) _) -> throwError $ "We currently do not support import paths with path parameters.\n" <> show p
                     
+    loadTypes :: CompM m => Language 'Rust -> Module -> Namespace (FrLang.Expr (RustArgType Span)) -> m (Namespace (FrLang.Expr (RustArgType Span)))
     loadTypes _ _ ohuaNs = do
         filesAndPaths <- concat <$> mapM funsForAlgo (ohuaNs^.algos)
         types <- load $ HS.toList $ HS.fromList $ concatMap fst filesAndPaths
-        HM.fromList <$> mapM (verifyAndRegister types) filesAndPaths
+        types' <- HM.fromList <$> mapM (verifyAndRegister types) filesAndPaths
+        updateExprs ohuaNs (transformM (assignTypes types'))
         where
+            assignTypes :: CompM m => FunTypes -> FrLang.Expr (RustArgType Span) -> m (FrLang.Expr (RustArgType Span))
+            assignTypes types = \case 
+                (LitE (FunRefLit (FunRef qb i _))) ->
+                    case HM.lookup qb types of
+                        Just typ -> return $ LitE $ FunRefLit $ FunRef qb i typ
+                        Nothing -> throwError "Compiler invariant broken." -- Liquid Haskell?!
+                e ->  return e
+
             resolvedImports :: HM.HashMap Binding NSRef
             resolvedImports = HM.fromList $ mapMaybe resolveImport (ohuaNs^.imports)
 
@@ -92,9 +104,9 @@ instance Integration (Language 'Rust) where
             globs :: [NSRef]
             globs = mapMaybe (\case (Glob ns) -> Just ns; _ -> Nothing) (ohuaNs^.imports)
                 
-            funsForAlgo :: CompM m => Algo FrLang.Expr -> m [([NSRef], QualifiedBinding)]
+            funsForAlgo :: CompM m => Algo (FrLang.Expr (RustArgType Span)) -> m [([NSRef], QualifiedBinding)]
             funsForAlgo (Algo _name code) = 
-                mapM lookupFunTypes [f | LitE (FunRefLit (FunRef f _)) <- universe code]
+                mapM lookupFunTypes [f | LitE (FunRefLit (FunRef f _ _)) <- universe code]
 
             lookupFunTypes :: CompM m => QualifiedBinding -> m ([NSRef], QualifiedBinding)
             lookupFunTypes q@(QualifiedBinding [] name) =
@@ -108,7 +120,7 @@ instance Integration (Language 'Rust) where
             load :: CompM m => [NSRef] -> m FunTypes
             load nsRefs = HM.unions <$> mapM (extractFromFile . toFilePath . (,".rs")) nsRefs
 
-            verifyAndRegister :: CompM m => FunTypes -> ([NSRef], QualifiedBinding) -> m (QualifiedBinding, FunType Span)
+            verifyAndRegister :: CompM m => FunTypes -> ([NSRef], QualifiedBinding) -> m (QualifiedBinding, FunType (RustArgType Span))
             verifyAndRegister types ([candidate], qp@(QualifiedBinding _ name)) =
                 case HM.lookup (QualifiedBinding candidate name) types of
                     Just t -> return (qp, t)
@@ -130,7 +142,7 @@ instance (Show a) => ConvertExpr (Rust.Expr a) where
     convertExpr e@Call{} = throwError $ "Currently, we do not support attributes on function calls.\n" <> show e
     convertExpr (MethodCall [] receiver Ident{name=method} Nothing args _) = do
         receiver' <- convertExpr receiver
-        let method' = LitE $ FunRefLit $ FunRef (QualifiedBinding (makeThrow []) $ fromString method) Nothing
+        let method' = LitE $ FunRefLit $ FunRef (QualifiedBinding (makeThrow []) $ fromString method) Nothing Untyped
         args' <- mapM convertExpr args
         return $ BindE receiver' method' `AppE` args'
     convertExpr e@(MethodCall [] _ _ (Just _) _ _) = throwError $ "Currently, we do not support type parameters for function calls. Your best shot: wrap the call into a function.\n" <> show e
@@ -231,7 +243,7 @@ instance (Show a) => ConvertExpr (Rust.Path a) where
             segs -> do 
                 segments' <- mapM convertSegment segments
                 let (x:revPath) = reverse segments'
-                return $ LitE $ FunRefLit $ FunRef (QualifiedBinding (makeThrow $ map fromString $ reverse revPath) $ fromString x) Nothing
+                return $ LitE $ FunRefLit $ FunRef (QualifiedBinding (makeThrow $ map fromString $ reverse revPath) $ fromString x) Nothing Untyped
         where 
             convertSegment (PathSegment Ident{name=n} Nothing _) = return n
             convertSegment e@PathSegment{} = throwError $ "Currently, we do not support type parameters in paths.\n" <> show e
@@ -247,7 +259,7 @@ instance (Show a) => ConvertExpr (Rust.Block a) where
             (LitE UnitLit) 
             $ reverse stmts
         where
-            convertStmt :: CompM m => Stmt a -> m (FrLang.Expr -> FrLang.Expr)
+            convertStmt :: CompM m => Stmt a -> m (FrLang.Expr ty -> FrLang.Expr ty)
             convertStmt (Local pat _ (Just e) [] _) = do
                 pat' <- convertPat pat
                 e' <- convertExpr e
@@ -309,7 +321,7 @@ instance ConvertExpr UnOp where
     convertExpr Not   = toExpr "!"
     convertExpr Neg   = toExpr "-"
 
-toExpr op = return $ LitE $ FunRefLit $ FunRef (QualifiedBinding (makeThrow []) op) Nothing
+toExpr op = return $ LitE $ FunRefLit $ FunRef (QualifiedBinding (makeThrow []) op) Nothing Untyped
 
 instance (Show a) => ConvertExpr (Rust.Lit a) where
     convertExpr (Int Dec i _ _) = return $ LitE $ NumericLit i
