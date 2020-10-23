@@ -16,10 +16,11 @@ backend ::
         , Integration lang
         , Architecture arch
         , Lang arch ~ lang
-        , ty ~ Type (Lang arch)
+        , ty ~ Type lang
+        , anno ~ AlgoSrc lang
         ) 
         => FilePath 
-        -> Namespace (TCProgram (Channel ty) (Com 'Recv ty) (FusableExpr ty)) 
+        -> Namespace (TCProgram (Channel ty) (Com 'Recv ty) (FusableExpr ty)) anno
         -> NS lang
         -> arch 
         -> m ()

@@ -50,6 +50,7 @@ taskExpression (FullTask _ _ e) = e
 class Integration lang where
     type NS lang :: *
     type Type lang :: *
+    type AlgoSrc lang :: *
 
     type Expr lang :: *
     type Task lang :: *
@@ -64,8 +65,8 @@ class Integration lang where
         , ty ~ (Type lang))
         => NS lang
         -> arch
-        -> Namespace (Program (Chan arch) (Expr lang) (TaskExpr ty) ty)
-        -> m (Namespace (Program (Chan arch) (Expr lang) (Task lang) ty))
+        -> Namespace (Program (Chan arch) (Expr lang) (TaskExpr ty) ty) (AlgoSrc lang)
+        -> m (Namespace (Program (Chan arch) (Expr lang) (Task lang) ty) (AlgoSrc lang))
 
 class Architecture arch where
     type Lang arch :: *
@@ -84,8 +85,8 @@ class Architecture arch where
         , CompM m)
         => arch
         -> NS lang
-        -> Namespace (Program (Chan arch) expr (Task lang) ty)
-        -> m (Namespace (Program (Chan arch) expr (ATask arch) ty))
+        -> Namespace (Program (Chan arch) expr (Task lang) ty) (AlgoSrc lang)
+        -> m (Namespace (Program (Chan arch) expr (ATask arch) ty) (AlgoSrc lang))
 
     serialize :: 
         ( CompM m
@@ -96,5 +97,5 @@ class Architecture arch where
         )
         => arch
         -> NS lang
-        -> Namespace (Program (Chan arch) expr (ATask arch) ty)
+        -> Namespace (Program (Chan arch) expr (ATask arch) ty) (AlgoSrc lang)
         -> m (NonEmpty (FilePath, L.ByteString))
