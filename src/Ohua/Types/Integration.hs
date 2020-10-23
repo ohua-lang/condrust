@@ -24,24 +24,22 @@ declareLenses[d|
     |]
 
 declareLenses[d|
-     data Algo expr = Algo 
+     data Algo expr anno = Algo 
           { algoName :: Binding
           , algoCode :: expr
+          , algoAnno :: anno
           } deriving (Show, Eq)
     |]
-
-type Imports = [Import]
-type Algos expr = [Algo expr]
 
 declareLenses[d|
-     data Namespace expr = Namespace 
+     data Namespace expr anno = Namespace 
           { nsName :: NSRef
-          , imports :: Imports
-          , algos :: Algos expr
+          , imports :: [Import]
+          , algos :: [Algo expr anno]
           } deriving (Show, Eq)
     |]
 
-updateExprs :: Monad m => Namespace expr1 -> (expr1 -> m expr2) -> m (Namespace expr2)
+updateExprs :: Monad m => Namespace expr1 anno -> (expr1 -> m expr2) -> m (Namespace expr2 anno)
 updateExprs namespace f = do
      algos' <- 
           forM (namespace^.algos) $ \algo -> do
