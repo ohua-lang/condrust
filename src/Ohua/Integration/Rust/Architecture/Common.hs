@@ -19,16 +19,17 @@ import Language.Rust.Pretty (pretty')
 
 serialize :: CompM m
         => Module
-        -> Namespace (Program (Stmt ()) (Rust.Expr ()) (Rust.Expr ()) RustTypeAnno)
+        -> Namespace (Program (Stmt ()) (Rust.Expr ()) (Rust.Expr ()) RustTypeAnno) anno
         -> (Program (Stmt ()) (Rust.Expr ()) (Rust.Expr ()) RustTypeAnno -> Block ())
         -> m (NonEmpty (FilePath, L.ByteString))
 serialize (Module path (SourceFile modName atts items)) ns createProgram =         
-    let algos' = HM.fromList $ map (\(Algo name expr) -> (name, expr)) $ ns^.algos
+    let algos' = HM.fromList $ map (\(Algo name expr _) -> (name, expr)) $ ns^.algos
         src    = SourceFile modName atts $ map (replaceAlgo algos') items
         render = encodeUtf8 . (<> "\n") . renderLazy . layoutSmart defaultLayoutOptions . pretty'
         path' = takeFileName path -- TODO verify this!
     in return $ (path', render src) :| []
     where
+        -- FIXME now we can just insert instead of replacing them!
         replaceAlgo algos = \case
                 f@(Fn atts vis ident decl@(FnDecl _args _ _ _) s c abi gen _ span) ->
                     case HM.lookup (toBinding ident) algos of

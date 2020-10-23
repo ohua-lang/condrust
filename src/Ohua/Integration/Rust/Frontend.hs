@@ -22,15 +22,16 @@ import qualified Data.HashSet as HS
 
 instance Integration (Language 'Rust) where
     type NS (Language 'Rust) = Module
-    type Type (Language 'Rust) = (RustArgType Span)
+    type Type (Language 'Rust) = RustArgType Span
+    type AlgoSrc (Language 'Rust) = Item Span
 
-    loadNs :: CompM m => Language 'Rust -> FilePath -> m (Module, Namespace (FrLang.Expr (RustArgType Span)))
+    loadNs :: CompM m => Language 'Rust -> FilePath -> m (Module, Namespace (FrLang.Expr (RustArgType Span)) (Item Span))
     loadNs _ srcFile = do
         mod <- liftIO $ load srcFile
         ns <- extractNs mod
         return (Module srcFile mod, ns)
         where
-            extractNs :: CompM m => SourceFile Span -> m (Namespace (FrLang.Expr (RustArgType Span)))
+            extractNs :: CompM m => SourceFile Span -> m (Namespace (FrLang.Expr (RustArgType Span)) (Item Span))
             -- TODO we might need to retrieve this from the file path.
             -- extractNs (SourceFile Nothing a b) = extractNs $ SourceFile (Just $ takeFileName srcFile) a b
             extractNs (SourceFile _ _ items) = do
@@ -43,7 +44,8 @@ instance Integration (Language 'Rust) where
                 algos <- catMaybes <$>
                         mapM 
                             (\case
-                                (Fn _ _ ident decl _ _ _ _ block _) -> Just <$> extractAlgo ident decl block
+                                f@(Fn _ _ ident decl _ _ _ _ block _) -> 
+                                    Just . (\e -> Algo (toBinding ident) e f) <$> extractAlgo decl block
                                 _ -> return Nothing)
                             items
                 return $ Namespace (filePathToNsRef srcFile) imports algos
@@ -65,20 +67,18 @@ instance Integration (Language 'Rust) where
                                 Nothing -> throwError $ "Empty nested 'use' detected. Impossible: This program certainly does not pass 'rustc'." <> show u
                 join <$> mapM (extractImports path') nesteds'
 
-            extractAlgo :: CompM m => Ident -> FnDecl Span -> Block Span -> m (Algo (FrLang.Expr (RustArgType Span)))
-            extractAlgo ident (FnDecl args _ _ _) block = do
+            extractAlgo :: CompM m => FnDecl Span -> Block Span -> m (FrLang.Expr (RustArgType Span))
+            extractAlgo (FnDecl args _ _ _) block = do
                 args' <- mapM convertPat args
                 block' <- convertExpr block
-                return $ Algo
-                            (toBinding ident) 
-                            $ LamE args' block'
+                return $ LamE args' block'
             
             toBindings p@(Path _ segments _) =
                 forM segments $ \case
                     (PathSegment ident Nothing _) -> return $ toBinding ident
                     (PathSegment _ (Just _) _) -> throwError $ "We currently do not support import paths with path parameters.\n" <> show p
                     
-    loadTypes :: CompM m => Language 'Rust -> Module -> Namespace (FrLang.Expr (RustArgType Span)) -> m (Namespace (FrLang.Expr (RustArgType Span)))
+    loadTypes :: CompM m => Language 'Rust -> Module -> Namespace (FrLang.Expr (RustArgType Span)) (Item Span) -> m (Namespace (FrLang.Expr (RustArgType Span)) (Item Span))
     loadTypes _ _ ohuaNs = do
         filesAndPaths <- concat <$> mapM funsForAlgo (ohuaNs^.algos)
         types <- load $ HS.toList $ HS.fromList $ concatMap fst filesAndPaths
@@ -104,8 +104,8 @@ instance Integration (Language 'Rust) where
             globs :: [NSRef]
             globs = mapMaybe (\case (Glob ns) -> Just ns; _ -> Nothing) (ohuaNs^.imports)
                 
-            funsForAlgo :: CompM m => Algo (FrLang.Expr (RustArgType Span)) -> m [([NSRef], QualifiedBinding)]
-            funsForAlgo (Algo _name code) = 
+            funsForAlgo :: CompM m => Algo (FrLang.Expr (RustArgType Span)) (Item Span) -> m [([NSRef], QualifiedBinding)]
+            funsForAlgo (Algo _name code _) = 
                 mapM lookupFunTypes [f | LitE (FunRefLit (FunRef f _ _)) <- universe code]
 
             lookupFunTypes :: CompM m => QualifiedBinding -> m ([NSRef], QualifiedBinding)

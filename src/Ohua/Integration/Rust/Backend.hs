@@ -12,6 +12,7 @@ import Ohua.Integration.Rust.TypeExtraction (RustTypeAnno)
 
 import Language.Rust.Syntax as Rust hiding (Rust)
 import Language.Rust.Data.Ident
+import Language.Rust.Parser (Span)
 import Data.Text (unpack)
 import Data.List ((!!))
 import Data.Functor.Foldable (cata, embed)
@@ -32,6 +33,7 @@ convertIntoBlock arch expr =
 instance Integration (Language 'Rust) where
     type NS (Language 'Rust) = Module
     type Type (Language 'Rust) = RustTypeAnno
+    type AlgoSrc (Language 'Rust) = Item Span
 
     type Expr (Language 'Rust) = Rust.Expr ()
     type Task (Language 'Rust) = Rust.Block ()

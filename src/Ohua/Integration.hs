@@ -23,6 +23,7 @@ type FullIntegration lang arch =
         , B.Integration (Language lang)
         , F.NS (Language lang) ~ B.NS (Language lang)
         , F.Type (Language lang) ~ B.Type (Language lang)
+        , F.AlgoSrc (Language lang) ~ B.AlgoSrc (Language lang)
         , B.Architecture (Architectures arch)
         , B.Lang (Architectures arch) ~ (Language lang)
         )
