@@ -65,8 +65,8 @@ class Integration lang where
         , ty ~ (Type lang))
         => NS lang
         -> arch
-        -> Namespace (Program (Chan arch) (Expr lang) (TaskExpr ty) ty) (AlgoSrc lang)
-        -> m (Namespace (Program (Chan arch) (Expr lang) (Task lang) ty) (AlgoSrc lang))
+        -> Namespace (Program (Channel ty) (Com 'Recv ty) (TaskExpr ty) ty) (AlgoSrc lang)
+        -> m (Namespace (Program (Channel ty) (Com 'Recv ty) (Task lang) ty) (AlgoSrc lang))
 
 class Architecture arch where
     type Lang arch :: *

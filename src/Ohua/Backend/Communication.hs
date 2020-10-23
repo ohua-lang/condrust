@@ -9,30 +9,31 @@ import Ohua.Backend.Types
 lowerRetCom :: 
         ( Architecture arch
         , ty ~ Type (Lang arch)
+        , task ~ (Task (Lang arch))
         , retChan ~ Expr (Lang arch))
         => arch 
-        -> Namespace (TCProgram (Channel ty) (Com 'Recv ty) (TaskExpr ty)) anno
-        -> Namespace (TCProgram (Channel ty) retChan (TaskExpr ty)) anno
+        -> Namespace (Program (Channel ty) (Com 'Recv ty) task ty) anno
+        -> Namespace (Program (Channel ty) retChan task ty) anno
 lowerRetCom arch ns = ns & algos %~ map (\algo -> algo & algoCode %~ convertCommunication)
     where 
-        convertCommunication (TCProgram chans retChan tasks) = 
-            TCProgram
+        convertCommunication (Program chans retChan tasks) = 
+            Program
                 chans
                 (convertRecv arch retChan)
                 tasks
-        assignType = undefined -- Really, we need to attach the Rust code to the algo!
 
 lowerChannels :: 
         ( Architecture arch
         , ty ~ Type (Lang arch)
+        , task ~ (Task (Lang arch))
         , retChan ~ Expr (Lang arch))
         => arch 
-        -> Namespace (TCProgram (Channel ty) retChan (TaskExpr ty)) anno
-        -> Namespace (TCProgram (Chan arch) retChan (TaskExpr ty)) anno
+        -> Namespace (Program (Channel ty) retChan task ty) anno
+        -> Namespace (Program (Chan arch) retChan task ty) anno
 lowerChannels arch ns = ns & algos %~ map (\algo -> algo & algoCode %~ convert)
     where 
-        convert (TCProgram chans retChan tasks) = 
-            TCProgram
+        convert (Program chans retChan tasks) = 
+            Program
                 (map (convertChannel arch) chans)
                 retChan
                 tasks
