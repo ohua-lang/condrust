@@ -25,14 +25,16 @@ import qualified Data.HashMap.Strict as HM
 --   We currently use a very simple but easily maintainable approach:
 --   Just load all algorithms that exist in the project scope. By using
 --   a lazy hashmap, this should only load the algo once actually needed.
-loadDeps :: forall m lang.(CompM m, Integration lang) => lang -> CompilationScope -> Namespace (Expr (Type lang)) -> m (NamespaceRegistry (Type lang))
+loadDeps :: forall m lang.
+    (CompM m, Integration lang) 
+    => lang -> CompilationScope -> Namespace (Expr (Type lang)) (AlgoSrc lang) -> m (NamespaceRegistry (Type lang))
 loadDeps lang scope currentNs = do
     let registry' = registerAlgos HM.empty currentNs
     modules <- mapM (\path -> snd <$> loadNs lang (toFilePath path)) $ HM.toList scope
     let registry'' = foldl registerAlgos registry' modules
     return registry''
     where
-        registerAlgos :: NamespaceRegistry ty -> Namespace (Expr ty) -> NamespaceRegistry ty
+        registerAlgos :: NamespaceRegistry ty -> Namespace (Expr ty) anno -> NamespaceRegistry ty
         registerAlgos registry ns = 
             foldl 
                 (\reg algo -> 
@@ -43,7 +45,9 @@ loadDeps lang scope currentNs = do
                 registry
                 $ ns^.algos
 
-load :: forall m lang.(CompM m, Integration lang) => lang -> CompilationScope -> FilePath -> m (NS lang, (Namespace (Expr (Type lang)), NamespaceRegistry (Type lang)))
+load :: forall m lang.
+    (CompM m, Integration lang) 
+    => lang -> CompilationScope -> FilePath -> m (NS lang, (Namespace (Expr (Type lang)) (AlgoSrc lang), NamespaceRegistry (Type lang)))
 load lang scope inFile = do
     logDebugN $ "Loading module: " <> show inFile <> "..."
     (ctxt, ns) <- loadNs lang inFile

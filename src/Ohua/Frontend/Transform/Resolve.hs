@@ -30,9 +30,9 @@ import qualified Data.HashSet as HS
 import qualified Data.Text as T
 
 
-resolveNS :: forall ty m.(MonadError Error m)
-          => (Namespace (Expr ty), NamespaceRegistry ty)
-          -> m (Namespace (Expr ty))
+resolveNS :: forall ty m anno.(MonadError Error m)
+          => (Namespace (Expr ty) anno, NamespaceRegistry ty)
+          -> m (Namespace (Expr ty) anno)
 resolveNS (ns, registry) = 
     return $ over algos (map (over algoCode work)) ns
     where

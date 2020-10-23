@@ -11,9 +11,12 @@ import qualified Data.HashMap.Lazy as HM
 class Integration lang where
     type NS lang :: *
     type Type lang :: *
+    type AlgoSrc lang :: *
 
-    loadNs :: CompM m => lang -> FilePath -> m (NS lang, Namespace (Expr (Type lang)))
-    loadTypes :: CompM m => lang -> NS lang -> Namespace (Expr (Type lang)) -> m (Namespace (Expr (Type lang)))
+    loadNs :: CompM m => 
+        lang -> FilePath -> m (NS lang, Namespace (Expr (Type lang)) (AlgoSrc lang))
+    loadTypes :: CompM m => 
+        lang -> NS lang -> Namespace (Expr (Type lang)) (AlgoSrc lang) -> m (Namespace (Expr (Type lang)) (AlgoSrc lang))
 
 type LanguageFileSuffix = Text
 type CompilationScope = HM.HashMap NSRef LanguageFileSuffix
