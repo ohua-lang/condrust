@@ -33,7 +33,6 @@ instance Integration (Language 'Rust) where
     type NS (Language 'Rust) = Module
     type Type (Language 'Rust) = RustTypeAnno
 
-    type RetChan (Language 'Rust) = TaskExpr RustTypeAnno
     type Expr (Language 'Rust) = Rust.Expr ()
     type Task (Language 'Rust) = Rust.Block ()
 
@@ -98,8 +97,8 @@ instance Integration (Language 'Rust) where
             [Semi (Rust.Assign [] (convertExpr arch $ Var bnd) (convertExpr arch expr) noSpan) noSpan]
             $ convertExpr arch $ TCLang.Lit UnitLit
 
-    convertExpr arch (ReceiveData recv) = convertExpr arch $ convertRecv arch recv
-    convertExpr arch (SendData send) = convertExpr arch $ convertSend arch send
+    convertExpr arch (ReceiveData recv) = convertRecv arch recv
+    convertExpr arch (SendData send) = convertSend arch send
 
     convertExpr arch (TCLang.EndlessLoop expr) =
         let block = convertIntoBlock arch expr

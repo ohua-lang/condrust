@@ -19,7 +19,6 @@ import Language.Rust.Data.Ident
 instance Architecture (Architectures 'SharedMemory) where
     type Lang (Architectures 'SharedMemory) = Language 'Rust
     type Chan (Architectures 'SharedMemory) = Stmt ()
-    type ARetChan (Architectures 'SharedMemory) = Rust.Expr ()
     type ATask (Architectures 'SharedMemory) = Rust.Expr ()
 
     convertChannel SSharedMemory (SChan bnd) = 
@@ -28,17 +27,24 @@ instance Architecture (Architectures 'SharedMemory) where
                         (QualifiedBinding (makeThrow ["std","sync","mpsc"]) "channel") 
                         []
         in Local
-                (TupleP [mkSimpleBinding $ bnd <> "_tx", mkSimpleBinding $ bnd <> "_rx"] Nothing noSpan)
-                Nothing
-                (Just $ convertExpr SSharedMemory stmt)
-                []
-                noSpan
+            (TupleP [mkSimpleBinding $ bnd <> "_tx", mkSimpleBinding $ bnd <> "_rx"] Nothing noSpan)
+            Nothing
+            (Just $ convertExpr SSharedMemory stmt)
+            []
+            noSpan
+
+    convertRecv SSharedMemory (SRecv _type (SChan channel)) =             
+        convertExpr SSharedMemory $
+            Apply $ Stateful (Var $ channel <> "_rx") (mkFunRefUnqual "recv") []
+    convertSend SSharedMemory (SSend (SChan channel) d) =
+        convertExpr SSharedMemory $
+            Apply $ Stateful (Var $ channel <> "_tx") (mkFunRefUnqual "send") [Var d]
 
     build SSharedMemory (Module _ (SourceFile _ _ _items)) ns = 
         return $ ns & algos %~ map (\algo -> algo & algoCode %~ createTasksAndChannels)
         where
             createTasksAndChannels (Program chans retChan tasks) = 
-                Program chans (convertExpr SSharedMemory retChan) (map (createTask <$>) tasks)
+                Program chans retChan (map (createTask <$>) tasks)
 
             createTask :: Rust.Block () -> Rust.Expr ()
             createTask code = 
@@ -72,9 +78,3 @@ instance Architecture (Architectures 'SharedMemory) where
                     taskRunStmt = () <$ [stmt| run(tasks); |]
                     program = toList chans ++ [taskInitStmt] ++ taskStmts ++ [taskRunStmt]
                 in Block (program ++ [NoSemi resultExpr noSpan]) Normal noSpan
-
-instance ConvertTaskCom (Architectures 'SharedMemory) where
-    convertRecv _ (SRecv _type (SChan channel)) =             
-        Apply $ Stateful (Var $ channel <> "_rx") (mkFunRefUnqual "recv") []
-    convertSend _ (SSend (SChan channel) d) =
-        Apply $ Stateful (Var $ channel <> "_tx") (mkFunRefUnqual "send") [Var d]

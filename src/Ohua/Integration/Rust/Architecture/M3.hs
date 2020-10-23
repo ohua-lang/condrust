@@ -10,7 +10,7 @@ import Ohua.Integration.Architecture
 import Ohua.Integration.Rust.Types as RT
 import Ohua.Integration.Rust.Backend
 import Ohua.Integration.Rust.Architecture.Common as C
-import Ohua.Integration.Rust.TypeExtraction (RustTypeAnno)
+import qualified Ohua.Integration.Rust.TypeExtraction as TE
 
 import Language.Rust.Syntax as Rust hiding (Rust)
 import Language.Rust.Data.Ident
@@ -20,7 +20,6 @@ import Language.Rust.Quote
 instance Architecture (Architectures 'M3) where
     type Lang (Architectures 'M3) = Language 'Rust
     type Chan (Architectures 'M3) = Stmt ()
-    type ARetChan (Architectures 'M3) = Rust.Expr ()
     type ATask (Architectures 'M3) = Rust.Expr ()
 
     convertChannel SM3 (SChan bnd) =
@@ -36,11 +35,31 @@ instance Architecture (Architectures 'M3) where
             []
             noSpan
 
+    convertRecv SM3 (SRecv TypeVar (SChan channel)) = error "Invariant broken!"
+    convertRecv SM3 (SRecv (Type (TE.Self ty mut)) (SChan channel)) = undefined
+    convertRecv SM3 (SRecv (Type (TE.Normal ty)) (SChan channel)) =
+        let ty' = noSpan <$ ty
+            send = MethodCall
+                    []
+                    (convertExpr SM3 $ Var $ channel <> "_rx")
+                    (mkIdent "recv_msg")
+                    (Just [ty'])
+                    []
+                    noSpan
+        in unwrapMC send
+
+    convertSend SM3 (SSend (SChan channel) d) =
+        convertExpr SM3 $
+            Apply $ Stateful
+                (Apply $ Stateful (Var $ channel <> "_tx") (mkFunRefUnqual "send_msg") [Var d])
+                (mkFunRefUnqual "unwrap")
+                []
+
     build SM3 (Module _ (SourceFile _ _ _items)) ns = 
         return $ ns & algos %~ map (\algo -> algo & algoCode %~ createTasksAndRetChan)
         where
             createTasksAndRetChan (Program chans retChan tasks) = 
-                Program chans (convertExpr SM3 retChan) (map create tasks)
+                Program chans retChan (map create tasks)
 
             create task@(FullTask _ _ taskE) = 
                 let initVPE = createVPE : delegateCom task
@@ -51,7 +70,7 @@ instance Architecture (Architectures 'M3) where
             createVPE :: Rust.Stmt ()
             createVPE = noSpan <$ [stmt| let mut vpe = VPE::new_child_vpe("test").unwrap(); |]
 
-            activateCom :: FullTask RustTypeAnno a -> [Rust.Stmt ()]
+            activateCom :: FullTask TE.RustTypeAnno a -> [Rust.Stmt ()]
             activateCom (FullTask sends recvs _) =
                 map ((flip Semi noSpan . convertExpr SM3) .
                     (\c -> 
@@ -61,7 +80,7 @@ instance Architecture (Architectures 'M3) where
                     (map (\(SSend (SChan c) _) -> c) sends ++
                      map (\(SRecv _type (SChan c)) -> c) recvs)
 
-            delegateCom :: FullTask RustTypeAnno a -> [Rust.Stmt ()]
+            delegateCom :: FullTask TE.RustTypeAnno a -> [Rust.Stmt ()]
             delegateCom (FullTask sends recvs _) = 
                 map ((flip Semi noSpan . convertExpr SM3) .
                     (\c -> 
@@ -96,15 +115,7 @@ instance Architecture (Architectures 'M3) where
                             Nothing
                             [box]
                             noSpan
-                    unwrap = 
-                        MethodCall
-                            []
-                            run
-                            (mkIdent "unwrap")
-                            Nothing
-                            []
-                            noSpan
-                in unwrap
+                in unwrapMC run
 
     serialize SM3 mod ns = C.serialize mod ns createProgram
         where 
@@ -113,10 +124,4 @@ instance Architecture (Architectures 'M3) where
                     program = toList chans ++ taskStmts
                 in Block (program ++ [NoSemi resultExpr noSpan]) Normal noSpan
 
-instance ConvertTaskCom (Architectures 'M3) where
-    convertRecv _ (SRecv typ (SChan channel)) = undefined -- this needs the type information!
-    convertSend _ (SSend (SChan channel) d) =
-        Apply $ Stateful
-            (Apply $ Stateful (Var $ channel <> "_tx") (mkFunRefUnqual "send_msg") [Var d])
-            (mkFunRefUnqual "unwrap")
-            []
+unwrapMC inst = MethodCall [] inst (mkIdent "unwrap") Nothing [] noSpan
