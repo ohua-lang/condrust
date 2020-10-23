@@ -51,11 +51,6 @@ generateFunctionCode = \case
         stateOut (stateOut, Direct out) = return ((\(Direct bnd) -> unwrapABnd bnd) <$> stateOut, Just $ unwrapABnd out)
         stateOut e = throwError $ "Unsupported multiple outputs: " <> show e
 
--- -- FIXME looses type info!
--- convertDFVar :: DFVar semTy ty -> TaskExpr ty
--- convertDFVar (DFVar _ bnd) = BLang.Var $ unwrapABnd bnd
--- convertDFVar (DFEnvVar _ l) = Lit l 
-
 generateReceive :: DFVar semTy ty -> Ops.CallArg ty
 generateReceive (DFVar t bnd) = Ops.Arg $ SRecv t $ SChan $ unwrapABnd bnd
 generateReceive (DFEnvVar t l) = Ops.Converted $ Lit l -- FIXME looses type info!
