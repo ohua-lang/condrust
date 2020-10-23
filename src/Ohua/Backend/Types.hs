@@ -51,12 +51,12 @@ class Integration lang where
     type NS lang :: *
     type Type lang :: *
 
-    type RetChan lang :: *
     type Expr lang :: *
     type Task lang :: *
 
     convertExpr :: (Architecture arch, Lang arch ~ lang) => arch -> TaskExpr (Type lang) -> Expr lang
 
+    -- TODO I believe now that this function does not belong into the interface anymore!
     lower :: 
         ( CompM m
         , Architecture arch
@@ -64,37 +64,37 @@ class Integration lang where
         , ty ~ (Type lang))
         => NS lang
         -> arch
-        -> Namespace (Program (Chan arch) (TaskExpr ty) (TaskExpr ty) ty)
-        -> m (Namespace (Program (Chan arch) (RetChan lang) (Task lang) ty))
+        -> Namespace (Program (Chan arch) (Expr lang) (TaskExpr ty) ty)
+        -> m (Namespace (Program (Chan arch) (Expr lang) (Task lang) ty))
 
-class (ConvertTaskCom arch) => Architecture arch where
+class Architecture arch where
     type Lang arch :: *
     type Chan arch :: *
-    type ARetChan arch :: *
     type ATask arch :: *
 
     convertChannel :: arch -> Channel (Type (Lang arch)) -> Chan arch
+    convertRecv :: arch -> Com 'Recv (Type (Lang arch)) -> Expr (Lang arch)
+    convertSend:: arch -> Com 'Send (Type (Lang arch)) -> Expr (Lang arch)
 
     build :: 
         ( Integration (Lang arch)
         , lang ~ (Lang arch)
         , ty ~ (Type (Lang arch))
+        , expr ~ (Expr (Lang arch))
         , CompM m)
         => arch
         -> NS lang
-        -> Namespace (Program (Chan arch) (RetChan lang) (Task lang) ty)
-        -> m (Namespace (Program (Chan arch) (ARetChan arch) (ATask arch) ty))
+        -> Namespace (Program (Chan arch) expr (Task lang) ty)
+        -> m (Namespace (Program (Chan arch) expr (ATask arch) ty))
 
     serialize :: 
         ( CompM m
         , Integration (Lang arch)
         , lang ~ (Lang arch)
-        , ty ~ (Type (Lang arch)))
+        , ty ~ (Type (Lang arch))
+        , expr ~ (Expr (Lang arch))
+        )
         => arch
         -> NS lang
-        -> Namespace (Program (Chan arch) (ARetChan arch) (ATask arch) ty)
+        -> Namespace (Program (Chan arch) expr (ATask arch) ty)
         -> m (NonEmpty (FilePath, L.ByteString))
-
-class ConvertTaskCom arch where
-    convertRecv :: arch -> Com 'Recv ty -> TaskExpr ty
-    convertSend:: arch -> Com 'Send ty -> TaskExpr ty

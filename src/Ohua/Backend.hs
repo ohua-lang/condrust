@@ -25,7 +25,7 @@ backend ::
         -> m ()
 backend outDir compiled lang arch =
     Fusion.fuse compiled >>=
-    (pure . Com.intoProgram . Com.lowerChannels arch . Com.lowerTaskCom arch) >>=
+    (pure . Com.intoProgram . Com.lowerChannels arch . Com.lowerRetCom arch) >>=
     Types.lower lang arch >>=
     Types.build arch lang >>=
     Types.serialize arch lang >>=
