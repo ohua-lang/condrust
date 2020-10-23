@@ -1,6 +1,6 @@
 module Ohua.Integration.Rust.Backend where
 
-import Ohua.Prelude hiding (Type)
+import Ohua.Prelude
 
 import Ohua.Backend.Lang as TCLang
 import Ohua.Backend.Types as B
@@ -8,7 +8,7 @@ import Ohua.Backend.Types as B
 import Ohua.Integration.Lang hiding (Lang)
 import Ohua.Integration.Rust.Types
 import Ohua.Integration.Rust.Util
-import Ohua.Integration.Rust.TypeExtraction (RustTypeAnno)
+import Ohua.Integration.Rust.TypeExtraction as TE (RustTypeAnno, RustArgType( Normal ))
 
 import Language.Rust.Syntax as Rust hiding (Rust)
 import Language.Rust.Data.Ident
@@ -28,7 +28,7 @@ convertIntoBlock arch expr =
     let expr' = convertExpr arch expr
     in case expr' of
         BlockExpr _ block _ -> block
-        e -> Block [NoSemi e noSpan] Normal noSpan
+        e -> Block [NoSemi e noSpan] Rust.Normal noSpan
 
 instance Integration (Language 'Rust) where
     type NS (Language 'Rust) = Module
@@ -40,20 +40,13 @@ instance Integration (Language 'Rust) where
 
     lower (Module _path (SourceFile _ _ items)) arch ns = 
         return $ 
-            ns & algos %~ map (\algo -> algo & algoCode %~ convertTasks (algo^.algoName))
+            ns & algos %~ map (\algo -> algo & algoCode %~ convertTasks (algo^.algoAnno))
         where
-            convertTasks algo (Program chans retChan tasks) = 
-                let algosAndArgs = HM.fromList $ 
-                        map (\(Fn _ _ ident (FnDecl args _ _ _) _ _ _ _ _ _) -> 
-                                (toBinding ident, args))
-                            items
-                    args = case HM.lookup algo algosAndArgs of
-                            -- TODO: I have currently no idea how to express this invariant in a type.
-                            -- FIXME: The proper thing to do would be not to look it up but to tie the algo 
-                            --        to what we are compiling!
-                            Nothing -> error "Compiler invariant broken: Algo not found in source module."
-                            (Just as) -> as
-                in Program chans retChan $ map (convertIntoBlock arch . convertEnvs args <$>) tasks 
+            convertTasks (Fn _ _ _ (FnDecl args typ _ span) _ _ _ _ block _) (Program chans (SRecv _ c) tasks) = 
+                Program 
+                    chans 
+                    (SRecv (Type $ TE.Normal $ fromMaybe (TupTy [] span) typ) c)
+                    $ map (convertIntoBlock arch . convertEnvs args <$>) tasks 
                             
             convertEnvs :: [Arg a] -> TCLang.TaskExpr RustTypeAnno -> TCLang.TaskExpr RustTypeAnno
             convertEnvs args = cata $ \case
@@ -169,7 +162,7 @@ mkSimpleBinding bnd =
         noSpan
 
 -- TODO we probably want a Literal for common operations
-convertFunCall :: (Architecture arch, Lang arch ~ (Language 'Rust), ty ~ Type (Lang arch))
+convertFunCall :: (Architecture arch, Lang arch ~ (Language 'Rust), ty ~ B.Type (Lang arch))
                => arch -> QualifiedBinding -> [TCLang.TaskExpr RustTypeAnno] -> Rust.Expr ()
 convertFunCall arch op [arg1, arg2] | isJust $ binOp op = 
     Binary [] (fromJust $ binOp op) (convertExpr arch arg1) (convertExpr arch arg2) noSpan
@@ -212,4 +205,4 @@ prependToBlock stmts cont =
     case cont of
         BlockExpr atts (Block contStmts safety s0) s1 -> 
             BlockExpr atts (Block (stmts ++ contStmts) safety s0) s1
-        _ -> BlockExpr [] (Block (stmts ++ [NoSemi cont noSpan]) Normal noSpan) noSpan
+        _ -> BlockExpr [] (Block (stmts ++ [NoSemi cont noSpan]) Rust.Normal noSpan) noSpan
