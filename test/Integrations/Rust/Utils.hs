@@ -18,10 +18,11 @@ import qualified Data.HashMap.Lazy as HM
 
 import System.FilePath
 import System.IO.Temp
+import System.Directory (getCurrentDirectory, setCurrentDirectory)
 
 import Language.Rust.Pretty ( pretty' )
 import Language.Rust.Quote
-import Language.Rust.Syntax (SourceFile)
+import Language.Rust.Syntax
 import Language.Rust.Parser (parse', readInputStream, Span)
 import Data.Text.Prettyprint.Doc
 import Data.Text.Prettyprint.Doc.Render.Text
@@ -30,7 +31,7 @@ import qualified Data.ByteString.Lazy.Char8 as L
 
 
 debug :: Bool
-debug = False
+debug = True
 
 renderRustCode :: SourceFile Span -> L.ByteString
 renderRustCode = 
@@ -50,10 +51,17 @@ debugStageHandling =
 
 compileCode :: SourceFile Span -> IO (SourceFile Span)
 compileCode inCode = 
-    withSystemTempFile 
-        "test.rs" 
-        $ \inFile _inHandle -> do
-            hClose _inHandle
+    withSystemTempDirectory "testDir" 
+        $ \testDir -> do
+            setCurrentDirectory testDir
+            writeFile 
+                (testDir </> "funs.rs")
+                " \
+                \ fn hello_world() -> String { unimplemented!{} } \
+                \ fn f() -> i32 { unimplemented!{} } \
+                \ fn g(i:i32) -> String { unimplemented!{} } \
+                \ "
+            let inFile = testDir </> "test.rs"
             L.writeFile inFile $ renderRustCode inCode
             withSystemTempDirectory "output" 
                 $ \outDir -> do

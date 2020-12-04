@@ -19,6 +19,8 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:"
                     [sourceFile| 
+                        use funs::hello_world;
+                        
                         fn test() -> String {
                             let (a_0_tx, a_0_rx) = std::sync::mpsc::channel();
                             let mut tasks: Vec<Box<FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
@@ -33,7 +35,9 @@ spec =
                     |]
                 compiled `shouldBe` expected)
         it "simple composition" $
-            (showCode "Compiled: " =<< compileCode [sourceFile| 
+            (showCode "Compiled: " =<< compileCode [sourceFile|
+                use funs; 
+                
                 fn test() -> String {
                     let x = f();
                     g(x)
@@ -42,6 +46,8 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:"
                     [sourceFile| 
+                        use funs;
+
                         fn test() -> String {
                             let (a_0_tx, a_0_rx) = std::sync::mpsc::channel();
                             let (x_0_0_tx, x_0_0_rx) = std::sync::mpsc::channel();
@@ -61,6 +67,7 @@ spec =
                 compiled `shouldBe` expected)
         it "env vars" $
             (showCode "Compiled: " =<< compileCode [sourceFile| 
+                use funs::hello_world;
                 fn test(i: i32) -> String {
                     let x = f(i);
                     g(x)

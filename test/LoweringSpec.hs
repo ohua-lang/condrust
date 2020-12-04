@@ -27,7 +27,7 @@ spec :: Spec
 spec =
     describe "removing destructuring" $ do
         let mkNth0 objBnd i total =
-                PureFunction ALangRefs.nth Nothing `Apply` Lit (NumericLit i) `Apply`
+                pureFunction ALangRefs.nth Nothing `Apply` Lit (NumericLit i) `Apply`
                 Lit (NumericLit total) `Apply`
                 Var objBnd
             runRemDestr = 
