@@ -57,7 +57,7 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
         extractFunType _ f@(FnDecl _ _ True _) = throwError $ "Currently, we do not support variadic arguments." <> show f
         extractFunType firstArgExtract (FnDecl args _retTyp _ _) =
             case args of 
-                [] -> FunType <$> mapM convertArg args -- need to do it this way to make type inference for the Show constaint happy
+                [] -> FunType <$> mapM convertArg args -- need to do it this way to make type inference for the Show constraint happy
                 (x:xs) -> firstArgExtract x  =<< mapM convertArg xs
 
         convertImplArg :: (CompM m, Show a) => Ty a -> Arg a -> m (ArgType (RustArgType a))
@@ -72,10 +72,17 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
 
         extractFromImplItem :: (CompM m, Show a) => Ty a -> ImplItem a -> m (Maybe (QualifiedBinding, FunType (RustArgType a)))
         extractFromImplItem selfType (MethodI _ _ _ ident _ (MethodSig _ _ _ decl) _ _) = 
-            Just . (createFunRef ident, ) <$> extractFunType (\x xs -> (`STFunType` xs) <$> convertImplArg selfType x) decl
+            Just . (createFunRef ident, ) <$> extractFunType (extractFirstArg selfType) decl
         extractFromImplItem _ _ = return Nothing
 
         extractFromTraitItem :: (CompM m, Show a) => Ty a -> TraitItem a -> m (Maybe (QualifiedBinding, FunType (RustArgType a)))
         extractFromTraitItem selfType (MethodT _ ident _ (MethodSig _ _ _ decl) _ _) =
-            Just . (createFunRef ident, ) <$> extractFunType (\x xs -> (`STFunType` xs) <$> convertImplArg selfType x) decl
+            Just . (createFunRef ident, ) <$> extractFunType (extractFirstArg selfType) decl
         extractFromTraitItem _ _ = return Nothing
+
+        extractFirstArg :: Ty a -> Arg a -> [ArgType (RustArgType a)] -> m (FunType (RustArgType a))
+        extractFirstArg selfType x xs = 
+            let funType x0 = case x0 of
+                            (Type Self{}) -> STFunType x0 xs
+                            _ -> FunType (x0 : xs)
+            in funType <$> convertImplArg selfType x
