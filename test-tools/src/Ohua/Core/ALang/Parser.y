@@ -26,6 +26,9 @@ import Data.List.NonEmpty (NonEmpty((:|)))
 
 import Prelude ((!!))
 
+import Language.Haskell.TH.Syntax (Lift)
+import Data.Data
+
 }
 
 
@@ -105,10 +108,10 @@ SimpleExp
     : '(' many_sep(Exp, ',') ')' { case $2 of
                                        [] -> Lit UnitLit
                                        [x] -> x
-                                       xs -> foldl (\e arg -> e `Apply` arg) (Lit $ FunRefLit $ FunRef mkTuple Nothing) xs }
+                                       xs -> foldl (\e arg -> e `Apply` arg) (Lit $ FunRefLit $ FunRef mkTuple Nothing Untyped) xs }
     | opt('-') number            { Lit $ NumericLit $ maybe id (const negate) $1 $2 }
     | envRef                     { Lit $ EnvRefLit $1 }
-    | qualid                     { Lit $ FunRefLit $ FunRef $1 Nothing }
+    | qualid                     { Lit $ FunRefLit $ FunRef $1 Nothing Untyped }
     | id                         { Var $1 }
 
 Exp :: { Exp }
@@ -140,9 +143,16 @@ Pat :: { Binding }
 
 {
 
+data NoType
+
+instance Data NoType
+instance Data (Expr NoType)
+instance Lift NoType
+instance Lift (Expr NoType)
+
 -- type Decl = ValDecl
 -- type ValDecl = (Binding, Exp)
-type Exp = Expr
+type Exp = Expr NoType
 type PM = Alex
 
 nextToken :: PM Lexeme
@@ -159,7 +169,7 @@ parseError token = do
   (line, col) <- getLexerPos
   alexError $ ("Parse error at line " <> show line <> ", column " <> show col <> ", on token " <> show token :: String)
 
-parseExp :: Input -> Expr
+parseExp :: Input -> Exp
 parseExp = runPM parseExpRaw
 
 }

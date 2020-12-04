@@ -22,6 +22,9 @@ import Ohua.Core.DFLang.Lang
 
 import Prelude ((!!))
 
+import Language.Haskell.TH.Syntax (Lift)
+import Data.Data
+
 }
 
 
@@ -85,36 +88,36 @@ ModId
     : id    { makeThrow [$1] :: NSRef }
     | nsid  { $1 }
 
-Exp :: { NormalizedExpr }
+Exp :: { NormalizedExpr NoType }
 Exp : LetExpr Exp   { $1 $2 }
     | id            { Var $1 }
 
-LetExpr :: { NormalizedExpr -> NormalizedExpr }
+LetExpr :: { NormalizedExpr NoType -> NormalizedExpr NoType }
 LetExpr : let Pat '=' FnRef opt(StateArg) tuple(DFVar) in 
     { 
         let outs = $2 in
         let fun = $4 in
         let state = $5 in
         let inp = case $6 of
-                    [] -> DFEnvVar UnitLit :| []
+                    [] -> DFEnvVar TypeVar UnitLit :| []
                     (a:r) -> a :| r
         in case state of
-            Just s -> Let $ StateFun outs fun s inp
+            Just s -> Let $ StateFun outs fun (DFVar TypeVar s) inp
             Nothing -> case outs of 
                         (Nothing, out) -> Let $ PureFun out fun inp
                         _ -> error "Wrong output format. Only single result allowed."
     }
 
-DFVar :: { DFVar }
+DFVar :: { DFVar 'Data NoType }
 DFVar
-    : Lit { DFEnvVar $1 }
-    | id  { DFVar $ DataBinding $1 }
+    : Lit { DFEnvVar TypeVar $1 }
+    | id  { DFVar TypeVar $ DataBinding $1 }
 
-Lit :: { Lit }
+Lit :: { Lit NoType }
     : int { NumericLit $1 }
     | env_ref { EnvRefLit $1 }
     | unit { UnitLit }
-    | qualid { FunRefLit $ FunRef $1 Nothing }
+    | qualid { FunRefLit $ FunRef $1 Nothing Untyped }
 
 FnRef :: { QualifiedBinding }
 FnRef : qualid { $1 }
@@ -127,6 +130,13 @@ Pat : '(' id ',' id ')' { (Just $ StateBinding $2, DataBinding $4) }
     | id { (Nothing, DataBinding $1)}
 
 {
+
+data NoType
+
+instance Data NoType
+instance Data (NormalizedExpr NoType)
+instance Lift NoType
+instance Lift (NormalizedExpr NoType)
 
 type Pat = [Binding]
 type PM = Alex
@@ -145,7 +155,7 @@ parseError token = do
   (line, col) <- getLexerPos
   alexError $ ("Parse error at line " <> show line <> ", column " <> show col <> ", on token " <> show token :: String)
 
-parseExp :: Input -> NormalizedExpr
+parseExp :: Input -> NormalizedExpr NoType
 parseExp = runPM parseExpRaw
 
 }

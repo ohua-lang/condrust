@@ -89,10 +89,10 @@ instance Arbitrary FnId where
 instance Arbitrary HostExpr where
     arbitrary = genFromMake
 
-instance Arbitrary FunRef where
-    arbitrary = liftM2 FunRef arbitrary arbitrary
+instance Arbitrary (FunRef ty) where
+    arbitrary = liftM2 (\a b -> FunRef a b Untyped) arbitrary arbitrary
 
-instance Arbitrary Lit where
+instance Arbitrary (Lit ty) where
     arbitrary =
         oneof
             [ NumericLit <$> arbitrary
@@ -101,10 +101,10 @@ instance Arbitrary Lit where
             , pure UnitLit
             ]
 
-instance Arbitrary ALang.Expr where
+instance Arbitrary (ALang.Expr ty) where
     arbitrary = sized expr
       where
-        expr :: Int -> Gen ALang.Expr
+        expr :: Int -> Gen (ALang.Expr ty)
         expr 0 = ALang.Var <$> arbitrary
         expr n | n>0 =
             oneof
