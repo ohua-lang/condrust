@@ -118,7 +118,7 @@ fuseCtrl
                     if HS.member b stateVars
                     then StateVar out re
                     else PureVar out re)
-                . propagateType vars)
+                . propagateTypeFromRecv vars)
                 vars
         stateOuts' = map g stateOuts
         g (SSend ch d) = 
@@ -126,14 +126,7 @@ fuseCtrl
                         [(OutputChannel (SChan o),_)] -> o
                         _ -> error "invariant broken"
             in SSend ch d' -- the var that I assign the state to becomes the new data out for the state
-        propagateType :: NonEmpty (OutputChannel ty, Com 'Recv ty)  -> (OutputChannel ty, Com 'Recv ty) -> (OutputChannel ty, Com 'Recv ty)
-        propagateType args (o@(OutputChannel outChan), r) = 
-            let typ = mapMaybe ((\(SRecv t chan) -> if chan == outChan then Just (SRecv t outChan) else Nothing) . snd) $ NE.toList args 
-            in case typ of
-                [r'] -> (o, r')
-                -- TODO this is actually not possible and should be an invariant because all vars
-                --      of the control of a corresponding arg.
-                _ -> (o, r)
+        propagateTypeFromRecv = propagateType . toList . map snd
 
 fuseFun :: FunCtrl ty -> FusableFunction ty -> FusedFunCtrl ty
 fuseFun (FunCtrl ctrlInput vars) =
@@ -141,7 +134,7 @@ fuseFun (FunCtrl ctrlInput vars) =
         (PureFusable args app res) -> 
             FusedFunCtrl
                 ctrlInput
-                (NE.map (uncurry PureVar . propagateType args) vars)
+                (NE.map (uncurry PureVar . propagateTypeFromArg args) vars)
                 (F.genFun' $  PureFusable (map f args) app res)
                 []
         (STFusable stateArg args app res stateRes) ->
@@ -166,16 +159,19 @@ fuseFun (FunCtrl ctrlInput vars) =
                 NE.map ((\case
                             (bnd, a) | a == sArg -> StateVar bnd a
                             (bnd, a) -> PureVar bnd a)
-                        . propagateType args)
+                        . propagateTypeFromArg args)
                         vars
-            propagateType :: [CallArg ty] -> (OutputChannel ty, Com 'Recv ty) -> (OutputChannel ty, Com 'Recv ty)
-            propagateType args (o@(OutputChannel outChan), r) = 
-                let typ = mapMaybe (\case (Arg (SRecv t chan)) | chan == outChan -> Just (SRecv t outChan); _ -> Nothing) args 
-                in case typ of
-                    [r'] -> (o, r')
-                    -- TODO this is actually not possible and should be an invariant because all vars
-                    --      of the control of a corresponding arg.
-                    _ -> (o, r)
+            propagateTypeFromArg = propagateType . mapMaybe (\case (Arg s) -> Just s; _ -> Nothing)
+
+propagateType :: [Com 'Recv ty] -> (OutputChannel ty, Com 'Recv ty) -> (OutputChannel ty, Com 'Recv ty)
+propagateType args (o@(OutputChannel outChan), r@(SRecv _ rChan)) = 
+    foldl (\s out -> case out of 
+                        (SRecv t chan) | chan == outChan -> (o, SRecv t rChan)
+                        -- TODO this is actually not possible and should be an invariant because all vars
+                        --      of the control of a corresponding arg.
+                        _ -> s)
+        (o,r)
+        args
 
 fuseLitCtrlIntoCtrl :: LitCtrl ty ->  FusedFunCtrl ty -> FusedLitCtrl ty
 fuseLitCtrlIntoCtrl (LitCtrl ctrlInp inOut) = FusedLitCtrl ctrlInp inOut . genFused'
