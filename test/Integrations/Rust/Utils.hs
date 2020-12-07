@@ -31,7 +31,7 @@ import qualified Data.ByteString.Lazy.Char8 as L
 
 
 debug :: Bool
-debug = True
+debug = False
 
 renderRustCode :: SourceFile Span -> L.ByteString
 renderRustCode = 
@@ -60,6 +60,17 @@ compileCode inCode =
                 \ fn hello_world() -> String { unimplemented!{} } \
                 \ fn f() -> i32 { unimplemented!{} } \
                 \ fn g(i:i32) -> String { unimplemented!{} } \
+                \ fn h(i:i32) -> i32 { unimplemented!{} } \
+                \ fn f0(i:i32) -> i32 { unimplemented!{} } \
+                \ fn f1(i:i32) -> i32 { unimplemented!{} } \
+                \ fn f2(i:i32) -> i32 { unimplemented!{} } \
+                \ fn g0(i:i32) -> i32 { unimplemented!{} } \
+                \ fn g1(i:i32) -> i32 { unimplemented!{} } \
+                \ struct S{} \
+                \ impl S { \
+                \   fn new() -> S { unimplemented!{} } \
+                \   fn gs(self) -> i32 { unimplemented!{} } \
+                \ } \
                 \ "
             let inFile = testDir </> "test.rs"
             L.writeFile inFile $ renderRustCode inCode
@@ -67,7 +78,7 @@ compileCode inCode =
                 $ \outDir -> do
                     let compScope = HM.empty
                     let options = if debug then debugOptions else def 
-                    runCompM 
+                    runCompM
                         LevelWarn
                         $ compile inFile compScope options outDir
                     outCode :: SourceFile Span 

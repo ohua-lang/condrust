@@ -52,7 +52,8 @@ generateFunctionCode = \case
         stateOut e = throwError $ "Unsupported multiple outputs: " <> show e
 
 generateReceive :: DFVar semTy ty -> Ops.CallArg ty
-generateReceive (DFVar t bnd) = Ops.Arg $ SRecv t $ SChan $ unwrapABnd bnd
+generateReceive (DFVar t bnd) = 
+    Ops.Arg $ SRecv t $ SChan $ unwrapABnd bnd
 generateReceive (DFEnvVar t l) = Ops.Converted $ Lit l -- FIXME looses type info!
 
 lowerFnRef :: CompM m => QualifiedBinding -> NonEmpty (DFVar semTy ty) -> LoweringM m (QualifiedBinding, [Ops.CallArg ty])

@@ -9,17 +9,21 @@ spec :: Spec
 spec = 
     describe "State" $ -- do
         it "simple" $
-            (showCode "Compiled: " =<< compileCode [sourceFile| 
-                fn test(i: i32) -> String {
-                    let state = f(i);
-                    let result = state.g(5);
+            (showCode "Compiled: " =<< compileCode [sourceFile|
+                use funs::*;
+
+                fn test(i: i32) -> i32 {
+                    let state = S::new(i);
+                    let result = state.gs(5);
                     h(result)
                 }
                 |]) >>= 
             (\compiled -> do
                 expected <- showCode "Expected:"
-                    [sourceFile| 
-                        fn test(i: i32) -> String {
+                    [sourceFile|
+                        use funs::*;
+
+                        fn test(i: i32) -> i32 {
                             let (a_0_tx, a_0_rx) = std::sync::mpsc::channel();
                             let (state_0_0_tx, state_0_0_rx) = std::sync::mpsc::channel();
                             let (result_0_0_tx, result_0_0_rx) = std::sync::mpsc::channel();

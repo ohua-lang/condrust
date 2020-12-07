@@ -11,7 +11,9 @@ spec =
     describe "Conditionals" $ do
         it "simple condition" $ -- in most languages, a condition is not a function!
             (showCode "Compiled: " =<< compileCode [sourceFile| 
-                fn test(i: i32) -> String {
+                use funs::*;
+
+                fn test(i: i32) -> i32 {
                     let a = f0(i);
                     let b = f1(i);
                     let c = f2(i);
@@ -26,7 +28,9 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:"
                     [sourceFile| 
-                        fn test(i: i32) -> String {
+                        use funs::*;
+
+                        fn test(i: i32) -> i32 {
                             let (g_0_tx, g_0_rx) = std::sync::mpsc::channel();
                             let (b_0_0_tx, b_0_0_rx) = std::sync::mpsc::channel();
                             let (ctrlTrue_0_tx, ctrlTrue_0_rx) = std::sync::mpsc::channel();
@@ -137,7 +141,9 @@ spec =
                 compiled `shouldBe` expected)
         it "context functions" $
             (showCode "Compiled: " =<< compileCode [sourceFile| 
-                fn test(i: i32) -> String {
+                use funs::*;
+
+                fn test(i: i32) -> i32 {
                     let a = f0(i);
                     let d = if a {
                         g0(5)
@@ -150,7 +156,9 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:"
                     [sourceFile| 
-                        fn test(i: i32) -> String {
+                        use funs::*;
+                        
+                        fn test(i: i32) -> i32 {
                             let (e_0_tx, e_0_rx) = std::sync::mpsc::channel();
                             let (ctrlTrue_0_tx, ctrlTrue_0_rx) = std::sync::mpsc::channel();
                             let (ctrlFalse_0_tx, ctrlFalse_0_rx) = std::sync::mpsc::channel();

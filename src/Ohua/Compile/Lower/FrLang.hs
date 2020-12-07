@@ -53,7 +53,7 @@ giveEmptyLambdaUnitArgument =
         _ -> Nothing
 
 nthFun :: Expr ty
-nthFun = LitE $ FunRefLit $ FunRef ARefs.nth Nothing Untyped
+nthFun = LitE $ FunRefLit $ FunRef ARefs.nth Nothing $ FunType [TypeVar,TypeVar,TypeVar]
 
 unstructure :: Binding -> [Pat] -> Expr ty -> Expr ty
 unstructure valBnd pats = go (toInteger $ length pats) pats
@@ -95,7 +95,7 @@ trans =
         BindEF ref e -> BindState ref e
         StmtEF e1 cont -> Let "_" e1 cont
         SeqEF source target -> seqBuiltin `Apply` source `Apply` Lambda "_" target
-        TupEF parts -> foldl Apply (pureFunction mkTuple Nothing) parts
+        TupEF parts -> foldl Apply (pureFunction mkTuple Nothing $ FunType [TypeVar,TypeVar]) parts
   where
     patToBnd =
         \case
