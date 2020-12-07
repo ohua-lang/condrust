@@ -202,7 +202,9 @@ liftIntoCtrlCtxt ctrlIn e0 = do
                 mkLambda originalFormals $
                 Let
                     ctrlOut
-                    (fromListToApply (FunRef Refs.ctrl Nothing Untyped) actuals')
+                    (fromListToApply 
+                      (FunRef Refs.ctrl Nothing $ FunType $ map (const TypeVar) actuals') 
+                      actuals')
                     ie
 
 

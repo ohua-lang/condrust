@@ -231,10 +231,10 @@ recurHof :: QualifiedBinding
 recurHof = "ohua.lang/recur_hof"
 
 recurSf :: Expr ty
-recurSf = pureFunction recur Nothing
+recurSf = pureFunction recur Nothing Untyped
 
 recurHofSf :: Expr ty
-recurHofSf = pureFunction recurHof Nothing
+recurHofSf = pureFunction recurHof Nothing Untyped
 
 recurStartMarker :: QualifiedBinding
 recurStartMarker = "ohua.lang.marker/recur_start"
@@ -247,16 +247,16 @@ y :: QualifiedBinding
 y = "ohua.lang/Y"
 
 ySf :: Expr ty
-ySf = pureFunction y Nothing
+ySf = pureFunction y Nothing Untyped
 
 recurFun :: QualifiedBinding
 recurFun = DFRefs.recurFunBnd
 
 recurFunPureFunction :: Expr ty
-recurFunPureFunction = pureFunction recurFun Nothing
+recurFunPureFunction = pureFunction recurFun Nothing Untyped
 
 idPureFunction :: Expr ty
-idPureFunction = pureFunction "ohua.lang/id" Nothing
+idPureFunction = pureFunction "ohua.lang/id" Nothing (FunType [TypeVar])
 
 -- Phase 1:
 findTailRecs ::

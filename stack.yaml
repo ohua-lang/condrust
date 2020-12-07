@@ -6,6 +6,8 @@ extra-deps:
 flags:
   ohua-core:
     debug: true
+ghc-options:
+  "$locals": -DDEBUG=1
 extra-package-dbs: []
 packages:
 - ./core

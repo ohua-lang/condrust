@@ -199,7 +199,7 @@ ensureFinalLetInLambdas =
 ensureAtLeastOneCall :: (Monad m, MonadGenBnd m) => Expr ty -> m (Expr ty)
 ensureAtLeastOneCall e@(Var _) = do
     newBnd <- generateBinding
-    pure $ Let newBnd (pureFunction Refs.id Nothing `Apply` e) $ Var newBnd
+    pure $ Let newBnd (pureFunction Refs.id Nothing (FunType [TypeVar])`Apply` e) $ Var newBnd
 ensureAtLeastOneCall e = cata f e
   where
     f (LambdaF bnd body) =
@@ -208,7 +208,7 @@ ensureAtLeastOneCall e = cata f e
                 newBnd <- generateBinding
                 pure $
                     Lambda bnd $
-                    Let newBnd (pureFunction Refs.id Nothing `Apply` v) $
+                    Let newBnd (pureFunction Refs.id Nothing (FunType [TypeVar]) `Apply` v) $
                     Var newBnd
             eInner -> pure $ Lambda bnd eInner
     f eInner = embed <$> sequence eInner

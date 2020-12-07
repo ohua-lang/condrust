@@ -7,20 +7,20 @@ import Ohua.Core.ALang.Lang
 ohuaLangNS :: NSRef
 ohuaLangNS = makeThrow ["ohua", "lang"]
 
-mkQualVar :: NSRef -> Binding -> Expr ty
+mkQualVar :: NSRef -> Binding -> FunType ty -> Expr ty
 mkQualVar nspace name0 = pureFunction (QualifiedBinding nspace name0) Nothing
 
-mkOhuaLangRef :: Binding -> Expr ty
+mkOhuaLangRef :: Binding -> FunType ty -> Expr ty
 mkOhuaLangRef = mkQualVar ohuaLangNS
 
 ifBuiltin :: Expr ty
-ifBuiltin = mkOhuaLangRef "if"
+ifBuiltin = mkOhuaLangRef "if" (FunType [TypeVar,TypeVar,TypeVar])
 
 smapBuiltin :: Expr ty
-smapBuiltin = mkOhuaLangRef "smap"
+smapBuiltin = mkOhuaLangRef "smap" (FunType [TypeVar,TypeVar])
 
 seqBuiltin :: Expr ty
-seqBuiltin = mkOhuaLangRef "seq"
+seqBuiltin = mkOhuaLangRef "seq" (FunType [TypeVar,TypeVar])
 
 funcTyConRef :: QualifiedBinding
 funcTyConRef = QualifiedBinding ohuaLangNS "->"

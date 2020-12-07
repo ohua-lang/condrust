@@ -16,7 +16,6 @@ import Ohua.Core.Prelude
 
 import qualified Data.HashSet as HS
 
-import Control.Lens (view)
 import Ohua.Core.ALang.Lang as ALang
 import Ohua.Core.ALang.Passes
 import Ohua.Core.ALang.Passes.SSA

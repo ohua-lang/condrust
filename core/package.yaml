@@ -101,4 +101,4 @@ library:
 flags:
   debug:
     manual: true
-    default: false
+    default: true

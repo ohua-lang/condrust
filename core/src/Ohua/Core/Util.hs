@@ -22,7 +22,7 @@ module Ohua.Core.Util
     , Prism'
     , prism
     , prism'
-    , assertM
+    -- , assertM
     , assertE
     , mapLeft
     , ShowT(..)
@@ -35,9 +35,9 @@ module Ohua.Core.Util
     , debugOr
     , whenDebug
     , unlessDebug
-    , dAssert
-    , dAssertM
-    , dAssertE
+    -- , dAssert
+    -- , dAssertM
+    -- , dAssertE
     , Mutator(..)
     , tellMut
     , HasCallStack
@@ -119,15 +119,18 @@ prism' make getter = prism make (\s -> maybe (Left s) Right $ getter s)
 -- 'assert' is that the error is tied to @m@ and is not lazy as it
 -- would be when using @pure $ assert cond val@.
 assertM :: Applicative m => Bool -> m ()
-assertM = flip assert (pure ())
-{-# INLINE assertM #-}
+-- This is ignore when optimizations are turned on!
+-- assertM = flip assert (pure ())
+-- {-# INLINE assertM #-}
+assertM True = pure ()
+assertM False = error "Assertion failed!"
 
 
 -- | Similar to 'assertM' but throws a canonical 'Error' in the monad
 -- @m@ rather than an 'error'.
-assertE :: (IsString s, MonadError s m, HasCallStack, Monoid s) => Bool -> m ()
-assertE True  = return ()
-assertE False = throwErrorDebugS "AssertionError"
+assertE :: (IsString s, MonadError s m, HasCallStack, Monoid s) => Bool -> s -> m ()
+assertE True  _ = return ()
+assertE False msg = throwErrorDebugS $ "AssertionError: " <> msg
 {-# INLINE assertE #-}
 
 -- | Checks the condition only when debug flags are enabled.
@@ -141,9 +144,9 @@ dAssertM = assertM `debugOr` const (pure ())
 {-# INLINE dAssertM #-}
 
 -- | Like 'assertE' but only checks the condition in debug builds.
-dAssertE :: (IsString s, MonadError s m, HasCallStack, Monoid s) => Bool -> m ()
-dAssertE = assertE `debugOr` const (pure ())
-{-# INLINE dAssertE #-}
+-- dAssertE :: (IsString s, MonadError s m, HasCallStack, Monoid s) => Bool -> m ()
+-- dAssertE = assertE `debugOr` const (pure ())
+-- {-# INLINE dAssertE #-}
 
 -- | Apply a function to the left value in an 'Either'
 mapLeft :: (a -> c) -> Either a b -> Either c b

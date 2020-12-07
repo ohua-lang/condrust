@@ -114,13 +114,13 @@ import Control.Category ((>>>))
 import qualified Data.Text as T
 
 selectSf :: Expr ty
-selectSf = Lit $ FunRefLit $ FunRef Refs.select Nothing Untyped
+selectSf = Lit $ FunRefLit $ FunRef Refs.select Nothing $ FunType [TypeVar, TypeVar, TypeVar]
 
 ifFunSf :: Expr ty
-ifFunSf = Lit $ FunRefLit $ FunRef Refs.ifFun Nothing Untyped
+ifFunSf = Lit $ FunRefLit $ FunRef Refs.ifFun Nothing $ FunType [TypeVar]
 
 ifSf :: Expr ty
-ifSf = Lit $ FunRefLit $ FunRef Refs.ifThenElse Nothing Untyped
+ifSf = Lit $ FunRefLit $ FunRef Refs.ifThenElse Nothing $ FunType [TypeVar, TypeVar, TypeVar]
 
 #if 1
 -- This is a proposal for `ifRewrite` that uses plated to make sure the

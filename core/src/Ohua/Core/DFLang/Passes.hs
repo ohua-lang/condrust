@@ -50,7 +50,9 @@ removeNth expr = do
             where 
                 go :: App a ty
                     -> NormalizedExpr ty
-                    -> State (HM.HashMap Binding (NonEmpty (Integer, Binding))) (NormalizedDFExpr ty)
+                    -> State 
+                        (HM.HashMap Binding (NonEmpty (Integer, Binding))) 
+                        (NormalizedDFExpr ty)
                 go app cont = do 
                     cont' <- f cont
                     app' <- toDFAppFun app
@@ -183,11 +185,14 @@ handleApplyExpr :: forall m ty.
     -> m (QualifiedBinding, Maybe (ArgType ty, ABinding 'State), [(ArgType ty, ALang.Expr ty)])
 handleApplyExpr l@(Apply _ _) = go [] l
   where
-    go args =
-        \case
-            Apply fn arg -> go (arg : args) fn
+    go args e =
+        case e of
+            Apply fn arg -> do
+                go (arg : args) fn
             Lit (FunRefLit (FunRef qb _ident (FunType argTypes))) -> do
-                dAssertM $ length argTypes == length args
+                assertE 
+                    (length argTypes == length args)
+                    $ "Arg types and args don't match for function: " <> show qb
                 return (qb, Nothing, zip argTypes args)
             Lit (FunRefLit (FunRef qb _ Untyped)) -> 
                 failWith $ "Wrong function type 'untyped' for pure function: " <> show qb
@@ -198,7 +203,9 @@ handleApplyExpr l@(Apply _ _) = go [] l
             BindState _state0 (Lit (FunRefLit (FunRef fn _ FunType{}))) -> 
                 failWith $ "Wrong function type 'pure' for st function: " <> show fn
             BindState state0 (Lit (FunRefLit (FunRef fn _ (STFunType sType argTypes)))) -> do
-                dAssertM $ length argTypes == length args
+                assertE 
+                    (length argTypes == length args)
+                    $ "Arg types and args don't match for stateful function: " <> show fn
                 state' <- expectStateBnd state0
                 return (fn, Just (sType, state'), zip argTypes args)
             x -> failWith $ "Expected Apply or Var but got: " <> show (x :: ALang.Expr ty)

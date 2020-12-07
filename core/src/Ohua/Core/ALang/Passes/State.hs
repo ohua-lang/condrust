@@ -58,7 +58,7 @@ addCtxtExit = transformM f
                     addMissing = 
                         HS.foldr 
                             (\missingState c -> 
-                                Let missingState (pureFunction Refs.id Nothing `Apply` Var missingState) 
+                                Let missingState (pureFunction Refs.id Nothing (FunType [TypeVar] )`Apply` Var missingState) 
                                     c) 
                     trueBranch' = applyToBody (`addMissing` trueBranchStatesMissing) trueBranch
                     falseBranch' = applyToBody (`addMissing` falseBranchStatesMissing) falseBranch

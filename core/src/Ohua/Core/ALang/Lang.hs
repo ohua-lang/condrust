@@ -85,8 +85,8 @@ instance Container (ExprF ty a)
 pattern PureFunction :: QualifiedBinding -> Maybe FnId -> Expr ty
 pattern PureFunction bnd ident <- Lit (FunRefLit (FunRef bnd ident _))
 
-pureFunction :: QualifiedBinding -> Maybe FnId -> Expr ty
-pureFunction bnd ident = Lit (FunRefLit (FunRef bnd ident Untyped))
+pureFunction :: QualifiedBinding -> Maybe FnId -> FunType ty -> Expr ty
+pureFunction bnd ident ty = Lit (FunRefLit (FunRef bnd ident ty))
 
 pattern PureFunctionF :: QualifiedBinding -> Maybe FnId -> ExprF ty a
 pattern PureFunctionF bnd ident <- LitF (FunRefLit (FunRef bnd ident _))
@@ -103,7 +103,7 @@ pattern StatefulFunctionF bnd ident expr <- BindStateF expr (Lit (FunRefLit (Fun
 instance IsString (AExpr ty) where
     fromString = fromString >>> \case
         Unqual bnd -> Var bnd
-        Qual q -> pureFunction q Nothing 
+        Qual q -> pureFunction q Nothing Untyped
 
 instance Plated (Expr ty) where plate = gplate
 
