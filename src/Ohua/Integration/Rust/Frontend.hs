@@ -93,13 +93,20 @@ instance Integration (Language 'Rust) where
                         Nothing -> throwError "Compiler invariant broken." -- Liquid Haskell?!
                 e ->  return e
 
-            resolvedImports :: HM.HashMap Binding NSRef
-            resolvedImports = HM.fromList $ mapMaybe resolveImport (ohuaNs^.imports)
+            fullyResolvedImports = resolvedImports fullyResolved
+            aliasImports = resolvedImports aliases
 
-            resolveImport :: Import -> Maybe (Binding, NSRef)
-            resolveImport (Full (NSRef ns) binding) = Just (binding, NSRef (reverse $ binding : reverse ns))
-            resolveImport (Alias ns alias) = Just (alias, ns)
-            resolveImport (Glob _) = Nothing
+            resolvedImports :: (Import -> Maybe (Binding, NSRef)) -> HM.HashMap Binding NSRef
+            resolvedImports f = HM.fromList $ mapMaybe f (ohuaNs^.imports)
+
+            fullyResolved :: Import -> Maybe (Binding, NSRef)
+            fullyResolved (Full ns binding) = Just (binding, ns)
+            fullyResolved _ = Nothing
+
+            aliases :: Import -> Maybe (Binding, NSRef)
+            aliases (Full n@(NSRef ns) binding) = Just (binding, NSRef $ reverse $ binding : reverse ns)
+            aliases (Alias ns alias) = Just (alias, ns)
+            aliases _ = Nothing
 
             globs :: [NSRef]
             globs = mapMaybe (\case (Glob ns) -> Just ns; _ -> Nothing) (ohuaNs^.imports)
@@ -110,10 +117,10 @@ instance Integration (Language 'Rust) where
 
             lookupFunTypes :: CompM m => QualifiedBinding -> m ([NSRef], QualifiedBinding)
             lookupFunTypes q@(QualifiedBinding [] name) =
-                return $ (,q) $ maybe globs (:[]) $ HM.lookup name resolvedImports
+                return $ (,q) $ maybe globs (:[]) $ HM.lookup name fullyResolvedImports
             lookupFunTypes q@(QualifiedBinding nsRef _name) = 
                 let (alias:rest) = unwrap nsRef
-                in case HM.lookup alias resolvedImports of
+                in case HM.lookup alias aliasImports of
                     Just a -> return ([NSRef $ unwrap a ++ rest], q)
                     Nothing -> throwError $ "Invariant broken: I found a module alias reference that is not listed in the imports: " <> show q <> "\n Please move it into this module if you happen to import this via a mod.rs file."
 
