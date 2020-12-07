@@ -97,7 +97,7 @@ instance Integration (Language 'Rust) where
             resolvedImports = HM.fromList $ mapMaybe resolveImport (ohuaNs^.imports)
 
             resolveImport :: Import -> Maybe (Binding, NSRef)
-            resolveImport (Full ns binding) = Just (binding, ns)
+            resolveImport (Full (NSRef ns) binding) = Just (binding, NSRef (reverse $ binding : reverse ns))
             resolveImport (Alias ns alias) = Just (alias, ns)
             resolveImport (Glob _) = Nothing
 
@@ -124,12 +124,12 @@ instance Integration (Language 'Rust) where
             verifyAndRegister types ([candidate], qp@(QualifiedBinding _ name)) =
                 case HM.lookup (QualifiedBinding candidate name) types of
                     Just t -> return (qp, t)
-                    Nothing -> throwError $ "Function `" <> show name <> "` not found in module `" <> show candidate <> "`. I need these types to generate the code. Please check that the function actually exists by compiling again with `rustc`."
+                    Nothing -> throwError $ "Function `" <> show (unwrap name) <> "` not found in module `" <> show candidate <> "`. I need these types to generate the code. Please check that the function actually exists by compiling again with `rustc`."
             verifyAndRegister types (globs, qp@(QualifiedBinding _ name)) =
                 case mapMaybe ((`HM.lookup` types) . (`QualifiedBinding` name)) globs of
-                    [] -> throwError $ "Function `" <> show name <> "` not found in modules `" <> show globs <> "`. I need these types to generate the code. Please check that the function actually exists by compiling again with `rustc`."
+                    [] -> throwError $ "Function `" <> show (unwrap name) <> "` not found in modules `" <> show globs <> "`. I need these types to generate the code. Please check that the function actually exists by compiling again with `rustc`."
                     [t] -> return (qp, t)
-                    _ -> throwError $ "Multiple definitions of function `" <> show name <> "` in modules " <> show globs <> " detected!\nPlease verify again that your code compiles properly by running `rustc`. If the problem persists then please file a bug. (See issue sertel/ohua-frontend#1)"
+                    _ -> throwError $ "Multiple definitions of function `" <> show (unwrap name) <> "` in modules " <> show globs <> " detected!\nPlease verify again that your code compiles properly by running `rustc`. If the problem persists then please file a bug. (See issue sertel/ohua-frontend#1)"
 
 instance (Show a) => ConvertExpr (Rust.Expr a) where 
     convertExpr e@Box{} = throwError $ "Currently, we do not support the construction of boxed values. Please do so in a function." <> show e
