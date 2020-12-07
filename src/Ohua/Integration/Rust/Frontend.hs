@@ -104,7 +104,7 @@ instance Integration (Language 'Rust) where
             fullyResolved _ = Nothing
 
             aliases :: Import -> Maybe (Binding, NSRef)
-            aliases (Full n@(NSRef ns) binding) = Just (binding, NSRef $ reverse $ binding : reverse ns)
+            aliases (Full (NSRef ns) binding) = Just (binding, NSRef $ reverse $ binding : reverse ns)
             aliases (Alias ns alias) = Just (alias, ns)
             aliases _ = Nothing
 
