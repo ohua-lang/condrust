@@ -58,7 +58,7 @@ concludeFusion (TCProgram chans resultChan exprs) = TCProgram chans resultChan $
         go (Control (Right ctrl)) = genLitCtrl ctrl
         go (Unfusable e) = e
 
--- invariant length in >= length out
+-- invariant length in >= length out -- TODO use length-indexed vectors
 evictUnusedChannels :: TCProgram (Channel ty) (Com 'Recv ty) (TaskExpr ty) 
                     -> TCProgram (Channel ty) (Com 'Recv ty) (TaskExpr ty)
 evictUnusedChannels (TCProgram chans resultChan@(SRecv _ resChan) exprs) = 
@@ -186,8 +186,8 @@ fuseCtrls (TCProgram chans resultChan exprs) =
                 _ -> error "Invariant broken: a control always has exactly one target!"
         isTarget :: Com 'Channel ty -> Fusable ty (FusedCtrl anno ty) ctrl1 -> Bool
         isTarget bnd (Control (Left (FusedFunCtrl _ vars _ _))) = 
-            HS.member bnd $ HS.fromList $ NE.toList $ 
-            NE.map ((\(SRecv _ c) -> c) . snd . fromVarReceive) vars
+            HS.member bnd $ HS.fromList $ 
+            map ((\(SRecv _ c) -> c) . snd . fromVarReceive) vars
         isTarget bnd (Fun f) = 
             HS.member bnd $ HS.fromList $ map (\(SRecv _ c) -> c) $ funReceives f
         isTarget _ _ = False
@@ -230,7 +230,7 @@ fuseSTCLang (TCProgram chans resultChan exprs) =
                     xs
     
         findSource :: STCLangSMap ty -> Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty)
-        findSource (STCLangSMap _ _ (SRecv _ inp) _) = 
+        findSource (STCLangSMap _ (SRecv _ inp) _) = 
             case filter (isSource inp) exprs of
                     [src] -> src
                     _ -> error "Invariant broken: every STC has exactly one source by definition!"
@@ -240,11 +240,10 @@ fuseSTCLang (TCProgram chans resultChan exprs) =
         findSTCLang _ = Nothing
         
         isSource :: Com 'Channel ty -> Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty) -> Bool
-        isSource inp (STC (STCLangSMap _ _ _ outp)) = outp == inp
+        isSource inp (STC (STCLangSMap _ _ outp)) = outp == inp
         isSource inp (Control (Left (FusedFunCtrl _ _ _ outs))) = 
             HS.member inp $ HS.fromList $ map (\(SSend c _) -> c) outs
         isSource inp (Control (Right (FusedLitCtrl _ (OutputChannel out,_) _))) = inp == out
         isSource _inp (Unfusable _) = False
         isSource _inp (Fun PureFusable{}) = False
         isSource inp (Fun (STFusable _ _ _ _ send)) = (== Just inp) send
-

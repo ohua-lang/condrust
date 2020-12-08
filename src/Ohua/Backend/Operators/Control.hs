@@ -3,19 +3,18 @@ module Ohua.Backend.Operators.Control where
 
 import Ohua.Prelude
 
+import Ohua.Backend.Operators.Common
 import Ohua.Backend.Lang as L hiding (Function)
 import Ohua.Backend.Operators.State
-import Ohua.Backend.Operators.Function as F
+import Ohua.Backend.Operators.Function as F hiding (genFused)
 
 import qualified Data.List.NonEmpty as NE
 import qualified Data.HashSet as HS
 
 
 newtype  CtrlInput ty = CtrlInput (Com 'Recv ty) deriving (Eq, Generic)
-newtype OutputChannel ty = OutputChannel (Com 'Channel ty) deriving (Eq, Generic)
 
 instance Hashable (CtrlInput ty)
-instance Hashable (OutputChannel ty)
 
 -- annotations
 data CtrlAnno = Variable | Fun | CtxtLit deriving (Eq, Show, Generic)
@@ -46,30 +45,12 @@ ctrlReceives (FunCtrl _ vars) = map snd vars
 toFunCtrl :: VarCtrl ty -> FunCtrl ty
 toFunCtrl (VarCtrl ctrlVar var) = FunCtrl ctrlVar (var:|[])
 
--- FIXME Should use annotations ST and Data from BindingType
-data VarReceive ty
-    = StateVar (OutputChannel ty) (Com 'Recv ty)
-    | PureVar (OutputChannel ty) (Com 'Recv ty)
-    deriving (Eq,Generic)
-
-instance Hashable (VarReceive ty)
-
-fromVarReceive :: VarReceive ty -> (OutputChannel ty, Com 'Recv ty)
-fromVarReceive (StateVar c r) = (c,r)
-fromVarReceive (PureVar c r) = (c,r)
-
-unwrapChan :: OutputChannel ty -> Com 'Channel ty
-unwrapChan (OutputChannel c) = c
-
-unwrapBnd :: OutputChannel ty -> Binding 
-unwrapBnd (OutputChannel (SChan b)) = b
-
 data FusedCtrlAnno = Function | Literal deriving (Eq, Show, Generic)
 
 data FusedCtrl (anno::FusedCtrlAnno) (ty::Type) :: Type where
     -- there is another assumption here that needs to be enforced: 
     -- state inputs in NonEmpty VarReceive map to state outputs in [Send]!
-    FusedFunCtrl ::  CtrlInput ty -> NonEmpty (VarReceive ty) -> TaskExpr ty -> [Com 'Send ty] -> FusedCtrl 'Function ty
+    FusedFunCtrl ::  CtrlInput ty -> [VarReceive ty] -> TaskExpr ty -> [Com 'Send ty] -> FusedCtrl 'Function ty
     FusedLitCtrl ::  CtrlInput ty -> (OutputChannel ty, Lit ty) -> TaskExpr ty -> FusedCtrl 'Literal ty
 
 deriving instance Eq (FusedCtrl semTy ty)
@@ -85,7 +66,7 @@ instance Hashable (FusedCtrl anno ty) where
 
 fuseSTCSMap :: STCLangSMap ty -> FusedFunCtrl ty -> FusedFunCtrl ty
 fuseSTCSMap
-    (STCLangSMap _init _ctxtLoop (SRecv _ stateReceive) stateOut)
+    (STCLangSMap _ (SRecv _ stateReceive) stateOut)
     (FusedFunCtrl ctrlInput vars comp stateOuts)
     = FusedFunCtrl ctrlInput vars comp stateOuts'
     where
@@ -108,12 +89,11 @@ fuseCtrl
         sendVars = NE.map fst vars
         stateVars = 
             HS.fromList $
-            catMaybes $
-            NE.toList $
-            NE.map (\case StateVar _outChan (SRecv _ b) -> Just b; _ -> Nothing)
+            mapMaybe (\case StateVar _outChan (SRecv _ b) -> Just b; _ -> Nothing)
             vars'
-        vars'' = 
-            NE.map 
+        vars'' =
+            toList $
+            map 
                 ((\(out@(OutputChannel b), re) -> 
                     if HS.member b stateVars
                     then StateVar out re
@@ -128,20 +108,35 @@ fuseCtrl
             in SSend ch d' -- the var that I assign the state to becomes the new data out for the state
         propagateTypeFromRecv = propagateType . toList . map snd
 
+fuseCtrlIntoFun :: FusableFunction ty -> FusedFunCtrl ty -> FusedFun ty
+fuseCtrlIntoFun fun (FusedFunCtrl ctrlIn ins expr outs) = 
+    case fun of 
+        (PureFusable _ _ out) ->
+            -- FIXME unclear whether output got fused!
+            FusedFun fun
+                $ genFused $ FusedFunCtrl ctrlIn (f (Just out) ins) expr outs
+        (STFusable _ _ _ out sOut) ->
+            -- FIXME unclear what output got fused!
+            FusedFun fun
+                $ genFused $ FusedFunCtrl ctrlIn (f sOut (f out ins)) expr outs
+    where
+        f Nothing ins0 = ins0
+        f (Just out) ins0 = filter ((\(SRecv _ inp) -> inp == out) . snd . fromVarReceive) ins0
+
 fuseFun :: FunCtrl ty -> FusableFunction ty -> FusedFunCtrl ty
 fuseFun (FunCtrl ctrlInput vars) =
     \case
         (PureFusable args app res) -> 
             FusedFunCtrl
                 ctrlInput
-                (NE.map (uncurry PureVar . propagateTypeFromArg args) vars)
-                (F.genFun' $  PureFusable (map f args) app res)
+                (map (uncurry PureVar . propagateTypeFromArg args) $ toList vars)
+                (F.genFun'' $  PureFusable (map f args) app res)
                 []
         (STFusable stateArg args app res stateRes) ->
             FusedFunCtrl
                 ctrlInput
                 (vars' stateArg args)
-                (F.genFun' $ STFusable stateArg (map f args) app res Nothing)
+                (F.genFun'' $ STFusable stateArg (map f args) app res Nothing)
                 (maybe 
                     [] 
                     (\g -> [SSend g $ unwrapBnd $ fst $ stateVar stateArg]) 
@@ -155,7 +150,8 @@ fuseFun (FunCtrl ctrlInput vars) =
             stateVar sArg = case NE.filter (\(_, r) -> r == sArg) vars of
                                 [s] -> s
                                 [] -> error "invariant broken" -- an assumption rooted inside DFLang
-            vars' sArg args = 
+            vars' sArg args =
+                toList $
                 NE.map ((\case
                             (bnd, a) | a == sArg -> StateVar bnd a
                             (bnd, a) -> PureVar bnd a)
@@ -168,7 +164,7 @@ propagateType args (o@(OutputChannel outChan), r@(SRecv _ rChan)) =
     foldl (\s out -> case out of 
                         (SRecv t chan) | chan == outChan -> (o, SRecv t rChan)
                         -- TODO this is actually not possible and should be an invariant because all vars
-                        --      of the control of a corresponding arg.
+                        --      of the control have a corresponding arg.
                         _ -> s)
         (o,r)
         args
@@ -240,7 +236,7 @@ genCtrl (FunCtrl ctrlInput vars) =
         genCtrl' ctrlInput initVarsExpr' sendCode Nothing
     where
         initVarsExpr' = initVarsExpr receiveVars []
-        receiveVars = NE.map (first (("var_" <>) . show) . second snd) $ NE.zip [0..] vars
+        receiveVars = toList $ NE.map (first (("var_" <>) . show) . second snd) $ NE.zip [0..] vars
         sendCode = 
             foldr (\(bnd, OutputChannel ch) c -> Stmt (SendData $ SSend ch bnd) c) (Lit UnitLit) sendVars
         sendVars = NE.map (first (("var_" <>) . show) . second fst) $ NE.zip [0..] vars
@@ -263,21 +259,6 @@ genCtrl' ctrlInput initVars comp cont =
             sigStateRenew "renew"
     where 
         stmt loop = maybe loop (Stmt loop) cont
-
-initVarsExpr :: NonEmpty (Binding, Com 'Recv ty) -> [OutputChannel ty] -> TaskExpr ty -> TaskExpr ty
-initVarsExpr rVars sVars cont = 
-    foldr (\(bnd, e) c -> Let bnd e c) cont $ toExpr rVars sVars
-
-receiveVarsExpr :: NonEmpty (OutputChannel ty, Com 'Recv ty) -> [OutputChannel ty] -> TaskExpr ty
-receiveVarsExpr rVars sVars = 
-    foldr (\(OutputChannel (SChan bnd), e) c -> Stmt (Assign bnd e) c) (Lit UnitLit) $ toExpr rVars sVars
-
-toExpr :: NonEmpty (a, Com 'Recv ty) -> [OutputChannel ty] -> NonEmpty (a, TaskExpr ty)
-toExpr rVars sVars  = NE.map (second f) rVars
-    where
-        f (SRecv _ ch@(SChan bnd)) | HS.member ch ctrled = Var bnd
-        f r  = ReceiveData r
-        ctrled = HS.fromList $ map unwrapChan sVars
 
 
 -- assumption: ctrl before merging and as such there is only a single input
