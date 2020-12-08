@@ -26,8 +26,8 @@ spec =
                             let mut tasks: Vec<Box<FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
                             tasks
                                 .push(Box::new(move || -> _ {
-                                let result = hello_world();
-                                a_0_tx.send(result)
+                                let a_0 = hello_world();
+                                a_0_tx.send(a_0)
                                 }));
                             run(tasks);
                             a_0_rx.recv()
@@ -54,11 +54,11 @@ spec =
                             let mut tasks: Vec<Box<FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
                             tasks
                                 .push(Box::new(move || -> _ {
-                                loop { let var_0 = x_0_0_rx.recv(); let result = g(var_0); a_0_tx.send(result) }
+                                loop { let var_0 = x_0_0_rx.recv(); let a_0 = g(var_0); a_0_tx.send(a_0) }
                                 }));
                             tasks
                                 .push(Box::new(move || -> _ {
-                                let result = f(); x_0_0_tx.send(result)
+                                let x_0_0 = f(); x_0_0_tx.send(x_0_0)
                                 }));
                             run(tasks);
                             a_0_rx.recv()
@@ -85,11 +85,11 @@ spec =
                             let mut tasks: Vec<Box<FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
                             tasks
                                 .push(Box::new(move || -> _ {
-                                loop { let var_0 = x_0_0_rx.recv(); let result = funs::g(var_0); a_0_tx.send(result) }
+                                loop { let var_0 = x_0_0_rx.recv(); let a_0 = funs::g(var_0); a_0_tx.send(a_0) }
                                 }));
                             tasks
                                 .push(Box::new(move || -> _ {
-                                let var_0 = i; let result = funs::h(var_0); x_0_0_tx.send(result)
+                                let var_0 = i; let x_0_0 = funs::h(var_0); x_0_0_tx.send(x_0_0)
                                 }));
                             run(tasks);
                             a_0_rx.recv()

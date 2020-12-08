@@ -51,8 +51,8 @@ spec =
                                     let count = sig.1;
                                     for _ in [0; count] {
                                         let var_0 = c_0_0_0;
-                                        let result = g1(var_0);
-                                        f_0_tx.send(result)
+                                        let f_0 = g1(var_0);
+                                        f_0_tx.send(f_0)
                                     };
                                     let renew_next_time = sig.0;
                                     renew = renew_next_time;
@@ -71,8 +71,8 @@ spec =
                                     let count = sig.1;
                                     for _ in [0; count] {
                                         let var_0 = b_0_0_0;
-                                        let result = g0(var_0);
-                                        e_0_tx.send(result)
+                                        let e_0 = g0(var_0);
+                                        e_0_tx.send(e_0)
                                     };
                                     let renew_next_time = sig.0;
                                     renew = renew_next_time;
@@ -85,8 +85,8 @@ spec =
                                 .push(Box::new(move || -> _ {
                                 loop {
                                     let var_0 = result_0_rx.recv();
-                                    let result = h(var_0);
-                                    g_0_tx.send(result)
+                                    let g_0 = h(var_0);
+                                    g_0_tx.send(g_0)
                                 }
                                 }));
                             tasks
@@ -119,20 +119,20 @@ spec =
                             tasks
                                 .push(Box::new(move || -> _ {
                                 let var_0 = i;
-                                let result = f2(var_0);
-                                c_0_0_tx.send(result)
+                                let c_0_0 = f2(var_0);
+                                c_0_0_tx.send(c_0_0)
                                 }));
                             tasks
                                 .push(Box::new(move || -> _ {
                                 let var_0 = i;
-                                let result = f1(var_0);
-                                b_0_0_tx.send(result)
+                                let b_0_0 = f1(var_0);
+                                b_0_0_tx.send(b_0_0)
                                 }));
                             tasks
                                 .push(Box::new(move || -> _ {
                                 let var_0 = i;
-                                let result = f0(var_0);
-                                a_0_0_tx.send(result)
+                                let a_0_0 = f0(var_0);
+                                a_0_0_tx.send(a_0_0)
                                 }));
                             run(tasks);
                             g_0_rx.recv()
@@ -177,8 +177,8 @@ spec =
                                         let count = sig.1;
                                         for _ in [0; count] {
                                             let _var_0 = lit_unit_0;
-                                            let result = g1();
-                                            c_0_tx.send(result)
+                                            let c_0 = g1();
+                                            c_0_tx.send(c_0)
                                         };
                                         let renew_next_time = sig.0;
                                         renew = renew_next_time;
@@ -196,8 +196,8 @@ spec =
                                         let count = sig.1;
                                         for _ in [0; count] {
                                             let var_0 = lit_5_0;
-                                            let result = g0(var_0);
-                                            b_0_tx.send(result)
+                                            let b_0 = g0(var_0);
+                                            b_0_tx.send(b_0)
                                         };
                                         let renew_next_time = sig.0;
                                         renew = renew_next_time;
@@ -209,8 +209,8 @@ spec =
                                 .push(Box::new(move || -> _ {
                                 loop {
                                     let var_0 = result_0_rx.recv();
-                                    let result = h(var_0);
-                                    e_0_tx.send(result)
+                                    let e_0 = h(var_0);
+                                    e_0_tx.send(e_0)
                                 }
                                 }));
                             tasks
@@ -243,8 +243,8 @@ spec =
                             tasks
                                 .push(Box::new(move || -> _ {
                                 let var_0 = i;
-                                let result = f0(var_0);
-                                a_0_0_tx.send(result)
+                                let a_0_0 = f0(var_0);
+                                a_0_0_tx.send(a_0_0)
                                 }));
                             run(tasks);
                             e_0_rx.recv()
