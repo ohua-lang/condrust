@@ -111,17 +111,23 @@ fuseCtrl
 fuseCtrlIntoFun :: FusableFunction ty -> FusedFunCtrl ty -> FusedFun ty
 fuseCtrlIntoFun fun (FusedFunCtrl ctrlIn ins expr outs) = 
     case fun of 
-        (PureFusable _ _ out) ->
-            -- FIXME unclear whether output got fused!
-            FusedFun fun
-                $ genFused $ FusedFunCtrl ctrlIn (f (Just out) ins) expr outs
-        (STFusable _ _ _ out sOut) ->
-            -- FIXME unclear what output got fused!
-            FusedFun fun
-                $ genFused $ FusedFunCtrl ctrlIn (f sOut (f out ins)) expr outs
+        (PureFusable recvs qb (Identity out)) ->
+            let ins' = f (Just out) ins
+                out' = if length ins' < length ins then Nothing else Just out
+            in FusedFun
+                (PureFusable recvs qb out')
+                $ genFused $ FusedFunCtrl ctrlIn ins' expr outs
+        (STFusable sRecv recvs qb out sOut) ->
+            let ins' = f out ins
+                ins'' = f sOut ins'
+                out' = if length ins' < length ins then Nothing else out
+                sOut' = if length ins'' < length ins' then Nothing else sOut
+            in FusedFun 
+                (STFusable sRecv recvs qb out' sOut')
+                $ genFused $ FusedFunCtrl ctrlIn ins'' expr outs
     where
         f Nothing ins0 = ins0
-        f (Just out) ins0 = filter ((\(SRecv _ inp) -> inp == out) . snd . fromVarReceive) ins0
+        f (Just out) ins0 = filter ((\(SRecv _ inp) -> inp /= out) . snd . fromVarReceive) ins0
 
 fuseFun :: FunCtrl ty -> FusableFunction ty -> FusedFunCtrl ty
 fuseFun (FunCtrl ctrlInput vars) =
