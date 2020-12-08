@@ -39,7 +39,7 @@ generateFunctionCode = \case
     (PureDFFun out fn inp) -> do
         (fun', args) <- lowerFnRef fn inp
         out' <- pureOut out 
-        return $ Fusion.Fun $ Ops.PureFusable args fun' $ SChan out'
+        return $ Fusion.Fun $ Ops.PureFusable args fun' $ Identity $ SChan out'
     (StateDFFun out fn (DFVar stateT stateIn) inp) -> do
         (fun', args) <- lowerFnRef fn inp
         (sOut, dataOut) <- stateOut out 
