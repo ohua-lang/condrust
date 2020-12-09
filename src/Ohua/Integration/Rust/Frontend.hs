@@ -78,18 +78,28 @@ instance Integration (Language 'Rust) where
                     (PathSegment ident Nothing _) -> return $ toBinding ident
                     (PathSegment _ (Just _) _) -> throwError $ "We currently do not support import paths with path parameters.\n" <> show p
                     
-    loadTypes :: CompM m => Language 'Rust -> Module -> Namespace (FrLang.Expr (RustArgType Span)) (Item Span) -> m (Namespace (FrLang.Expr (RustArgType Span)) (Item Span))
+    loadTypes :: CompM m => 
+                Language 'Rust -> 
+                Module -> 
+                Namespace (FrLang.Expr (RustArgType Span)) (Item Span) -> 
+                m (Namespace (FrLang.Expr (RustArgType Span)) (Item Span))
     loadTypes _ _ ohuaNs = do
         filesAndPaths <- concat <$> mapM funsForAlgo (ohuaNs^.algos)
         types <- load $ HS.toList $ HS.fromList $ concatMap fst filesAndPaths
         types' <- HM.fromList <$> mapM (verifyAndRegister types) filesAndPaths
+        -- traceShowM $ "extracted types: " <> show types'
         updateExprs ohuaNs (transformM (assignTypes types'))
         where
             assignTypes :: CompM m => FunTypes -> FrLang.Expr (RustArgType Span) -> m (FrLang.Expr (RustArgType Span))
+            -- FIXME It is nice to write it like this, really, but this has to check whether the function used in the code has (at the very least)
+            --       the same number of arguments as it is applied to. If this does not match then clearly we need to error here!
             assignTypes types = \case 
                 (LitE (FunRefLit (FunRef qb i _))) ->
                     case HM.lookup qb types of
-                        Just typ -> return $ LitE $ FunRefLit $ FunRef qb i typ
+                        Just typ -> 
+                            -- do 
+                            --     traceShowM $ "Fun: " <> show qb <> " Type: " <> show typ
+                                return $ LitE $ FunRefLit $ FunRef qb i typ
                         Nothing -> throwError "Compiler invariant broken." -- Liquid Haskell?!
                 e ->  return e
 
@@ -122,7 +132,11 @@ instance Integration (Language 'Rust) where
                 let (alias:rest) = unwrap nsRef
                 in case HM.lookup alias aliasImports of
                     Just a -> return ([NSRef $ unwrap a ++ rest], q)
-                    Nothing -> throwError $ "Invariant broken: I found a module alias reference that is not listed in the imports: " <> show q <> "\n Please move it into this module if you happen to import this via a mod.rs file."
+                    Nothing -> case globs of
+                        [] -> throwError $ "Invariant broken: I found the module alias reference '" 
+                                <> show q <> "' that is not listed in the imports and no glob imports (::*) were defined: '" 
+                                <> show globs <> "'\n Please move it into this module if you happen to import this via a mod.rs file."
+                        xs -> return (xs, q)
 
             load :: CompM m => [NSRef] -> m FunTypes
             load nsRefs = HM.unions <$> mapM (extractFromFile . toFilePath . (,".rs")) nsRefs
