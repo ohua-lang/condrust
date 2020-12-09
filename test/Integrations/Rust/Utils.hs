@@ -18,7 +18,7 @@ import qualified Data.HashMap.Lazy as HM
 
 import System.FilePath
 import System.IO.Temp
-import System.Directory (getCurrentDirectory, setCurrentDirectory)
+import System.Directory (setCurrentDirectory)
 
 import Language.Rust.Pretty ( pretty' )
 import Language.Rust.Quote
@@ -68,8 +68,8 @@ compileCode inCode =
                 \ fn g1(i:i32) -> i32 { unimplemented!{} } \
                 \ struct S{} \
                 \ impl S { \
-                \   fn new() -> S { unimplemented!{} } \
-                \   fn gs(self) -> i32 { unimplemented!{} } \
+                \   fn new(i:i32) -> S { unimplemented!{} } \
+                \   fn gs(self, i:i32) -> i32 { unimplemented!{} } \
                 \ } \
                 \ "
             let inFile = testDir </> "test.rs"

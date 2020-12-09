@@ -32,8 +32,8 @@ spec =
                                 .push(Box::new(move || -> _ {
                                 loop {
                                     let var_0 = result_0_0_rx.recv();
-                                    let result = h(var_0);
-                                    a_0_tx.send(result)
+                                    let a_0 = h(var_0);
+                                    a_0_tx.send(a_0)
                                 }
                                 }));
                             tasks
@@ -41,16 +41,16 @@ spec =
                                 loop {
                                     let var_0 = state_0_0_rx.recv();
                                     let var_1 = 5;
-                                    let result = var_0.g(var_1);
-                                    result_0_0_tx.send(result);
+                                    let result_0_0 = var_0.gs(var_1);
+                                    result_0_0_tx.send(result_0_0);
                                     ()
                                 }
                                 }));
                             tasks
                                 .push(Box::new(move || -> _ {
                                 let var_0 = i;
-                                let result = f(var_0);
-                                state_0_0_tx.send(result)
+                                let state_0_0 = S::new(var_0);
+                                state_0_0_tx.send(state_0_0)
                                 }));
                             run(tasks);
                             a_0_rx.recv()
