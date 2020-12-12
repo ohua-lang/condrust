@@ -44,6 +44,7 @@ deriving instance Eq (FusableFunction ty)
 
 toFuseFun :: FusableFunction ty -> FusedFunction ty
 toFuseFun (PureFusable recvs qb (Identity out)) = PureFusable recvs qb (Just out)
+toFuseFun (STFusable a b c d e) = STFusable a b c d e
 
 genFun :: FusableFunction ty -> TaskExpr ty
 genFun fun = loop fun $ (\f -> genFun' (genSend f) f) $ toFuseFun fun
