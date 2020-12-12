@@ -59,7 +59,10 @@ runCorePasses expr = do
     seqE <- seqRewrite ifE
     stage seqTransformationALang seqE
     
-    let stateThreadsE' = postControlPasses seqE
+    normalizedE <- normalize seqE
+    stage normalizeAfterCorePasses normalizedE
+
+    let stateThreadsE' = postControlPasses normalizedE
     stage postControlSTCLangALang stateThreadsE'
 
     return stateThreadsE'

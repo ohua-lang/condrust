@@ -189,11 +189,13 @@ handleApplyExpr l@(Apply _ _) = go [] l
         case e of
             Apply fn arg -> do
                 go (arg : args) fn
-            Lit (FunRefLit (FunRef qb _ident (FunType argTypes))) -> do
+            Lit (FunRefLit (FunRef fn _ident (FunType argTypes))) -> do
                 assertE 
                     (length argTypes == length args)
-                    $ "Arg types and args don't match for function: " <> show qb
-                return (qb, Nothing, zip argTypes args)
+                    $ "Arg types [len: " <> show (length argTypes) <> 
+                      "] and args [len: "<> show (length args) <> 
+                      "] don't match for function: " <> show fn
+                return (fn, Nothing, zip argTypes args)
             Lit (FunRefLit (FunRef qb _ Untyped)) -> 
                 failWith $ "Wrong function type 'untyped' for pure function: " <> show qb
             Lit (FunRefLit (FunRef qb _ STFunType{})) -> 
@@ -205,7 +207,9 @@ handleApplyExpr l@(Apply _ _) = go [] l
             BindState state0 (Lit (FunRefLit (FunRef fn _ (STFunType sType argTypes)))) -> do
                 assertE 
                     (length argTypes == length args)
-                    $ "Arg types and args don't match for stateful function: " <> show fn
+                    $ "Arg types [len: " <> show (length argTypes) <> 
+                      "] and args [len: "<> show (length args) <> 
+                      "] don't match for stateful function: " <> show fn
                 state' <- expectStateBnd state0
                 return (fn, Just (sType, state'), zip argTypes args)
             x -> failWith $ "Expected Apply or Var but got: " <> show (x :: ALang.Expr ty)

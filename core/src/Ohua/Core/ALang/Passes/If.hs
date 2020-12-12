@@ -132,12 +132,9 @@ ifSf = Lit $ FunRefLit $ FunRef Refs.ifThenElse Nothing $ FunType [TypeVar, Type
 ifRewrite :: (Monad m, MonadGenBnd m, MonadError Error m) => Expr ty -> m (Expr ty)
 ifRewrite = transformM $ \case
     Lit (FunRefLit (FunRef f _ _)) `Apply` cond `Apply` trueBranch `Apply` falseBranch
-        | f == Refs.ifThenElse
-        , Lambda trueIn trueBody <- trueBranch
-        , isUnit trueIn
-        , Lambda falseIn falseBody <- falseBranch
-        , isUnit falseIn -> do
-
+        | f == Refs.ifThenElse -> do
+            case (trueBranch,falseBranch) of
+              (Lambda trueIn trueBody, Lambda falseIn falseBody) | isUnit trueIn && isUnit falseIn -> do
                 ctrlTrue <- generateBindingWith "ctrlTrue"
                 ctrlFalse <- generateBindingWith "ctrlFalse"
                 trueBranch' <- liftIntoCtrlCtxt ctrlTrue trueBody
@@ -156,8 +153,8 @@ ifRewrite = transformM $ \case
                     result
                     (Apply (Apply (Apply selectSf cond) $ Var trueResult) $
                      Var falseResult) $
-                    Var result
-        | otherwise -> throwError $ "Found if with unexpected, non-unit-lambda branch(es)\ntrue:\n " <> show trueBranch <> "\nfalse:\n" <> show falseBranch
+                    Var result  
+              _ -> throwError $ "Found if with unexpected, non-unit-lambda branch(es)\ntrue:\n " <> show trueBranch <> "\nfalse:\n" <> show falseBranch
       where
         -- This test needs to improve
         -- FIXME The proper way to do this would actually define a cond type! Then also

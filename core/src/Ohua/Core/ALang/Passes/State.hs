@@ -19,10 +19,13 @@ import Ohua.Core.ALang.Util
 import Ohua.Core.ALang.Passes.SSA
 import qualified Ohua.Core.ALang.Refs as Refs
 
+import Ohua.Core.ALang.PPrint ()
+
 import qualified Data.HashSet as HS
 
 import Control.Lens.Combinators (over)
 import Control.Lens.Plated (plate)
+
 
 -- TODO recursion support is still pending here!
 
@@ -73,20 +76,24 @@ addCtxtExit = transformM f
                         mkDestructured (v:allStates) ctxtOut
                         cont
     
-        f (Let v (fun@(PureFunction op _) `Apply` expr `Apply` ds) cont)
+        f (Let v (fun@(PureFunction op _) `Apply` lam `Apply` ds) cont)
             | op == Refs.smap =
-                let states = collectStates expr
+                let (args, expr) = lambdaArgsAndBody lam
+                    states = collectStates expr
                 in do
                     expr' <- mkST (map Var states) expr
                     ctxtOut <- generateBindingWith "ctxt_out"
+                    let lam' = mkLambda args expr'
                     return $
-                        Let ctxtOut (fun `Apply` expr' `Apply` ds) $
+                        Let ctxtOut (fun `Apply` lam' `Apply` ds) $
                         mkDestructured (v:states) ctxtOut
                         cont
         f expr = return expr
 
 -- Assumptions: This function is applied to a normalized and SSAed expression.
 --              This transformation executes after the control rewrites.
+-- Note: The use of descend is entirely not necessary anymore once the "applicative normal form"
+--       is properly defined as a type.
 transformCtxtExits :: forall ty. Expr ty -> Expr ty
 transformCtxtExits = evictOrphanedDestructured . f
     where
@@ -94,7 +101,9 @@ transformCtxtExits = evictOrphanedDestructured . f
         f (Let v e@(PureFunction op _ `Apply` _) cont)
             | op == ctxtExit =
                 let (_, compOut:stateArgs) = fromApplyToList e
-                in descend (g v compOut stateArgs) cont
+                    g' = g v compOut stateArgs
+                    cont' = g' cont
+                in descend g' cont'
         f e = descend f e
 
         g :: Binding -> Expr ty -> [Expr ty] -> Expr ty -> Expr ty
@@ -102,22 +111,24 @@ transformCtxtExits = evictOrphanedDestructured . f
             | op == ctxtExit = 
                 -- Must be a conditional
                 let (_, compOut':stateArgs') = fromApplyToList e
-                in descend (h compound compOut stateArgs v compOut' stateArgs') cont
+                    h' = h compound compOut stateArgs v compOut' stateArgs'
+                    cont' = h' cont
+                in descend h' cont'
 
-        g _ compOut stateOuts (Let v (fun@(PureFunction op _) `Apply` size `Apply` _) cont)
-            | op == Refs.collect = 
-                let (compOut':stateOuts') = findDestructured cont v
+        g ctxtExitRes compOut stateOuts (Let v (fun@(PureFunction op _) `Apply` size `Apply` (Var exitRes)) cont)
+            | op == Refs.collect && ctxtExitRes == exitRes = 
+                let (compOut':stateOuts') = trace "HERE" $ findDestructured cont v
                     stateExits ct = 
                         foldr
                             (\(s',s) c -> 
                                 Let s' (runSTCLangSMapFun `Apply` size `Apply` s) c)
                             ct
                             $ zip stateOuts' stateOuts 
-
-                in Let compOut' (fun `Apply` size `Apply` compOut) $
-                    stateExits $
-                    descend f cont
-        g co c s e = descend (g co c s) e
+                in descend f $
+                    Let compOut' (fun `Apply` size `Apply` compOut) $
+                        stateExits 
+                        cont
+        g co c s e = trace ("THERE: " <> show e) $ descend (g co c s) e
 
         h :: Binding -> Expr ty -> [Expr ty]
           -> Binding -> Expr ty -> [Expr ty]

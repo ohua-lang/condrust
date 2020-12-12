@@ -92,6 +92,7 @@ checkHigherOrderFunctionSupport (ALang.Let _ e rest) = do
         pure True
     checkNestedExpr (PureFunction n _) = pure $ HS.member n hofNames
     checkNestedExpr (ALang.Var _) = pure False
+    checkNestedExpr (ALang.BindState e1 e2) = checkNestedExpr e1 >> checkNestedExpr e2
     checkNestedExpr a = failWith $ "Expected var or apply expr, got " <> show a
     isLambda (Lambda _ _) = True
     isLambda _ = False

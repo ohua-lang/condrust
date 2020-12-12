@@ -31,11 +31,13 @@ import qualified Ohua.Core.ALang.Refs as Refs
 import Ohua.Core.ALang.Util (lambdaArgsAndBody, mkDestructured, renameVar)
 import Ohua.Core.Prelude
 
+import Ohua.Core.ALang.PPrint ()
+
 smapSfFun :: Expr ty
-smapSfFun = Lit $ FunRefLit $ FunRef Refs.smapFun Nothing Untyped
+smapSfFun = Lit $ FunRefLit $ FunRef Refs.smapFun Nothing $ FunType [TypeVar]
 
 collectSf :: Expr ty
-collectSf = Lit $ FunRefLit $ FunRef Refs.collect Nothing Untyped
+collectSf = Lit $ FunRefLit $ FunRef Refs.collect Nothing $ FunType [TypeVar, TypeVar]
 
 smapRewrite :: (Monad m, MonadGenBnd m) => Expr ty -> m (Expr ty)
 smapRewrite =
@@ -46,7 +48,9 @@ smapRewrite =
     -- post traversal optimization
                 ctrlVar <- generateBindingWith "ctrl"
                 lamExpr'' <- liftIntoCtrlCtxt ctrlVar lamExpr'
-                let ([inBnd], expr) = lambdaArgsAndBody lamExpr''
+                let ([inBnd], expr) = case lambdaArgsAndBody lamExpr'' of 
+                                        e@([_], _) -> e
+                                        e -> error $ "Pattern match failure. Got pattern: " <> quickRender e 
                 d <- generateBindingWith "d"
                 let expr' = renameVar expr (Var inBnd, d)
   --   [ohualang|

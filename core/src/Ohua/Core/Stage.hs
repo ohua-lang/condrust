@@ -69,6 +69,9 @@ conditionalsTransformationALang = "alang-condtionals-transformation"
 seqTransformationALang :: StageName
 seqTransformationALang = "alang-seq-transformation"
 
+normalizeAfterCorePasses :: StageName
+normalizeAfterCorePasses = "alang-normalize-after-core-passes"
+
 preControlSTCLangALang :: StageName
 preControlSTCLangALang = "alang-stclang-pre-control"
 
@@ -92,4 +95,5 @@ knownStages =
     , seqTransformationALang
     , preControlSTCLangALang
     , postControlSTCLangALang
+    , normalizeAfterCorePasses
     ]
