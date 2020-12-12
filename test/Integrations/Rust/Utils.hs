@@ -31,7 +31,7 @@ import qualified Data.ByteString.Lazy.Char8 as L
 
 
 debug :: Bool
-debug = False
+debug = True
 
 renderRustCode :: SourceFile Span -> L.ByteString
 renderRustCode = 
@@ -45,9 +45,15 @@ debugOptions = def & stageHandling .~ debugStageHandling
 
 debugStageHandling = 
     intoStageHandling DumpStdOut
-        $ Just [Stage coreDflang True False
-                , Stage coreAlang True False
-                , Stage initialDflang True False]
+        $ Just 
+            [ Stage coreDflang True False
+            , Stage coreAlang True False
+            , Stage initialDflang True False
+            , Stage preControlSTCLangALang True False
+            , Stage smapTransformationALang True False
+            , Stage postControlSTCLangALang True False
+            , Stage normalizeAfterCorePasses True False
+            ]
 
 compileCode :: SourceFile Span -> IO (SourceFile Span)
 compileCode inCode = 
@@ -66,10 +72,19 @@ compileCode inCode =
                 \ fn f2(i:i32) -> i32 { unimplemented!{} } \
                 \ fn g0(i:i32) -> i32 { unimplemented!{} } \
                 \ fn g1(i:i32) -> i32 { unimplemented!{} } \
-                \ struct S{} \
+                \\
+                \ struct S {} \
                 \ impl S { \
                 \   fn new(i:i32) -> S { unimplemented!{} } \
                 \   fn gs(self, i:i32) -> i32 { unimplemented!{} } \
+                \ } \
+                \ fn k(s:S) -> () { unimplemented!{} } \
+                \\
+                \ fn iter() -> Iterator<S> { unimplemented!{} } \
+                \ impl Iterator for S { \
+                \   type Item=S; \
+                \   fn next(&mut self) -> Option<S> { unimplemented!{} } \
+                \   fn size_hint(&self) -> (usize, Option<usize>) { unimplemented!{} } \
                 \ } \
                 \ "
             let inFile = testDir </> "test.rs"
