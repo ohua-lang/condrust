@@ -35,8 +35,8 @@ instance Architecture (Architectures 'M3) where
             []
             noSpan
 
-    convertRecv SM3 (SRecv TypeVar (SChan channel)) = error "Invariant broken!"
-    convertRecv SM3 (SRecv (Type (TE.Self ty mut)) (SChan channel)) = undefined
+    convertRecv SM3 (SRecv TypeVar (SChan _channel)) = error "Invariant broken!"
+    convertRecv SM3 (SRecv (Type (TE.Self _ty _ _mut)) (SChan _channel)) = error "Not yet implemented: Recv of reference type"
     convertRecv SM3 (SRecv (Type (TE.Normal ty)) (SChan channel)) =
         let ty' = noSpan <$ ty
             send = MethodCall

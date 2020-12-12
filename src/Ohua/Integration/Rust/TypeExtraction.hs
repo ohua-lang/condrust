@@ -11,7 +11,7 @@ import Language.Rust.Parser (Span)
 import qualified Data.HashMap.Lazy as HM
 
 
-data RustArgType a = Self (Ty a) Mutability | Normal (Ty a) deriving (Show, Eq)
+data RustArgType a = Self (Ty a) (Maybe (Lifetime a)) Mutability | Normal (Ty a) deriving (Show, Eq)
 type RustTypeAnno = RustArgType Span
 type FunTypes = HM.HashMap QualifiedBinding (FunType RustTypeAnno)
 
@@ -61,9 +61,9 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
                 (x:xs) -> firstArgExtract x  =<< mapM convertArg xs
 
         convertImplArg :: (CompM m, Show a) => Ty a -> Arg a -> m (ArgType (RustArgType a))
-        convertImplArg selfType (SelfValue mut _) = return $ Type $ Self selfType mut
-        convertImplArg _ a@SelfRegion{} = throwError $ "Self arguments by reference are currently not supported." <> show a
-        convertImplArg selfType (SelfExplicit _ty mut _) = return $ Type $ Self selfType mut
+        convertImplArg selfType (SelfValue mut _) = return $ Type $ Self selfType Nothing mut
+        convertImplArg selfType (SelfRegion lifeTime mut _) = return $ Type $ Self selfType lifeTime mut
+        convertImplArg selfType (SelfExplicit _ty mut _) = return $ Type $ Self selfType Nothing mut
         convertImplArg _ a = convertArg a
 
         convertArg :: (CompM m, Show a) => Arg a -> m (ArgType (RustArgType a))

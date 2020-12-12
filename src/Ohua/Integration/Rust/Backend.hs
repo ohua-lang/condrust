@@ -144,8 +144,8 @@ instance Integration (Language 'Rust) where
         TCLang.Assign bnd $ Apply $ Stateless (mkFunRefUnqual "-") [Var bnd, TCLang.Lit $ NumericLit 1]
     convertExpr arch (TCLang.Not expr) = convertExpr arch $ Apply $ Stateless (mkFunRefUnqual "!") [expr]
     
-    convertExpr _ (TCLang.HasSize _bnd) = undefined -- TODO This is really something that we need to reconsider/redesign!
-    convertExpr _ (TCLang.Generate _bnd lit) = undefined -- TODO 
+    convertExpr _ (TCLang.HasSize _bnd) = error "undefined: TCLang.HasSize" -- TODO This is really something that we need to reconsider/redesign!
+    convertExpr _ (TCLang.Generate _bnd lit) = error "undefined: TCLang.Generate" -- TODO 
 
 pattern UnqualFun :: Binding -> QualifiedBinding
 pattern UnqualFun bnd <- QualifiedBinding [] bnd
