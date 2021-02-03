@@ -96,6 +96,7 @@ prettyLit =
         NumericLit n -> pretty n
         UnitLit -> "()"
         EnvRefLit he -> "$" <> pretty he
+        BoolLit b -> pretty b
 
 instance Pretty HostExpr where
     pretty = pretty . unwrap

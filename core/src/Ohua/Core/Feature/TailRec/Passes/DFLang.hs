@@ -31,17 +31,32 @@ recurLowering expr
       outsANew = map (Direct . DataBinding) . outsDFApp
 
       findEnd :: MonadOhua m => NonEmpty (OutData 'Data) -> NonEmpty (DFVar 'Data ty) -> NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
-      findEnd outs inp (Let app cont) | fnDFApp app == ALangPass.recurEndMarker = 
-          let fixRef:(cond:recurArgs) = insDFApp app
+      findEnd outs inp (Let app@PureDFFun{} cont) | fnDFApp app == ALangPass.recurEndMarker = 
+          let cond:(fixRef:recurArgs) = insDFApp app
                 -- FIXME we don't need the var lists when we use the assertion
                 -- that these two lists have the same size! and this is always
                 -- true because these are the arguments to a call to the same
                 -- function, i.e, the recursion!
-              inp' = DFVar TypeVar (DataBinding fixRef) <| [DFVar TypeVar $ DataBinding cond] <> inp 
-              inp'' = maybe inp' (inp' <>) $ nonEmpty $ map (DFVar TypeVar . DataBinding) recurArgs
-              outs'' = Destruct (outs <> map (Direct . DataBinding) (outsDFApp app))
-          in pure $
-              Let (PureDFFun outs'' Refs.recurFun inp'') cont
+              condIn = DFVar TypeVar $ DataBinding cond
+              finalResultIn = DFVar TypeVar $ DataBinding fixRef
+              recurInitArgs = toList inp
+              recurArgs' = map (DFVar TypeVar . DataBinding) recurArgs
+
+              ctrlOut = head outs
+              recurArgsOuts = tail outs
+              -- assumption: the end marker only has the final output
+              finalResultOut = last $ outsANew app
+
+              rf = RecurFun 
+                    finalResultOut
+                    ctrlOut
+                    recurArgsOuts
+                    recurInitArgs
+                    recurArgs'
+                    condIn
+                    finalResultIn
+
+          in pure $ Let rf cont
       findEnd outs inp (Let app cont) = Let app <$> findEnd outs inp cont
       -- FIXME This looks like we should perform this transformation differently, so we
       -- can avoid this failure case. 
