@@ -208,6 +208,6 @@ generateNodeCode e@(PureDFFun out fun inp) | fun == ctrl = do
 --         EndlessLoop $
 --             Ops.runSTCLang sizeIn dataIn stateIn collectFun collectedOutput
 
-generateNodeCode (PureDFFun _out fun _inp) | fun == recurFun = undefined
+generateNodeCode RecurFun{} = undefined
 generateNodeCode e = generateFunctionCode e
     
