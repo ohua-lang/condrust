@@ -65,6 +65,7 @@ dependencies:
 - fast-logger
 - bytestring
 - filepath
+- singletons
 
 library:
   source-dirs: src
