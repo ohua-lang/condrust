@@ -31,6 +31,7 @@ dependencies:
 - generic-lens >= 1.0.0.2
 - ohuac-commons
 - extra
+- singletons
 default-extensions:
 - OverloadedStrings
 - OverloadedLists

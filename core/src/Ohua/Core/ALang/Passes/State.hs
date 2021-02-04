@@ -117,7 +117,7 @@ transformCtxtExits = evictOrphanedDestructured . f
 
         g ctxtExitRes compOut stateOuts (Let v (fun@(PureFunction op _) `Apply` size `Apply` (Var exitRes)) cont)
             | op == Refs.collect && ctxtExitRes == exitRes = 
-                let (compOut':stateOuts') = trace "HERE" $ findDestructured cont v
+                let (compOut':stateOuts') = findDestructured cont v
                     stateExits ct = 
                         foldr
                             (\(s',s) c -> 
@@ -128,7 +128,7 @@ transformCtxtExits = evictOrphanedDestructured . f
                     Let compOut' (fun `Apply` size `Apply` compOut) $
                         stateExits 
                         cont
-        g co c s e = trace ("THERE: " <> show e) $ descend (g co c s) e
+        g co c s e = descend (g co c s) e
 
         h :: Binding -> Expr ty -> [Expr ty]
           -> Binding -> Expr ty -> [Expr ty]

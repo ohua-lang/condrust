@@ -4,7 +4,7 @@
 module Ohua.Core.DFLang.Lang where
 
 import Ohua.Core.Prelude
-import Ohua.Types.Vector
+import Ohua.Types.Vector as V hiding (map)
 
 import Ohua.Core.DFLang.Refs as DFLangRefs (recurFun)
 
@@ -81,40 +81,22 @@ data DFApp (f::FunANF) (ty::Type) :: Type where
     PureDFFun :: OutData b -> QualifiedBinding -> NonEmpty (DFVar 'Data ty) -> DFApp 'Fun ty 
     StateDFFun :: (Maybe (OutData 'State), OutData 'Data) 
                 -> QualifiedBinding -> DFVar 'State ty -> NonEmpty (DFVar 'Data ty) -> DFApp 'ST ty
-    RecurFun :: (n ~ 'Succ m) => 
+    RecurFun :: --(n ~ 'Succ m) => 
             -- (final) result out 
             OutData b ->
             -- | recursion control output 
             OutData 'Data ->
             -- | recursion args outputs
-            [OutData b] ->
+            Vec n (OutData b) ->
             -- | initial inputs
-            [DFVar a ty] ->
+            Vec n (DFVar a ty) ->
             -- | recursion args inputs 
-            [DFVar a ty] -> 
+            Vec n (DFVar a ty) -> 
             -- | recursion condition input 
             DFVar 'Data ty ->
             -- (final) result in 
             DFVar 'Data ty ->
-            DFApp 'BuiltIn ty
-    -- This definition sadly does not work unless I rewrite ALang as well, such that I can proof to 
-    -- the type checker (in the ALang transformation for recur) that these a really of the same length. 
-    -- RecurFun :: (n ~ 'Succ m) => 
-    --         -- (final) result out 
-    --         OutData b ->
-    --         -- | recursion control output 
-    --         OutData 'Data ->
-    --         -- | recursion args outputs
-    --         Vec n (OutData b) ->
-    --         -- | initial inputs
-    --         Vec n (DFVar a ty) ->
-    --         -- | recursion args inputs 
-    --         Vec n (DFVar a ty) -> 
-    --         -- | recursion condition input 
-    --         DFVar 'Data ty ->
-    --         -- (final) result in 
-    --         DFVar 'Data ty ->
-    --         DFApp 'BuiltIn ty 
+            DFApp 'BuiltIn ty 
     -- SMapFun
     -- Collect
     -- Ctrl
@@ -140,7 +122,9 @@ outsDFApp :: DFApp ty a -> NonEmpty Binding
 outsDFApp (PureDFFun out _ _) = outBnds out
 outsDFApp (StateDFFun (Nothing, out) _ _ _) = outBnds out
 outsDFApp (StateDFFun (Just stateOut, out) _ _ _) = outBnds stateOut <> outBnds out
-outsDFApp (RecurFun result ctrl recurs _ _ _ _) = outBnds result <> join (map outBnds $ toNonEmpty recurs) <> outBnds ctrl
+outsDFApp (RecurFun result ctrl recurs _ _ _ _) = 
+    let (x:|xs) = outBnds result
+    in (x :| (xs <> join (map (NE.toList . outBnds) $ V.toList recurs))) <> outBnds ctrl
 
 outBnds :: OutData a -> NonEmpty Binding
 outBnds (Destruct o) = sconcat $ NE.map outBnds o
@@ -148,21 +132,21 @@ outBnds (Dispatch o) = NE.map unwrapABnd o
 outBnds (Direct bnd) = unwrapABnd bnd :| []
 
 insApp :: App ty a -> [Binding]
-insApp (PureFun _ _ i) = extractBndsFromInputs i
-insApp (StateFun _ _ (DFVar _ s) i) = unwrapABnd s : extractBndsFromInputs i
+insApp (PureFun _ _ i) = extractBndsFromInputs $ NE.toList i
+insApp (StateFun _ _ (DFVar _ s) i) = unwrapABnd s : extractBndsFromInputs (NE.toList i)
 
 insDFApp :: DFApp ty a -> [Binding]
-insDFApp (PureDFFun _ _ i) = extractBndsFromInputs i
-insDFApp (StateDFFun _ _ (DFVar _ s) i) = unwrapABnd s : extractBndsFromInputs i
+insDFApp (PureDFFun _ _ i) = extractBndsFromInputs $ NE.toList i
+insDFApp (StateDFFun _ _ (DFVar _ s) i) = unwrapABnd s : extractBndsFromInputs (NE.toList i)
 insDFApp (RecurFun _ _ _ initIns recurs cond result) =  
-    extractBndsFromInputs (toNonEmpty initIns) <> 
-    extractBndsFromInputs (toNonEmpty recurs) <> 
-    extractBndsFromInputs (cond :| []) <>
-    extractBndsFromInputs (result :| [])
+    extractBndsFromInputs (V.toList initIns) <> 
+    extractBndsFromInputs (V.toList recurs) <> 
+    extractBndsFromInputs [cond] <>
+    extractBndsFromInputs [result]
 
-extractBndsFromInputs :: NonEmpty (DFVar a ty) -> [Binding]
+extractBndsFromInputs :: [DFVar a ty] -> [Binding]
 extractBndsFromInputs = 
-    mapMaybe  (\case DFVar _ bnd -> Just $ unwrapABnd bnd; _ -> Nothing) . NE.toList
+    mapMaybe  (\case DFVar _ bnd -> Just $ unwrapABnd bnd; _ -> Nothing)
 
 fnApp :: App ty a -> QualifiedBinding
 fnApp (PureFun _ f _) = f
