@@ -1,6 +1,7 @@
 module Ohua.Compile.Lower.DFLang where
 
 import Ohua.Prelude
+import qualified Ohua.Types.Vector as V
 
 import Ohua.Core.DFLang.Lang as DFLang
 import Ohua.Core.DFLang.Refs as Refs
@@ -208,6 +209,26 @@ generateNodeCode e@(PureDFFun out fun inp) | fun == ctrl = do
 --         EndlessLoop $
 --             Ops.runSTCLang sizeIn dataIn stateIn collectFun collectedOutput
 
-generateNodeCode RecurFun{} = undefined
+generateNodeCode e@(RecurFun resultOut ctrlOut recArgsOuts recInitArgsIns recArgsIns recCondIn recResultIn) = do
+    resultOut' <- directOut resultOut
+    ctrlOut' <- directOut ctrlOut
+    recArgsOuts' <- mapM directOut $ V.toList recArgsOuts
+    let recInitArgsIns' = map varToChan $ V.toList recInitArgsIns
+    let recArgsIns' = map varToChan $ V.toList recArgsIns
+    let recCondIn' = varToChan recCondIn
+    let recResultIn' = varToChan recResultIn
+    return $ Recur 
+            $ Ops.RecFun
+                resultOut' ctrlOut' recArgsOuts'
+                recInitArgsIns' recArgsIns' recCondIn' recResultIn'
+    where
+        -- stronger typing needed on OutData to prevent this error handling here.
+        -- (as a matter of fact it might be possible for some output to be destructured etc.
+        --  we need a function here that turns such a thing into the appropriate backend code!)
+        directOut :: CompM m => OutData a -> LoweringM m (Com 'Channel ty)
+        directOut x = case x of 
+                        Direct x' -> return $ SChan $ unwrapABnd x'
+                        _ -> invariantBroken $ "Control outputs don't match:\n" <> show e
+        varToChan (DFVar t v) = SRecv t $ SChan $ unwrapABnd v
 generateNodeCode e = generateFunctionCode e
     
