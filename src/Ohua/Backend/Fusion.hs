@@ -16,12 +16,12 @@ data Fusable ty ctrl0 ctrl1
     = Fun (FusableFunction ty)
     | STC (STCLangSMap ty)
     | Control (Either ctrl0 ctrl1)
+    | Recur (RecFun ty)
     | Unfusable (TaskExpr ty) -- TODO this is only here until the below was implemented properly
     --  IfFun
     --  Select
     --  SMapFun
     --  Collect
-    --  RecurFun
     --  UnitFun
     deriving (Eq, Functor, Generic)
 
