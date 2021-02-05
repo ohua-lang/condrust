@@ -20,6 +20,7 @@ data Vec (n::Nat) a where
     (:>) :: a -> Vec n a -> Vec ('Succ n) a
 
 deriving instance (Show a) => Show (Vec n a)
+deriving instance (Eq a) => Eq (Vec n a)
 
 -- computed by $(genSingletons [’’Nat])
 -- Sing is an open type family (as opposed to a closed type family declared with a GADT)
