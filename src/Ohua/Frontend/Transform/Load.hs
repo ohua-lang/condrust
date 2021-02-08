@@ -28,7 +28,8 @@ import qualified Data.HashMap.Strict as HM
 loadDeps :: forall m lang.
     (CompM m, Integration lang) 
     => lang -> CompilationScope -> Namespace (Expr (Type lang)) (AlgoSrc lang) -> m (NamespaceRegistry (Type lang))
-loadDeps lang scope currentNs = do
+loadDeps lang scope (Namespace _ imps algs) = do
+    let currentNs = Namespace (makeThrow []) imps algs
     let registry' = registerAlgos HM.empty currentNs
     modules <- mapM (\path -> snd <$> loadNs lang (toFilePath path)) $ HM.toList scope
     let registry'' = foldl registerAlgos registry' modules
@@ -47,13 +48,15 @@ loadDeps lang scope currentNs = do
 
 load :: forall m lang.
     (CompM m, Integration lang) 
-    => lang -> CompilationScope -> FilePath -> m (NS lang, (Namespace (Expr (Type lang)) (AlgoSrc lang), NamespaceRegistry (Type lang)))
+    => lang -> CompilationScope -> FilePath 
+    -> m (NS lang, (Namespace (Expr (Type lang)) (AlgoSrc lang), NamespaceRegistry (Type lang)))
 load lang scope inFile = do
-    logDebugN $ "Loading module: " <> show inFile <> "..."
+    -- logDebugN $ "Loading module: " <> show inFile <> "..."
     (ctxt, ns) <- loadNs lang inFile
-    logDebugN $ "Loaded ns: " <> show (ns^.nsName)
+    -- let ns' = Namespace (makeThrow []) imports algos -- references to functions contain an empty ref
+    -- logDebugN $ "Loaded ns: " <> show (ns'^.nsName)
     -- verify scope ns
-    logDebugN "Loading dependencies ..."
+    -- logDebugN "Loading dependencies ..."
     registry <- loadDeps lang scope ns
-    logDebugN "compiled ns successfully."
+    -- logDebugN "compiled ns successfully."
     return (ctxt, (ns, registry))
