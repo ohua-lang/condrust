@@ -96,3 +96,66 @@ spec =
                         }
                     |]
                 compiled `shouldBe` expected)
+        it "algo loading" $
+            (showCode "Compiled: " =<< compileCode [sourceFile| 
+                use funs;
+
+                fn algo(i: i32) -> String {
+                    let x = funs::h(i);
+                    funs::g(x)
+                }
+
+                fn test() -> String {
+                    algo(4)
+                }
+                |]) >>= 
+            (\compiled -> do
+                expected <- showCode "Expected:"
+                    [sourceFile| 
+                        use funs;
+                        
+                        fn algo(i: i32) -> String {
+                            let (a_0_tx, a_0_rx) = std::sync::mpsc::channel();
+                            let (x_0_0_tx, x_0_0_rx) = std::sync::mpsc::channel();
+                            let mut tasks: Vec<Box<FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
+                            tasks
+                                .push(Box::new(move || -> _ {
+                                  loop {
+                                    let var_0 = x_0_0_rx.recv();
+                                    let a_0 = funs::g(var_0);
+                                    a_0_tx.send(a_0)
+                                  }
+                                }));
+                            tasks
+                                .push(Box::new(move || -> _ {
+                                  let var_0 = i;
+                                  let x_0_0 = funs::h(var_0);
+                                  x_0_0_tx.send(x_0_0)
+                                }));
+                            run(tasks);
+                            a_0_rx.recv()
+                        }
+                        
+                        fn test() -> String {
+                            let (a_0_tx, a_0_rx) = std::sync::mpsc::channel();
+                            let (x_0_0_tx, x_0_0_rx) = std::sync::mpsc::channel();
+                            let mut tasks: Vec<Box<FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
+                            tasks
+                                .push(Box::new(move || -> _ {
+                                  loop {
+                                    let var_0 = x_0_0_rx.recv();
+                                    let a_0 = funs::g(var_0);
+                                    a_0_tx.send(a_0)
+                                  }
+                                }));
+                            tasks
+                                .push(Box::new(move || -> _ {
+                                  let var_0 = 4;
+                                  let x_0_0 = funs::h(var_0);
+                                  x_0_0_tx.send(x_0_0)
+                                }));
+                            run(tasks);  
+                            a_0_rx.recv()
+                        }
+                    |]
+                compiled `shouldBe` expected)
