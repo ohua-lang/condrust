@@ -83,10 +83,13 @@ instance Integration (Language 'Rust) where
                 Module -> 
                 Namespace (FrLang.Expr (RustArgType Span)) (Item Span) -> 
                 m (Namespace (FrLang.Expr (RustArgType Span)) (Item Span))
-    loadTypes _ _ ohuaNs = do
+    loadTypes _ (Module ownFile _) ohuaNs = do
         filesAndPaths <- concat <$> mapM funsForAlgo (ohuaNs^.algos)
-        types <- load $ HS.toList $ HS.fromList $ concatMap fst filesAndPaths
-        types' <- HM.fromList <$> mapM (verifyAndRegister types) filesAndPaths
+        -- traceShowM $ "files and paths: " <> show filesAndPaths
+        let filesAndPaths' = map (first convertOwn) filesAndPaths
+        types <- load $ concatMap fst filesAndPaths'
+        -- traceShowM $ "loaded types: " <> show types
+        types' <- HM.fromList <$> mapM (verifyAndRegister types) filesAndPaths'
         -- traceShowM $ "extracted types: " <> show types'
         updateExprs ohuaNs (transformM (assignTypes types'))
         where
@@ -100,7 +103,7 @@ instance Integration (Language 'Rust) where
                             -- do 
                             --     traceShowM $ "Fun: " <> show qb <> " Type: " <> show typ
                                 return $ LitE $ FunRefLit $ FunRef qb i typ
-                        Nothing -> throwError "Compiler invariant broken." -- Liquid Haskell?!
+                        Nothing -> throwError "Compiler invariant broken."
                 e ->  return e
 
             fullyResolvedImports = resolvedImports fullyResolved
@@ -139,18 +142,22 @@ instance Integration (Language 'Rust) where
                         xs -> return (xs, q)
 
             load :: CompM m => [NSRef] -> m FunTypes
-            load nsRefs = HM.unions <$> mapM (extractFromFile . toFilePath . (,".rs")) nsRefs
+            load nsRefs = HM.unions <$> mapM (extractFromFile . toFilePath . (,".rs") )nsRefs
+            
+            convertOwn :: [NSRef] -> [NSRef]
+            convertOwn [] = [filePathToNsRef ownFile]
+            convertOwn ns = ns
 
             verifyAndRegister :: CompM m => FunTypes -> ([NSRef], QualifiedBinding) -> m (QualifiedBinding, FunType (RustArgType Span))
             verifyAndRegister types ([candidate], qp@(QualifiedBinding _ name)) =
                 case HM.lookup (QualifiedBinding candidate name) types of
                     Just t -> return (qp, t)
                     Nothing -> throwError $ "Function `" <> show (unwrap name) <> "` not found in module `" <> show candidate <> "`. I need these types to generate the code. Please check that the function actually exists by compiling again with `rustc`."
-            verifyAndRegister types (globs, qp@(QualifiedBinding _ name)) =
-                case mapMaybe ((`HM.lookup` types) . (`QualifiedBinding` name)) globs of
-                    [] -> throwError $ "Function `" <> show (unwrap name) <> "` not found in modules `" <> show globs <> "`. I need these types to generate the code. Please check that the function actually exists by compiling again with `rustc`."
+            verifyAndRegister types (globs', qp@(QualifiedBinding _ name)) =
+                case mapMaybe ((`HM.lookup` types) . (`QualifiedBinding` name)) globs' of
+                    [] -> throwError $ "Function `" <> show (unwrap name) <> "` not found in modules `" <> show globs' <> "`. I need these types to generate the code. Please check that the function actually exists by compiling again with `rustc`."
                     [t] -> return (qp, t)
-                    _ -> throwError $ "Multiple definitions of function `" <> show (unwrap name) <> "` in modules " <> show globs <> " detected!\nPlease verify again that your code compiles properly by running `rustc`. If the problem persists then please file a bug. (See issue sertel/ohua-frontend#1)"
+                    _ -> throwError $ "Multiple definitions of function `" <> show (unwrap name) <> "` in modules " <> show globs' <> " detected!\nPlease verify again that your code compiles properly by running `rustc`. If the problem persists then please file a bug. (See issue sertel/ohua-frontend#1)"
 
 instance (Show a) => ConvertExpr (Rust.Expr a) where 
     convertExpr e@Box{} = throwError $ "Currently, we do not support the construction of boxed values. Please do so in a function." <> show e
