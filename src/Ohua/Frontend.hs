@@ -16,14 +16,14 @@ frontend :: forall m lang. (CompM m, Integration lang)
         => lang -> CompilationScope -> FilePath -> m (NS lang, Namespace (FrLang.Expr (Type lang)) (AlgoSrc lang))
 frontend lang compScope inFile = do
         (langNs, (ns,reg)) <- load lang compScope inFile
-        ns' <- updateExprs ns transform
-        ns'' <- resolveNS (ns',reg)
-        ns''' <- loadTypes lang langNs ns''
-        return (langNs, ns''')
+        ns'    <- updateExprs ns transform
+        ns''   <- resolveNS (ns',reg)
+        ns''' <- updateExprs ns'' wellScopedness
+        ns'''' <- loadTypes lang langNs ns'''
+        return (langNs, ns'''')
     where
         transform :: CompM m => FrLang.Expr ty -> m (FrLang.Expr ty)
-        transform e = 
-                (\a -> check a >> return a) =<< 
-                ( prepareRootAlgoVars 
-                . makeWellScoped
-                ) e
+        transform e = prepareRootAlgoVars =<< wellScopedness e
+        
+        wellScopedness :: CompM m => FrLang.Expr ty -> m (FrLang.Expr ty)
+        wellScopedness e = (\a -> check a >> return a) $ makeWellScoped e

@@ -19,7 +19,9 @@ makeWellScoped = go HS.empty
         -- https://ndmitchell.com/downloads/paper-uniform_boilerplate_and_list_processing-30_sep_2007.pdf
         go scope (LetE v a b) = 
             let scope' = HS.union scope $ HS.fromList $ goPat v 
-            in LetE v (go scope' a) (go scope' b)
+            in LetE v 
+                    (go scope' a) -- take recursive calls into account
+                    (go scope' b)
         go scope (LamE vs b) =
             let scope' = HS.union scope $ HS.fromList $ join $ Ohua.Prelude.map goPat vs 
             in LamE vs (go scope' b)
