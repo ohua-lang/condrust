@@ -9,6 +9,7 @@ import qualified Data.HashSet as HS
 import GHC.Exts
 
 import Ohua.Frontend.Lang
+import Ohua.Frontend.PPrint ()
 import Ohua.Core.ALang.Lang hiding (Expr, ExprF)
 import qualified Ohua.Core.ALang.Lang as AL
 import qualified Ohua.Core.ALang.Refs as ARefs
@@ -108,7 +109,8 @@ toAlang' taken expr = runGenBndT taken $ transform expr
     where 
         transform =
             giveEmptyLambdaUnitArgument >>>
-            mkLamSingleArgument >>> removeDestructuring >=> pure . trans
+            mkLamSingleArgument >>> 
+            removeDestructuring >=> pure . trans
 
 toAlang :: CompM m => Expr ty -> m (AL.Expr ty)
 toAlang expr = toAlang' (definedBindings expr) expr

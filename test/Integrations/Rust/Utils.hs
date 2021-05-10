@@ -1,5 +1,5 @@
 module Integrations.Rust.Utils (
-    renderRustCode, showCode, compileCode,
+    renderRustCode, showCode, compileCode, compileCodeWithRec,
     module Test.Hspec,
     module Language.Rust.Quote
 ) where
@@ -8,7 +8,7 @@ import Ohua.Prelude
 
 import Test.Hspec
 
-import Ohua.Core.Types.Environment (stageHandling)
+import Ohua.Core.Types.Environment (stageHandling, Options, transformRecursiveFunctions)
 import Ohua.Core.Types.Stage (DumpCode(..))
 import Ohua.Core.Stage
 
@@ -41,12 +41,15 @@ renderRustCode =
     layoutSmart defaultLayoutOptions . 
     pretty'
 
-debugOptions = def & stageHandling .~ debugStageHandling 
+withDebug d = d & stageHandling .~ debugStageHandling
+
+withRec d = d & transformRecursiveFunctions .~ True
 
 debugStageHandling = 
     intoStageHandling DumpStdOut
         $ Just 
-            [ Stage coreDflang True False
+            [ Stage resolvedAlang True False
+            , Stage coreDflang True False
             , Stage coreAlang True False
             , Stage initialDflang True False
             , Stage preControlSTCLangALang True False
@@ -55,8 +58,14 @@ debugStageHandling =
             , Stage normalizeAfterCorePasses True False
             ]
 
+compileCodeWithRec :: SourceFile Span -> IO (SourceFile Span)
+compileCodeWithRec inCode = compileCode' inCode $ withRec def
+
 compileCode :: SourceFile Span -> IO (SourceFile Span)
-compileCode inCode = 
+compileCode inCode = compileCode' inCode def
+
+compileCode' :: SourceFile Span -> Options -> IO (SourceFile Span)
+compileCode' inCode opts = 
     withSystemTempDirectory "testDir" 
         $ \testDir -> do
             setCurrentDirectory testDir
@@ -72,6 +81,7 @@ compileCode inCode =
                 \ fn f2(i:i32) -> i32 { unimplemented!{} } \
                 \ fn g0(i:i32) -> i32 { unimplemented!{} } \
                 \ fn g1(i:i32) -> i32 { unimplemented!{} } \
+                \ fn check(i:i32) -> bool { unimplemented!{} } \
                 \\
                 \ struct S {} \
                 \ impl S { \
@@ -92,7 +102,7 @@ compileCode inCode =
             withSystemTempDirectory "output" 
                 $ \outDir -> do
                     let compScope = HM.empty
-                    let options = if debug then debugOptions else def 
+                    let options = if debug then withDebug opts else opts
                     runCompM
                         LevelWarn
                         $ compile inFile compScope options outDir
