@@ -298,7 +298,8 @@ removeCurrying e = fst <$> evalRWST (para inlinePartials e) mempty ()
         val <- asks (HM.lookup bnd)
         Apply <$>
             maybe
-                (failWith $ "No suitable value found for binding " <> show bnd)
+                (failWith $ "No suitable value found for binding " <> show bnd <> 
+                    " in expression:\n" <> quickRender e)
                 pure
                 val <*>
             arg

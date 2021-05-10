@@ -38,7 +38,7 @@ module Ohua.Core.Util
     -- , dAssert
     -- , dAssertM
     -- , dAssertE
-    , Mutator(..)
+    -- , Mutator
     , tellMut
     , HasCallStack
     , callStack
@@ -47,20 +47,20 @@ module Ohua.Core.Util
     , throwErrorDebugS
     , (<&>)
     , SemigroupConstraint
-    , flexText
-    , quickRender
-    , ohuaDefaultLayoutOpts
-    , errorD
+    -- , flexText
+    -- , quickRender
+    -- , ohuaDefaultLayoutOpts
+    -- , errorD
     ) where
 
 import Universum
 
 import Control.Monad.Writer (MonadWriter, tell)
 import Control.Monad.Error.Class
-import Control.Exception.Safe
+-- import Control.Exception.Safe
 import qualified Data.Text as T
-import qualified Data.Text.Prettyprint.Doc as PP
-import qualified Data.Text.Prettyprint.Doc.Render.Text as PP
+-- import qualified Data.Text.Prettyprint.Doc as PP
+-- import qualified Data.Text.Prettyprint.Doc.Render.Text as PP
 
 #if !NEW_CALLSTACK_API
 import GHC.Stack
@@ -115,15 +115,15 @@ prism' :: (b -> a) -> (a -> Maybe b) -> Prism' a b
 prism' make getter = prism make (\s -> maybe (Left s) Right $ getter s)
 
 
--- | Throw an 'error' if the condition is not met. The difference to
--- 'assert' is that the error is tied to @m@ and is not lazy as it
--- would be when using @pure $ assert cond val@.
-assertM :: Applicative m => Bool -> m ()
--- This is ignore when optimizations are turned on!
--- assertM = flip assert (pure ())
--- {-# INLINE assertM #-}
-assertM True = pure ()
-assertM False = error "Assertion failed!"
+-- -- | Throw an 'error' if the condition is not met. The difference to
+-- -- 'assert' is that the error is tied to @m@ and is not lazy as it
+-- -- would be when using @pure $ assert cond val@.
+-- assertM :: Applicative m => Bool -> m ()
+-- -- This is ignore when optimizations are turned on!
+-- -- assertM = flip assert (pure ())
+-- -- {-# INLINE assertM #-}
+-- assertM True = pure ()
+-- assertM False = error "Assertion failed!"
 
 
 -- | Similar to 'assertM' but throws a canonical 'Error' in the monad
@@ -133,15 +133,15 @@ assertE True  _ = return ()
 assertE False msg = throwErrorDebugS $ "AssertionError: " <> msg
 {-# INLINE assertE #-}
 
--- | Checks the condition only when debug flags are enabled.
-dAssert :: HasCallStack => Bool -> a -> a
-dAssert = assert `debugOr` flip const
-{-# INLINE dAssert #-}
+-- -- | Checks the condition only when debug flags are enabled.
+-- dAssert :: HasCallStack => Bool -> a -> a
+-- dAssert = assert `debugOr` flip const
+-- {-# INLINE dAssert #-}
 
--- | Like 'assertM' but only checks the condition in debug builds.
-dAssertM :: (HasCallStack, Applicative m) => Bool -> m ()
-dAssertM = assertM `debugOr` const (pure ())
-{-# INLINE dAssertM #-}
+-- -- | Like 'assertM' but only checks the condition in debug builds.
+-- dAssertM :: (HasCallStack, Applicative m) => Bool -> m ()
+-- dAssertM = assertM `debugOr` const (pure ())
+-- {-# INLINE dAssertM #-}
 
 -- | Like 'assertE' but only checks the condition in debug builds.
 -- dAssertE :: (IsString s, MonadError s m, HasCallStack, Monoid s) => Bool -> m ()
@@ -187,10 +187,10 @@ forceTraceReport msg val = val `deepseq` traceShow msg (pure ())
 -- for functions.  It changes 'mappend' to be '(.)'. This makes it
 -- possible to accumulate a chain of functions in a
 -- 'Control.Monad.Writer.MonadWriter'.
-type Mutator = Endo
+-- type Mutator = Endo
 
-mutAsFn :: Mutator a -> a -> a
-mutAsFn = appEndo
+-- mutAsFn :: Mutator a -> a -> a
+-- mutAsFn = appEndo
 
 -- | Append a function to a chain in a writer.
 tellMut :: MonadWriter (Endo a) m => (a -> a) -> m ()
@@ -229,35 +229,35 @@ throwErrorDebugS = throwErrorS `debugOr` throwError
 {-# INLINE throwErrorDebugS #-}
 
 -- | Throw a canonical compiler error with a callstack appended.
-throwErrorSD :: (HasCallStack, MonadError Text m) => PP.Doc ann -> m a
-throwErrorSD msg = throwError $ ohuaDefaultLayoutDoc $ PP.vcat [msg, fromString cs]
-  where
-    cs = callStackToStr callStack
+-- throwErrorSD :: (HasCallStack, MonadError Text m) => PP.Doc ann -> m a
+-- throwErrorSD msg = throwError $ ohuaDefaultLayoutDoc $ PP.vcat [msg, fromString cs]
+--   where
+--     cs = callStackToStr callStack
 
-throwErrorD :: MonadError Text m => PP.Doc ann -> m a
-throwErrorD = throwError . ohuaDefaultLayoutDoc
+-- throwErrorD :: MonadError Text m => PP.Doc ann -> m a
+-- throwErrorD = throwError . ohuaDefaultLayoutDoc
 
--- | Throws a canonical compiler error which, in case of a debug build, has a
--- call stack attached.
-throwErrorDebugSD :: (HasCallStack, MonadError Text m)  => PP.Doc ann -> m a
-throwErrorDebugSD = throwErrorSD `debugOr` throwErrorD
-{-# INLINE throwErrorDebugSD #-}
+-- -- | Throws a canonical compiler error which, in case of a debug build, has a
+-- -- call stack attached.
+-- throwErrorDebugSD :: (HasCallStack, MonadError Text m)  => PP.Doc ann -> m a
+-- throwErrorDebugSD = throwErrorSD `debugOr` throwErrorD
+-- {-# INLINE throwErrorDebugSD #-}
 
-ohuaDefaultLayoutOpts :: PP.LayoutOptions
-ohuaDefaultLayoutOpts =
-    PP.defaultLayoutOptions {PP.layoutPageWidth = PP.AvailablePerLine 100 1.0}
+-- ohuaDefaultLayoutOpts :: PP.LayoutOptions
+-- ohuaDefaultLayoutOpts =
+--     PP.defaultLayoutOptions {PP.layoutPageWidth = PP.AvailablePerLine 100 1.0}
 
-ohuaDefaultLayoutDoc :: PP.Doc ann -> Text
-ohuaDefaultLayoutDoc = PP.renderStrict . PP.layoutSmart ohuaDefaultLayoutOpts
+-- ohuaDefaultLayoutDoc :: PP.Doc ann -> Text
+-- ohuaDefaultLayoutDoc = PP.renderStrict . PP.layoutSmart ohuaDefaultLayoutOpts
 
-quickRender :: PP.Pretty a => a -> Text
-quickRender = ohuaDefaultLayoutDoc . PP.pretty
+-- quickRender :: PP.Pretty a => a -> Text
+-- quickRender = ohuaDefaultLayoutDoc . PP.pretty
 
--- | Throws an error with a document as message
-errorD :: PP.Doc ann -> a
-errorD = error . ohuaDefaultLayoutDoc
+-- -- | Throws an error with a document as message
+-- errorD :: PP.Doc ann -> a
+-- errorD = error . ohuaDefaultLayoutDoc
 
--- | Takes a text and converts it to a doc that preserves line breaks, but also
--- concatenates words such that lines that are too long will automatically break.
-flexText :: Text -> PP.Doc ann
-flexText = PP.vsep . map (PP.fillSep . map PP.pretty . words) . lines
+-- -- | Takes a text and converts it to a doc that preserves line breaks, but also
+-- -- concatenates words such that lines that are too long will automatically break.
+-- flexText :: Text -> PP.Doc ann
+-- flexText = PP.vsep . map (PP.fillSep . map PP.pretty . words) . lines

@@ -7,6 +7,7 @@ import qualified Ohua.Types.Vector as V
 import Data.Singletons
 
 import Ohua.Core.DFLang.Lang
+import Ohua.Core.DFLang.PPrint ()
 import qualified Ohua.Core.Feature.TailRec.Passes.ALang as ALangPass
 import Ohua.Core.DFLang.Passes (checkDefinedUsage)
 
@@ -18,11 +19,12 @@ recurLowering :: forall m ty.MonadOhua m => NormalizedDFExpr ty -> m (Normalized
 recurLowering expr
   -- 1. Find the recurFun with two outputs
  = checkDefinedUsage expr >> -- expresses a precondition for the below transformation
-      transformExprM f expr
+      traceShowM ("checking usage of expression: " <> (quickRender expr)) >>
+      transformExprTDM f expr
   where
       f :: NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
       f (Let app@(PureDFFun (Destruct [_, _]) fun inp) rest) 
-        | fun == ALangPass.recurStartMarker = findEnd (outsANew app) inp rest
+        | fun == ALangPass.recurStartMarker = traceShowM ("starting search for end in: \n" <> quickRender rest) >> findEnd (outsANew app) inp rest
       f (Let _ rest) = f rest
       f e = return e
 
@@ -33,7 +35,7 @@ recurLowering expr
 
       findEnd :: NonEmpty (OutData 'Data) -> NonEmpty (DFVar 'Data ty) -> NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
       findEnd outs inp (Let app@PureDFFun{} cont) | fnDFApp app == ALangPass.recurEndMarker = 
-          let cond:(fixRef:recurArgs) = insDFApp app
+          let cond:(fixRef:recurArgs) = trace "found end!" insDFApp app
                 -- FIXME we don't need the var lists when we use the assertion
                 -- that these two lists have the same size! and this is always
                 -- true because these are the arguments to a call to the same
@@ -71,7 +73,9 @@ recurLowering expr
                     toRecurFun
 
           in pure $ Let rf cont
-      findEnd outs inp (Let app cont) = Let app <$> findEnd outs inp cont
+      findEnd outs inp (Let app cont) = do
+        --traceShowM $ "passing: "
+        Let app <$> findEnd outs inp cont
       -- FIXME This looks like we should perform this transformation differently, so we
       -- can avoid this failure case. 
-      findEnd _ _ (Var _) = failWith "Did not find end marker for recursion"
+      findEnd _ _ (Var v) = failWith $ "Did not find end marker for recursion. Hit var: " <> show v

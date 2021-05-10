@@ -3,9 +3,6 @@
 module Ohua.Core.ALang.PPrint
     ( Pretty(pretty)
     , prettyExpr
-    , prettyLit
-    , quickRender
-    , ohuaDefaultLayoutOpts
     ) where
 
 import Ohua.Core.Prelude
@@ -86,41 +83,8 @@ prettyExpr = fst . histo worker
             (tailF -> LambdaF assign (_, (assigns, e))) -> (assign : assigns, e)
             (headF -> other) -> ([], other)
 
-prettyFunRef :: FunRef ty -> Doc ann
-prettyFunRef (FunRef sf fid _) = pretty sf <> maybe emptyDoc (angles . pretty) fid
-
-prettyLit :: Lit ty -> Doc ann
-prettyLit =
-    \case
-        FunRefLit funRef -> pretty funRef
-        NumericLit n -> pretty n
-        UnitLit -> "()"
-        EnvRefLit he -> "$" <> pretty he
-        BoolLit b -> pretty b
-
-instance Pretty HostExpr where
-    pretty = pretty . unwrap
-
-instance Pretty FnId where
-    pretty = pretty . unwrap
-
-instance Pretty Binding where
-    pretty = pretty . (unwrap :: Binding -> Text)
-
-instance Pretty (FunRef ty) where
-    pretty = prettyFunRef
-
-instance Pretty QualifiedBinding where
-    pretty qb = pretty (qb ^. namespace) <> slash <> pretty (qb ^. name)
-
-instance Pretty NSRef where
-    pretty = hcat . punctuate dot . map pretty . unwrap
-
 instance Pretty (Expr ty) where
     pretty = prettyExpr
-
-instance Pretty (Lit ty) where
-    pretty = prettyLit
 
 instance Pretty SomeBinding where
     pretty (Qual q) = pretty q

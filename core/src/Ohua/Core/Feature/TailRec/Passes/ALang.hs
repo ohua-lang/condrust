@@ -207,7 +207,7 @@ import qualified Data.Text.Prettyprint.Doc as PP
 import qualified Data.HashSet as HS
 
 import Ohua.Core.ALang.Lang
-import Ohua.Core.ALang.PPrint (quickRender)
+import Ohua.Core.ALang.PPrint ()
 import Ohua.Core.ALang.Passes.Control (liftIntoCtrlCtxt)
 import qualified Ohua.Core.ALang.Refs as ALangRefs
 import Ohua.Core.ALang.Util
@@ -265,7 +265,7 @@ findTailRecs ::
     -> Expr ty
     -> m (Expr ty)
 findTailRecs enabled e =
-    snd <$> (flip runReaderT enabled . flip findRecCall HS.empty) e
+    snd <$> runReaderT (findRecCall e HS.empty) enabled
 
 findRecCall ::
        (MonadGenBnd m, MonadError Error m)
@@ -285,9 +285,9 @@ findRecCall (Let a expr inExpr) algosInScope
             a' <- generateBindingWith a
             return (iFound, Let a' e $ Let a (Apply ySf (Var a')) iExpr)
         else return (HS.union found iFound, Let a e iExpr)
-findRecCall (Let a expr inExpr) algosInScope = do
-    (iFound, iExpr) <- findRecCall inExpr algosInScope
-    return (iFound, Let a expr iExpr)
+-- findRecCall (Let a expr inExpr) algosInScope = do
+--     (iFound, iExpr) <- findRecCall inExpr algosInScope
+--     return (iFound, Let a expr iExpr)
 findRecCall (Apply (Var bnd) a) algosInScope
     | HS.member bnd algosInScope
      -- no recursion here because if the expression is correct then these can be only nested APPLY statements
@@ -317,7 +317,7 @@ verifyTailRecursion expr
     | isCall y expr = performChecks (snd $ fromApplyToList expr) >> return expr
   where
     performChecks (Lambda _a e:_) = traverseToLastCall checkIf e
-    performChecks (e:_) =
+    performChecks e =
         throwErrorDebugS $ "Recursion is not inside a lambda but: " <> show e
     traverseToLastCall check (Let _v e ie)
         | isLastStmt ie = check e
@@ -383,8 +383,7 @@ rewriteAll = rewriteM $ \case
     _ -> pure Nothing
 
 isCall :: QualifiedBinding -> Expr ty -> Bool
-isCall f (Apply (PureFunction f' _) _)
-    | f == f' = True
+isCall f (Apply (PureFunction f' _) _) | f == f' = True
 isCall f (Apply e@(Apply _ _) _) = isCall f e
 isCall _ _ = False
 
@@ -410,7 +409,7 @@ rewriteCallExpr e = do
   -- this breaks haddock |]
     ctrls <- generateBindingWith "ctrls"
     return $
-        Let ctrls (fromListToApply (FunRef recurStartMarker Nothing Untyped) callArgs) $
+        Let ctrls (fromListToApply (FunRef recurStartMarker Nothing $ genFunType callArgs) callArgs) $
         mkDestructured (recurCtrl : recurVars) ctrls l''
   where
     rewriteLastCond :: Expr ty -> Expr ty
@@ -419,6 +418,8 @@ rewriteCallExpr e = do
         | otherwise = error "Value returned from recursive function was not last value bound, this is not tail recursive!"
     rewriteLastCond (Let v ex ie) = Let v ex $ rewriteLastCond ie
 
+    -- I think this will change in the future
+    genFunType callArgs =  FunType $ map (const TypeVar) callArgs
 
     -- This whole rewriteCond and rewriteBranch algorithm is not correct. That
     -- is to say it only works in the specific case where a single `if` is the
@@ -437,8 +438,9 @@ rewriteCallExpr e = do
                     (Left _f, Right _bnds) -> errorD $ flexText "I am sorry, but for now the recursion is required to be on the first (`then`) branch of the final condition. This is a bug of the implementation and will be fixed in the future. (Issue #36)\n\nYour code violating this invariant was\n" <> PP.indent 4 (PP.pretty fullExpr) -- (f, bnds)
                     (Right bnds, Left f) -> (f, bnds)
                     _ -> error "invariant broken"
-         in fromListToApply (FunRef recurEndMarker Nothing Untyped) $
-            cond : fixRef : recurVars
+            callArgs = cond : fixRef : recurVars
+         in fromListToApply (FunRef recurEndMarker Nothing $ genFunType callArgs) callArgs
+            
     rewriteCond _ =
         error
             "invariant broken: recursive function does not have the proper structure."

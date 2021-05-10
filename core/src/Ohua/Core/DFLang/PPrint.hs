@@ -3,6 +3,7 @@
 module Ohua.Core.DFLang.PPrint where
 
 import Ohua.Core.Prelude
+import qualified Ohua.Types.Vector as V
 
 import Data.Text.Prettyprint.Doc as PP
 
@@ -67,6 +68,13 @@ instance Pretty (DFApp a ty) where
             ] <>
             (pure . brackets . pretty) stateIn <>
             [align $ tupled $ toList $ map pretty inps]
+    pretty (RecurFun fOut rOut rOuts iIns rIns cIn fIn) =
+        hsep $
+            [ align $ tupled [pretty fOut, pretty rOut, pretty $ V.toList rOuts]
+            , "="
+            , "recurFun"
+            ] <>
+            [align $ tupled [pretty $ V.toList iIns, pretty $ V.toList rIns, pretty cIn, pretty fIn]]
 
 instance Pretty (OutData a) where
     pretty (Direct b) = pretty b

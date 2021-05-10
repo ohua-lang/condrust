@@ -23,8 +23,8 @@ module Ohua.Core.Monad
 
 import Ohua.Prelude hiding (hPutStr)
 
-import System.Log.FastLogger (fromLogStr)
-import Control.Monad.Error.Class (MonadError, throwError, catchError)
+-- import System.Log.FastLogger (fromLogStr)
+-- import Control.Monad.Error.Class (MonadError, throwError, catchError)
 import Data.ByteString (hPutStr)
 
 import Ohua.Core.Internal.Monad

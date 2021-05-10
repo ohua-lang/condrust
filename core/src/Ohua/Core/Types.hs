@@ -15,7 +15,6 @@
 
 -- This source code is licensed under the terms described in the associated LICENSE.TXT file
 {-# LANGUAGE CPP                        #-}
-{-# LANGUAGE MultiWayIf                 #-}
 
 #include "compat.h"
 

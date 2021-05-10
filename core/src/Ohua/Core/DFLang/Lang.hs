@@ -211,7 +211,7 @@ deriving instance Show (DFApp ty a)
 
 -- deriving instance Lift (DFApp ty a)
 
--- deriving instance Show NormalizedDFExpr
+deriving instance Show (NormalizedDFExpr ty)
 -- deriving instance Eq NormalizedDFExpr
 -- deriving instance Lift NormalizedDFExpr
 -- makeBaseFunctor ''NormalizedDFExpr
@@ -254,9 +254,20 @@ transformExpr f = runIdentity . transformExprM go
         go :: NormalizedDFExpr ty -> Identity (NormalizedDFExpr ty)
         go = pure . f
 
+-- | This is a bottom-up traversal
 transformExprM :: Monad m => (NormalizedDFExpr ty -> m (NormalizedDFExpr ty)) -> NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
 transformExprM f (Let app cont) = f . Let app =<< transformExprM f cont
 transformExprM f v@(Var _) = f v
+
+-- | This is a top-down traversal
+transformExprTDM :: Monad m => (NormalizedDFExpr ty -> m (NormalizedDFExpr ty)) -> NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
+transformExprTDM f l = f l >>= (\case
+                                   (Let app cont) -> Let app <$> transformExprTDM f cont
+                                   v              -> return v)
+
+mapFunsM :: Monad m => (forall a.DFApp a ty -> m (DFApp a ty)) -> NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
+mapFunsM f (Let app cont) = Let <$> (f app) <*> mapFunsM f cont
+mapFunsM _ v = return v
 
 -- This is what I want!
 -- paraExpr :: ('Let -> a -> a) -> ('Var -> a) -> NormalizedDFExpr -> a
