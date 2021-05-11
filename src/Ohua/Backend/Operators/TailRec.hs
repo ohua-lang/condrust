@@ -25,7 +25,7 @@ deriving instance Hashable (RecFun ty)
 
 mkRecFun :: RecFun ty -> TaskExpr ty
 mkRecFun (RecFun resultOut ctrlOut recArgsOuts recInitArgsIns recArgsIns recCondIn recResultIn) =
-    EndlessLoop $
+    loop $
         dispatchCtrlSig contSig $
         -- here I would have loved to have the type safety again :(
         recvInits $
@@ -41,16 +41,23 @@ mkRecFun (RecFun resultOut ctrlOut recArgsOuts recInitArgsIns recArgsIns recCond
             Let "finaResult" resultRecv $
             SendData $ SSend resultOut "finalResult"
     where
+        -- this loop stuff may go away once we start fusing recur
+        loop c = case filter isLeft recInitArgsIns of
+                   [] -> c
+                   _ -> EndlessLoop c
         contSig = Tuple (Right $ BoolLit True) (Right $ NumericLit 1)
         stopSig = Tuple (Right $ BoolLit False) (Right $ NumericLit 0)
-        dispatchCtrlSig c sig =
+        dispatchCtrlSig sig c =
                 Let "ctrlSig" sig $
                     Stmt
                         (SendData $ SSend ctrlOut "ctrlSig")
                         c
-        recvInits c = foldr (\(v,r) c' -> case r of
-                                Left r' -> Let v (ReceiveData r') c'
-                                Right l -> Lit l)
+        recvInits c = foldr (\(v,r) c' ->
+                               Let v
+                                   (case r of
+                                       Left r' -> ReceiveData r'
+                                       Right l -> Lit l)
+                                   c')
                             c
                             initArgsRecv
         sendInits c = foldr (\(o,v) c' -> Stmt (SendData $ SSend o v)  c') c $ zip recArgsOuts $ map fst initArgsRecv
