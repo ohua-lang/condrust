@@ -28,7 +28,7 @@ invariantBroken msg = throwError $ "Compiler invariant broken! " <> msg
 
 generateNodesCode :: CompM m => NormalizedDFExpr ty ->  LoweringM m ([FusableExpr ty], Com 'Recv ty)
 generateNodesCode = go
-    where 
+    where
         go (DFLang.Let app cont) = do
             task <- generateNodeCode app
             (tasks, resRecv) <- go cont
@@ -213,11 +213,16 @@ generateNodeCode e@(RecurFun resultOut ctrlOut recArgsOuts recInitArgsIns recArg
     resultOut' <- directOut resultOut
     ctrlOut' <- directOut ctrlOut
     recArgsOuts' <- mapM directOut $ V.toList recArgsOuts
-    let recInitArgsIns' = map varToChan $ V.toList recInitArgsIns
-    let recArgsIns' = map varToChan $ V.toList recArgsIns
-    let recCondIn' = varToChan recCondIn
-    let recResultIn' = varToChan recResultIn
-    return $ Recur 
+    let recInitArgsIns' = map varToChanOrLit $ V.toList recInitArgsIns
+    -- TODO we could allow literals in the recursion args as well but we should require one to be a variable that got computed!
+    recArgsIns' <- mapM varToChan $ V.toList recArgsIns
+    recCondIn' <- varToChan recCondIn -- not allowing literals here to prevent at some form of infinite loop
+    -- note that this aspect is interesting:
+    -- normally, I could just say that the result of a recursion may just be a literal.
+    -- but then what would that recursion actually compute?!
+    -- looking at it from a timing-perspective, a recursion can as such be used to produce a delay in the computation.
+    recResultIn' <- varToChan recResultIn
+    return $ Recur
             $ Ops.RecFun
                 resultOut' ctrlOut' recArgsOuts'
                 recInitArgsIns' recArgsIns' recCondIn' recResultIn'
@@ -226,9 +231,14 @@ generateNodeCode e@(RecurFun resultOut ctrlOut recArgsOuts recInitArgsIns recArg
         -- (as a matter of fact it might be possible for some output to be destructured etc.
         --  we need a function here that turns such a thing into the appropriate backend code!)
         directOut :: CompM m => OutData a -> LoweringM m (Com 'Channel ty)
-        directOut x = case x of 
+        directOut x = case x of
                         Direct x' -> return $ SChan $ unwrapABnd x'
                         _ -> invariantBroken $ "Control outputs don't match:\n" <> show e
-        varToChan (DFVar t v) = SRecv t $ SChan $ unwrapABnd v
+        varToChanOrLit :: DFVar a ty -> Either (Com 'Recv ty) (Lit ty)
+        varToChanOrLit (DFVar t v) = Left $ SRecv t $ SChan $ unwrapABnd v
+        varToChanOrLit (DFEnvVar _ l) = Right l
+        varToChan (DFVar t v) = return $ SRecv t $ SChan $ unwrapABnd v
+        -- FIXME the below case needs to be checked during checking the well-formedness of the recursion and then carried along properly in the type.
+        varToChan v = invariantBroken $ "environment variable not allowed in this position for recursion: " <> show v
 generateNodeCode e = generateFunctionCode e
     

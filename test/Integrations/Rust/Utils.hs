@@ -56,6 +56,7 @@ debugStageHandling =
             , Stage smapTransformationALang True False
             , Stage postControlSTCLangALang True False
             , Stage normalizeAfterCorePasses True False
+            , Stage customDflang True False
             ]
 
 compileCodeWithRec :: SourceFile Span -> IO (SourceFile Span)
