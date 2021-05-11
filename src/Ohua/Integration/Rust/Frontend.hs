@@ -6,6 +6,7 @@ import Ohua.Prelude
 import Ohua.Frontend.Lang as FrLang
 import Ohua.Frontend.Types
 import Ohua.Frontend.Convert
+import Ohua.Frontend.PPrint ()
 
 import Ohua.Integration.Lang
 import Ohua.Integration.Rust.Types
@@ -72,12 +73,12 @@ instance Integration (Language 'Rust) where
                 args' <- mapM convertPat args
                 block' <- convertExpr block
                 return $ LamE args' block'
-            
+
             toBindings p@(Path _ segments _) =
                 forM segments $ \case
                     (PathSegment ident Nothing _) -> return $ toBinding ident
                     (PathSegment _ (Just _) _) -> throwError $ "We currently do not support import paths with path parameters.\n" <> show p
-                    
+
     loadTypes :: CompM m => 
                 Language 'Rust -> 
                 Module -> 
@@ -85,20 +86,20 @@ instance Integration (Language 'Rust) where
                 m (Namespace (FrLang.Expr (RustArgType Span)) (Item Span))
     loadTypes _ (Module ownFile _) ohuaNs = do
         filesAndPaths <- concat <$> mapM funsForAlgo (ohuaNs^.algos)
-        -- traceShowM $ "files and paths: " <> show filesAndPaths
+        --traceShowM $ "files and paths: " <> show filesAndPaths
         let filesAndPaths' = map (first convertOwn) filesAndPaths
-        types <- load $ concatMap fst filesAndPaths'
+        typez <- load $ concatMap fst filesAndPaths'
         -- traceShowM $ "loaded types: " <> show types
-        types' <- HM.fromList <$> mapM (verifyAndRegister types) filesAndPaths'
+        types' <- HM.fromList <$> mapM (verifyAndRegister typez) filesAndPaths'
         -- traceShowM $ "extracted types: " <> show types'
         updateExprs ohuaNs (transformM (assignTypes types'))
         where
             assignTypes :: CompM m => FunTypes -> FrLang.Expr (RustArgType Span) -> m (FrLang.Expr (RustArgType Span))
             -- FIXME It is nice to write it like this, really, but this has to check whether the function used in the code has (at the very least)
             --       the same number of arguments as it is applied to. If this does not match then clearly we need to error here!
-            assignTypes types = \case 
+            assignTypes typez = \case 
                 (LitE (FunRefLit (FunRef qb i _))) ->
-                    case HM.lookup qb types of
+                    case HM.lookup qb typez of
                         Just typ -> 
                             -- do 
                             --     traceShowM $ "Fun: " <> show qb <> " Type: " <> show typ
@@ -113,27 +114,28 @@ instance Integration (Language 'Rust) where
             resolvedImports f = HM.fromList $ mapMaybe f (ohuaNs^.imports)
 
             fullyResolved :: Import -> Maybe (Binding, NSRef)
-            fullyResolved (Full ns binding) = Just (binding, ns)
+            fullyResolved (Full n bnd) = Just (bnd, n)
             fullyResolved _ = Nothing
 
             aliases :: Import -> Maybe (Binding, NSRef)
-            aliases (Full (NSRef ns) binding) = Just (binding, NSRef $ reverse $ binding : reverse ns)
-            aliases (Alias ns alias) = Just (alias, ns)
+            aliases (Full (NSRef n) bnd) = Just (bnd, NSRef $ reverse $ bnd : reverse n)
+            aliases (Alias n aliaz) = Just (aliaz, n)
             aliases _ = Nothing
 
             globs :: [NSRef]
-            globs = mapMaybe (\case (Glob ns) -> Just ns; _ -> Nothing) (ohuaNs^.imports)
-                
+            globs = mapMaybe (\case (Glob n) -> Just n; _ -> Nothing) (ohuaNs^.imports)
+
             funsForAlgo :: CompM m => Algo (FrLang.Expr (RustArgType Span)) (Item Span) -> m [([NSRef], QualifiedBinding)]
-            funsForAlgo (Algo _name code _) = 
+            funsForAlgo (Algo _name code _) = do
+                -- traceShowM $ "algo: " <> show _name <> "\n code: \n" <> quickRender code
                 mapM lookupFunTypes [f | LitE (FunRefLit (FunRef f _ _)) <- universe code]
 
             lookupFunTypes :: CompM m => QualifiedBinding -> m ([NSRef], QualifiedBinding)
-            lookupFunTypes q@(QualifiedBinding [] name) =
-                return $ (,q) $ maybe globs (:[]) $ HM.lookup name fullyResolvedImports
-            lookupFunTypes q@(QualifiedBinding nsRef _name) = 
-                let (alias:rest) = unwrap nsRef
-                in case HM.lookup alias aliasImports of
+            lookupFunTypes q@(QualifiedBinding [] nam) =
+                return $ (,q) $ maybe globs (:[]) $ HM.lookup nam fullyResolvedImports
+            lookupFunTypes q@(QualifiedBinding nsRef _name) =
+                let (aliaz:rest) = unwrap nsRef
+                in case HM.lookup aliaz aliasImports of
                     Just a -> return ([NSRef $ unwrap a ++ rest], q)
                     Nothing -> case globs of
                         [] -> throwError $ "Invariant broken: I found the module alias reference '" 
@@ -146,18 +148,18 @@ instance Integration (Language 'Rust) where
             
             convertOwn :: [NSRef] -> [NSRef]
             convertOwn [] = [filePathToNsRef ownFile]
-            convertOwn ns = ns
+            convertOwn n = n
 
             verifyAndRegister :: CompM m => FunTypes -> ([NSRef], QualifiedBinding) -> m (QualifiedBinding, FunType (RustArgType Span))
-            verifyAndRegister types ([candidate], qp@(QualifiedBinding _ name)) =
-                case HM.lookup (QualifiedBinding candidate name) types of
+            verifyAndRegister typez ([candidate], qp@(QualifiedBinding _ nam)) =
+                case HM.lookup (QualifiedBinding candidate nam) typez of
                     Just t -> return (qp, t)
-                    Nothing -> throwError $ "Function `" <> show (unwrap name) <> "` not found in module `" <> show candidate <> "`. I need these types to generate the code. Please check that the function actually exists by compiling again with `rustc`."
-            verifyAndRegister types (globs', qp@(QualifiedBinding _ name)) =
-                case mapMaybe ((`HM.lookup` types) . (`QualifiedBinding` name)) globs' of
-                    [] -> throwError $ "Function `" <> show (unwrap name) <> "` not found in modules `" <> show globs' <> "`. I need these types to generate the code. Please check that the function actually exists by compiling again with `rustc`."
+                    Nothing -> throwError $ "Function `" <> show (unwrap nam) <> "` not found in module `" <> show candidate <> "`. I need these types to generate the code. Please check that the function actually exists by compiling again with `rustc`."
+            verifyAndRegister typez (globs', qp@(QualifiedBinding _ nam)) =
+                case mapMaybe ((`HM.lookup` typez) . (`QualifiedBinding` nam)) globs' of
+                    [] -> throwError $ "Function `" <> show (unwrap nam) <> "` not found in modules `" <> show globs' <> "`. I need these types to generate the code. Please check that the function actually exists by compiling again with `rustc`."
                     [t] -> return (qp, t)
-                    _ -> throwError $ "Multiple definitions of function `" <> show (unwrap name) <> "` in modules " <> show globs' <> " detected!\nPlease verify again that your code compiles properly by running `rustc`. If the problem persists then please file a bug. (See issue sertel/ohua-frontend#1)"
+                    _ -> throwError $ "Multiple definitions of function `" <> show (unwrap nam) <> "` in modules " <> show globs' <> " detected!\nPlease verify again that your code compiles properly by running `rustc`. If the problem persists then please file a bug. (See issue sertel/ohua-frontend#1)"
 
 instance (Show a) => ConvertExpr (Rust.Expr a) where 
     convertExpr e@Box{} = throwError $ "Currently, we do not support the construction of boxed values. Please do so in a function." <> show e
