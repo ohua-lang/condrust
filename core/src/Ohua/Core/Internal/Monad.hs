@@ -23,7 +23,7 @@ import qualified Control.Monad.State.Strict
 import Control.Monad.Writer (WriterT)
 import qualified Data.HashSet as HS
 import Control.Lens
-import Control.Lens.Operators ((%=), (.=))
+
 
 import Ohua.Core.Types as Ty
 import Ohua.Core.ALang.Lang
