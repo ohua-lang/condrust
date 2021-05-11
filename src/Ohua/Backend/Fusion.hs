@@ -32,6 +32,7 @@ instance Bifunctor (Fusable ty) where
     first _ (Control (Right c)) = Control $ Right c
     first _ (Fun fun) = Fun fun
     first _ (STC s) = STC s
+    first _ (Recur r) = Recur r
     first _ (Unfusable u) = Unfusable u
     second = fmap
 
@@ -56,6 +57,7 @@ concludeFusion (TCProgram chans resultChan exprs) = TCProgram chans resultChan $
         go (STC stcMap) = genSTCLangSMap stcMap
         go (Control (Left ctrl)) = genFused ctrl
         go (Control (Right ctrl)) = genLitCtrl ctrl
+        go (Recur r) = mkRecFun r
         go (Unfusable e) = e
 
 -- invariant length in >= length out -- TODO use length-indexed vectors
@@ -158,6 +160,7 @@ fuseCtrls (TCProgram chans resultChan exprs) =
                         -- type conversion from Fusable FunCtrl to Fusable FusedFunCtrl
                         (Fun f) -> Right (Fun f)
                         (STC s) -> Right (STC s)
+                        (Recur r) -> Right (Recur r)
                         (Unfusable u) -> Right (Unfusable u))
         srcsAndTgts :: [Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty)] 
                     -> [Either (FunCtrl ty) (LitCtrl ty)] 

@@ -33,7 +33,7 @@ instance Hashable (Com a t) where
   hashWithSalt s (SRecv t chan) = s `hashWithSalt` t `hashWithSalt` chan
   hashWithSalt s (SSend chan bnd) = s `hashWithSalt` chan `hashWithSalt` bnd
 
-data List expr = Create | Append Binding expr 
+data List expr = Create | Append Binding expr
   deriving (Show, Eq, Lift, Generic, Functor, Foldable, Traversable)
 
 instance (Hashable expr) => Hashable (List expr)
@@ -46,7 +46,7 @@ data TaskExpr ty
   | Let Binding
         (TaskExpr ty)
         (TaskExpr ty) -- cont
-  | Stmt 
+  | Stmt
       (TaskExpr ty)
       (TaskExpr ty) -- cont
   | Assign -- side-effect
@@ -61,7 +61,7 @@ data TaskExpr ty
   | Repeat (Either Binding Int) (TaskExpr ty)
   | While (TaskExpr ty) (TaskExpr ty)
   | Cond (TaskExpr ty) (TaskExpr ty) (TaskExpr ty)
-  
+
   -- specific functions:
   | HasSize Binding -- :: [a] -> Bool
   | Size Binding -- :: [a] -> Int

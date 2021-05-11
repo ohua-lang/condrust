@@ -13,7 +13,7 @@ data RecFun ty where
         -> Com 'Channel ty
         -- I'm loosing the type info here because getting the instances below is a pain otherwise :(
         -> [Com 'Channel ty]
-        -> [Com 'Recv ty]
+        -> [Either (Com 'Recv ty) (Lit ty)]
         -> [Com 'Recv ty]
         -> Com 'Recv ty
         -> Com 'Recv ty
@@ -48,7 +48,11 @@ mkRecFun (RecFun resultOut ctrlOut recArgsOuts recInitArgsIns recArgsIns recCond
                     Stmt
                         (SendData $ SSend ctrlOut "ctrlSig")
                         c
-        recvInits c = foldr (\(v,r) c' -> Let v (ReceiveData r) c') c initArgsRecv
+        recvInits c = foldr (\(v,r) c' -> case r of
+                                Left r' -> Let v (ReceiveData r') c'
+                                Right l -> Lit l)
+                            c
+                            initArgsRecv
         sendInits c = foldr (\(o,v) c' -> Stmt (SendData $ SSend o v)  c') c $ zip recArgsOuts $ map fst initArgsRecv
         initArgsRecv = zipWith (curry (first (("init_" <>) . show))) [0..] recInitArgsIns
         condRecv = ReceiveData recCondIn
