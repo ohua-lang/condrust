@@ -22,6 +22,7 @@ import Ohua.Prelude
 
 import Ohua.Frontend.Lang as FrLang (Expr(LitE, LetE, VarE, LamE), Pat(VarP), ExprF(LitEF))
 import Ohua.Frontend.Types
+import Ohua.Frontend.PPrint ()
 
 import Control.Lens (over)
 import qualified Data.HashMap.Strict as HM
@@ -34,23 +35,26 @@ resolveNS :: forall ty m anno.(MonadError Error m)
           => (Namespace (Expr ty) anno, NamespaceRegistry ty)
           -> m (Namespace (Expr ty) anno)
 resolveNS (ns, registry) = 
-    return $ over algos (map (over algoCode work)) ns
+    return $ over algos (map (\algo -> over algoCode (work $ view algoName algo) algo)) ns
     where
-        work :: Expr ty -> Expr ty
-        work e = 
-            let calledFunctions = collectAllFunctionRefs registry e
+        work :: Binding -> Expr ty -> Expr ty
+        work name e = 
+            let 
+                calledFunctions = collectAllFunctionRefs name registry $ traceShow ("before: " <> quickRender e) e
                 expr = foldl (flip addExpr) e calledFunctions
-            in resolveExpr expr
+                e' = resolveExpr expr
+            in traceShow ("after: " <> quickRender e') e'
 
-        collectAllFunctionRefs :: NamespaceRegistry ty -> Expr ty -> HS.HashSet QualifiedBinding
-        collectAllFunctionRefs available =
+        collectAllFunctionRefs :: Binding -> NamespaceRegistry ty -> Expr ty -> HS.HashSet QualifiedBinding
+        collectAllFunctionRefs name available =
             HS.unions .
             HS.toList . 
             HS.map (\qb ->
                 maybe 
                     HS.empty
-                    (HS.insert qb . collectAllFunctionRefs (HM.delete qb available))
+                    (HS.insert qb . collectAllFunctionRefs name (HM.delete qb available))
                     $ HM.lookup qb available) . 
+            HS.filter (/= QualifiedBinding (makeThrow []) name) .
             collectFunctionRefs
 
         collectFunctionRefs :: Expr ty -> HS.HashSet QualifiedBinding
@@ -74,6 +78,7 @@ resolveNS (ns, registry) =
                     $ HM.lookup bnd registry)
                 e
 
+        -- turns the function literal into a simple (var) binding
         resolveExpr :: Expr ty -> Expr ty
         resolveExpr = cata $ \case
             LitEF (FunRefLit (FunRef ref _id _)) | HM.member ref registry -> VarE $ pathToVar ref

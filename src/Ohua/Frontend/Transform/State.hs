@@ -5,7 +5,8 @@ import Ohua.Prelude
 import Ohua.Frontend.Lang
 import Data.HashMap.Lazy as HM 
 
-
+-- | This essentially checks for linear state usage and is part of
+--   the according type system.
 check :: CompM m => Expr ty -> m ()
 check exp = void $ evalStateT (transformM f exp) HM.empty
     where
