@@ -23,6 +23,7 @@ module Ohua.Prelude
     , module Data.Generics.Sum
     , module Data.Generics.Product
     , module Ohua.Types
+    , module Ohua.PPrint
     , module Ohua.LensClasses
     , module Control.Monad.Error.Class
     , module Control.Monad.Logger
@@ -32,6 +33,8 @@ module Ohua.Prelude
     ) where
 
 import Ohua.Types
+import Ohua.PPrint
+
 import Control.Monad.Error.Class (MonadError, catchError, throwError)
 import Control.Monad.Logger
 import Ohua.Util

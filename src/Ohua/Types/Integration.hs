@@ -40,10 +40,12 @@ declareLenses[d|
     |]
 
 updateExprs :: Monad m => Namespace expr1 anno -> (expr1 -> m expr2) -> m (Namespace expr2 anno)
-updateExprs namespace f = do
+updateExprs namespace f = updateExprs' namespace $ \_ e -> f e
+
+updateExprs' :: Monad m => Namespace expr1 anno -> (Binding -> expr1 -> m expr2) -> m (Namespace expr2 anno)
+updateExprs' namespace f = do
      algos' <- 
           forM (namespace^.algos) $ \algo -> do
-               algoCode' <- f $ algo^.algoCode
+               algoCode' <- f (algo^.algoName) (algo^.algoCode)
                return $ over algoCode (const algoCode') algo
      return $ over algos (const algos') namespace
-
