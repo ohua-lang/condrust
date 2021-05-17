@@ -144,7 +144,12 @@ instance Integration (Language 'Rust) where
         TCLang.Assign bnd $ Apply $ Stateless (mkFunRefUnqual "-") [Var bnd, TCLang.Lit $ NumericLit 1]
     convertExpr arch (TCLang.Not expr) = convertExpr arch $ Apply $ Stateless (mkFunRefUnqual "!") [expr]
     
-    convertExpr _ (TCLang.HasSize _bnd) = error "undefined: TCLang.HasSize" -- TODO This is really something that we need to reconsider/redesign!
+    convertExpr arch (TCLang.HasSize bnd) =
+        let intermediate = toBinding "tmp_has_size"
+        in convertExpr arch $ Let intermediate (Apply $ Stateful (Apply $ Stateful (Var bnd) (mkFunRefUnqual "iter") []) (mkFunRefUnqual "size_hint") []) (Apply $ Stateful (Second intermediate) (mkFunRefUnqual "is_some") [])
+        -- In the old runtime this was implemented using the `size_hint` function in Rust
+        -- What I want here:
+        --      v.iter().size_hint().1.is_some()
     convertExpr _ (TCLang.Generate _bnd lit) = error "undefined: TCLang.Generate" -- TODO 
 
 pattern UnqualFun :: Binding -> QualifiedBinding
