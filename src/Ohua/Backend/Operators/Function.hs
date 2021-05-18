@@ -83,8 +83,8 @@ genFun' ct = \case
             stateArg = (\(_,v,_) -> v) $ NE.head varsAndReceives
             call = (Apply $ Stateful (Var stateArg) app callArgs) 
         in flip letReceives (toList varsAndReceives) $
-            maybe 
-                (Stmt call ct) 
+            maybe
+                (Stmt call ct)
                 (\(SChan b) -> Let b call ct)
                 sendRes
     where
