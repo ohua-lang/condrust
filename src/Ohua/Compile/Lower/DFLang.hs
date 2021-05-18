@@ -39,21 +39,21 @@ generateFunctionCode :: CompM m => DFApp a ty ->  LoweringM m (FusableExpr ty)
 generateFunctionCode = \case
     (PureDFFun out fn inp) -> do
         (fun', args) <- lowerFnRef fn inp
-        out' <- pureOut out 
+        out' <- pureOut out
         return $ Fusion.Fun $ Ops.PureFusable args fun' $ Identity $ SChan out'
     (StateDFFun out fn (DFVar stateT stateIn) inp) -> do
         (fun', args) <- lowerFnRef fn inp
-        (sOut, dataOut) <- stateOut out 
+        (sOut, dataOut) <- stateOut out
         return $ Fusion.Fun
             $ Ops.STFusable (SRecv stateT $ SChan $ unwrapABnd stateIn) args fun' (SChan <$> dataOut) (SChan <$> sOut)
     where
         pureOut (Direct out) = return $ unwrapABnd out
         pureOut e = throwError $ "Unsupported multiple outputs: " <> show e
-        stateOut (stateOut, Direct out) = return ((\(Direct bnd) -> unwrapABnd bnd) <$> stateOut, Just $ unwrapABnd out)
+        stateOut (sOut, Direct out) = return ((\(Direct bnd) -> unwrapABnd bnd) <$> sOut, Just $ unwrapABnd out)
         stateOut e = throwError $ "Unsupported multiple outputs: " <> show e
 
 generateReceive :: DFVar semTy ty -> Ops.CallArg ty
-generateReceive (DFVar t bnd) = 
+generateReceive (DFVar t bnd) =
     Ops.Arg $ SRecv t $ SChan $ unwrapABnd bnd
 generateReceive (DFEnvVar t l) = Ops.Converted $ Lit l -- FIXME looses type info!
 
@@ -62,7 +62,7 @@ lowerFnRef fun vars | fun == Refs.unitFun = do -- FIXME Why not give a unit func
     (f,vars') <- case vars of
             [DFEnvVar _t (FunRefLit (FunRef p _ _)), DFVar t1 bnd] -> -- FIXME looses type info!
                 return (p, [Ops.Drop $ Left $ SRecv t1 $ SChan $ unwrapABnd bnd])
-            [DFEnvVar _t (FunRefLit (FunRef p _ _)), DFEnvVar _ UnitLit] -> 
+            [DFEnvVar _t (FunRefLit (FunRef p _ _)), DFEnvVar _ UnitLit] ->
                 return (p, [])
             _ -> invariantBroken "unitFun must always have two arguments!"
     return (f, vars')
@@ -71,7 +71,7 @@ lowerFnRef f vars = return (f, toList $ map generateReceive vars)
 generateArcsCode :: NormalizedDFExpr ty -> NonEmpty (Channel ty)
 generateArcsCode = go
     where
-        go (DFLang.Let app cont) = 
+        go (DFLang.Let app cont) =
             let collected = go cont
                 collected' = HS.fromList $ NE.toList collected
                 current = filter (not . (`HS.member` collected')) $ map SChan $ inBindings app
@@ -81,15 +81,15 @@ generateArcsCode = go
 -- FIXME see sertel/ohua-core#7: all these errors would immediately go away
 generateNodeCode :: CompM m => DFApp semTy ty ->  LoweringM m (FusableExpr ty)
 generateNodeCode e@(PureDFFun out fun inp)  | fun == smapFun = do
-    input <- 
+    input <-
         case inp of
-            [x] -> case x of 
+            [x] -> case x of
                         (DFVar t v) -> return $ SRecv t $ SChan $ unwrapABnd v
                         _ -> invariantBroken $ "Input to SMap must var not literal:\n" <> show e
             _ -> invariantBroken $ "SMap should only have a single input." <> show e
-    (dataOut, ctrlOut, collectOut) <- 
+    (dataOut, ctrlOut, collectOut) <-
         case out of -- FIXME: I can not even be sure here whether the order is the correct one!
-            Destruct [Direct x, Direct y, Direct z] -> 
+            Destruct [Direct x, Direct y, Direct z] ->
                 return (SChan $ unwrapABnd x, SChan $ unwrapABnd y, SChan $ unwrapABnd z)
             _ -> invariantBroken $ "SMap must have 3 outputs:\n" <> show e
     return $ Unfusable $
@@ -99,19 +99,19 @@ generateNodeCode e@(PureDFFun out fun inp)  | fun == smapFun = do
 generateNodeCode e@(PureDFFun out fun inp) | fun == collect = do
     (sizeIn, dataIn) <-
         case inp of
-            [DFVar sType s, DFVar dType d] -> 
+            [DFVar sType s, DFVar dType d] ->
                 return (SRecv sType $ SChan $ unwrapABnd s, SRecv dType $ SChan $ unwrapABnd d)
             _ -> invariantBroken $ "Collect arguments don't match:\n" <> show e
-    collectedOutput <- 
+    collectedOutput <-
         case out of
             Direct x -> return $ SChan $ unwrapABnd x
             _ -> invariantBroken $ "Collect outputs don't match:\n" <> show e
     return $ Unfusable $
-        EndlessLoop $ 
+        EndlessLoop $
             Ops.collect sizeIn dataIn collectedOutput
 
 generateNodeCode e@(PureDFFun out fun inp) | fun == ifFun = do
-    condIn <- 
+    condIn <-
         case inp of
             [DFVar xType x] -> return $ SRecv xType $ SChan $ unwrapABnd x
             _ -> invariantBroken $ "IfFun arguments don't match:\n" <> show e
@@ -124,10 +124,10 @@ generateNodeCode e@(PureDFFun out fun inp) | fun == ifFun = do
             Ops.ifFun condIn ctrlTrueOut ctrlFalseOut
 
 generateNodeCode e@(PureDFFun out fun inp) | fun == select = do
-    (condIn, trueIn, falseIn) <- 
+    (condIn, trueIn, falseIn) <-
         case inp of
-            [DFVar xType x, DFVar yType y, DFVar zType z] -> 
-                return 
+            [DFVar xType x, DFVar yType y, DFVar zType z] ->
+                return
                     ( SRecv xType $ SChan $ unwrapABnd x
                     , SRecv yType $ SChan $ unwrapABnd y
                     , SRecv zType $ SChan $ unwrapABnd z)
@@ -141,10 +141,10 @@ generateNodeCode e@(PureDFFun out fun inp) | fun == select = do
             Ops.select condIn trueIn falseIn out
 
 generateNodeCode e@(PureDFFun out fun inp) | fun == Refs.runSTCLangSMap = do
-    (sizeIn, stateIn) <- 
+    (sizeIn, stateIn) <-
         case inp of
-            [DFVar xType x, DFVar yType y] -> 
-                return 
+            [DFVar xType x, DFVar yType y] ->
+                return
                     ( SRecv xType $ SChan $ unwrapABnd x
                     , SRecv yType $ SChan $ unwrapABnd y)
             _ -> invariantBroken $ "STCLangSMap arguments don't match:\n" <> show e
@@ -153,7 +153,7 @@ generateNodeCode e@(PureDFFun out fun inp) | fun == Refs.runSTCLangSMap = do
             Direct x -> return $ SChan $ unwrapABnd x
             _ -> invariantBroken $ "STCLangSMap outputs don't match:\n" <> show e
     return $ STC $
-            Ops.mkSTCLangSMap 
+            Ops.mkSTCLangSMap
                 sizeIn
                 stateIn
                 out
@@ -183,16 +183,16 @@ generateNodeCode e@(PureDFFun out fun inp) | fun == ctrl = do
         case out of
             Direct x -> return $ SChan $ unwrapABnd x
             Destruct [Direct x] -> return $ SChan $ unwrapABnd x
-            _ -> invariantBroken $ "Control outputs don't match:\n" <> show e    
+            _ -> invariantBroken $ "Control outputs don't match:\n" <> show e
     case inp of
         DFVar tc ctrlInp :| [DFVar ti inp'] ->
-            return $ Control $ Left $ 
-                Ops.mkCtrl 
-                    (SRecv tc $ SChan $ unwrapABnd ctrlInp) 
-                    (SRecv ti $ SChan $ unwrapABnd inp') 
+            return $ Control $ Left $
+                Ops.mkCtrl
+                    (SRecv tc $ SChan $ unwrapABnd ctrlInp)
+                    (SRecv ti $ SChan $ unwrapABnd inp')
                     out'
         DFVar tc ctrlInp :| [DFEnvVar ti lit] ->
-            return $ Control $ Right $ 
+            return $ Control $ Right $
                 Ops.mkLittedCtrl (SRecv tc $ SChan $ unwrapABnd ctrlInp) lit out' -- FIXME loosing the semantic type here!
         _ -> invariantBroken $ "Control arguments don't match:\n" <> show e
 
@@ -241,4 +241,4 @@ generateNodeCode e@(RecurFun resultOut ctrlOut recArgsOuts recInitArgsIns recArg
         -- FIXME the below case needs to be checked during checking the well-formedness of the recursion and then carried along properly in the type.
         varToChan v = invariantBroken $ "environment variable not allowed in this position for recursion: " <> show v
 generateNodeCode e = generateFunctionCode e
-    
+

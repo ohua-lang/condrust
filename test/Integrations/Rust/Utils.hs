@@ -9,7 +9,7 @@ import Ohua.Prelude
 import Test.Hspec
 
 import Ohua.Core.Types.Environment (stageHandling, Options, transformRecursiveFunctions)
-import Ohua.Core.Types.Stage (DumpCode(..))
+import Ohua.Core.Types.Stage (DumpCode(..), StageHandling)
 import Ohua.Core.Stage
 
 import Ohua.Compile.Compiler
@@ -30,8 +30,9 @@ import Data.Text as T (concat, Text)
 import qualified Data.ByteString.Lazy.Char8 as L
 
 
+-- TODO turn this into a parameter for a particular test
 debug :: Bool
-debug = True
+debug = False
 
 renderRustCode :: SourceFile Span -> L.ByteString
 renderRustCode = 
@@ -41,10 +42,13 @@ renderRustCode =
     layoutSmart defaultLayoutOptions . 
     pretty'
 
+withDebug :: Options -> Options
 withDebug d = d & stageHandling .~ debugStageHandling
 
+withRec :: Options -> Options
 withRec d = d & transformRecursiveFunctions .~ True
 
+debugStageHandling :: StageHandling
 debugStageHandling = 
     intoStageHandling DumpStdOut
         $ Just 
@@ -116,10 +120,10 @@ showCode msg code =
     let 
         c = renderStrict $ layoutSmart defaultLayoutOptions $ pretty' code
     in do
-        when debug $ print c
+        when debug $ printCode c
         return c
     where
-        print code = putStr $ boundary <> header <> code <> boundary
+        printCode c = putStr $ boundary <> header <> c <> boundary
         boundary = "\n" <> T.concat (replicate 20 ("-"::T.Text)) <> "\n"
         header = msg <> "\n\n"
 

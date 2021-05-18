@@ -6,10 +6,10 @@ import Integrations.Rust.Utils
 
 
 spec :: Spec
-spec = 
+spec =
     describe "TailRec" $ do
         it "simple one argument" $
-            (showCode "Compiled: " =<< compileCodeWithRec [sourceFile| 
+            (showCode "Compiled: " =<< compileCodeWithRec [sourceFile|
                 use funs::*;
 
                 fn rec(i:i32) -> i32 {
@@ -24,10 +24,10 @@ spec =
                 fn test() -> i32 {
                     rec(2)
                 }
-                |]) >>= 
+                |]) >>=
             (\compiled -> do
                 expected <- showCode "Expected:"
-                    [sourceFile| 
+                    [sourceFile|
                         use funs::*;
 
                         fn rec(i:i32) -> i32 {
