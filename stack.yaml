@@ -30,4 +30,8 @@ flags:
   ohua-core:
     debug: true
 
+nix:
+  enable: true
+  packages: [zlib.dev, zlib.out]
+
 extra-package-dbs: []
