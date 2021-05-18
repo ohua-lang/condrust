@@ -34,16 +34,16 @@ import qualified Data.Text as T
 resolveNS :: forall ty m anno.(MonadError Error m)
           => (Namespace (Expr ty) anno, NamespaceRegistry ty)
           -> m (Namespace (Expr ty) anno)
-resolveNS (ns, registry) = 
+resolveNS (ns, registry) =
     return $ over algos (map (\algo -> over algoCode (work $ view algoName algo) algo)) ns
     where
         work :: Binding -> Expr ty -> Expr ty
-        work name e = 
-            let 
-                calledFunctions = collectAllFunctionRefs name registry $ traceShow ("before: " <> quickRender e) e
+        work name e =
+            let
+                calledFunctions = collectAllFunctionRefs name registry e
                 expr = foldl (flip addExpr) e calledFunctions
                 e' = resolveExpr expr
-            in traceShow ("after: " <> quickRender e') e'
+            in e'
 
         collectAllFunctionRefs :: Binding -> NamespaceRegistry ty -> Expr ty -> HS.HashSet QualifiedBinding
         collectAllFunctionRefs name available =
