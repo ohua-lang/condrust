@@ -122,7 +122,7 @@ outsDFApp :: DFApp ty a -> NonEmpty Binding
 outsDFApp (PureDFFun out _ _) = outBnds out
 outsDFApp (StateDFFun (Nothing, out) _ _ _) = outBnds out
 outsDFApp (StateDFFun (Just stateOut, out) _ _ _) = outBnds stateOut <> outBnds out
-outsDFApp (RecurFun result ctrl recurs _ _ _ _) = 
+outsDFApp (RecurFun result ctrl recurs _ _ _ _) =
     let (x:|xs) = outBnds result
     in (x :| (xs <> join (map (NE.toList . outBnds) $ V.toList recurs))) <> outBnds ctrl
 
@@ -138,14 +138,14 @@ insApp (StateFun _ _ (DFVar _ s) i) = unwrapABnd s : extractBndsFromInputs (NE.t
 insDFApp :: DFApp ty a -> [Binding]
 insDFApp (PureDFFun _ _ i) = extractBndsFromInputs $ NE.toList i
 insDFApp (StateDFFun _ _ (DFVar _ s) i) = unwrapABnd s : extractBndsFromInputs (NE.toList i)
-insDFApp (RecurFun _ _ _ initIns recurs cond result) =  
-    extractBndsFromInputs (V.toList initIns) <> 
-    extractBndsFromInputs (V.toList recurs) <> 
+insDFApp (RecurFun _ _ _ initIns recurs cond result) =
+    extractBndsFromInputs (V.toList initIns) <>
+    extractBndsFromInputs (V.toList recurs) <>
     extractBndsFromInputs [cond] <>
     extractBndsFromInputs [result]
 
 extractBndsFromInputs :: [DFVar a ty] -> [Binding]
-extractBndsFromInputs = 
+extractBndsFromInputs =
     mapMaybe  (\case DFVar _ bnd -> Just $ unwrapABnd bnd; _ -> Nothing)
 
 fnApp :: App ty a -> QualifiedBinding
@@ -242,8 +242,8 @@ instance Function (App ty a) where
 instance Function (DFApp ty a) where
     outBindings = outsDFApp
     inBindings = insDFApp
-    funRef f = 
-        case f of 
+    funRef f =
+        case f of
             PureDFFun{} -> fnDFApp f
             StateDFFun{} -> sfnDFApp f
             RecurFun{} -> DFLangRefs.recurFun

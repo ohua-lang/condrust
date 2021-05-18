@@ -30,7 +30,13 @@ import Control.Lens.Plated (plate)
 -- TODO recursion support is still pending here!
 
 preControlPasses :: MonadOhua m => Expr ty -> m (Expr ty)
-preControlPasses = addCtxtExit >=> performSSA
+preControlPasses =
+  transformIntoStateThreads >=>
+  addCtxtExit >=>
+  performSSA
+
+-- FIXME there is code missing that turns the basic state threads into real state threads! this is the very first transformation that needs to run.
+-- the transformation is: make state threads and then rebind the state -> alpha renaming on the rest of the term.
 
 postControlPasses :: Expr ty -> Expr ty
 postControlPasses = transformCtxtExits
@@ -48,26 +54,58 @@ ctxtExit = "ohua.lang/ctxtExit"
 ctxtExitFunRef :: Expr ty
 ctxtExitFunRef = Lit $ FunRefLit $ FunRef ctxtExit Nothing Untyped
 
+-- | Transforms every stateful function into a fundamental state thread.
+--   Corrects the reference to the state for the rest of the computation.
+--   Assumption: expression is in ANF form (TODO enforce via the type system)
+transformIntoStateThreads :: (MonadOhua m) => Expr ty -> m (Expr ty)
+transformIntoStateThreads = transformM f
+  where
+    f e@(Let v app cont) = do
+      s <- stBndForStatefulFun app
+      let s' = used cont =<< s
+      maybe (return e) (g v app cont) s'
+    f expr = return expr
+
+    used cont b@(bnd, _) =
+      case [b | Var b <- universe cont, b == bnd] of
+        [] -> Nothing
+        _ -> Just b
+
+    stBndForStatefulFun (StatefulFunction _ _ (Var bnd)) = Just . (bnd,) <$> generateBindingWith bnd
+    -- FIXME Once again, this stupid over-generalization of the language is a pain!
+    stBndForStatefulFun e@(StatefulFunction _ _ _) = error $ "state should have been var: " <> show e
+    stBndForStatefulFun (e1 `Apply` _)            = stBndForStatefulFun e1
+    stBndForStatefulFun _                         = return Nothing
+
+    g r app cont (stateIn,stateOut) = do
+      x <- generateBinding
+      return $
+        Let x app $
+        destructure (Var x) [stateOut,r] $
+        substitute stateIn (Var stateOut) cont
+
+-- TODO do not introduce orphaned state, i.e., state that is never used again.
+--      check before that which of the state is actually used after the control context it is used in.
 addCtxtExit :: MonadGenBnd m => Expr ty -> m (Expr ty)
 addCtxtExit = transformM f
     where
         f (Let v (fun@(PureFunction op _) `Apply` trueBranch `Apply` falseBranch) cont)
-            | op == Refs.ifThenElse = 
+            | op == Refs.ifThenElse =
                 let trueBranchStates = HS.fromList $ collectStates trueBranch
                     falseBranchStates = HS.fromList $ collectStates falseBranch
 
                     trueBranchStatesMissing = HS.difference falseBranchStates trueBranchStates
                     falseBranchStatesMissing = HS.difference trueBranchStates falseBranchStates
-                    addMissing = 
-                        HS.foldr 
-                            (\missingState c -> 
-                                Let missingState (pureFunction Refs.id Nothing (FunType [TypeVar] )`Apply` Var missingState) 
-                                    c) 
+                    addMissing =
+                        HS.foldr
+                            (\missingState c ->
+                                Let missingState (pureFunction Refs.id Nothing (FunType [TypeVar] )`Apply` Var missingState)
+                                    c)
                     trueBranch' = applyToBody (`addMissing` trueBranchStatesMissing) trueBranch
                     falseBranch' = applyToBody (`addMissing` falseBranchStatesMissing) falseBranch
 
                     allStates = HS.toList $ HS.union trueBranchStates falseBranchStates
-                in do 
+                in do
                     trueBranch'' <- mkST (map Var allStates) trueBranch'
                     falseBranch'' <- mkST (map Var allStates) falseBranch'
                     ctxtOut <- generateBindingWith "ctxt_out"
@@ -75,7 +113,7 @@ addCtxtExit = transformM f
                         Let ctxtOut (fun `Apply` trueBranch'' `Apply` falseBranch'') $
                         mkDestructured (v:allStates) ctxtOut
                         cont
-    
+
         f (Let v (fun@(PureFunction op _) `Apply` lam `Apply` ds) cont)
             | op == Refs.smap =
                 let (args, expr) = lambdaArgsAndBody lam

@@ -35,25 +35,26 @@ runCorePasses = removeNth
 
 -- Currently, this code does not cover destructurings of destructurings but this is ok, because
 -- we do not create those.
+-- NOTE: This code looks a lot like the code that removes state destructuring when lowering ALang into DFLang
 removeNth :: forall ty m. MonadOhua m => NormalizedExpr ty -> m (NormalizedDFExpr ty)
 removeNth expr = do
     checkSSA expr
     let exp' = evalState (f expr) HM.empty
     return exp'
     where
-        -- Assumption: Expression is in SSA form, so every site is uniquely identified by its output binding.     
+        -- Assumption: Expression is in SSA form, so every site is uniquely identified by its output binding.
 
         -- explicit traversal prevents non-exhaustive pattern warnings and allows to convert stuff to Coq later on.
-        f = \case 
+        f = \case
                 (DFLang.Let app cont) -> go app cont
                 (DFLang.Var bnd) -> pure $ DFLang.Var bnd
-            where 
+            where
                 go :: App a ty
                     -> NormalizedExpr ty
-                    -> State 
-                        (HM.HashMap Binding (NonEmpty (Integer, Binding))) 
+                    -> State
+                        (HM.HashMap Binding (NonEmpty (Integer, Binding)))
                         (NormalizedDFExpr ty)
-                go app cont = do 
+                go app cont = do
                     cont' <- f cont
                     app' <- toDFAppFun app
                     pure $ maybe cont' (`DFLang.Let` cont') app'
@@ -77,7 +78,7 @@ removeNth expr = do
                 -- TODO normally I would not have to unwrap the bindings here but they would preserve their
                 --      annotations and therewith make sure that they do not lose their semantics!
                 (Direct $ bndFun out)
-                (Destruct . NE.map (Direct . bndFun . snd) . NEE.sortOn fst) . 
+                (Destruct . NE.map (Direct . bndFun . snd) . NEE.sortOn fst) .
                 HM.lookup out
 
 
@@ -86,7 +87,7 @@ removeNth expr = do
 checkDefinedUsage :: MonadOhua m => NormalizedDFExpr ty -> m ()
 checkDefinedUsage expr = evalStateT (f expr) HS.empty
     where
-        f (DFLang.Let app cont) = checkAndDescend app cont 
+        f (DFLang.Let app cont) = checkAndDescend app cont
         f _ = return ()
         checkAndDescend :: (MonadOhua m, MonadState (HS.HashSet Binding) m) => DFApp a ty -> NormalizedDFExpr ty -> m ()
         checkAndDescend app cont = do
@@ -96,23 +97,23 @@ checkDefinedUsage expr = evalStateT (f expr) HS.empty
             mapM_ (failWith . ("Undefined binding:" <> ) . show) $
                 filter (not . (`HS.member` defined)) ins
             put $ HS.union defined $ HS.fromList $ NE.toList outs
-            f cont 
+            f cont
 
--- FIXME This thing should be a type level annotation, so we do not have to verify 
---       this anymore at runtime! (Use a function to tag an expression with SSA. 
+-- FIXME This thing should be a type level annotation, so we do not have to verify
+--       this anymore at runtime! (Use a function to tag an expression with SSA.
 --       The tag is lost whenever a new binding is introduced.)
 -- | Check that a sequence of let expressions does not redefine bindings.
 checkSSA :: forall ty a m.MonadOhua m => DFLang.Expr ty a -> m ()
-checkSSA e = 
-    mapM_ 
+checkSSA e =
+    mapM_
         (\(out, fs) -> failWith $ "Rebinding of " <> show out <> " at " <> show fs)
         redefines
   where
     redefines :: [(Binding, [Text])]
-    redefines = 
+    redefines =
         HM.toList $
         HM.filter ((>1) . length) $
-        foldl (\hm (out,f) -> HM.insertWith (++) out [f] hm) HM.empty 
+        foldl (\hm (out,f) -> HM.insertWith (++) out [f] hm) HM.empty
         (allOuts e)
     allOuts :: DFLang.Expr ty a  -> [(Binding, Text)]
     allOuts (DFLang.Let app cont) = NE.toList (map (,show app) (outBindings app)) ++ allOuts cont
@@ -133,20 +134,20 @@ checkSSA e =
 lowerToDF :: MonadOhua m => ALang.Expr ty -> m (NormalizedExpr ty)
 lowerToDF expr = evalStateT (transfer' expr) HS.empty
     where
-        transfer' :: (MonadState (HS.HashSet Binding) m, MonadOhua m) 
+        transfer' :: (MonadState (HS.HashSet Binding) m, MonadOhua m)
                 => ALang.Expr ty -> m (NormalizedExpr ty)
         transfer' (ALang.Var bnd) = return $ DFLang.Var bnd
         transfer' (ALang.Let bnd a@(NthFunction b) e) = do
                     isStateDestruct <- HS.member b <$> get
-                    if isStateDestruct 
+                    if isStateDestruct
                     then transfer' e
                     else transferLet bnd a e
         transfer' (ALang.Let bnd a e) = transferLet bnd a e
         transfer' e = failWith $ "Invariant broken. Unexpected expression: " <> show e -- FIXME only here because of ALang type (see issue #8)
-        transferLet bnd a e = do 
-            e' <- transfer' e
-            app <- handleDefinitionalExpr' bnd a e
-            return $ app e'
+        transferLet bnd a e = do
+          app <- handleDefinitionalExpr' bnd a e
+          e' <- transfer' e
+          return $ app e'
 
 handleDefinitionalExpr' :: (MonadState (HS.HashSet Binding) m, MonadOhua m)
     => Binding -> ALang.Expr ty -> ALang.Expr ty -> m (NormalizedExpr ty -> NormalizedExpr ty)
@@ -156,17 +157,17 @@ handleDefinitionalExpr' assign l@(Apply _ _) cont = do
     case s of
         Just stateBnd -> DFLang.Let <$> st fn stateBnd args'
         Nothing -> return $ DFLang.Let $ fun fn assign args'
-    where 
-        st :: (MonadState (HS.HashSet Binding) m) 
+    where
+        st :: (MonadState (HS.HashSet Binding) m)
             => QualifiedBinding -> (ArgType ty, ABinding 'State) -> [DFVar 'Data ty] -> m (App 'ST ty)
-        st fn (stateType, stateBnd) args' = (\outs -> StateFun outs fn (DFVar stateType stateBnd) (erroringNE args')) <$> 
+        st fn (stateType, stateBnd) args' = (\outs -> StateFun outs fn (DFVar stateType stateBnd) (erroringNE args')) <$>
                     findSTOuts assign
         fun :: QualifiedBinding -> Binding -> [DFVar 'Data ty] -> App 'Fun ty
         fun fn bnd args' = PureFun (DataBinding bnd) fn $ erroringNE args'
         erroringNE = fromMaybe (error "Invariant broken: Every function has at least one argument!") . nonEmpty
-        findSTOuts :: (MonadState (HS.HashSet Binding) m) 
+        findSTOuts :: (MonadState (HS.HashSet Binding) m)
                 => Binding -> m (Maybe (ABinding 'State), ABinding 'Data)
-        findSTOuts bnd = 
+        findSTOuts bnd =
             case findDestructured cont bnd of
                 [stateOut, dataOut] -> do
                     modify (HS.insert bnd)
@@ -178,7 +179,7 @@ handleDefinitionalExpr' _ e _ =
 
 -- FIXME This function should immediately turn into a pure function once issue #8 is done.
 -- | Analyze an apply expression, extracting the inner stateful
--- function and the nested arguments as a list. 
+-- function and the nested arguments as a list.
 handleApplyExpr :: forall m ty.
        (MonadOhua m)
     => ALang.Expr ty
@@ -190,7 +191,7 @@ handleApplyExpr l@(Apply _ _) = go [] l
             Apply fn arg -> do
                 go (arg : args) fn
             Lit (FunRefLit (FunRef fn _ident (FunType argTypes))) -> do
-                assertE 
+                assertE
                     (length argTypes == length args)
                     $ "Arg types [len: " <> show (length argTypes) <> 
                       "] and args [len: "<> show (length args) <> 
@@ -205,7 +206,7 @@ handleApplyExpr l@(Apply _ _) = go [] l
             BindState _state0 (Lit (FunRefLit (FunRef fn _ FunType{}))) -> 
                 failWith $ "Wrong function type 'pure' for st function: " <> show fn
             BindState state0 (Lit (FunRefLit (FunRef fn _ (STFunType sType argTypes)))) -> do
-                assertE 
+                assertE
                     (length argTypes == length args)
                     $ "Arg types [len: " <> show (length argTypes) <> 
                       "] and args [len: "<> show (length args) <> 

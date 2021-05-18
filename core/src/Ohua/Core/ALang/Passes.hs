@@ -55,10 +55,10 @@ runCorePasses expr = do
 
     ifE <- ifRewrite smapE
     stage conditionalsTransformationALang ifE
-    
+
     seqE <- seqRewrite ifE
     stage seqTransformationALang seqE
-    
+
     normalizedE <- normalize seqE
     stage normalizeAfterCorePasses normalizedE
 
