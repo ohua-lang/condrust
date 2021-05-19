@@ -27,10 +27,10 @@ spec =
                             tasks
                                 .push(Box::new(move || -> _ {
                                 let a_0 = hello_world();
-                                a_0_tx.send(a_0)
+                                a_0_tx.send(a_0)?
                                 }));
                             run(tasks);
-                            a_0_rx.recv()
+                            a_0_rx.recv()?
                         }
                     |]
                 compiled `shouldBe` expected)
@@ -54,14 +54,14 @@ spec =
                             let mut tasks: Vec<Box<FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
                             tasks
                                 .push(Box::new(move || -> _ {
-                                loop { let var_0 = x_0_0_rx.recv(); let a_0 = g(var_0); a_0_tx.send(a_0) }
+                                loop { let var_0 = x_0_0_rx.recv()?; let a_0 = g(var_0); a_0_tx.send(a_0)? }
                                 }));
                             tasks
                                 .push(Box::new(move || -> _ {
-                                let x_0_0 = f(); x_0_0_tx.send(x_0_0)
+                                let x_0_0 = f(); x_0_0_tx.send(x_0_0)?
                                 }));
                             run(tasks);
-                            a_0_rx.recv()
+                            a_0_rx.recv()?
                         }
                     |]
                 compiled `shouldBe` expected)
@@ -85,14 +85,14 @@ spec =
                             let mut tasks: Vec<Box<FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
                             tasks
                                 .push(Box::new(move || -> _ {
-                                loop { let var_0 = x_0_0_rx.recv(); let a_0 = funs::g(var_0); a_0_tx.send(a_0) }
+                                loop { let var_0 = x_0_0_rx.recv()?; let a_0 = funs::g(var_0); a_0_tx.send(a_0)? }
                                 }));
                             tasks
                                 .push(Box::new(move || -> _ {
-                                let var_0 = i; let x_0_0 = funs::h(var_0); x_0_0_tx.send(x_0_0)
+                                let var_0 = i; let x_0_0 = funs::h(var_0); x_0_0_tx.send(x_0_0)?
                                 }));
                             run(tasks);
-                            a_0_rx.recv()
+                            a_0_rx.recv()?
                         }
                     |]
                 compiled `shouldBe` expected)
@@ -121,19 +121,19 @@ spec =
                             tasks
                                 .push(Box::new(move || -> _ {
                                   loop {
-                                    let var_0 = x_0_0_rx.recv();
+                                    let var_0 = x_0_0_rx.recv()?;
                                     let a_0 = funs::g(var_0);
-                                    a_0_tx.send(a_0)
+                                    a_0_tx.send(a_0)?
                                   }
                                 }));
                             tasks
                                 .push(Box::new(move || -> _ {
                                   let var_0 = i;
                                   let x_0_0 = funs::h(var_0);
-                                  x_0_0_tx.send(x_0_0)
+                                  x_0_0_tx.send(x_0_0)?
                                 }));
                             run(tasks);
-                            a_0_rx.recv()
+                            a_0_rx.recv()?
                         }
                         
                         fn test() -> String {
@@ -143,19 +143,19 @@ spec =
                             tasks
                                 .push(Box::new(move || -> _ {
                                   loop {
-                                    let var_0 = x_0_0_rx.recv();
+                                    let var_0 = x_0_0_rx.recv()?;
                                     let a_0 = funs::g(var_0);
-                                    a_0_tx.send(a_0)
+                                    a_0_tx.send(a_0)?
                                   }
                                 }));
                             tasks
                                 .push(Box::new(move || -> _ {
                                   let var_0 = 4;
                                   let x_0_0 = funs::h(var_0);
-                                  x_0_0_tx.send(x_0_0)
+                                  x_0_0_tx.send(x_0_0)?
                                 }));
                             run(tasks);  
-                            a_0_rx.recv()
+                            a_0_rx.recv()?
                         }
                     |]
                 compiled `shouldBe` expected)
@@ -184,19 +184,19 @@ spec =
                             tasks
                                 .push(Box::new(move || -> _ {
                                   loop {
-                                    let var_0 = x_0_0_rx.recv();
+                                    let var_0 = x_0_0_rx.recv()?;
                                     let a_0 = g(var_0);
-                                    a_0_tx.send(a_0)
+                                    a_0_tx.send(a_0)?
                                   }
                                 }));
                             tasks
                                 .push(Box::new(move || -> _ {
                                   let var_0 = i;
                                   let x_0_0 = h(var_0);
-                                  x_0_0_tx.send(x_0_0)
+                                  x_0_0_tx.send(x_0_0)?
                                 }));
                             run(tasks);
-                            a_0_rx.recv()
+                            a_0_rx.recv()?
                         }
                         
                         fn test() -> String {
@@ -206,19 +206,19 @@ spec =
                             tasks
                                 .push(Box::new(move || -> _ {
                                   loop {
-                                    let var_0 = x_0_0_rx.recv();
+                                    let var_0 = x_0_0_rx.recv()?;
                                     let a_0 = g(var_0);
-                                    a_0_tx.send(a_0)
+                                    a_0_tx.send(a_0)?
                                   }
                                 }));
                             tasks
                                 .push(Box::new(move || -> _ {
                                   let var_0 = 4;
                                   let x_0_0 = h(var_0);
-                                  x_0_0_tx.send(x_0_0)
+                                  x_0_0_tx.send(x_0_0)?
                                 }));
                             run(tasks);  
-                            a_0_rx.recv()
+                            a_0_rx.recv()?
                         }
                     |]
                 compiled `shouldBe` expected)
