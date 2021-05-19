@@ -34,11 +34,11 @@ instance Architecture (Architectures 'SharedMemory) where
             noSpan
 
     convertRecv SSharedMemory (SRecv _type (SChan channel)) =             
-        convertExpr SSharedMemory $
-            Apply $ Stateful (Var $ channel <> "_rx") (mkFunRefUnqual "recv") []
+        Try [] (convertExpr SSharedMemory $
+            Apply $ Stateful (Var $ channel <> "_rx") (mkFunRefUnqual "recv") []) noSpan
     convertSend SSharedMemory (SSend (SChan channel) d) =
-        convertExpr SSharedMemory $
-            Apply $ Stateful (Var $ channel <> "_tx") (mkFunRefUnqual "send") [Var d]
+        Try [] (convertExpr SSharedMemory $
+            Apply $ Stateful (Var $ channel <> "_tx") (mkFunRefUnqual "send") [Var d]) noSpan
 
     build SSharedMemory (Module _ (SourceFile _ _ _items)) ns = 
         return $ ns & algos %~ map (\algo -> algo & algoCode %~ createTasksAndChannels)
