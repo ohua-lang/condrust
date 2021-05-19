@@ -46,10 +46,9 @@ collect :: SizeInput ty
 collect sizeInput dataInput collectedOutput = 
     Let "num" (ReceiveData sizeInput) $
     Let "collection" (ListOp Create) $
-    Let "receives" (Generate "num" UnitLit) $
     Stmt 
         (
-            ForEach "_receive" "receives" $
+            Repeat (Left "num") $
                 Let "data" (ReceiveData dataInput) $
                     ListOp $ Append "collection" $ Var "data"
         ) $

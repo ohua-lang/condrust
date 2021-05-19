@@ -75,7 +75,6 @@ data TaskExpr ty
   | Increment Binding -- a + 1;
   | Decrement Binding -- a - 1;
   | Not (TaskExpr ty)
-  | Generate Binding (Lit ty) -- data generator  
   
   deriving (Eq,Generic)
 

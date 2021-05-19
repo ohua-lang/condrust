@@ -36,11 +36,12 @@ genSTCLangSMap (STCLangSMap sizeInput stateReceive emit) =
         init :: TaskExpr ty -> TaskExpr ty
         init c =  
             Let "num" (ReceiveData sizeInput) $
-            Let "toDrop" (Decrement "num") $
-            Let "drops" (Generate "toDrop" UnitLit) c
+            Let "toDrop" (Decrement "num") c
+            --Let "drops" (Generate "toDrop" UnitLit) c
+            -- TODO: Verify correctness
 
         ctxtLoop :: TaskExpr ty -> TaskExpr ty
-        ctxtLoop = Repeat $ Left "drops" 
+        ctxtLoop = Repeat $ Left "toDrop" 
 
 
 mkSTCLangSMap :: forall ty. DataSizeInput ty -> StateInput ty -> StateOutput ty -> STCLangSMap ty
