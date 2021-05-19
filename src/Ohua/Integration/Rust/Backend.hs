@@ -110,7 +110,7 @@ instance Integration (Language 'Rust) where
             repetition = case count of
                             Left bnd -> convertExpr arch $ Var bnd
                             Right cnt -> convertExpr arch (TCLang.Lit $ NumericLit $ fromIntegral cnt)
-            range = Rust.Repeat [] (convertExpr arch $ TCLang.Lit $ NumericLit 0) repetition noSpan
+            range = Rust.Range [] (Just $ convertExpr arch $ TCLang.Lit $ NumericLit 0) (Just repetition) HalfOpen noSpan
             block = convertIntoBlock arch expr
         in Rust.ForLoop [] loopVar range block Nothing noSpan
 
@@ -150,19 +150,6 @@ instance Integration (Language 'Rust) where
         -- In the old runtime this was implemented using the `size_hint` function in Rust
         -- What I want here:
         --      v.iter().size_hint().1.is_some()
-    convertExpr arch (TCLang.Generate bnd lit) =
-        let tmpVec = toBinding "tmp_generate_vec"
-        in convertExpr arch $ Let tmpVec (TCLang.ListOp Create)
-            (TCLang.Stmt
-                (TCLang.Repeat (Left bnd) (TCLang.ListOp (Append tmpVec (TCLang.Lit  lit))))
-                (Var tmpVec))
-        -- Rust.Repeat [] (convertExpr arch (TCLang.Lit lit)) (convertExpr arch (Var bnd)) noSpan
-        -- What I want here:
-        --      let v = Vec::new();
-        --      for _ in bnd {
-        --          v.push(lit);
-        --      }
-        --      vec![lit; bnd];
 
 pattern UnqualFun :: Binding -> QualifiedBinding
 pattern UnqualFun bnd <- QualifiedBinding [] bnd
