@@ -49,7 +49,7 @@ spec =
                                     while !renew {
                                     let sig = ctrlFalse_0_rx.recv();
                                     let count = sig.1;
-                                    for _ in [0; count] {
+                                    for _ in 0..count {
                                         let var_0 = c_0_0_0;
                                         let f_0 = g1(var_0);
                                         f_0_tx.send(f_0)
@@ -69,7 +69,7 @@ spec =
                                     while !renew {
                                     let sig = ctrlTrue_0_rx.recv();
                                     let count = sig.1;
-                                    for _ in [0; count] {
+                                    for _ in 0..count {
                                         let var_0 = b_0_0_0;
                                         let e_0 = g0(var_0);
                                         e_0_tx.send(e_0)
@@ -175,7 +175,7 @@ spec =
                                     while !renew {
                                         let sig = ctrlFalse_0_rx.recv();
                                         let count = sig.1;
-                                        for _ in [0; count] {
+                                        for _ in 0..count {
                                             let _var_0 = lit_unit_0;
                                             let c_0 = g1();
                                             c_0_tx.send(c_0)
@@ -194,7 +194,7 @@ spec =
                                     while !renew {
                                         let sig = ctrlTrue_0_rx.recv();
                                         let count = sig.1;
-                                        for _ in [0; count] {
+                                        for _ in 0..count {
                                             let var_0 = lit_5_0;
                                             let b_0 = g0(var_0);
                                             b_0_tx.send(b_0)

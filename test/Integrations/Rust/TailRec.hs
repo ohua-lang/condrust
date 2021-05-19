@@ -50,7 +50,7 @@ spec =
                                 while !renew {
                                   let sig = ctrl_0_0_rx.recv();
                                   let count = sig.1;
-                                  for _ in [0; count] {
+                                  for _ in 0..count {
                                     let var_0 = i_0_0_0;
                                     let j_0_0 = h(var_0);
                                     j_0_0_tx.send(j_0_0)
