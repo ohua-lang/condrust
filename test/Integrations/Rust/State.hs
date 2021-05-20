@@ -12,7 +12,7 @@ spec =
                 use funs::*;
 
                 fn test(i: i32) -> i32 {
-                    let state = S::new(i);
+                    let mut state = S::new(i);
                     let result = state.gs(5);
                     h(result)
                 }
@@ -38,7 +38,7 @@ spec =
                             tasks
                                 .push(Box::new(move || -> _ {
                                 loop {
-                                    let var_0 = state_0_1_rx.recv()?;
+                                    let mut var_0 = state_0_1_rx.recv()?;
                                     let var_1 = 5;
                                     let result_0_0 = var_0.gs(var_1);
                                     result_0_0_tx.send(result_0_0)?;
