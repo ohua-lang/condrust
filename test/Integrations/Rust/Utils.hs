@@ -103,6 +103,7 @@ compileCode' inCode opts =
                 \   fn next(&mut self) -> Option<S> { unimplemented!{} } \
                 \   fn size_hint(&self) -> (usize, Option<usize>) { unimplemented!{} } \
                 \ } \
+                \ fn iter_i32() -> Iterator<i32> { unimplemented!{} } \
                 \ "
             let inFile = testDir </> "test.rs"
             L.writeFile inFile $ renderRustCode inCode

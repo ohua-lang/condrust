@@ -107,41 +107,72 @@ spec =
                           run(tasks);
                           r1_0_0_rx.recv()?
                         }
-|]
+                        |]
                  compiled `shouldBe` expected)
+        it "inside loop" $
+            (showCode "Compiled: " =<< compileCode [sourceFile|
+                use funs::*;
 
---use funs::*;
---
---fn test(i: i32) -> String {
---  let (r1_0_0_tx, r1_0_0_rx) = std::sync::mpsc::channel();
---  let (state_0_0_tx, state_0_0_rx) = std::sync::mpsc::channel();
---  let mut tasks: Vec<Box<FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
---  tasks
---    .push(Box::new(move || -> _ {
---      loop {
---        let var_0 = state_0_0_rx.recv()?;
---        let var_1 = 6;
---        let r1_0_0 = var_0.gs(var_1);
---        r1_0_0_tx.send(r1_0_0)?;
---        ()
---      }
---    }));
---  tasks
---    .push(Box::new(move || -> _ {
---      loop {
---        let var_0 = state_0_0_rx.recv()?;
---        let var_1 = 5;
---        let r0_0_0 = var_0.gs(var_1);
---        r0_0_0_tx.send(r0_0_0)?;
---        ()
---      }
---    }));
---  tasks
---    .push(Box::new(move || -> _ {
---      let var_0 = i;
---      let state_0_0 = S::new(var_0);
---      state_0_0_tx.send(state_0_0)?
---   }));
---   run(tasks);
---   r1_0_0_rx.recv()?
---}
+                 fn test(i:i32) -> () {
+                    let stream = iter();
+                    for e in stream {
+                        e.gs(5);
+                    }
+                }
+                |]) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:"
+                    [sourceFile|
+                        use funs::*;
+
+                        fn test(i: i32) -> () {
+                          TODO
+                        }
+                    |]
+                compiled `shouldBe` expected)
+        it "loop single io" $
+            (showCode "Compiled: " =<< compileCode [sourceFile|
+                use funs::*;
+
+                 fn test(i:i32) -> () {
+                    let io = S::new(i);
+                    let stream = iter_i32();
+                    for e in stream {
+                        io.gs(e);
+                    }
+                }
+                |]) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:"
+                    [sourceFile|
+                        use funs::*;
+
+                        fn test(i: i32) -> () {
+                          TODO
+                        }
+                    |]
+                compiled `shouldBe` expected)
+        it "loop single state" $
+            (showCode "Compiled: " =<< compileCode [sourceFile|
+                use funs::*;
+
+                 fn test(i:i32) -> () {
+                    let s = S::new(i);
+                    let stream = iter_i32();
+                    for e in stream {
+                        s.gs(e);
+                    }
+                    s.gs(5)
+                }
+                |]) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:"
+                    [sourceFile|
+                        use funs::*;
+
+                        fn test(i: i32) -> () {
+                          TODO
+                        }
+                    |]
+                compiled `shouldBe` expected)
+
