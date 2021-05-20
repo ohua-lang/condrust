@@ -79,8 +79,10 @@ compileCode' inCode opts =
                 " \
                 \ fn hello_world() -> String { unimplemented!{} } \
                 \ fn f() -> i32 { unimplemented!{} } \
+                \ fn f_arc() -> Arc<i32> { unimplemented!{} } \
                 \ fn g(i:i32) -> String { unimplemented!{} } \
                 \ fn h(i:i32) -> i32 { unimplemented!{} } \
+                \ fn h2(i:i32, j:i32) -> i32 { unimplemented!{} }\
                 \ fn f0(i:i32) -> i32 { unimplemented!{} } \
                 \ fn f1(i:i32) -> i32 { unimplemented!{} } \
                 \ fn f2(i:i32) -> i32 { unimplemented!{} } \

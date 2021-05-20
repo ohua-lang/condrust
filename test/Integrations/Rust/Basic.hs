@@ -65,6 +65,85 @@ spec =
                         }
                     |]
                 compiled `shouldBe` expected)
+        it "var multi fail" $
+            -- enforce Arc construction via type-check
+            (showCode "Compiled: " =<< compileCode [sourceFile|
+                use funs::*;
+
+                fn test() -> String {
+                    let x = f();
+                    let y = h(x);
+                    h2(x,y)
+                }
+                |]) >>=
+            (\compiled -> do
+                -- expect type error!
+                expected <- showCode "Expected:"
+                    [sourceFile|
+                        use funs::*;
+
+                        fn test() -> String {
+                          TODO
+                        }
+                    |]
+                compiled `shouldBe` expected)
+        it "var multi 1: read-only" $
+          -- due to the transformation to state threads, this transforms into:
+          -- let x = f();
+          -- let x1 = Arc::new();
+          -- let (x2,x1') = x1.arc_clone();
+          -- let y = h(x1');
+          -- h2(x2,y)
+          -- where no variable is used more than once!
+          (showCode "Compiled: " =<< compileCode [sourceFile|
+                use funs::*;
+
+                fn test() -> String {
+                    let x = f();
+                    let x1 = Arc::new(x);
+                    let x2 = x1.clone();
+                    let y = h(x1);
+                    h2(x2,y)
+                }
+                |]) >>=
+            (\compiled -> do
+                -- expect type error!
+                expected <- showCode "Expected:"
+                    [sourceFile|
+                        use funs::*;
+
+                        fn test() -> String {
+                          TODO
+                        }
+                    |]
+                compiled `shouldBe` expected)
+        it "var multi 2: explicit clone" $
+          -- due to the transformation to state threads, this transforms into:
+          -- let x = f();
+          -- let (x1,x') = x.clone();
+          -- let y = h(x');
+          -- h2(x1,y)
+          -- where no variable is used more than once!
+          (showCode "Compiled: " =<< compileCode [sourceFile|
+                use funs::*;
+
+                fn test() -> String {
+                    let x = f();
+                    let x1 = x.clone();
+                    let y = h(x);
+                    h2(x1,y)
+                }
+                |]) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:"
+                    [sourceFile|
+                        use funs::*;
+
+                        fn test() -> String {
+                          TODO
+                        }
+                    |]
+                compiled `shouldBe` expected)
         it "env vars" $
             (showCode "Compiled: " =<< compileCode [sourceFile|
                 use funs;
