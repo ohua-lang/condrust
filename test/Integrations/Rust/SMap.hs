@@ -7,10 +7,10 @@ import Integrations.Rust.Utils
 
 
 spec :: Spec
-spec = 
+spec =
     describe "SMap" $ do
         it "stream" $
-            (showCode "Compiled: " =<< compileCode [sourceFile| 
+            (showCode "Compiled: " =<< compileCode [sourceFile|
                 use funs::*;
 
                 fn test() -> () {
@@ -19,12 +19,12 @@ spec =
                         k(e);
                     }
                 }
-                |]) >>= 
+                |]) >>=
             (\compiled -> do
                 expected <- showCode "Expected:"
-                    [sourceFile| 
+                    [sourceFile|
                         use funs::*;
-                        
+
                         fn test() -> () {
                             let (b_0_tx, b_0_rx) = std::sync::mpsc::channel();
                             let (stream_0_0_tx, stream_0_0_rx) = std::sync::mpsc::channel();
@@ -83,7 +83,7 @@ spec =
                                         ctrl_0_tx.send(ctrl)?;
                                         ()
                                     } else {
-                                        let size = 0;
+                                        let mut size = 0;
                                         for d in data {
                                             d_0_tx.send(d)?;
                                             let ctrl = (false, 1);
