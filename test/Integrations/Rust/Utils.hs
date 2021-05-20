@@ -104,6 +104,14 @@ compileCode' inCode opts =
                 \   fn size_hint(&self) -> (usize, Option<usize>) { unimplemented!{} } \
                 \ } \
                 \ fn iter_i32() -> Iterator<i32> { unimplemented!{} } \
+                \\
+                \ struct Arc {} \
+                \ impl Arc { \
+                \   fn new(i: i32) -> i32 { unimplemented!() } \
+                \ } \
+                \ impl Clone for Arc { \
+                \   fn clone(&self) -> Self { unimplemented!() } \
+                \ } \
                 \ "
             let inFile = testDir </> "test.rs"
             L.writeFile inFile $ renderRustCode inCode
