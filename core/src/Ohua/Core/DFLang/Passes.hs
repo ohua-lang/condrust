@@ -191,11 +191,7 @@ handleApplyExpr l@(Apply _ _) = go [] l
             Apply fn arg -> do
                 go (arg : args) fn
             Lit (FunRefLit (FunRef fn _ident (FunType argTypes))) -> do
-                assertE
-                    (length argTypes == length args)
-                    $ "Arg types [len: " <> show (length argTypes) <> 
-                      "] and args [len: "<> show (length args) <> 
-                      "] don't match for function: " <> show fn
+                assertTermTypes args argTypes "function"
                 return (fn, Nothing, zip argTypes args)
             Lit (FunRefLit (FunRef qb _ Untyped)) -> 
                 failWith $ "Wrong function type 'untyped' for pure function: " <> show qb
@@ -206,14 +202,17 @@ handleApplyExpr l@(Apply _ _) = go [] l
             BindState _state0 (Lit (FunRefLit (FunRef fn _ FunType{}))) -> 
                 failWith $ "Wrong function type 'pure' for st function: " <> show fn
             BindState state0 (Lit (FunRefLit (FunRef fn _ (STFunType sType argTypes)))) -> do
-                assertE
-                    (length argTypes == length args)
-                    $ "Arg types [len: " <> show (length argTypes) <> 
-                      "] and args [len: "<> show (length args) <> 
-                      "] don't match for stateful function: " <> show fn
+                assertTermTypes args argTypes "stateful function"
                 state' <- expectStateBnd state0
                 return (fn, Just (sType, state'), zip argTypes args)
             x -> failWith $ "Expected Apply or Var but got: " <> show (x :: ALang.Expr ty)
+    assertTermTypes termArgs typeArgs funType =
+      assertE
+        (length argTypes == length args)
+        $ "Arg types [len: " <> show (length argTypes) <> 
+        "] and args [len: "<> show (length args) <> 
+        "] don't match for stateful " <> funType <> ": " <> show fn
+
 handleApplyExpr g = failWith $ "Expected apply but got: " <> show g
 
 -- FIXME This assumption would have been better defined at the type level.
