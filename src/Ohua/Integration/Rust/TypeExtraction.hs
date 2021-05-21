@@ -56,8 +56,8 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
         extractFunType :: (CompM m, Show a) => (Arg a -> [ArgType (RustArgType a)] -> m (FunType (RustArgType a))) -> FnDecl a -> m (FunType (RustArgType a))
         extractFunType _ f@(FnDecl _ _ True _) = throwError $ "Currently, we do not support variadic arguments." <> show f
         extractFunType firstArgExtract (FnDecl args _retTyp _ _) =
-            case args of 
-                [] -> FunType <$> mapM convertArg args -- need to do it this way to make type inference for the Show constraint happy
+            case args of
+                [] -> return $ FunType $ Left Unit
                 (x:xs) -> firstArgExtract x  =<< mapM convertArg xs
 
         convertImplArg :: (CompM m, Show a) => Ty a -> Arg a -> m (ArgType (RustArgType a))
