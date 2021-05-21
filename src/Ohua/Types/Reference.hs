@@ -18,6 +18,7 @@ import Ohua.Util
 import Ohua.Types.Error
 import Ohua.Types.Make
 import Ohua.Types.Classes
+import Ohua.Types.Literal (Unit)
 
 import qualified Text.Show 
 
@@ -54,8 +55,8 @@ newtype HostExpr = HostExpr
 data ArgType ty = TypeVar | Type ty deriving (Lift, Generic)
 data FunType ty where
      Untyped :: FunType ty
-     FunType :: [ArgType ty] -> FunType ty 
-     STFunType :: ArgType ty -> [ArgType ty] -> FunType ty
+     FunType :: Either Unit (NonEmpty (ArgType ty)) -> FunType ty
+     STFunType :: ArgType ty -> Either Unit (NonEmpty (ArgType ty)) -> FunType ty
 
 data FunRef ty where
     FunRef :: QualifiedBinding -> Maybe FnId -> FunType ty -> FunRef ty
