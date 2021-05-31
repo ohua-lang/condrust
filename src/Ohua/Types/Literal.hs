@@ -12,7 +12,4 @@ data Lit ty
     | FunRefLit (FunRef ty) -- ^ Reference to an external function
     deriving (Show, Eq, Generic)
 
--- TODO integrate with above definition
-data Unit = Unit
-
 instance Hashable (Lit ty)

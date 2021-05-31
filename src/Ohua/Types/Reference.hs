@@ -18,7 +18,7 @@ import Ohua.Util
 import Ohua.Types.Error
 import Ohua.Types.Make
 import Ohua.Types.Classes
-import Ohua.Types.Literal (Unit)
+import Ohua.Types.Unit (Unit)
 
 import qualified Text.Show 
 

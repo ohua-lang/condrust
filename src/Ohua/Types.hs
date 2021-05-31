@@ -10,6 +10,7 @@ module Ohua.Types
     , HostExpr
     , FunRef(..)
     , Lit(..)
+    , Unit(..)
     , module Ohua.Types.Computation
     , module Ohua.Types.Classes
     , module Ohua.Types.Error
@@ -32,5 +33,6 @@ import Ohua.Types.Classes
 import Ohua.Types.Error
 import Ohua.Types.Integration
 import Ohua.Types.Literal
+import Ohua.Types.Unit
 import Ohua.Types.Make
 import Ohua.Types.Reference
