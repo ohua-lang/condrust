@@ -5,10 +5,13 @@ import Ohua.Prelude
 
 import Ohua.Integration.Rust.Util
 
+import Ohua.Types.Unit (Unit)
+
 import Language.Rust.Syntax as Rust hiding (Normal, Type)
 import Language.Rust.Data.Ident (Ident)
 import Language.Rust.Parser (Span)
 import qualified Data.HashMap.Lazy as HM
+import Data.List.NonEmpty
 
 
 data RustArgType a = Self (Ty a) (Maybe (Lifetime a)) Mutability | Normal (Ty a) deriving (Show, Eq)
@@ -27,7 +30,7 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
             mapM
                 (\case
                     (Fn _ _ ident decl _ _ _ _ _ _) -> 
-                        (: []) . Just . (createFunRef ident, ) <$> extractFunType (\x xs -> FunType . (:xs) <$> convertArg x) decl
+                        (: []) . Just . (createFunRef ident, ) <$> extractFunType (\x xs -> FunType . Right . (:|xs) <$> convertArg x) decl
                     (Impl _ _ _ _ _ _ _ selfType items _) -> 
                         mapM (extractFromImplItem selfType) items
                     (Trait _ _ ident _ _ _ _ items span) -> 
@@ -53,12 +56,15 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
             QualifiedBinding (filePathToNsRef srcFile) .
             toBinding
         
-        extractFunType :: (CompM m, Show a) => (Arg a -> [ArgType (RustArgType a)] -> m (FunType (RustArgType a))) -> FnDecl a -> m (FunType (RustArgType a))
+        extractFunType :: (CompM m, Show a) => 
+            (Arg a -> [ArgType (RustArgType a)] -> m (FunType (RustArgType a))) -> 
+            FnDecl a -> 
+            m (FunType (RustArgType a))
         extractFunType _ f@(FnDecl _ _ True _) = throwError $ "Currently, we do not support variadic arguments." <> show f
-        extractFunType firstArgExtract (FnDecl args _retTyp _ _) =
+        extractFunType f (FnDecl args _retTyp _ _) =
             case args of
                 [] -> return $ FunType $ Left Unit
-                (x:xs) -> firstArgExtract x  =<< mapM convertArg xs
+                (x:xs) -> f x  =<< mapM convertArg xs
 
         convertImplArg :: (CompM m, Show a) => Ty a -> Arg a -> m (ArgType (RustArgType a))
         convertImplArg selfType (SelfValue mut _) = return $ Type $ Self selfType Nothing mut
@@ -83,6 +89,8 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
         extractFirstArg :: Ty a -> Arg a -> [ArgType (RustArgType a)] -> m (FunType (RustArgType a))
         extractFirstArg selfType x xs = 
             let funType x0 = case x0 of
-                            (Type Self{}) -> STFunType x0 xs
-                            _ -> FunType (x0 : xs)
+                            (Type Self{}) -> STFunType x0 $ case xs of
+                                   [] -> Left Unit
+                                   (x:xs) -> Right $ (x :| xs)
+                            _ -> FunType $ Right (x0 :| xs)
             in funType <$> convertImplArg selfType x
