@@ -173,6 +173,8 @@ import Ohua.Core.ALang.Util
 
 import Control.Monad.Trans.Writer.Lazy
 
+import Data.List.NonEmpty (fromList)
+
 
 -- | We perform the following steps:
 --  1. perform lambda lifting to extract the free variables
@@ -203,7 +205,7 @@ liftIntoCtrlCtxt ctrlIn e0 = do
                 Let
                     ctrlOut
                     (fromListToApply 
-                      (FunRef Refs.ctrl Nothing $ FunType $ map (const TypeVar) actuals') 
+                      (FunRef Refs.ctrl Nothing $ FunType $ Right $ fromList $ map (const TypeVar) actuals') 
                       actuals')
                     ie
 

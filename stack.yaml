@@ -8,6 +8,9 @@ flags:
     debug: true
 ghc-options:
   "$locals": -DDEBUG=1
+nix:
+  enable: true
+  packages: [zlib.dev, zlib.out]
 extra-package-dbs: []
 packages:
 - ./core

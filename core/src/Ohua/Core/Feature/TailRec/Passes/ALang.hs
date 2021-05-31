@@ -205,6 +205,7 @@ import Ohua.Core.Prelude
 import qualified Data.Text.Prettyprint.Doc as PP
 
 import qualified Data.HashSet as HS
+import Data.List.NonEmpty (fromList)
 
 import Ohua.Core.ALang.Lang
 import Ohua.Core.ALang.PPrint ()
@@ -256,7 +257,7 @@ recurFunPureFunction :: Expr ty
 recurFunPureFunction = pureFunction recurFun Nothing Untyped
 
 idPureFunction :: Expr ty
-idPureFunction = pureFunction "ohua.lang/id" Nothing (FunType [TypeVar])
+idPureFunction = pureFunction "ohua.lang/id" Nothing (FunType $ Right $ fromList [TypeVar])
 
 -- Phase 1:
 findTailRecs ::
@@ -419,7 +420,7 @@ rewriteCallExpr e = do
     rewriteLastCond (Let v ex ie) = Let v ex $ rewriteLastCond ie
 
     -- I think this will change in the future
-    genFunType callArgs =  FunType $ map (const TypeVar) callArgs
+    genFunType callArgs =  FunType $ Right $ fromList $ map (const TypeVar) callArgs
 
     -- This whole rewriteCond and rewriteBranch algorithm is not correct. That
     -- is to say it only works in the specific case where a single `if` is the

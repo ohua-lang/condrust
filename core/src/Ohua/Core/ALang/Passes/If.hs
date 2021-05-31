@@ -112,15 +112,16 @@ import Ohua.Core.ALang.Util (mkDestructured)
 
 import Control.Category ((>>>))
 import qualified Data.Text as T
+import Data.List.NonEmpty (fromList)
 
 selectSf :: Expr ty
-selectSf = Lit $ FunRefLit $ FunRef Refs.select Nothing $ FunType [TypeVar, TypeVar, TypeVar]
+selectSf = Lit $ FunRefLit $ FunRef Refs.select Nothing $ FunType $ Right $ fromList [TypeVar, TypeVar, TypeVar]
 
 ifFunSf :: Expr ty
-ifFunSf = Lit $ FunRefLit $ FunRef Refs.ifFun Nothing $ FunType [TypeVar]
+ifFunSf = Lit $ FunRefLit $ FunRef Refs.ifFun Nothing $ FunType $ Right $ fromList [TypeVar]
 
 ifSf :: Expr ty
-ifSf = Lit $ FunRefLit $ FunRef Refs.ifThenElse Nothing $ FunType [TypeVar, TypeVar, TypeVar]
+ifSf = Lit $ FunRefLit $ FunRef Refs.ifThenElse Nothing $ FunType $ Right $ fromList [TypeVar, TypeVar, TypeVar]
 
 #if 1
 -- This is a proposal for `ifRewrite` that uses plated to make sure the

@@ -191,8 +191,8 @@ handleApplyExpr l@(Apply _ _) = go [] l
             Apply fn arg -> do
                 go (arg : args) fn
             Lit (FunRefLit (FunRef fn _ident (FunType argTypes))) -> do
-                assertTermTypes args argTypes "function"
-                return (fn, Nothing, zip argTypes args)
+                assertTermTypes args argTypes "function" fn
+                return (fn, Nothing, zip' argTypes args)
             Lit (FunRefLit (FunRef qb _ Untyped)) -> 
                 failWith $ "Wrong function type 'untyped' for pure function: " <> show qb
             Lit (FunRefLit (FunRef qb _ STFunType{})) -> 
@@ -202,16 +202,26 @@ handleApplyExpr l@(Apply _ _) = go [] l
             BindState _state0 (Lit (FunRefLit (FunRef fn _ FunType{}))) -> 
                 failWith $ "Wrong function type 'pure' for st function: " <> show fn
             BindState state0 (Lit (FunRefLit (FunRef fn _ (STFunType sType argTypes)))) -> do
-                assertTermTypes args argTypes "stateful function"
+                assertTermTypes args argTypes "stateful function" fn
                 state' <- expectStateBnd state0
-                return (fn, Just (sType, state'), zip argTypes args)
+                return (fn, Just (sType, state'), zip' argTypes args)
             x -> failWith $ "Expected Apply or Var but got: " <> show (x :: ALang.Expr ty)
-    assertTermTypes termArgs typeArgs funType =
+    assertTermTypes termArgs typeArgs funType fn =
       assertE
-        (length argTypes == length args)
-        $ "Arg types [len: " <> show (length argTypes) <> 
-        "] and args [len: "<> show (length args) <> 
+        -- length of Unit = 1?
+        -- implement Foldable for Either (Unit (NonEmpty ...))
+        (length' typeArgs == length termArgs)
+        $ "Arg types [len: " <> show (length' typeArgs) <> 
+        "] and args [len: "<> show (length termArgs) <> 
         "] don't match for stateful " <> funType <> ": " <> show fn
+    length' expr = case expr of
+                     Left Unit -> 1
+                     Right l -> length l
+
+    zip' :: Either Unit (NonEmpty a) -> [b] -> [(a,b)]
+    zip' (Left Unit) _bs = []
+    zip' _as         []  = []
+    zip' (Right (a:|as)) (b:bs) = zip (a:as) (b:bs)
 
 handleApplyExpr g = failWith $ "Expected apply but got: " <> show g
 
