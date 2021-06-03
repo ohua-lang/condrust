@@ -32,14 +32,14 @@ import qualified Data.ByteString.Lazy.Char8 as L
 
 -- TODO turn this into a parameter for a particular test
 debug :: Bool
-debug = False
+debug = True
 
 renderRustCode :: SourceFile Span -> L.ByteString
-renderRustCode = 
-    encodeUtf8 . 
-    (<> "\n") . 
-    renderLazy . 
-    layoutSmart defaultLayoutOptions . 
+renderRustCode =
+    encodeUtf8 .
+    (<> "\n") .
+    renderLazy .
+    layoutSmart defaultLayoutOptions .
     pretty'
 
 withDebug :: Options -> Options

@@ -191,7 +191,7 @@ generateNodeCode e@(PureDFFun out fun inp) | fun == ctrl = do
                     (SRecv tc $ SChan $ unwrapABnd ctrlInp)
                     (SRecv ti $ SChan $ unwrapABnd inp')
                     out'
-        DFVar tc ctrlInp :| [DFEnvVar ti lit] ->
+        DFVar tc ctrlInp :| [DFEnvVar _ti lit] ->
             return $ Control $ Right $
                 Ops.mkLittedCtrl (SRecv tc $ SChan $ unwrapABnd ctrlInp) lit out' -- FIXME loosing the semantic type here!
         _ -> invariantBroken $ "Control arguments don't match:\n" <> show e
