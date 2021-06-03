@@ -196,20 +196,21 @@ fuseCtrls (TCProgram chans resultChan exprs) =
         isTarget _ _ = False
 
 fuseSTCLang :: forall ty.
-               TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty)) 
+               TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty))
             -> TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty))
-fuseSTCLang (TCProgram chans resultChan exprs) = 
+fuseSTCLang (TCProgram chans resultChan exprs) =
     let noSTC = filter (isNothing . findSTCLang) exprs
-        fused = go stclangs
+        fused = go noSTC stclangs
     in TCProgram chans resultChan $ noSTC ++ fused
     where
-        go stcs = 
-            let sourceAndTarget = map (\stc -> (findSource stc, stc)) stcs
+        go noneStcs stcs =
+            let sourceAndTarget = map (\stc -> (findSource noneStcs stc, stc)) stcs
                 (toFuse, rest) = split sourceAndTarget
                 fused = map (Control . Left . uncurry fuseIt) toFuse
+                noSTC = noneStcs ++ fused
             in if null rest
                 then fused
-                else fused ++ go rest
+                else fused ++ go noSTC rest
 
         fuseIt (Control (Left c)) stc = fuseSTCSMap stc c
         fuseIt (Control (Right _c)) _stc = error "Invariant broken: A contextified literal does not expose any state (because then the state would have been contextified)."
@@ -218,35 +219,44 @@ fuseSTCLang (TCProgram chans resultChan exprs) =
         -- How can I define constraints for the inputs to certain nodes nevertheless?
         -- That is: How can I transport a type constraint through the variable definition in a
         -- language/expression data type?
-        fuseIt _ _ = error "Invariant broken: Trying to fuse non-STCLangSMap!"
+        fuseIt (Fun _) _ = error "Invariant broken: Trying to fuse fun!"
+        fuseIt (STC _) _ = error "Invariant broken: Trying to fuse STC!"
+        fuseIt (Recur _) _ = error "Invariant broken: Trying to fuse recur!"
+        fuseIt (Unfusable _) _ = error "Invariant broken: Trying to fuse unfusable!"
 
-        split xs = 
-            let tgts = HS.fromList $ map snd xs
-            in partitionEithers $
-                map 
-                    (\e@(source, target) -> 
-                        case source of
-                            STC s -> if not $ HS.member s tgts
-                                        then Left e
-                                        else Right target
-                            _ -> Right target)
-                    xs
-    
-        findSource :: STCLangSMap ty -> Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty)
-        findSource (STCLangSMap _ (SRecv _ inp) _) = 
-            case filter (isSource inp) exprs of
+        split xs =
+            --let tgts = HS.fromList $ map snd xs
+            --in
+          partitionEithers $
+          map
+            (\e@(source, target) ->
+                case source of
+                  STC s -> --if not $ HS.member s tgts
+                           -- then Left e
+                           -- else Right target
+                    Right target
+                  _ -> Left e)
+            xs
+
+        findSource :: [Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty)] ->  STCLangSMap ty -> Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty)
+        findSource noneSTCs (STCLangSMap _ (SRecv _ inp) _) =
+            case filter (isSource inp) noneSTCs of
                     [src] -> src
-                    _ -> error "Invariant broken: every STC has exactly one source by definition!"
-        
+                    s -> error  $ "Invariant broken: every STC has exactly one source by definition!"
+                      <> "\nlength: " <> (show $ length s)
+                      <> "\ninp: " <> (show inp)
+                      <> "\n num exprs: " <> (show $ length exprs)
+
         stclangs = mapMaybe findSTCLang exprs
+
         findSTCLang (STC s) = Just s
         findSTCLang _ = Nothing
-        
+
         isSource :: Com 'Channel ty -> Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty) -> Bool
         isSource inp (STC (STCLangSMap _ _ outp)) = outp == inp
-        isSource inp (Control (Left (FusedFunCtrl _ _ _ outs))) = 
-            HS.member inp $ HS.fromList $ map (\(SSend c _) -> c) outs
-        isSource inp (Control (Right (FusedLitCtrl _ (OutputChannel out,_) _))) = inp == out
+        isSource inp (Control (Left (FusedFunCtrl _ _ _ outs))) = HS.member inp $ HS.fromList $ map (\(SSend c _) -> c) outs
+        isSource inp (Control (Right (FusedLitCtrl _ _ (Left l)))) = isSource inp $ Control $ Left l
+        isSource inp (Control (Right (FusedLitCtrl _ _ (Right r)))) = isSource inp $ Fun r
         isSource _inp (Unfusable _) = False
         isSource _inp (Fun PureFusable{}) = False
-        isSource inp (Fun (STFusable _ _ _ _ send)) = (== Just inp) send
+        isSource inp (Fun (STFusable _ _ app _ send)) = (== Just inp) send

@@ -5,6 +5,8 @@ module Ohua.Backend.Lang where
 
 import Ohua.Prelude hiding (First)
 
+import qualified Text.Show
+
 import Data.Functor.Foldable.TH (makeBaseFunctor)
 import Language.Haskell.TH.Syntax (Lift)
 import Control.Lens.Plated
@@ -25,6 +27,11 @@ data Com (f::ComType) (t::Type) :: Type where
   SSend :: Com 'Channel t -> Binding -> Com 'Send t
 
 deriving instance Eq (Com semTy ty)
+
+instance Show (Com a t) where
+  show (SChan bnd) = "Chan: " <> show bnd
+  show (SRecv _ chan) = "Recv: " <> show chan
+  show (SSend chan bnd) = "Send: " <> show chan <> " bnd:" <> show bnd
 
 type Channel = Com 'Channel
 
@@ -75,7 +82,7 @@ data TaskExpr ty
   | Increment Binding -- a + 1;
   | Decrement Binding -- a - 1;
   | Not (TaskExpr ty)
-  
+
   deriving (Eq,Generic)
 
 instance Hashable (TaskExpr ty)

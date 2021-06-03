@@ -48,10 +48,10 @@ toFunCtrl (VarCtrl ctrlVar var) = FunCtrl ctrlVar (var:|[])
 data FusedCtrlAnno = Function | Literal deriving (Eq, Show, Generic)
 
 data FusedCtrl (anno::FusedCtrlAnno) (ty::Type) :: Type where
-    -- there is another assumption here that needs to be enforced: 
+    -- there is another assumption here that needs to be enforced:
     -- state inputs in NonEmpty VarReceive map to state outputs in [Send]!
     FusedFunCtrl ::  CtrlInput ty -> [VarReceive ty] -> TaskExpr ty -> [Com 'Send ty] -> FusedCtrl 'Function ty
-    FusedLitCtrl ::  CtrlInput ty -> (OutputChannel ty, Lit ty) -> TaskExpr ty -> FusedCtrl 'Literal ty
+    FusedLitCtrl ::  CtrlInput ty -> (OutputChannel ty, Lit ty) -> Either (FusedFunCtrl ty) (FusableFunction ty) -> FusedCtrl 'Literal ty
 
 deriving instance Eq (FusedCtrl semTy ty)
 
@@ -132,7 +132,7 @@ fuseCtrlIntoFun fun (FusedFunCtrl ctrlIn ins expr outs) =
 fuseFun :: FunCtrl ty -> FusableFunction ty -> FusedFunCtrl ty
 fuseFun (FunCtrl ctrlInput vars) =
     \case
-        (PureFusable args app res) -> 
+        (PureFusable args app res) ->
             FusedFunCtrl
                 ctrlInput
                 (map (uncurry PureVar . propagateTypeFromArg args) $ toList vars)
@@ -143,9 +143,9 @@ fuseFun (FunCtrl ctrlInput vars) =
                 ctrlInput
                 (vars' stateArg args)
                 (F.genFun'' $ STFusable stateArg (map f args) app res Nothing)
-                (maybe 
-                    [] 
-                    (\g -> [SSend g $ unwrapBnd $ fst $ stateVar stateArg]) 
+                (maybe
+                    []
+                    (\g -> [SSend g $ unwrapBnd $ fst $ stateVar stateArg])
                     stateRes)
         where
             f (Arg (SRecv _ (SChan ch))) | HS.member (SChan ch) ctrled = Converted $ Var ch
@@ -176,24 +176,16 @@ propagateType args (o@(OutputChannel outChan), r@(SRecv _ rChan)) =
         args
 
 fuseLitCtrlIntoCtrl :: LitCtrl ty ->  FusedFunCtrl ty -> FusedLitCtrl ty
-fuseLitCtrlIntoCtrl (LitCtrl ctrlInp inOut) = FusedLitCtrl ctrlInp inOut . genFused'
+fuseLitCtrlIntoCtrl (LitCtrl ctrlInp inOut) = FusedLitCtrl ctrlInp inOut . Left
 
 fuseLitCtrlIntoFun :: LitCtrl ty -> FusableFunction ty -> FusedLitCtrl ty
-fuseLitCtrlIntoFun (LitCtrl ctrlInp outIn) = 
-    FusedLitCtrl ctrlInp outIn . genFun .
-        (\case 
-            (PureFusable args app res) -> PureFusable (map f args) app res
-            (STFusable _stateArg _args _app _res _stateRes) -> error "Invariant broken: only pure functions need to be contextified!")
-    where
-        f (Arg (SRecv _ (SChan ch))) = Converted $ Var ch
-        f (Drop (Left (SRecv _ (SChan ch)))) = Drop $ Right $ Var ch
-        f e  = e
+fuseLitCtrlIntoFun (LitCtrl ctrlInp outIn) = FusedLitCtrl ctrlInp outIn . Right
 
 {-|
   Now, we can easily merge the controls for a single function, so that the
   (controlled) variables to a single function are guarded by the same control node.
   So this:
-           x ---> ctrl1 --------------+ 
+           x ---> ctrl1 --------------+
                     ^                 |
                     |                 v
   sig-source -------+       let _ = f x y in g y
@@ -207,8 +199,8 @@ fuseLitCtrlIntoFun (LitCtrl ctrlInp outIn) =
         |           |
         +-----------+
 
-becomes: 
-           x --> ctrl(1+2) -------------+ 
+becomes:
+           x --> ctrl(1+2) -------------+
                  ^  ^  |                |
                  |  |  +--------------+ |
               +--+  |                 | |
@@ -217,7 +209,7 @@ becomes:
               |     |                          ^
               |     v                          |
            y -+-> ctrl3 -----------------------+
-           
+
   That really just means that I'm removing all signaling code because it is already there.
 -}
 -- Assumption: _sigSource == _sigSource'
@@ -229,28 +221,41 @@ genFused ::  FusedFunCtrl ty -> TaskExpr ty
 genFused = EndlessLoop . genFused'
 
 genFused' ::  FusedFunCtrl ty -> TaskExpr ty
-genFused' (FusedFunCtrl ctrlInput vars comp stateOuts) = 
+genFused' (FusedFunCtrl ctrlInput vars comp stateOuts) =
     genCtrl' ctrlInput initVarsExpr' comp $ Just stateOuts'
     where
         initVarsExpr' = initVarsExpr (map (first unwrapBnd . fromVarReceive) vars) []
-        stateOuts' = 
+        stateOuts' =
             foldr (Stmt . SendData) (Lit UnitLit) stateOuts
 
 genCtrl :: FunCtrl ty -> TaskExpr ty
-genCtrl (FunCtrl ctrlInput vars) = 
+genCtrl (FunCtrl ctrlInput vars) =
     EndlessLoop $
         genCtrl' ctrlInput initVarsExpr' sendCode Nothing
     where
         initVarsExpr' = initVarsExpr receiveVars []
         receiveVars = toList $ NE.map (first (("var_" <>) . show) . second snd) $ NE.zip [0..] vars
-        sendCode = 
+        sendCode =
             foldr (\(bnd, OutputChannel ch) c -> Stmt (SendData $ SSend ch bnd) c) (Lit UnitLit) sendVars
         sendVars = NE.map (first (("var_" <>) . show) . second fst) $ NE.zip [0..] vars
 
 genLitCtrl :: FusedLitCtrl ty -> TaskExpr ty
-genLitCtrl (FusedLitCtrl ctrlInput (OutputChannel (SChan output), input) comp) = 
-    EndlessLoop $ 
-        genCtrl' ctrlInput (Let output (Lit input)) comp Nothing
+genLitCtrl (FusedLitCtrl ctrlInput (OutputChannel (SChan output), input) comp) =
+    EndlessLoop $
+        genCtrl' ctrlInput (Let output (Lit input)) (genComp comp) Nothing
+    where
+      genComp (Left c) = genFused' c
+      genComp (Right fun) =
+        genFun $
+        case fun of
+            (PureFusable args app res) -> PureFusable (map f args) app res
+            -- by definition of findLonelyLiterals in ohua-core
+            (STFusable _stateArg _args app _res _stateRes) -> error $ "Invariant broken: only pure functions need to be contextified! > contextified function: " <> show app
+
+      f (Arg (SRecv _ (SChan ch))) = Converted $ Var ch
+      f (Drop (Left (SRecv _ (SChan ch)))) = Drop $ Right $ Var ch
+      f e  = e
+
 
 genCtrl' ::  CtrlInput ty -> (TaskExpr ty -> TaskExpr ty) -> TaskExpr ty -> Maybe (TaskExpr ty) -> TaskExpr ty
 genCtrl' ctrlInput initVars comp cont =
@@ -263,7 +268,7 @@ genCtrl' ctrlInput initVars comp cont =
             (ctxtLoop
                 comp) $
             sigStateRenew "renew"
-    where 
+    where
         stmt loop = maybe loop (Stmt loop) cont
 
 
