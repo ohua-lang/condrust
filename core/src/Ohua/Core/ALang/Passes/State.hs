@@ -119,6 +119,14 @@ transformIntoStateThreads = transformM f
 --          let allOut = ctxtExit z state1 state2 in
 --          allOut
 -- @
+-- Note though that the following case does NOT need to be contextified:
+-- @
+--   ctxt \state ->
+--          let y = state.f () in
+--          let z = after y in
+--          z
+-- @
+-- Here 'state' is NOT a free variable!
 addCtxtExit :: MonadGenBnd m => Expr ty -> m (Expr ty)
 addCtxtExit = transformM f
     where
@@ -150,7 +158,7 @@ addCtxtExit = transformM f
         f (Let v (fun@(PureFunction op _) `Apply` lam `Apply` ds) cont)
             | op == Refs.smap =
                 let (args, expr) = lambdaArgsAndBody lam
-                    states = collectStates expr
+                    states = filter (not . (`HS.member` (HS.fromList args))) $ collectStates expr
                 in do
                     expr' <- mkST (map Var states) expr
                     ctxtOut <- generateBindingWith "ctxt_out"
@@ -203,7 +211,7 @@ transformCtxtExits = evictOrphanedDestructured . f
              (FunRef op _ _, Nothing, compOut:stateArgs) | op == ctxtExit ->
                let g' = g v compOut stateArgs
                    cont' = g' cont
-               in traceShowId $ descend f cont'
+               in descend f cont'
              _ -> descend f l
         f e = descend f e
 

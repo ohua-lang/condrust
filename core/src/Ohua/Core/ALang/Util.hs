@@ -104,7 +104,7 @@ replaceLit e (Lit old, new) =
         Lit l
             | l == old -> Var new
         other -> other
-        
+
 -- FIXME pattern match failure because ALang not precise enough (see issue #8)
 renameVar :: Expr ty -> (Expr ty, Binding) -> Expr ty
 renameVar e (Var old, new) =
@@ -156,7 +156,7 @@ findLonelyLiterals =
     Lens.para $ \case
         f@Apply {} ->
             const $
-            if areAllLits args
+            if isPureAndAllArgsLit f
                 then take 1 $
                      -- HACK see #34
                      filter
@@ -170,6 +170,10 @@ findLonelyLiterals =
             where args = getFunctionArgs f --snd $ fromApplyToList f
         _ -> join
   where
+    isPureAndAllArgsLit e =
+      case fromApplyToList' e of
+        (_, Nothing, args) -> areAllLits args
+        _ -> False
     areAllLits =
         all $ \case
             Lit _ -> True
