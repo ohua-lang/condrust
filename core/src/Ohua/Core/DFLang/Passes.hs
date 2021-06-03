@@ -193,13 +193,13 @@ handleApplyExpr l@(Apply _ _) = go [] l
             Lit (FunRefLit (FunRef fn _ident (FunType argTypes))) -> do
                 assertTermTypes args argTypes "function" fn
                 return (fn, Nothing, zip' argTypes args)
-            Lit (FunRefLit (FunRef qb _ Untyped)) -> 
+            Lit (FunRefLit (FunRef qb _ Untyped)) ->
                 failWith $ "Wrong function type 'untyped' for pure function: " <> show qb
-            Lit (FunRefLit (FunRef qb _ STFunType{})) -> 
+            Lit (FunRefLit (FunRef qb _ STFunType{})) ->
                 failWith $ "Wrong function type 'st' for pure function: " <> show qb
-            BindState _state0 (Lit (FunRefLit (FunRef fn _ Untyped))) -> 
+            BindState _state0 (Lit (FunRefLit (FunRef fn _ Untyped))) ->
                 failWith $ "Wrong function type 'untyped' for st function: " <> show fn
-            BindState _state0 (Lit (FunRefLit (FunRef fn _ FunType{}))) -> 
+            BindState _state0 (Lit (FunRefLit (FunRef fn _ FunType{}))) ->
                 failWith $ "Wrong function type 'pure' for st function: " <> show fn
             BindState state0 (Lit (FunRefLit (FunRef fn _ (STFunType sType argTypes)))) -> do
                 assertTermTypes args argTypes "stateful function" fn
@@ -211,8 +211,8 @@ handleApplyExpr l@(Apply _ _) = go [] l
         -- length of Unit = 1?
         -- implement Foldable for Either (Unit (NonEmpty ...))
         (length' typeArgs == length termArgs)
-        $ "Arg types [len: " <> show (length' typeArgs) <> 
-        "] and args [len: "<> show (length termArgs) <> 
+        $ "Arg types [len: " <> show (length' typeArgs) <>
+        "] and args [len: "<> show (length termArgs) <>
         "] don't match for stateful " <> funType <> ": " <> show fn
     length' expr = case expr of
                      Left Unit -> 1

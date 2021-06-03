@@ -162,7 +162,7 @@ import Ohua.Core.ALang.Lang
 import qualified Ohua.Core.ALang.Refs as Refs
 import Ohua.Core.ALang.Util
     ( fromListToApply
-    , fromApplyToList
+    , fromApplyToList'
     , lambdaArgsAndBody
     , lambdaLifting
     , mkDestructured
@@ -183,7 +183,7 @@ import Data.List.NonEmpty (fromList)
 -- (if there are no independent function then this binding will never turn into an arc anyway.)
 -- invariants: (dependent type)
 -- if e0 == Lambda args body then Lambda args body'
--- otherwise Lambda [] e0' 
+-- otherwise Lambda [] e0'
 liftIntoCtrlCtxt ::
        (Monad m, MonadGenBnd m) => Binding -> Expr ty -> m (Expr ty)
 liftIntoCtrlCtxt ctrlIn e0 = do
@@ -194,7 +194,7 @@ liftIntoCtrlCtxt ctrlIn e0 = do
     let formals = reverse $ take (length actuals) $ reverse allFormals
 
     if null formals
-        then 
+        then
             -- TODO Assumption: $ lam' == e0
             pure lam'
         else do
@@ -204,8 +204,8 @@ liftIntoCtrlCtxt ctrlIn e0 = do
                 mkLambda originalFormals $
                 Let
                     ctrlOut
-                    (fromListToApply 
-                      (FunRef Refs.ctrl Nothing $ FunType $ Right $ fromList $ map (const TypeVar) actuals') 
+                    (fromListToApply
+                      (FunRef Refs.ctrl Nothing $ FunType $ Right $ fromList $ map (const TypeVar) actuals')
                       actuals')
                     ie
 
@@ -218,53 +218,58 @@ fusionPasses = uniqueCtrls . evictOrphanedDestructured . splitCtrls
 
 {-|
   Initial situation after context lifting by the liftIntoCtrlCtxt function:
-           x ------+ +----------------+ 
+           x ------+ +----------------+
                    | |                |
                    v |                v
-  sig-source ----> ctrl     let _ = f x y in g y  
+  sig-source ----> ctrl     let _ = f x y in g y
                    ^ |                  ^      ^
                    | |                  |      |
            y ------+ +------------------+------+
 
   becomes:
-           x ---> ctrl1 --------------+ 
+           x ---> ctrl1 --------------+
                     ^                 |
                     |                 v
   sig-source -------+       let _ = f x y in g y
                     |                   ^      ^
                     v                   |      |
            y ---> ctrl2 ----------------+------+
-  This removes all destructuring (nth-nodes) for the output of ctrl! 
+  This removes all destructuring (nth-nodes) for the output of ctrl!
 -}
 splitCtrls :: Expr ty -> Expr ty
 splitCtrls = transform go
     where
         go :: Expr ty -> Expr ty
-        go (Let v e@(f@(PureFunction op _) `Apply` _) cont) | op == Refs.ctrl = 
-            let (_, ctrlSig:vars) = fromApplyToList e
-                outs = findDestructured cont v
-            in foldr
-                (\(varOut,varIn) c -> 
-                    Let varOut (f `Apply` ctrlSig `Apply` varIn) c)
-                cont $
-                zip outs vars
+        go l@(Let v e cont) =
+          case fromApplyToList' e of
+            (FunRef op i _, Nothing, ctrlSig:vars)
+              | op == Refs.ctrl
+              -> let outs = findDestructured cont v
+                 in foldr
+                      (\(varOut,varIn) c ->
+                         Let varOut
+                             ((Lit $ FunRefLit $ FunRef op i $ FunType $ Right (TypeVar :|[TypeVar])) `Apply` ctrlSig `Apply` varIn)
+                             c)
+                      cont $
+                      zip outs vars
+            _ -> l
         go e = e
 
 {-|
   Each variable gets used only once. This removes the need for ctrl ops to distribute
   variables to more than one usage location and makes the following transformations easier.
-  
+
   So we transform this:
-           x ---> ctrl1 --------------+ 
+           x ---> ctrl1 --------------+
                     ^                 |
                     |                 v
   sig-source -------+       let _ = f x y in g y
                     |                   ^      ^
                     v                   |      |
-           y ---> ctrl2 ----------------+------+ 
+           y ---> ctrl2 ----------------+------+
 
   into this:
-           x ---> ctrl1 --------------+ 
+           x ---> ctrl1 --------------+
                     ^                 |
                     |                 v
   sig-source -------+       let _ = f x y in g y
@@ -282,15 +287,16 @@ uniqueCtrls :: MonadGenBnd m => Expr ty -> m (Expr ty)
 uniqueCtrls = transformM go
     where
         go :: MonadGenBnd m => Expr ty -> m (Expr ty)
-        go e@(Let v ctrl@(PureFunction op _ `Apply` _) cont) | op == Refs.ctrl = 
-            let usages = [ bnd | Var bnd <- universe cont 
+        -- this pattern works because now every control has this form due to the above transformation (TODO reflect this in the type)
+        go e@(Let v ctrl@(PureFunction op _ `Apply` _) cont) | op == Refs.ctrl =
+            let usages = [ bnd | Var bnd <- universe cont
                                , bnd == v]
-            in 
-              if length usages < 2 
+            in
+              if length usages < 2
               then return e
               else do
                 (cont',newBnds) <- runWriterT $ renameUsages v cont
-                return $ 
+                return $
                   foldr (\newBnd c -> Let newBnd ctrl c) cont' newBnds
         go e = return e
 
@@ -300,4 +306,3 @@ uniqueCtrls = transformM go
             tell [newBnd]
             return $ Var bnd
         renameUsages _ e = return e
-              

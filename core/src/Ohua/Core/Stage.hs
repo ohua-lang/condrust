@@ -78,6 +78,9 @@ preControlSTCLangALang = "alang-stclang-pre-control"
 postControlSTCLangALang :: StageName
 postControlSTCLangALang = "alang-stclang-post-control"
 
+uniqueCtrlsALang :: StageName
+uniqueCtrlsALang = "alang-unique-ctrls"
+
 knownStages :: [StageName]
 knownStages =
     [ resolvedAlang
@@ -96,4 +99,5 @@ knownStages =
     , preControlSTCLangALang
     , postControlSTCLangALang
     , normalizeAfterCorePasses
+    , uniqueCtrlsALang
     ]

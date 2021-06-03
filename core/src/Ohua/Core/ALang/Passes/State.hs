@@ -14,6 +14,7 @@ module Ohua.Core.ALang.Passes.State where
 
 import Ohua.Core.Prelude
 
+import Ohua.Types.Vector hiding (map)
 import Ohua.Core.ALang.Lang
 import Ohua.Core.ALang.Util
 import Ohua.Core.ALang.Passes.SSA
@@ -31,19 +32,20 @@ import Control.Lens.Plated (plate)
 
 preControlPasses :: MonadOhua m => Expr ty -> m (Expr ty)
 preControlPasses =
-  transformIntoStateThreads >=>
   addCtxtExit >=>
+  transformIntoStateThreads >=>
   performSSA
 
 -- FIXME there is code missing that turns the basic state threads into real state threads! this is the very first transformation that needs to run.
 -- the transformation is: make state threads and then rebind the state -> alpha renaming on the rest of the term.
 
 postControlPasses :: Expr ty -> Expr ty
-postControlPasses = transformCtxtExits
+postControlPasses = transformCtxtExits . traceShow "transforming ctxt exists!" -- TODO assert here that no more ctxt exits remain in the code
 
 runSTCLangSMapFun :: Expr ty
-runSTCLangSMapFun = Lit $ FunRefLit $ FunRef Refs.runSTCLangSMap Nothing Untyped
+runSTCLangSMapFun = Lit $ FunRefLit $ FunRef Refs.runSTCLangSMap Nothing $ FunType $ Right (TypeVar :| [TypeVar]) -- size and the state, i.e., there is one per state
 
+-- FIXME this functions can not be untyped anymore!
 runSTCLangIfFun :: Expr ty
 runSTCLangIfFun = Lit $ FunRefLit $ FunRef Refs.runSTCLangIf Nothing Untyped
 
@@ -51,12 +53,21 @@ runSTCLangIfFun = Lit $ FunRefLit $ FunRef Refs.runSTCLangIf Nothing Untyped
 ctxtExit :: QualifiedBinding
 ctxtExit = "ohua.lang/ctxtExit"
 
-ctxtExitFunRef :: Expr ty
-ctxtExitFunRef = Lit $ FunRefLit $ FunRef ctxtExit Nothing Untyped
+ctxtExitFunRef :: SNat ('Succ n) -> Expr ty
+ctxtExitFunRef num = Lit $ FunRefLit $ FunRef ctxtExit Nothing $ FunType $ Right $ replicateNE num TypeVar
 
 -- | Transforms every stateful function into a fundamental state thread.
 --   Corrects the reference to the state for the rest of the computation.
 --   Assumption: expression is in ANF form (TODO enforce via the type system)
+--
+--  Transforms this:
+-- @
+--  let v = state.f () in c
+-- @
+--  into:
+-- @
+--  let (state', v) = state.f () in c[state'/state]
+-- @
 transformIntoStateThreads :: (MonadOhua m) => Expr ty -> m (Expr ty)
 transformIntoStateThreads = transformM f
   where
@@ -86,6 +97,28 @@ transformIntoStateThreads = transformM f
 
 -- TODO do not introduce orphaned state, i.e., state that is never used again.
 --      check before that which of the state is actually used after the control context it is used in.
+
+-- | Adds a ctxtExit function that collects all states and the result of the context and passes it to the 'collect'/'select' function.
+--   The transformation works on imperative code, .i.e.,
+--   this:
+-- @
+--   ctxt \d ->
+--          let x = before d in
+--          let y1 = state1.f x in
+--          let y2 = state2.f y1 in
+--          let z = after y2 in
+--          z
+-- @
+--   into that:
+-- @
+--   ctxt \d ->
+--          let x = before d in
+--          let y1 = state1.f x in
+--          let y2 = state2.f y1 in
+--          let z = after y2 in
+--          let allOut = ctxtExit z state1 state2 in
+--          allOut
+-- @
 addCtxtExit :: MonadGenBnd m => Expr ty -> m (Expr ty)
 addCtxtExit = transformM f
     where
@@ -128,65 +161,95 @@ addCtxtExit = transformM f
                         cont
         f expr = return expr
 
+
 -- Assumptions: This function is applied to a normalized and SSAed expression.
 --              This transformation executes after the control rewrites.
--- Note: The use of descend is entirely not necessary anymore once the "applicative normal form"
---       is properly defined as a type.
+-- Note: The use of descend is entirely not necessary anymore once the "applicative normal form" is properly defined as a type. (see issue #8)
+
+-- | The transformation turns the imperative into a functional state thread.
+--   It transforms this:
+-- @
+--   let d = ctxtDataEntrance in
+--   let x = before d in
+--   let (state1',y1) = state1.f x in
+--   let (state2',y2) = state2.f y1 in
+--   let z = after 2 in
+--   let allOut = ctxtExit z state1' state2' in
+--   let (z', state1'', state2'') = ctxtResultExit allOut in
+--   b
+-- @
+--   into that:
+-- @
+--   let d = ctxtDataEntrance in
+--   let x = before d in
+--   let (state1',y1) = state1.f x in
+--   let (state2',y2) = state2.f y1 in
+--   let z = after 2 in
+--   let z' = ctxtResultExit z in
+--   let state1'' = runSTCLang* state1' in
+--   let state2'' = runSTCLang* state2' in
+--   b
+-- @
+-- The goal of this transformation is to simplify fusion in the backend.
 transformCtxtExits :: forall ty. Expr ty -> Expr ty
 transformCtxtExits = evictOrphanedDestructured . f
     where
         f :: Expr ty -> Expr ty
-        f (Let v e@(PureFunction op _ `Apply` _) cont)
-            | op == ctxtExit =
-                let (_, compOut:stateArgs) = fromApplyToList e
-                    g' = g v compOut stateArgs
-                    cont' = g' cont
-                in descend g' cont'
+        -- FIXME This does not work because the ctxtExit has a variable number of arguments! So for two arguments it actually is (Apply (Apply f x) y). Once more this is a problem of our weak definition!
+--        f (Let v e@(PureFunction op _ `Apply` _) cont)
+--            | op == ctxtExit =
+        f l@(Let v e@(Apply _ _) cont) =
+           case fromApplyToList' e of
+             (FunRef op _ _, Nothing, compOut:stateArgs) | op == ctxtExit ->
+               let g' = g v compOut stateArgs
+                   cont' = g' cont
+               in traceShowId $ descend f cont'
+             _ -> descend f l
         f e = descend f e
 
         g :: Binding -> Expr ty -> [Expr ty] -> Expr ty -> Expr ty
-        g compound compOut stateArgs (Let v e@(PureFunction op _ `Apply` _) cont)
-            | op == ctxtExit = 
-                -- Must be a conditional
-                let (_, compOut':stateArgs') = fromApplyToList e
-                    h' = h compound compOut stateArgs v compOut' stateArgs'
-                    cont' = h' cont
-                in descend h' cont'
-
-        g ctxtExitRes compOut stateOuts (Let v (fun@(PureFunction op _) `Apply` size `Apply` (Var exitRes)) cont)
-            | op == Refs.collect && ctxtExitRes == exitRes = 
-                let (compOut':stateOuts') = findDestructured cont v
-                    stateExits ct = 
-                        foldr
-                            (\(s',s) c -> 
-                                Let s' (runSTCLangSMapFun `Apply` size `Apply` s) c)
-                            ct
-                            $ zip stateOuts' stateOuts 
-                in descend f $
-                    Let compOut' (fun `Apply` size `Apply` compOut) $
-                        stateExits 
-                        cont
+        g compound compOut stateArgs l@(Let v e@(Apply _ _) cont) =
+           case fromApplyToList' e of
+             -- Must be a conditional (second ctxtExit)
+             (FunRef op _ _, Nothing, compOut':stateArgs') | op == ctxtExit ->
+               let h' = h compound compOut stateArgs v compOut' stateArgs'
+                   cont' = h' cont
+               in descend h' cont'
+             -- collect case
+             (fun@(FunRef op _ _), Nothing, [size, Var exitRes]) | op == Refs.collect && exitRes == compound ->
+               let (compOut':stateOuts') = findDestructured cont v
+                   stateExits ct =
+                     foldr
+                       (\(s',s) c ->
+                          Let s' (runSTCLangSMapFun `Apply` size `Apply` s) c)
+                       ct
+                       $ zip stateOuts' stateArgs
+               in
+                 Let compOut' ((Lit $ FunRefLit fun) `Apply` size `Apply` compOut) $
+                 stateExits
+                 cont
+             _ -> descend (g compound compOut stateArgs) l
         g co c s e = descend (g co c s) e
 
         h :: Binding -> Expr ty -> [Expr ty]
           -> Binding -> Expr ty -> [Expr ty]
           -> Expr ty
           -> Expr ty
-        h compound compOut stateOuts _compound' compOut' stateOuts' 
+        h compound compOut stateOuts _compound' compOut' stateOuts'
             (Let v (fun@(PureFunction op _) `Apply` cond `Apply` Var trueBranch `Apply` _falseBranch) cont)
-            | op == Refs.select = 
+            | op == Refs.select =
                 let (tbCompOut, tbStateArgs, fbCompOut, fbStateArgs) =
                         if compound == trueBranch
                         then (compOut, stateOuts, compOut', stateOuts')
                         else (compOut', stateOuts', compOut, stateOuts)
                     (compOut'':stateOuts'') = findDestructured cont v
-                    stateExits ct = 
+                    stateExits ct =
                         foldr
-                            (\(s', (ts,fs)) c -> 
+                            (\(s', (ts,fs)) c ->
                                 Let s' (runSTCLangIfFun `Apply` cond `Apply` ts `Apply` fs) c)
-                            ct $ 
-                            zip stateOuts'' $ 
-                            zip tbStateArgs fbStateArgs 
+                            ct $
+                            zip stateOuts'' $
+                            zip tbStateArgs fbStateArgs
                 in stateExits $
                     Let compOut'' (fun `Apply` cond `Apply` tbCompOut `Apply` fbCompOut) $
                     descend f cont
@@ -199,14 +262,14 @@ applyToBody f (Lambda _ body) = applyToBody f body
 applyToBody f e = f e
 
 collectStates :: Expr ty -> [Binding]
-collectStates e = [ s | (BindState (Var s) _) <- universe e ] 
+collectStates e = [ s | (BindState (Var s) _) <- universe e ]
 
 mkST :: (MonadGenBnd m) => [Expr ty] -> Expr ty -> m (Expr ty)
 mkST states = \case
     Let v e res -> Let v e <$> mkST states res
     e -> do
-        allOut <- generateBindingWith "all_out" 
+        allOut <- generateBindingWith "all_out"
         return $
             Let allOut
-                (mkApply ctxtExitFunRef $ e : states)
+                (mkApply (withSuccSing (Succ $ nlength states) ctxtExitFunRef) $ e : states)
                 (Var allOut)

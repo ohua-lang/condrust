@@ -7,7 +7,7 @@ import qualified Ohua.Types.Vector as V
 import Data.Singletons
 
 import Ohua.Core.DFLang.Lang
-import Ohua.Core.DFLang.PPrint (prettyExprM)
+-- import Ohua.Core.DFLang.PPrint (prettyExprM)
 import qualified Ohua.Core.Feature.TailRec.Passes.ALang as ALangPass
 import Ohua.Core.DFLang.Passes (checkDefinedUsage)
 

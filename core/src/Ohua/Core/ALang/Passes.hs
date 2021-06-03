@@ -30,6 +30,7 @@ import Data.List.NonEmpty (fromList)
 
 import Ohua.Core.ALang.Lang
 import Ohua.Core.ALang.PPrint
+import Ohua.Core.ALang.Passes.Control (fusionPasses)
 import Ohua.Core.ALang.Passes.If
 import Ohua.Core.ALang.Passes.Seq
 import Ohua.Core.ALang.Passes.Smap
@@ -66,7 +67,10 @@ runCorePasses expr = do
     let stateThreadsE' = postControlPasses normalizedE
     stage postControlSTCLangALang stateThreadsE'
 
-    return stateThreadsE'
+    uniqueCtrlsE <- fusionPasses stateThreadsE'
+    stage uniqueCtrlsALang uniqueCtrlsE
+
+    return uniqueCtrlsE
 
 -- | Inline all references to lambdas.
 -- Aka `let f = (\a -> E) in f N` -> `(\a -> E) N`
