@@ -14,6 +14,6 @@ import Ohua.Backend.Operators.If
 import Ohua.Backend.Operators.Seq
 import Ohua.Backend.Operators.SMap
 import Ohua.Backend.Operators.State
-import Ohua.Backend.Operators.Function
+import Ohua.Backend.Operators.Function hiding (genFused)
 import Ohua.Backend.Operators.Common
 import Ohua.Backend.Operators.TailRec

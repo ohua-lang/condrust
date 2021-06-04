@@ -23,45 +23,51 @@ instance Hashable (CallArg ty)
 --   5) certainly this definition of a function really is no different
 --      from the newly defined DFLang! (one more reason to move this into common.)
 
-data FusFunction f ty
+data FusFunction pout sin ty
     = PureFusable
         [CallArg ty]  -- data receive
         QualifiedBinding
-        (f (Com 'Channel ty)) -- send result
+        (pout (Com 'Channel ty)) -- send result
     | STFusable
-        (Com 'Recv ty) -- state receive
+        (sin ty) -- state receive
         [CallArg ty]  -- data receive
         QualifiedBinding
         (Maybe (Com 'Channel ty)) -- send result
         (Maybe (Com 'Channel ty)) -- send state
     deriving (Generic)
 
-type FusableFunction ty = FusFunction Identity ty
-type FusedFunction ty = FusFunction Maybe ty
+type FusableFunction ty = FusFunction Identity (Com 'Recv) ty
+type FusedFunction ty = FusFunction Maybe CallArg ty
 
 deriving instance Hashable (FusableFunction ty)
 deriving instance Eq (FusableFunction ty)
 
 toFuseFun :: FusableFunction ty -> FusedFunction ty
 toFuseFun (PureFusable recvs qb (Identity out)) = PureFusable recvs qb (Just out)
-toFuseFun (STFusable a b c d e) = STFusable a b c d e
+toFuseFun (STFusable a b c d e) = STFusable (Arg a) b c d e
 
 genFun :: FusableFunction ty -> TaskExpr ty
-genFun fun = loop fun $ (\f -> genFun' (genSend f) f) $ toFuseFun fun
+genFun fun = loop (funReceives fun) $ (\f -> genFun' (genSend f) f) $ toFuseFun fun
 
-loop :: FusFunction f ty -> TaskExpr ty -> TaskExpr ty
-loop fun c = if null $ funReceives fun
-        then c
-        else EndlessLoop c
+funReceives :: FusableFunction ty -> [Com 'Recv ty]
+funReceives (PureFusable vars _ _)   = extractAll vars
+funReceives (STFusable r vars _ _ _) = r : extractAll vars
+
+loop :: [Com 'Recv ty] -> TaskExpr ty -> TaskExpr ty
+loop [] c = c
+loop _  c = EndlessLoop c
 
 genSend :: FusedFunction ty -> TaskExpr ty
 genSend = \case
     (PureFusable _ _ o) -> maybe (Lit UnitLit) (\out@(SChan b) -> SendData $ SSend out b) o
-    (STFusable stateRecv receives _ sendRes sendState) -> 
-        let varsAndReceives = NE.zipWith (curry generateReceiveCode) [0 ..] $ Arg stateRecv :| receives
+    (STFusable stateRecv receives _ sendRes sendState) ->
+        let varsAndReceives =
+              NE.zipWith (curry generateReceiveCode) [0 ..] $ stateRecv :| receives
             stateArg = (\(_,v,_) -> v) $ NE.head varsAndReceives
-        in foldr Stmt (Lit UnitLit) $ 
-            catMaybes [SendData . (\o@(SChan b) -> o `SSend` b) <$> sendRes, SendData . (`SSend` stateArg) <$> sendState]
+        in foldr Stmt (Lit UnitLit) $
+            catMaybes [ SendData . (\o@(SChan b) -> o `SSend` b) <$> sendRes
+                      , SendData . (`SSend` stateArg) <$> sendState
+                      ]
 
 genFun'' :: FusableFunction ty -> TaskExpr ty
 genFun'' fun = (\f -> genFun' (genSend f) f) $ toFuseFun fun
@@ -78,17 +84,20 @@ genFun' ct = \case
                 (\(SChan b) -> Let b call ct)
                 out
     (STFusable stateRecv receives app sendRes _sendState) ->
-        let varsAndReceives = NE.zipWith (curry generateReceiveCode) [0 ..] $ Arg stateRecv :| receives
+        let varsAndReceives =
+              NE.zipWith (curry generateReceiveCode) [0 ..] $ stateRecv :| receives
             callArgs = getCallArgs $ NE.tail varsAndReceives
             stateArg = (\(_,v,_) -> v) $ NE.head varsAndReceives
-            call = (Apply $ Stateful (Var stateArg) app callArgs) 
+            call = (Apply $ Stateful (Var stateArg) app callArgs)
         in flip letReceives (toList varsAndReceives) $
             maybe
                 (Stmt call ct)
                 (\(SChan b) -> Let b call ct)
                 sendRes
     where
-        getCallArgs = map (\(_,v,_) -> Var v) . filter (\case (Drop _, _, _) -> False; _ -> True)
+        getCallArgs =
+          map (\(_,v,_) -> Var v) .
+          filter (\case (Drop _, _, _) -> False; _ -> True)
         letReceives = foldr ((\ (v, r) c -> Let v r c) . (\(_,v,r) -> (v,r)))
 
 generateReceiveCode :: (Semigroup b, IsString b, Show a) => (a, CallArg ty) -> (CallArg ty, b, TaskExpr ty)
@@ -97,24 +106,30 @@ generateReceiveCode (idx, a@(Drop (Left r))) = (a, "_var_" <> show idx, ReceiveD
 generateReceiveCode (idx, a@(Drop (Right e))) = (a, "_var_" <> show idx, e)
 generateReceiveCode (idx, a@(Converted e)) = (a, "var_" <> show idx, e)
 
-funReceives :: FusFunction f ty -> [Com 'Recv ty]
-funReceives = 
-    \case
-        (PureFusable vars _ _) -> extract vars
-        (STFusable r vars _ _ _) -> r : extract vars
-    where 
-        extract = mapMaybe 
-                    (\case 
-                        (Arg r) -> Just r
-                        (Drop (Left r)) -> Just r
-                        (Drop _) -> Nothing
-                        (Converted _) -> Nothing)
+extractAll :: [CallArg ty] -> [Com 'Recv ty]
+extractAll = mapMaybe extractOne
 
-data FusedFun ty 
+extractOne :: CallArg ty -> Maybe (Com 'Recv ty)
+extractOne (Arg r) = Just r
+extractOne (Drop (Left r)) = Just r
+extractOne (Drop _) = Nothing
+extractOne (Converted _) = Nothing
+
+data FusedFun ty
     = FusedFun (FusedFunction ty) (TaskExpr ty)
 
+genFused :: FusedFunction ty -> TaskExpr ty
+genFused fun = genFun' (genSend fun) fun
+
+genFusedFun' :: FusedFun ty -> TaskExpr ty
+genFusedFun' (FusedFun fun ct) = genFun' ct fun
+
 genFusedFun :: FusedFun ty -> TaskExpr ty
-genFusedFun (FusedFun fun ct) = loop fun $ genFun' ct fun
+genFusedFun f@(FusedFun fun ct) = loop (fusedFunReceives fun) $ genFusedFun' f
+
+fusedFunReceives :: FusedFunction ty -> [Com 'Recv ty]
+fusedFunReceives (PureFusable vars _ _)   = extractAll vars
+fusedFunReceives (STFusable r vars _ _ _) = extractAll $ r:vars
 
 fuseFuns :: FusableFunction ty -> FusableFunction ty -> FusableFunction ty
 fuseFuns = undefined

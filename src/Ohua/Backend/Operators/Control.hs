@@ -6,7 +6,7 @@ import Ohua.Prelude
 import Ohua.Backend.Operators.Common
 import Ohua.Backend.Lang as L hiding (Function)
 import Ohua.Backend.Operators.State
-import Ohua.Backend.Operators.Function as F hiding (genFused)
+import qualified Ohua.Backend.Operators.Function as F
 
 import qualified Data.List.NonEmpty as NE
 import qualified Data.HashSet as HS
@@ -51,7 +51,7 @@ data FusedCtrl (anno::FusedCtrlAnno) (ty::Type) :: Type where
     -- there is another assumption here that needs to be enforced:
     -- state inputs in NonEmpty VarReceive map to state outputs in [Send]!
     FusedFunCtrl ::  CtrlInput ty -> [VarReceive ty] -> TaskExpr ty -> [Com 'Send ty] -> FusedCtrl 'Function ty
-    FusedLitCtrl ::  CtrlInput ty -> (OutputChannel ty, Lit ty) -> Either (FusedFunCtrl ty) (FusableFunction ty) -> FusedCtrl 'Literal ty
+    FusedLitCtrl ::  CtrlInput ty -> (OutputChannel ty, Lit ty) -> Either (FusedFunCtrl ty) (F.FusableFunction ty) -> FusedCtrl 'Literal ty
 
 deriving instance Eq (FusedCtrl semTy ty)
 
@@ -72,11 +72,11 @@ fuseSTCSMap
     where
         stateOuts' = map (\(SSend ch d) -> if ch == stateReceive
                                             then SSend stateOut d
-                                            else SSend ch d) 
+                                            else SSend ch d)
                          stateOuts
 
 fuseCtrl :: forall ty.FunCtrl ty -> FusedFunCtrl ty -> FusedFunCtrl ty
-fuseCtrl 
+fuseCtrl
     (FunCtrl ctrlInput vars) -- from
     (FusedFunCtrl ctrlInput' vars' comp' stateOuts) -- to
     = FusedFunCtrl
@@ -87,73 +87,74 @@ fuseCtrl
     where
         initVarsExpr' = initVarsExpr (map (first unwrapBnd . fromVarReceive) vars') $ NE.toList sendVars
         sendVars = NE.map fst vars
-        stateVars = 
+        stateVars =
             HS.fromList $
             mapMaybe (\case StateVar _outChan (SRecv _ b) -> Just b; _ -> Nothing)
             vars'
         vars'' =
             toList $
-            map 
-                ((\(out@(OutputChannel b), re) -> 
+            map
+                ((\(out@(OutputChannel b), re) ->
                     if HS.member b stateVars
                     then StateVar out re
                     else PureVar out re)
                 . propagateTypeFromRecv vars)
                 vars
         stateOuts' = map g stateOuts
-        g (SSend ch d) = 
+        g (SSend ch d) =
             let d' = case NE.filter (\(OutputChannel (SChan o),_r) -> o == d) vars of
                         [(OutputChannel (SChan o),_)] -> o
                         _ -> error "invariant broken"
             in SSend ch d' -- the var that I assign the state to becomes the new data out for the state
         propagateTypeFromRecv = propagateType . toList . map snd
 
-fuseCtrlIntoFun :: FusableFunction ty -> FusedFunCtrl ty -> FusedFun ty
-fuseCtrlIntoFun fun (FusedFunCtrl ctrlIn ins expr outs) = 
-    case fun of 
-        (PureFusable recvs qb (Identity out)) ->
+fuseCtrlIntoFun :: F.FusableFunction ty -> FusedFunCtrl ty -> F.FusedFun ty
+fuseCtrlIntoFun fun (FusedFunCtrl ctrlIn ins expr outs) =
+    case fun of
+        (F.PureFusable recvs qb (Identity out)) ->
             let ins' = f (Just out) ins
                 out' = if length ins' < length ins then Nothing else Just out
-            in FusedFun
-                (PureFusable recvs qb out')
+            in F.FusedFun
+                (F.PureFusable recvs qb out')
                 $ genFused $ FusedFunCtrl ctrlIn ins' expr outs
-        (STFusable sRecv recvs qb out sOut) ->
+        (F.STFusable sRecv recvs qb out sOut) ->
             let ins' = f out ins
                 ins'' = f sOut ins'
                 out' = if length ins' < length ins then Nothing else out
                 sOut' = if length ins'' < length ins' then Nothing else sOut
-            in FusedFun 
-                (STFusable sRecv recvs qb out' sOut')
+            in F.FusedFun
+                (F.STFusable (F.Arg sRecv) recvs qb out' sOut')
                 $ genFused $ FusedFunCtrl ctrlIn ins'' expr outs
     where
         f Nothing ins0 = ins0
         f (Just out) ins0 = filter ((\(SRecv _ inp) -> inp /= out) . snd . fromVarReceive) ins0
 
-fuseFun :: FunCtrl ty -> FusableFunction ty -> FusedFunCtrl ty
+fuseFun :: FunCtrl ty -> F.FusableFunction ty -> FusedFunCtrl ty
 fuseFun (FunCtrl ctrlInput vars) =
     \case
-        (PureFusable args app res) ->
+        (F.PureFusable args app res) ->
             FusedFunCtrl
                 ctrlInput
                 (map (uncurry PureVar . propagateTypeFromArg args) $ toList vars)
-                (F.genFun'' $  PureFusable (map f args) app res)
+                (F.genFun'' $  F.PureFusable (map f args) app res)
                 []
-        (STFusable stateArg args app res stateRes) ->
+        (F.STFusable stateArg args app res stateRes) ->
             FusedFunCtrl
                 ctrlInput
                 (vars' stateArg args)
-                (F.genFun'' $ STFusable stateArg (map f args) app res Nothing)
+                (F.genFused $ F.STFusable (f $ F.Arg stateArg) (map f args) app res Nothing)
                 (maybe
                     []
                     (\g -> [SSend g $ unwrapBnd $ fst $ stateVar stateArg])
                     stateRes)
         where
-            f (Arg (SRecv _ (SChan ch))) | HS.member (SChan ch) ctrled = Converted $ Var ch
-            f (Drop (Left (SRecv _ (SChan ch)))) | HS.member (SChan ch) ctrled = Drop $ Right $ Var ch
+            f (F.Arg (SRecv _ (SChan ch))) | HS.member (SChan ch) ctrled = F.Converted $ Var ch
+            f (F.Drop (Left (SRecv _ (SChan ch)))) | HS.member (SChan ch) ctrled =
+                                                   F.Drop $ Right $ Var ch
             f e  = e
             ctrled = HS.fromList $ toList $ map unwrapChan sendVars
             sendVars = NE.map fst vars
-            stateVar (SRecv _ sArg) =
+            stateVar (SRecv _ sArg)=
               case NE.filter (\(l, _) -> (unwrapChan l) == sArg) vars of
                 [s] -> s
                 []  -> error "invariant broken" -- an assumption rooted inside DFLang
@@ -164,11 +165,12 @@ fuseFun (FunCtrl ctrlInput vars) =
                             (bnd, a) -> PureVar bnd a)
                         . propagateTypeFromArg args)
                         vars
-            propagateTypeFromArg = propagateType . mapMaybe (\case (Arg s) -> Just s; _ -> Nothing)
+            propagateTypeFromArg =
+              propagateType . mapMaybe (\case (F.Arg s) -> Just s; _ -> Nothing)
 
 propagateType :: [Com 'Recv ty] -> (OutputChannel ty, Com 'Recv ty) -> (OutputChannel ty, Com 'Recv ty)
-propagateType args (o@(OutputChannel outChan), r@(SRecv _ rChan)) = 
-    foldl (\s out -> case out of 
+propagateType args (o@(OutputChannel outChan), r@(SRecv _ rChan)) =
+    foldl (\s out -> case out of
                         (SRecv t chan) | chan == outChan -> (o, SRecv t rChan)
                         -- TODO this is actually not possible and should be an invariant because all vars
                         --      of the control have a corresponding arg.
@@ -179,7 +181,7 @@ propagateType args (o@(OutputChannel outChan), r@(SRecv _ rChan)) =
 fuseLitCtrlIntoCtrl :: LitCtrl ty ->  FusedFunCtrl ty -> FusedLitCtrl ty
 fuseLitCtrlIntoCtrl (LitCtrl ctrlInp inOut) = FusedLitCtrl ctrlInp inOut . Left
 
-fuseLitCtrlIntoFun :: LitCtrl ty -> FusableFunction ty -> FusedLitCtrl ty
+fuseLitCtrlIntoFun :: LitCtrl ty -> F.FusableFunction ty -> FusedLitCtrl ty
 fuseLitCtrlIntoFun (LitCtrl ctrlInp outIn) = FusedLitCtrl ctrlInp outIn . Right
 
 {-|
@@ -247,14 +249,14 @@ genLitCtrl (FusedLitCtrl ctrlInput (OutputChannel (SChan output), input) comp) =
     where
       genComp (Left c) = genFused' c
       genComp (Right fun) =
-        genFun $
+        F.genFun $
         case fun of
-            (PureFusable args app res) -> PureFusable (map f args) app res
+            (F.PureFusable args app res) -> F.PureFusable (map f args) app res
             -- by definition of findLonelyLiterals in ohua-core
-            (STFusable _stateArg _args app _res _stateRes) -> error $ "Invariant broken: only pure functions need to be contextified! > contextified function: " <> show app
+            (F.STFusable _stateArg _args app _res _stateRes) -> error $ "Invariant broken: only pure functions need to be contextified! > contextified function: " <> show app
 
-      f (Arg (SRecv _ (SChan ch))) = Converted $ Var ch
-      f (Drop (Left (SRecv _ (SChan ch)))) = Drop $ Right $ Var ch
+      f (F.Arg (SRecv _ (SChan ch))) = F.Converted $ Var ch
+      f (F.Drop (Left (SRecv _ (SChan ch)))) = F.Drop $ Right $ Var ch
       f e  = e
 
 
