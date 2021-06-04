@@ -269,7 +269,7 @@ spec =
                                 let sig = ctrl_0_rx.recv()?;
                                 let count = sig.1;
                                 for _ in 0 .. count {
-                                  let var_0 = io_0_1_0_rx.recv()?;
+                                  let var_0 = io_0_1_0;
                                   let var_1 = d_1_rx.recv()?;
                                   let __0_0 = var_0.gs(var_1);
                                   __0_0_tx.send(__0_0)?;
@@ -343,7 +343,7 @@ spec =
                                 let sig = ctrl_0_rx.recv()?;
                                 let count = sig.1;
                                 for _ in 0 .. count {
-                                  let var_0 = io_0_1_0?;
+                                  let var_0 = io_0_1_0;
                                   let var_1 = d_1_rx.recv()?;
                                   let __0_0 = var_0.gs(var_1);
                                   __0_0_tx.send(__0_0)?;
