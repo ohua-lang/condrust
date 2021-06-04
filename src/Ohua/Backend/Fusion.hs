@@ -123,7 +123,7 @@ mergeCtrls (TCProgram chans resultChan exprs) =
                         ctrlsPerFun'
             in (ctrls', mergedCtrls)
         erroringNE = fromMaybe (error "Invariant broken: No controls for function!") . nonEmpty
-        
+
         -- assumptions: LitCtrls never need to be merged by their very nature!
         findCtrl :: Fusable ty (VarCtrl ty) a -> Maybe (OutputChannel ty, VarCtrl ty)
         findCtrl (Control (Left c@(VarCtrl _ (out,_)))) = Just (out, c)
@@ -198,19 +198,23 @@ fuseCtrls (TCProgram chans resultChan exprs) =
 fuseSTCLang :: forall ty.
                TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty))
             -> TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty))
-fuseSTCLang (TCProgram chans resultChan exprs) =
-    let noSTC = filter (isNothing . findSTCLang) exprs
-        fused = go noSTC stclangs
-    in TCProgram chans resultChan $ noSTC ++ fused
+fuseSTCLang (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ go exprs
     where
-        go noneStcs stcs =
-            let sourceAndTarget = map (\stc -> (findSource noneStcs stc, stc)) stcs
-                (toFuse, rest) = split sourceAndTarget
+        go all =
+            let stcs = findSTCLangs all
+                sourceAndTarget = map (\stc -> (findSource all stc, stc)) stcs
+                (toFuse, unfusable) = split sourceAndTarget
                 fused = map (Control . Left . uncurry fuseIt) toFuse
-                noSTC = noneStcs ++ fused
-            in if null rest
-                then fused
-                else fused ++ go noSTC rest
+                noFused =
+                  --sort $ -- for deterministic order
+                  HS.toList $
+                  HS.difference
+                    (HS.fromList all)
+                    $ HS.fromList $ concat $ map (\(x,y) -> [x,STC y]) sourceAndTarget
+                all' = noFused ++ fused
+            in case unfusable of
+                 [] -> all'
+                 _  -> go all'
 
         fuseIt (Control (Left c)) stc = fuseSTCSMap stc c
         fuseIt (Control (Right _c)) _stc = error "Invariant broken: A contextified literal does not expose any state (because then the state would have been contextified)."
@@ -247,15 +251,17 @@ fuseSTCLang (TCProgram chans resultChan exprs) =
                       <> "\ninp: " <> (show inp)
                       <> "\n num exprs: " <> (show $ length exprs)
 
-        stclangs = mapMaybe findSTCLang exprs
+        findSTCLangs = mapMaybe findSTCLang
 
         findSTCLang (STC s) = Just s
         findSTCLang _ = Nothing
 
         isSource :: Com 'Channel ty -> Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty) -> Bool
         isSource inp (STC (STCLangSMap _ _ outp)) = outp == inp
-        isSource inp (Control (Left (FusedFunCtrl _ _ _ outs))) = HS.member inp $ HS.fromList $ map (\(SSend c _) -> c) outs
-        isSource inp (Control (Right (FusedLitCtrl _ _ (Left l)))) = isSource inp $ Control $ Left l
+        isSource inp (Control (Left (FusedFunCtrl _ _ _ outs))) =
+          HS.member inp $ HS.fromList $ map (\(SSend c _) -> c) outs
+        isSource inp (Control (Right (FusedLitCtrl _ _ (Left l)))) =
+          isSource inp $ Control $ Left l
         isSource inp (Control (Right (FusedLitCtrl _ _ (Right r)))) = isSource inp $ Fun r
         isSource _inp (Unfusable _) = False
         isSource _inp (Fun PureFusable{}) = False
