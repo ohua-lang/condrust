@@ -143,7 +143,7 @@ spec =
                               let count = sig.1;
                               for _ in 0 .. count {
                                 let _var_0 = lit_unit_0;
-                                let c_0 = ohua::lang::id(); FIXME sertel/ohua-core#11
+                                let c_0 = ohua::lang::id(); // FIXME sertel/ohua-core#11
                                 c_0_tx.send(c_0)?
                               };
                               let renew_next_time = sig.0;
@@ -167,7 +167,7 @@ spec =
                             let var_0 = d_0_rx.recv()?;
                             let var_1 = 5;
                             let __0_0 = var_0.gs(var_1);
-                            __0_0_tx.send(__0_0)?; FIXME sertel/ohua-core#11
+                            __0_0_tx.send(__0_0)?; // FIXME sertel/ohua-core#11
                             ()
                           }
                         }));
