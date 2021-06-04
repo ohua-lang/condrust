@@ -153,9 +153,10 @@ fuseFun (FunCtrl ctrlInput vars) =
             f e  = e
             ctrled = HS.fromList $ toList $ map unwrapChan sendVars
             sendVars = NE.map fst vars
-            stateVar sArg = case NE.filter (\(_, r) -> r == sArg) vars of
-                                [s] -> s
-                                [] -> error "invariant broken" -- an assumption rooted inside DFLang
+            stateVar (SRecv _ sArg) =
+              case NE.filter (\(l, _) -> (unwrapChan l) == sArg) vars of
+                [s] -> s
+                []  -> error "invariant broken" -- an assumption rooted inside DFLang
             vars' sArg args =
                 toList $
                 NE.map ((\case
