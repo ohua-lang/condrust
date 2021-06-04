@@ -5,12 +5,12 @@
 {-# LANGUAGE InstanceSigs #-}
 module Ohua.Types.Vector where
 
-import Universum hiding (Nat, toList, map)
+import Universum hiding (Nat, toList, map, replicate)
 import Data.List.NonEmpty (NonEmpty(..))
 import Data.Singletons
 
 data Nat where
-    Zero :: Nat 
+    Zero :: Nat
     Succ :: Nat -> Nat
 
 deriving instance Show Nat
@@ -61,15 +61,30 @@ toList VNil = []
 toList (a:>rest) = a : toList rest
 
 fromList :: SNat n -> [a] -> Vec n a
-fromList s xs = 
-    case (s,xs) of 
+fromList s xs =
+    case (s,xs) of
         (SZero,[]) -> VNil
         (SSucc s', a:rest) -> a :> fromList s' rest
 
 map :: (a -> b) -> Vec n a -> Vec n b
-map f VNil = VNil
+map _ VNil = VNil
 map f (x :> xs) = f x :> map f xs
 
 nlength :: [a] -> Nat
 nlength [] = Zero
-nlength (x:xs) = Succ $ nlength xs
+nlength (_:xs) = Succ $ nlength xs
+
+replicate :: Nat -> a -> [a]
+replicate Zero _ = []
+replicate (Succ n) x = x : replicate n x
+
+replicateNE :: SNat ('Succ n) -> a -> NonEmpty a
+replicateNE (SSucc n) x = x :| (replicate (fromSing n) x)
+
+withSing :: Nat -> (forall n. SNat n -> a) -> a
+withSing n f = case toSing n of
+                 SomeSing s -> f s
+
+withSuccSing :: Nat -> (forall n.SNat ('Succ n) -> a) -> a
+withSuccSing n f = case toSing n of
+                     SomeSing s@(SSucc _) -> f s
