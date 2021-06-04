@@ -19,7 +19,7 @@ import Language.Rust.Parser (Span)
 
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
-
+import qualified Data.List.NonEmpty as NE
 
 instance Integration (Language 'Rust) where
     type NS (Language 'Rust) = Module
@@ -283,11 +283,18 @@ instance (Show a) => ConvertExpr (Rust.Block a) where
     -- TODO extend this into a higher-order function "unsafe" that we can leverage in our compiler
     --      to separate safe from unsafe parts of a program.
     convertExpr b@(Block _ Unsafe _) = throwError $ "Currently, we do not support unsafe blocks.\n" <> show b
-    convertExpr (Block stmts Rust.Normal _) = 
-        foldM 
-            (\cont stmt -> (\e -> e cont) <$> convertStmt stmt) 
-            (LitE UnitLit) 
-            $ reverse stmts
+    convertExpr (Block stmts Rust.Normal _) =
+      case stmts of
+        [] -> return $ LitE UnitLit
+        (x:xs) ->
+          let last = NE.head $ NE.reverse $ x:|xs
+              heads = NE.tail $ NE.reverse $ x:|xs
+          in do
+              convertedLast <- convertLastStmt last
+              foldM
+               (\cont stmt -> (\e -> e cont) <$> convertStmt stmt)
+               convertedLast
+               heads
         where
             convertStmt :: CompM m => Stmt a -> m (FrLang.Expr ty -> FrLang.Expr ty)
             convertStmt (Local pat _ (Just e) [] _) = do
@@ -297,9 +304,16 @@ instance (Show a) => ConvertExpr (Rust.Block a) where
             convertStmt s@(Local pat _ Nothing _ _) = throwError $ "Variables bind values and as such they need to be initialized. \n" <> show s
             convertStmt s@Local{} = throwError $ "Currently, we do not support attributes on local bindings.\n" <> show s
             convertStmt s@ItemStmt{} = throwError $ "Currently, we do not support item statements.\n" <> show s
-            convertStmt (NoSemi e _) = const <$> convertExpr e
+            convertStmt (NoSemi e _) = StmtE <$> convertExpr e
             convertStmt (Semi e _) = StmtE <$> convertExpr e
             convertStmt s@MacStmt{} = throwError $ "Currently, we do not support macro calls.\n" <> show s
+
+            convertLastStmt e@(NoSemi expr _) =
+              case expr of
+                -- TODO we might need special handling if we do not translate this properly in the frontend. (we still have Seq in the language.)
+                ForLoop{} -> (\e -> e $ LitE UnitLit) <$> (convertStmt e)
+                _ -> (\e -> e $ LitE UnitLit) <$> (convertStmt e)
+            convertLastStmt e = (\e -> e $ LitE UnitLit) <$> (convertStmt e)
 
 instance (Show a) => ConvertPat (Rust.Pat a) where
     convertPat (WildP _) = return $ VarP $ fromString "_"
