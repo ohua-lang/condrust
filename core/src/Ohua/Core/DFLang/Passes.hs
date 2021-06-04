@@ -159,12 +159,11 @@ handleDefinitionalExpr' assign l@(Apply _ _) cont = do
         Nothing -> return $ DFLang.Let $ fun fn assign args'
     where
         st :: (MonadState (HS.HashSet Binding) m)
-            => QualifiedBinding -> (ArgType ty, ABinding 'State) -> [DFVar 'Data ty] -> m (App 'ST ty)
-        st fn (stateType, stateBnd) args' = (\outs -> StateFun outs fn (DFVar stateType stateBnd) (erroringNE args')) <$>
+            => QualifiedBinding -> (ArgType ty, ABinding 'State) -> NonEmpty (DFVar 'Data ty) -> m (App 'ST ty)
+        st fn (stateType, stateBnd) args' = (\outs -> StateFun outs fn (DFVar stateType stateBnd) args') <$>
                     findSTOuts assign
-        fun :: QualifiedBinding -> Binding -> [DFVar 'Data ty] -> App 'Fun ty
-        fun fn bnd args' = PureFun (DataBinding bnd) fn $ erroringNE args'
-        erroringNE = fromMaybe (error "Invariant broken: Every function has at least one argument!") . nonEmpty
+        fun :: QualifiedBinding -> Binding -> NonEmpty (DFVar 'Data ty) -> App 'Fun ty
+        fun fn bnd args' = PureFun (DataBinding bnd) fn args'
         findSTOuts :: (MonadState (HS.HashSet Binding) m)
                 => Binding -> m (Maybe (ABinding 'State), ABinding 'Data)
         findSTOuts bnd =
@@ -183,13 +182,13 @@ handleDefinitionalExpr' _ e _ =
 handleApplyExpr :: forall m ty.
        (MonadOhua m)
     => ALang.Expr ty
-    -> m (QualifiedBinding, Maybe (ArgType ty, ABinding 'State), [(ArgType ty, ALang.Expr ty)])
-handleApplyExpr l@(Apply _ _) = go [] l
+    -> m (QualifiedBinding, Maybe (ArgType ty, ABinding 'State), NonEmpty (ArgType ty, ALang.Expr ty))
+handleApplyExpr (Apply fn a) = go (a :| []) fn
   where
     go args e =
         case e of
             Apply fn arg -> do
-                go (arg : args) fn
+                go (arg NE.<| args) fn
             Lit (FunRefLit (FunRef fn _ident (FunType argTypes))) -> do
                 assertTermTypes args argTypes "function" fn
                 return (fn, Nothing, zip' argTypes args)
@@ -203,6 +202,7 @@ handleApplyExpr l@(Apply _ _) = go [] l
                 failWith $ "Wrong function type 'pure' for st function: " <> show fn
             BindState state0 (Lit (FunRefLit (FunRef fn _ (STFunType sType argTypes)))) -> do
                 assertTermTypes args argTypes "stateful function" fn
+                traceShowM $ "length: " <> (show $ length args)
                 state' <- expectStateBnd state0
                 return (fn, Just (sType, state'), zip' argTypes args)
             x -> failWith $ "Expected Apply or Var but got: " <> show (x :: ALang.Expr ty)
@@ -210,7 +210,7 @@ handleApplyExpr l@(Apply _ _) = go [] l
       assertE
         -- length of Unit = 1?
         -- implement Foldable for Either (Unit (NonEmpty ...))
-        (length' typeArgs == length termArgs)
+        (length termArgs == length' typeArgs)
         $ "Arg types [len: " <> show (length' typeArgs) <>
         "] and args [len: "<> show (length termArgs) <>
         "] don't match for stateful " <> funType <> ": " <> show fn
@@ -218,10 +218,9 @@ handleApplyExpr l@(Apply _ _) = go [] l
                      Left Unit -> 1
                      Right l -> length l
 
-    zip' :: Either Unit (NonEmpty a) -> [b] -> [(a,b)]
-    zip' (Left Unit) _bs = []
-    zip' _as         []  = []
-    zip' (Right (a:|as)) (b:bs) = zip (a:as) (b:bs)
+    zip' :: Either Unit (NonEmpty (ArgType ty)) -> NonEmpty b -> NonEmpty (ArgType ty, b)
+    zip' (Left Unit) bs = NE.zip (TypeVar :| []) bs
+    zip' (Right as)  bs = NE.zip as bs
 
 handleApplyExpr g = failWith $ "Expected apply but got: " <> show g
 
