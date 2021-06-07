@@ -38,3 +38,5 @@ runSTCLangSMap = Refs.runSTCLangSMap
 runSTCLangIf :: QualifiedBinding
 runSTCLangIf = Refs.runSTCLangIf
 
+id :: QualifiedBinding
+id = Refs.id
