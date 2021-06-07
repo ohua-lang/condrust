@@ -150,7 +150,10 @@ fuseCtrls (TCProgram chans resultChan exprs) =
                     HS.toList $ foldr (HS.delete . fst) (HS.fromList funCtrls) sAndT
             in if null pendingFunCtrls
                 then noFunCtrls''
-                else go pendingFunCtrls noFunCtrls''
+                else
+                 if HS.fromList pendingFunCtrls == HS.fromList funCtrls
+                 then error "endless loop detected. there are controls that can not be fused."
+                 else go pendingFunCtrls noFunCtrls''
 
         split :: [Fusable ty (FunCtrl ty) (LitCtrl ty)] 
               -> ([Either (FunCtrl ty) (LitCtrl ty)], [Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty)])
@@ -214,7 +217,9 @@ fuseSTCLang (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ go
                 all' = noFused ++ fused
             in case unfusable of
                  [] -> all'
-                 _  -> go all'
+                 _  -> if HS.fromList all == HS.fromList all'
+                 then error "endless loop detected. there are ctxtExits that can not be fused."
+                 else go all'
 
         fuseIt (Control (Left c)) stc = fuseSTCSMap stc c
         fuseIt (Control (Right _c)) _stc = error "Invariant broken: A contextified literal does not expose any state (because then the state would have been contextified)."
@@ -266,3 +271,4 @@ fuseSTCLang (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ go
         isSource _inp (Unfusable _) = False
         isSource _inp (Fun PureFusable{}) = False
         isSource inp (Fun (STFusable _ _ app _ send)) = (== Just inp) send
+        isSource inp (Fun IdFusable{}) = False

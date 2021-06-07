@@ -75,6 +75,19 @@ fuseSTCSMap
                                             else SSend ch d)
                          stateOuts
 
+-- | Fusion of two controls.
+--   That is
+--
+--     +----+     +----+
+--     |ctrl| --> |ctrl|
+--     +----+     +----+
+--
+--   becomes
+--
+--     +---------------+
+--     | ctrl --> ctrl |
+--     +---------------+
+--
 fuseCtrl :: forall ty.FunCtrl ty -> FusedFunCtrl ty -> FusedFunCtrl ty
 fuseCtrl
     (FunCtrl ctrlInput vars) -- from
@@ -108,15 +121,25 @@ fuseCtrl
             in SSend ch d' -- the var that I assign the state to becomes the new data out for the state
         propagateTypeFromRecv = propagateType . toList . map snd
 
-fuseCtrlIntoFun :: F.FusableFunction ty -> FusedFunCtrl ty -> F.FusedFun ty
+-- | This takes a function and fuses a control into it.
+--   That is
+--
+--     +---+     +----+
+--     |fun| --> |ctrl|
+--     +---+     +----+
+--
+--   becomes
+--
+--     +--------------+
+--     | fun --> ctrl |
+--     +--------------+
+--
+--   As a result, the control takes care of the output.
+fuseCtrlIntoFun :: forall ty. F.FusableFunction ty -> FusedFunCtrl ty -> F.FusedFun ty
 fuseCtrlIntoFun fun (FusedFunCtrl ctrlIn ins expr outs) =
     case fun of
         (F.PureFusable recvs qb (Identity out)) ->
-            let ins' = f (Just out) ins
-                out' = if length ins' < length ins then Nothing else Just out
-            in F.FusedFun
-                (F.PureFusable recvs qb out')
-                $ genFused $ FusedFunCtrl ctrlIn ins' expr outs
+            forPure out $ F.PureFusable recvs qb
         (F.STFusable sRecv recvs qb out sOut) ->
             let ins' = f out ins
                 ins'' = f sOut ins'
@@ -125,10 +148,37 @@ fuseCtrlIntoFun fun (FusedFunCtrl ctrlIn ins expr outs) =
             in F.FusedFun
                 (F.STFusable (F.Arg sRecv) recvs qb out' sOut')
                 $ genFused $ FusedFunCtrl ctrlIn ins'' expr outs
-    where
+        (F.IdFusable recv (Identity out)) ->
+            forPure out $ F.IdFusable recv
+   where
         f Nothing ins0 = ins0
         f (Just out) ins0 = filter ((\(SRecv _ inp) -> inp /= out) . snd . fromVarReceive) ins0
 
+        forPure :: Com 'Channel ty
+                -> ((Maybe (Com 'Channel ty) -> F.FusedFunction ty) -> F.FusedFun ty)
+        forPure out =
+            let ins' = f (Just out) ins
+                out' = if length ins' < length ins then Nothing else Just out
+            in \f ->
+                  F.FusedFun (f out') $
+                  genFused $
+                  FusedFunCtrl ctrlIn ins' expr outs
+
+
+-- | This takes a control and fuses a function into it.
+--   That is
+--
+--     +----+     +---+
+--     |ctrl| --> |fun|
+--     +----+     +---+
+--
+--   becomes
+--
+--     +--------------+
+--     | ctrl --> fun |
+--     +--------------+
+--
+--   As a result, the function takes care of the output.
 fuseFun :: FunCtrl ty -> F.FusableFunction ty -> FusedFunCtrl ty
 fuseFun (FunCtrl ctrlInput vars) =
     \case
@@ -147,6 +197,12 @@ fuseFun (FunCtrl ctrlInput vars) =
                     []
                     (\g -> [SSend g $ unwrapBnd $ fst $ stateVar stateArg])
                     stateRes)
+        (F.IdFusable arg res) ->
+            FusedFunCtrl
+                ctrlInput
+                (map (uncurry PureVar . propagateTypeFromArg [arg]) $ toList vars)
+                (F.genFun'' $  F.IdFusable (f arg) res)
+                []
         where
             f (F.Arg (SRecv _ (SChan ch))) | HS.member (SChan ch) ctrled = F.Converted $ Var ch
             f (F.Drop (Left (SRecv _ (SChan ch)))) | HS.member (SChan ch) ctrled =
@@ -254,6 +310,7 @@ genLitCtrl (FusedLitCtrl ctrlInput (OutputChannel (SChan output), input) comp) =
             (F.PureFusable args app res) -> F.PureFusable (map f args) app res
             -- by definition of findLonelyLiterals in ohua-core
             (F.STFusable _stateArg _args app _res _stateRes) -> error $ "Invariant broken: only pure functions need to be contextified! > contextified function: " <> show app
+            (F.IdFusable arg res) -> F.IdFusable (f arg) res
 
       f (F.Arg (SRecv _ (SChan ch))) = F.Converted $ Var ch
       f (F.Drop (Left (SRecv _ (SChan ch)))) = F.Drop $ Right $ Var ch

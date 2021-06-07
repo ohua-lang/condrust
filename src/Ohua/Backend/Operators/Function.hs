@@ -34,6 +34,9 @@ data FusFunction pout sin ty
         QualifiedBinding
         (Maybe (Com 'Channel ty)) -- send result
         (Maybe (Com 'Channel ty)) -- send state
+    | IdFusable
+        (CallArg ty)
+        (pout (Com 'Channel ty))
     deriving (Generic)
 
 type FusableFunction ty = FusFunction Identity (Com 'Recv) ty
@@ -43,8 +46,9 @@ deriving instance Hashable (FusableFunction ty)
 deriving instance Eq (FusableFunction ty)
 
 toFuseFun :: FusableFunction ty -> FusedFunction ty
-toFuseFun (PureFusable recvs qb (Identity out)) = PureFusable recvs qb (Just out)
+toFuseFun (PureFusable recvs qb (Identity out)) = PureFusable recvs qb $ Just out
 toFuseFun (STFusable a b c d e) = STFusable (Arg a) b c d e
+toFuseFun (IdFusable recv (Identity out)) = IdFusable recv $ Just out
 
 genFun :: FusableFunction ty -> TaskExpr ty
 genFun fun = loop (funReceives fun) $ (\f -> genFun' (genSend f) f) $ toFuseFun fun
@@ -52,14 +56,15 @@ genFun fun = loop (funReceives fun) $ (\f -> genFun' (genSend f) f) $ toFuseFun 
 funReceives :: FusableFunction ty -> [Com 'Recv ty]
 funReceives (PureFusable vars _ _)   = extractAll vars
 funReceives (STFusable r vars _ _ _) = r : extractAll vars
+funReceives (IdFusable r _) = extractAll [r]
 
 loop :: [Com 'Recv ty] -> TaskExpr ty -> TaskExpr ty
 loop [] c = c
 loop _  c = EndlessLoop c
 
-genSend :: FusedFunction ty -> TaskExpr ty
+genSend :: forall ty.FusedFunction ty -> TaskExpr ty
 genSend = \case
-    (PureFusable _ _ o) -> maybe (Lit UnitLit) (\out@(SChan b) -> SendData $ SSend out b) o
+    (PureFusable _ _ o) -> pureOut o
     (STFusable stateRecv receives _ sendRes sendState) ->
         let varsAndReceives =
               NE.zipWith (curry generateReceiveCode) [0 ..] $ stateRecv :| receives
@@ -68,6 +73,10 @@ genSend = \case
             catMaybes [ SendData . (\o@(SChan b) -> o `SSend` b) <$> sendRes
                       , SendData . (`SSend` stateArg) <$> sendState
                       ]
+    (IdFusable _ o) -> pureOut o
+    where
+      pureOut :: Maybe (Com 'Channel ty) -> TaskExpr ty
+      pureOut = maybe (Lit UnitLit) (\out@(SChan b) -> SendData $ SSend out b)
 
 genFun'' :: FusableFunction ty -> TaskExpr ty
 genFun'' fun = (\f -> genFun' (genSend f) f) $ toFuseFun fun
@@ -94,6 +103,9 @@ genFun' ct = \case
                 (Stmt call ct)
                 (\(SChan b) -> Let b call ct)
                 sendRes
+    (IdFusable i o) ->
+        let varsAndReceives = zipWith (curry generateReceiveCode) [0 ..] [i]
+        in letReceives ct varsAndReceives 
     where
         getCallArgs =
           map (\(_,v,_) -> Var v) .
@@ -130,6 +142,7 @@ genFusedFun f@(FusedFun fun ct) = loop (fusedFunReceives fun) $ genFusedFun' f
 fusedFunReceives :: FusedFunction ty -> [Com 'Recv ty]
 fusedFunReceives (PureFusable vars _ _)   = extractAll vars
 fusedFunReceives (STFusable r vars _ _ _) = extractAll $ r:vars
+fusedFunReceives (IdFusable r _) = extractAll [r]
 
 fuseFuns :: FusableFunction ty -> FusableFunction ty -> FusableFunction ty
 fuseFuns = undefined
