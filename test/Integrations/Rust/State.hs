@@ -240,6 +240,7 @@ spec =
                         let (d_1_tx, d_1_rx) = std::sync::mpsc::channel();
                         let (c_0_tx, c_0_rx) = std::sync::mpsc::channel();
                         let (size_0_tx, size_0_rx) = std::sync::mpsc::channel();
+                        let (x_0_0_tx, x_0_0_rx) = std::sync::mpsc::channel();
                         let mut tasks: Vec<Box<FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
                         tasks
                           .push(Box::new(move || -> _ {
@@ -274,17 +275,23 @@ spec =
                           }));
                         tasks
                           .push(Box::new(move || -> _ {
+                            let stream_0_0 = iter_i32();
+                            stream_0_0_tx.send(stream_0_0)?
+                          }));
+                        tasks
+                          .push(Box::new(move || -> _ {
+                            x_0_0_rx.recv()?;
+                            let x = ();
+                            b_0_tx.send(x)?
+                          }));
+                        tasks
+                          .push(Box::new(move || -> _ {
                             loop {
                               let num = size_0_rx.recv()?;
                               let collection = Vec::new();
                               for _ in 0 .. num { let data = c_0_rx.recv()?; collection.push(data) };
-                              b_0_tx.send(collection)?
+                              x_0_0_tx.send(collection)?
                             }
-                          }));
-                        tasks
-                          .push(Box::new(move || -> _ {
-                            let stream_0_0 = iter_i32();
-                            stream_0_0_tx.send(stream_0_0)?
                           }));
                         tasks
                           .push(Box::new(move || -> _ {
@@ -337,7 +344,7 @@ spec =
                         run(tasks);
                         b_0_rx.recv()?
                       }
-                   |]
+                    |]
                 compiled `shouldBe` expected)
         it "loop single state" $
             (showCode "Compiled: " =<< compileCode [sourceFile|

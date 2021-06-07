@@ -148,7 +148,7 @@ generateNodeCode e@(PureDFFun out fun inp) | fun == Refs.runSTCLangSMap = do
                     ( SRecv xType $ SChan $ unwrapABnd x
                     , SRecv yType $ SChan $ unwrapABnd y)
             _ -> invariantBroken $ "STCLangSMap arguments don't match:\n" <> show e
-    out <-
+    out' <-
         case out of
             Direct x -> return $ SChan $ unwrapABnd x
             _ -> invariantBroken $ "STCLangSMap outputs don't match:\n" <> show e
@@ -156,7 +156,7 @@ generateNodeCode e@(PureDFFun out fun inp) | fun == Refs.runSTCLangSMap = do
             Ops.mkSTCLangSMap
                 sizeIn
                 stateIn
-                out
+                out'
 
 -- code for "non-fused" control handling without the passes on ALang
 -- generateNodeCode e@LetExpr {functionRef=f} | f == ctrl = do
@@ -195,6 +195,20 @@ generateNodeCode e@(PureDFFun out fun inp) | fun == ctrl = do
             return $ Control $ Right $
                 Ops.mkLittedCtrl (SRecv tc $ SChan $ unwrapABnd ctrlInp) lit out' -- FIXME loosing the semantic type here!
         _ -> invariantBroken $ "Control arguments don't match:\n" <> show e
+
+generateNodeCode e@(PureDFFun out fun inp) | fun == Refs.seqFun = do
+  out' <- case out of
+           Direct x -> return $ SChan $ unwrapABnd x
+           _ -> invariantBroken $ "Seq must only have one output:\n" <> show e
+  case inp of
+    DFVar t1 inpVar :| [DFEnvVar _ l] ->
+      return $
+        Unfusable $
+        Stmt (ReceiveData $ SRecv t1 $ SChan $ unwrapABnd inpVar) $
+        BLang.Let "x" (Lit l) $
+        SendData $ SSend out' "x"
+    _ -> invariantBroken $
+            "Seq must have two inputs where the second is a literal:\n" <> show e
 
 -- generateNodeCode e@LetExpr {functionRef=f} | f == runSTCLang = do
 --     (sizeIn, dataIn, stateIn, collectFun) <-

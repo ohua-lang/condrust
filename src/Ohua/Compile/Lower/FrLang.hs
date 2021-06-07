@@ -95,7 +95,7 @@ trans =
         MapEF function coll -> smapBuiltin `Apply` function `Apply` coll
         BindEF ref e -> BindState ref e
         StmtEF e1 cont -> Let "_" e1 cont
-        SeqEF source target -> seqBuiltin `Apply` source `Apply` Lambda "_" target
+        SeqEF source target -> seqBuiltin `Apply` source `Apply` target
         TupEF parts -> foldl Apply (pureFunction mkTuple Nothing $ FunType $ Right $ fromList [TypeVar,TypeVar]) parts
   where
     patToBnd =
