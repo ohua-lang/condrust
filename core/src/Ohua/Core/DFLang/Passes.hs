@@ -159,13 +159,17 @@ handleDefinitionalExpr' assign l@(Apply _ _) cont = do
         Nothing -> return $ DFLang.Let $ fun fn assign args'
     where
         st :: (MonadState (HS.HashSet Binding) m)
-            => QualifiedBinding -> (ArgType ty, ABinding 'State) -> NonEmpty (DFVar 'Data ty) -> m (App 'ST ty)
-        st fn (stateType, stateBnd) args' = (\outs -> StateFun outs fn (DFVar stateType stateBnd) args') <$>
-                    findSTOuts assign
+           => QualifiedBinding
+           -> (ArgType ty, ABinding 'State)
+           -> NonEmpty (DFVar 'Data ty)
+           -> m (App 'ST ty)
+        st fn (stateType, stateBnd) args' =
+          (\outs -> StateFun outs fn (DFVar stateType stateBnd) args') <$>
+          findSTOuts assign
         fun :: QualifiedBinding -> Binding -> NonEmpty (DFVar 'Data ty) -> App 'Fun ty
         fun fn bnd args' = PureFun (DataBinding bnd) fn args'
         findSTOuts :: (MonadState (HS.HashSet Binding) m)
-                => Binding -> m (Maybe (ABinding 'State), ABinding 'Data)
+                   => Binding -> m (Maybe (ABinding 'State), ABinding 'Data)
         findSTOuts bnd =
             case findDestructured cont bnd of
                 [stateOut, dataOut] -> do

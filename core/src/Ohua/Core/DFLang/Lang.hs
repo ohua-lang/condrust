@@ -78,25 +78,27 @@ data App (f::FunANF) (ty::Type) :: Type where
 -- | The applicative normal form with the ops resolved.
 --   (a function with output destructuring and dispatched result)
 data DFApp (f::FunANF) (ty::Type) :: Type where
-    PureDFFun :: OutData b -> QualifiedBinding -> NonEmpty (DFVar 'Data ty) -> DFApp 'Fun ty 
-    StateDFFun :: (Maybe (OutData 'State), OutData 'Data) 
+    PureDFFun :: OutData b -> QualifiedBinding -> NonEmpty (DFVar 'Data ty) -> DFApp 'Fun ty
+    -- FIXME This type is actually incorrect. The data output must not be used necessarily
+    --       when the state output is!
+    StateDFFun :: (Maybe (OutData 'State), OutData 'Data)
                 -> QualifiedBinding -> DFVar 'State ty -> NonEmpty (DFVar 'Data ty) -> DFApp 'ST ty
-    RecurFun :: --(n ~ 'Succ m) => 
-            -- (final) result out 
+    RecurFun :: --(n ~ 'Succ m) =>
+            -- (final) result out
             OutData b ->
-            -- | recursion control output 
+            -- | recursion control output
             OutData 'Data ->
             -- | recursion args outputs
             Vec n (OutData b) ->
             -- | initial inputs
             Vec n (DFVar a ty) ->
-            -- | recursion args inputs 
-            Vec n (DFVar a ty) -> 
-            -- | recursion condition input 
+            -- | recursion args inputs
+            Vec n (DFVar a ty) ->
+            -- | recursion condition input
             DFVar 'Data ty ->
-            -- (final) result in 
+            -- (final) result in
             DFVar 'Data ty ->
-            DFApp 'BuiltIn ty 
+            DFApp 'BuiltIn ty
     -- SMapFun
     -- Collect
     -- Ctrl

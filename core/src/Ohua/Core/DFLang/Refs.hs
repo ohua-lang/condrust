@@ -27,7 +27,7 @@ recurFun :: QualifiedBinding
 recurFun = recurFunBnd
 
 seqFun :: QualifiedBinding
-seqFun = Refs.seqFun
+seqFun = Refs.seq
 
 unitFun :: QualifiedBinding
 unitFun = Refs.unitFun
