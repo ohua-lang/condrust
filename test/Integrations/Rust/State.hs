@@ -287,6 +287,21 @@ spec =
                         tasks
                           .push(Box::new(move || -> _ {
                             loop {
+                              let renew = false;
+                              let lit_unit_0 = ();
+                              while !renew {
+                                let sig = ctrl_0_rx.recv()?;
+                                let count = sig.1;
+                                for _ in 0 .. count { let var_0 = lit_unit_0; c_0_tx.send(c_0)? };
+                                let renew_next_time = sig.0;
+                                renew = renew_next_time;
+                                ()
+                              }
+                            }
+                          }));
+                        tasks
+                          .push(Box::new(move || -> _ {
+                            loop {
                               let num = size_0_rx.recv()?;
                               let collection = Vec::new();
                               for _ in 0 .. num { let data = c_0_rx.recv()?; collection.push(data) };
@@ -298,25 +313,6 @@ spec =
                             let var_0 = i;
                             let io_0_1 = S::new(var_0);
                             io_0_1_tx.send(io_0_1)?
-                          }));
-                        tasks
-                          .push(Box::new(move || -> _ {
-                            loop {
-                              let renew = false;
-                              let lit_unit_0 = ();
-                              while !renew {
-                                let sig = ctrl_0_rx.recv()?;
-                                let count = sig.1;
-                                for _ in 0 .. count {
-                                  let _var_0 = lit_unit_0;
-                                  let c_0 = ohua::lang::id();
-                                  c_0_tx.send(c_0)?
-                                };
-                                let renew_next_time = sig.0;
-                                renew = renew_next_time;
-                                ()
-                              }
-                            }
                           }));
                         tasks
                           .push(Box::new(move || -> _ {
@@ -344,7 +340,7 @@ spec =
                         run(tasks);
                         b_0_rx.recv()?
                       }
-                    |]
+                   |]
                 compiled `shouldBe` expected)
         it "loop single state" $
             (showCode "Compiled: " =<< compileCode [sourceFile|
@@ -445,7 +441,6 @@ spec =
                                 let count = sig.1;
                                 for _ in 0 .. count {
                                   let _var_0 = lit_unit_0;
-                                  let c_0 = ohua::lang::id();
                                   c_0_tx.send(c_0)?
                                 };
                                 let renew_next_time = sig.0;

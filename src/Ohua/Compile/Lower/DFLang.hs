@@ -44,8 +44,13 @@ generateFunctionCode = \case
     (StateDFFun out fn (DFVar stateT stateIn) inp) -> do
         (fun', args) <- lowerFnRef fn inp
         (sOut, dataOut) <- stateOut out
-        return $ Fusion.Fun
-            $ Ops.STFusable (SRecv stateT $ SChan $ unwrapABnd stateIn) args fun' (SChan <$> dataOut) (SChan <$> sOut)
+        return $
+          Fusion.Fun $
+          Ops.STFusable
+           (SRecv stateT $ SChan $ unwrapABnd stateIn)
+           args
+           fun'
+           (SChan <$> dataOut) (SChan <$> sOut)
     where
         pureOut (Direct out) = return $ unwrapABnd out
         pureOut e = throwError $ "Unsupported multiple outputs: " <> show e
@@ -57,15 +62,20 @@ generateReceive (DFVar t bnd) =
     Ops.Arg $ SRecv t $ SChan $ unwrapABnd bnd
 generateReceive (DFEnvVar t l) = Ops.Converted $ Lit l -- FIXME looses type info!
 
-lowerFnRef :: CompM m => QualifiedBinding -> NonEmpty (DFVar semTy ty) -> LoweringM m (QualifiedBinding, [Ops.CallArg ty])
-lowerFnRef fun vars | fun == Refs.unitFun = do -- FIXME Why not give a unit function a unit literal as an input?!
-    (f,vars') <- case vars of
-            [DFEnvVar _t (FunRefLit (FunRef p _ _)), DFVar t1 bnd] -> -- FIXME looses type info!
-                return (p, [Ops.Drop $ Left $ SRecv t1 $ SChan $ unwrapABnd bnd])
-            [DFEnvVar _t (FunRefLit (FunRef p _ _)), DFEnvVar _ UnitLit] ->
-                return (p, [])
-            _ -> invariantBroken "unitFun must always have two arguments!"
-    return (f, vars')
+lowerFnRef :: CompM m
+           => QualifiedBinding
+           -> NonEmpty (DFVar semTy ty)
+           -> LoweringM m (QualifiedBinding, [Ops.CallArg ty])
+-- lowerFnRef fun vars | fun == Refs.unitFun = do -- FIXME Why not give a unit function a unit literal as an input?!
+--     (f,vars') <-
+--       case vars of
+--         [DFEnvVar _t (FunRefLit (FunRef p _ _)), DFVar t1 bnd] -> -- FIXME looses type info!
+--           return (p, [Ops.Drop $ Left $ SRecv t1 $ SChan $ unwrapABnd bnd])
+--         [DFEnvVar _t (FunRefLit (FunRef p _ _)), DFEnvVar _ UnitLit] ->
+--           return (p, [])
+--         _ -> invariantBroken "unitFun must always have two arguments!"
+--     return (f, vars')
+lowerFnRef f [DFEnvVar _ UnitLit] = return (f, [])
 lowerFnRef f vars = return (f, toList $ map generateReceive vars)
 
 generateArcsCode :: NormalizedDFExpr ty -> NonEmpty (Channel ty)
@@ -132,13 +142,13 @@ generateNodeCode e@(PureDFFun out fun inp) | fun == select = do
                     , SRecv yType $ SChan $ unwrapABnd y
                     , SRecv zType $ SChan $ unwrapABnd z)
             _ -> invariantBroken $ "Select arguments don't match:\n" <> show e
-    out <-
+    out' <-
         case out of
             (Direct bnd) -> return $ SChan $ unwrapABnd bnd
             _ -> invariantBroken $ "Select outputs don't match:\n" <> show e
     return $ Unfusable $
         EndlessLoop $
-            Ops.select condIn trueIn falseIn out
+            Ops.select condIn trueIn falseIn out'
 
 generateNodeCode e@(PureDFFun out fun inp) | fun == Refs.runSTCLangSMap = do
     (sizeIn, stateIn) <-
@@ -209,6 +219,25 @@ generateNodeCode e@(PureDFFun out fun inp) | fun == Refs.seqFun = do
         SendData $ SSend out' "x"
     _ -> invariantBroken $
             "Seq must have two inputs where the second is a literal:\n" <> show e
+
+generateNodeCode e@(PureDFFun out fun inp) | fun == Refs.unitFun = do
+  out' <- case out of
+           Direct x -> return $ SChan $ unwrapABnd x
+           _ -> invariantBroken $ "unitFun must only have one output:\n" <> show e
+  case inp of
+   [DFEnvVar _t (FunRefLit (FunRef p _ _)), v] | p == Refs.id ->
+     case v of
+        (DFVar t bnd) ->
+          return $
+            Fusion.Fun $
+            Ops.IdFusable (Ops.Arg $ SRecv t $ SChan $ unwrapABnd bnd) $ Identity out'
+        (DFEnvVar _ l) ->
+          return $
+            Fusion.Fun $
+            Ops.IdFusable (Ops.Converted $ Lit l) $ Identity out'
+   [DFEnvVar _t (FunRefLit (FunRef p _ _)), v] -> -- FIXME this feels like a bug to me. why do we take this detour via unitFun???
+     generateFunctionCode $ PureDFFun out p (v:|[])
+   _ -> invariantBroken $ "unknown function as first argument or wrong number of arguments (expetced 2) to unitFun:\n" <> show e
 
 -- generateNodeCode e@LetExpr {functionRef=f} | f == runSTCLang = do
 --     (sizeIn, dataIn, stateIn, collectFun) <-
