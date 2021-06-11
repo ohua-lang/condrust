@@ -11,6 +11,7 @@ import qualified Integrations.Rust.If as If
 import qualified Integrations.Rust.State as State
 import qualified Integrations.Rust.SMap as SMap
 import qualified Integrations.Rust.TailRec as TailRec
+import qualified Integrations.Rust.Benchmark as Benchmark
 
 
 spec :: Spec
@@ -19,4 +20,5 @@ spec =
     If.spec >>
     State.spec >>
     SMap.spec >>
-    TailRec.spec
+    TailRec.spec >>
+    Benchmark.spec
