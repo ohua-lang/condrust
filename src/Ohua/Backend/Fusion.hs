@@ -189,12 +189,12 @@ fuseCtrls (TCProgram chans resultChan exprs) =
                                 (Fun f) -> Just (fc, Left f)
                                 (Control (Left c)) -> Just (fc, Right c)
                                 _ -> error "Invariant broken!"
-                _ -> error "Invariant broken: a control always has exactly one target!"
+                _ -> error $ "Invariant broken: a control always has exactly one target!\nI was looking for a target for channel: " <> show chan
         isTarget :: Com 'Channel ty -> Fusable ty (FusedCtrl anno ty) ctrl1 -> Bool
-        isTarget bnd (Control (Left (FusedFunCtrl _ vars _ _))) = 
-            HS.member bnd $ HS.fromList $ 
+        isTarget bnd (Control (Left (FusedFunCtrl _ vars _ _))) =
+            HS.member bnd $ HS.fromList $
             map ((\(SRecv _ c) -> c) . snd . fromVarReceive) vars
-        isTarget bnd (Fun f) = 
+        isTarget bnd (Fun f) =
             HS.member bnd $ HS.fromList $ map (\(SRecv _ c) -> c) $ funReceives f
         isTarget _ _ = False
 
