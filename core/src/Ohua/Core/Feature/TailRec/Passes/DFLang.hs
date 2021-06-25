@@ -13,8 +13,9 @@ import Ohua.Core.DFLang.Passes (checkDefinedUsage)
 
 import Data.List.NonEmpty as NE (toList)
 
--- | Here, we are actually tying the knot and create the final recurFun node (replacing recurStart)
---   the has the loop-back connection to the start of the recursion.
+-- | Here, we are actually tying the knot and create the final
+--   recurFun node (replacing recurStart) the has the loop-back
+--   connection to the start of the recursion.
 recurLowering :: forall m ty.MonadOhua m => NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
 recurLowering expr
  = checkDefinedUsage expr >> -- expresses a precondition for the below transformation
@@ -24,7 +25,9 @@ recurLowering expr
         return expr''
   where
       recurStartToRecurFun :: NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
-      recurStartToRecurFun (Let app@(PureDFFun (Destruct [_, _]) fun inp) rest)
+      -- TODO What was the assumption here that recurStart can only have one argument?!
+      -- recurStartToRecurFun (Let app@(PureDFFun (Destruct [_, _]) fun inp) rest)
+      recurStartToRecurFun (Let app@(PureDFFun (Destruct{}) fun inp) rest)
         | fun == ALangPass.recurStartMarker = do
           recurFun <- findEnd (outsANew app) inp rest
           return $ Let recurFun rest

@@ -40,7 +40,7 @@ preControlPasses =
 -- the transformation is: make state threads and then rebind the state -> alpha renaming on the rest of the term.
 
 postControlPasses :: Expr ty -> Expr ty
-postControlPasses = transformCtxtExits . traceShow "transforming ctxt exists!" -- TODO assert here that no more ctxt exits remain in the code
+postControlPasses = transformCtxtExits -- . traceShow "transforming ctxt exists!" -- TODO assert here that no more ctxt exits remain in the code
 
 runSTCLangSMapFun :: Expr ty
 runSTCLangSMapFun = Lit $ FunRefLit $ FunRef Refs.runSTCLangSMap Nothing $ FunType $ Right (TypeVar :| [TypeVar]) -- size and the state, i.e., there is one per state
