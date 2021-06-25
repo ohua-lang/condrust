@@ -39,11 +39,11 @@ generateFunctionCode :: CompM m => DFApp a ty ->  LoweringM m (FusableExpr ty)
 generateFunctionCode = \case
     (PureDFFun out fn inp) -> do
         (fun', args) <- lowerFnRef fn inp
-        out' <- pureOut out
+        out' <- pureOut fn out
         return $ Fusion.Fun $ Ops.PureFusable args fun' $ Identity $ SChan out'
     (StateDFFun out fn (DFVar stateT stateIn) inp) -> do
         (fun', args) <- lowerFnRef fn inp
-        (sOut, dataOut) <- stateOut out
+        (sOut, dataOut) <- stateOut fn out
         return $
           Fusion.Fun $
           Ops.STFusable
@@ -52,10 +52,10 @@ generateFunctionCode = \case
            fun'
            (SChan <$> dataOut) (SChan <$> sOut)
     where
-        pureOut (Direct out) = return $ unwrapABnd out
-        pureOut e = throwError $ "Unsupported multiple outputs: " <> show e
-        stateOut (sOut, Direct out) = return ((\(Direct bnd) -> unwrapABnd bnd) <$> sOut, Just $ unwrapABnd out)
-        stateOut e = throwError $ "Unsupported multiple outputs: " <> show e
+        pureOut _ (Direct out) = return $ unwrapABnd out
+        pureOut fn e = throwError $ "Unsupported multiple outputs on pure function " <> show fn <> ": " <> show e
+        stateOut _ (sOut, Direct out) = return ((\(Direct bnd) -> unwrapABnd bnd) <$> sOut, Just $ unwrapABnd out)
+        stateOut fn e = throwError $ "Unsupported multiple outputson stateful function " <> show fn <> ": " <> show e
 
 generateReceive :: DFVar semTy ty -> Ops.CallArg ty
 generateReceive (DFVar t bnd) =
