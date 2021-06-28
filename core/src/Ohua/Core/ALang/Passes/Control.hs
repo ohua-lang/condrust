@@ -288,14 +288,14 @@ uniqueCtrls = transformM go
     where
         go :: MonadGenBnd m => Expr ty -> m (Expr ty)
         -- this pattern works because now every control has this form due to the above transformation (TODO reflect this in the type)
-        go e@(Let v ctrl@(PureFunction op _ `Apply` _) cont) | op == Refs.ctrl =
+        go e@(Let v ctrl@((PureFunction op _ `Apply` _ctrlSig) `Apply` _ctrled) cont) | op == Refs.ctrl =
             let usages = [ bnd | Var bnd <- universe cont
                                , bnd == v]
             in
               if length usages < 2
               then return e
               else do
-                (cont',newBnds) <- runWriterT $ renameUsages v cont
+                (cont',newBnds) <- runWriterT $ transformM (renameUsages v) cont
                 return $
                   foldr (\newBnd c -> Let newBnd ctrl c) cont' newBnds
         go e = return e
@@ -304,5 +304,5 @@ uniqueCtrls = transformM go
         renameUsages v (Var bnd) | bnd == v = do
             newBnd <- lift $ generateBindingWith v
             tell [newBnd]
-            return $ Var bnd
+            return $ Var newBnd
         renameUsages _ e = return e
