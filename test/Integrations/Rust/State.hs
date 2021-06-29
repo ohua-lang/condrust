@@ -503,22 +503,60 @@ spec =
                       use funs::*;
 
                       fn test(i: i32) -> () {
-                        let (b_0_tx, b_0_rx) = std::sync::mpsc::channel();
-                        let (s_0_3_tx, s_0_3_rx) = std::sync::mpsc::channel();
-                        let (stream_0_0_tx, stream_0_0_rx) = std::sync::mpsc::channel();
-                        let (sp_0_0_tx, sp_0_0_rx) = std::sync::mpsc::channel();
+                        let (b_0_0_tx, b_0_0_rx) = std::sync::mpsc::channel();
+                        let (s_0_0_2_tx, s_0_0_2_rx) = std::sync::mpsc::channel();
+                        let (stream_0_0_0_tx, stream_0_0_0_rx) = std::sync::mpsc::channel();
+                        let (s_0_0_1_0_tx, s_0_0_1_0_rx) = std::sync::mpsc::channel();
+                        let (sp_0_0_0_tx, sp_0_0_0_rx) = std::sync::mpsc::channel();
                         let (ctrl_0_tx, ctrl_0_rx) = std::sync::mpsc::channel();
                         let (d_1_tx, d_1_rx) = std::sync::mpsc::channel();
-                        let (x_0_0_tx, x_0_0_rx) = std::sync::mpsc::channel();
-                        let (c_0_tx, c_0_rx) = std::sync::mpsc::channel();
+                        let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel();
+                        let (c_0_0_tx, c_0_0_rx) = std::sync::mpsc::channel();
                         let (size_0_tx, size_0_rx) = std::sync::mpsc::channel();
-                        let (s_0_2_0_tx, s_0_2_0_rx) = std::sync::mpsc::channel();
-                        let (s_0_4_tx, s_0_4_rx) = std::sync::mpsc::channel();
+                        let (s_0_1_1_tx, s_0_1_1_rx) = std::sync::mpsc::channel();
                         let mut tasks: Vec<Box<FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
                         tasks
                           .push(Box::new(move || -> _ {
+                            let var_0 = i;
+                            let s_0_0_2 = S::new(var_0);
+                            s_0_0_2_tx.send(s_0_0_2)?
+                          }));
+                        tasks
+                          .push(Box::new(move || -> _ {
                             loop {
-                              let data = stream_0_0_rx.recv()?;
+                              let var_0 = s_0_0_2_rx.recv()?;
+                              let sp_0_0_0 = var_0.clone();
+                              sp_0_0_0_tx.send(sp_0_0_0)?;
+                              s_0_0_1_0_tx.send(var_0)?;
+                              ()
+                            }
+                          }));
+                        tasks
+                          .push(Box::new(move || -> _ {
+                            loop {
+                              let num = size_0_rx.recv()?;
+                              let collection = Vec::new();
+                              for _ in 0 .. num {
+                                let data = c_0_0_rx.recv()?;
+                                collection.push(data)
+                              };
+                              __0_0_0_tx.send(collection)?
+                            }
+                          }));
+                        tasks
+                          .push(Box::new(move || -> _ {
+                            loop {
+                              let var_0 = s_0_1_1_rx.recv()?;
+                              let var_1 = 5;
+                              let b_0_0 = var_0.gs(var_1);
+                              b_0_0_tx.send(b_0_0)?;
+                              ()
+                            }
+                          }));
+                        tasks
+                          .push(Box::new(move || -> _ {
+                            loop {
+                              let data = stream_0_0_0_rx.recv()?;
                               let hasSize =
                                 {
                                   let tmp_has_size = data.iter().size_hint();
@@ -548,43 +586,13 @@ spec =
                           }));
                         tasks
                           .push(Box::new(move || -> _ {
-                            let var_0 = i;
-                            let s_0_3 = S::new(var_0);
-                            s_0_3_tx.send(s_0_3)?
-                          }));
-                        tasks
-                          .push(Box::new(move || -> _ {
-                            let stream_0_0 = iter_i32();
-                            stream_0_0_tx.send(stream_0_0)?
-                          }));
-                        tasks
-                          .push(Box::new(move || -> _ {
-                            loop {
-                              let var_0 = s_0_4_rx.recv()?;
-                              let var_1 = 5;
-                              let b_0 = var_0.gs(var_1);
-                              b_0_tx.send(b_0)?;
-                              ()
-                            }
-                          }));
-                        tasks
-                          .push(Box::new(move || -> _ {
-                            loop {
-                              let num = size_0_rx.recv()?;
-                              let collection = Vec::new();
-                              for _ in 0 .. num { let data = c_0_rx.recv()?; collection.push(data) };
-                              __0_0_tx.send(collection)?
-                            }
-                          }));
-                        tasks
-                          .push(Box::new(move || -> _ {
                             loop {
                               let renew = false;
                               let lit_unit_0 = ();
                               while !renew {
                                 let sig = ctrl_0_rx.recv()?;
                                 let count = sig.1;
-                                for _ in 0 .. count { let var_0 = lit_unit_0; c_0_tx.send(c_0)? };
+                                for _ in 0 .. count { let var_0 = lit_unit_0; c_0_0_tx.send(c_0_0)? };
                                 let renew_next_time = sig.0;
                                 renew = renew_next_time;
                                 ()
@@ -593,17 +601,22 @@ spec =
                           }));
                         tasks
                           .push(Box::new(move || -> _ {
+                            let stream_0_0_0 = iter_i32();
+                            stream_0_0_0_tx.send(stream_0_0_0)?
+                          }));
+                        tasks
+                          .push(Box::new(move || -> _ {
                             loop {
                               let renew = false;
-                              let sp_0_0_0 = sp_0_0_rx.recv()?;
+                              let sp_0_0_0_0 = sp_0_0_0_rx.recv()?;
                               while !renew {
                                 let sig = ctrl_0_rx.recv()?;
                                 let count = sig.1;
                                 for _ in 0 .. count {
-                                  let var_0 = sp_0_0_0;
+                                  let var_0 = sp_0_0_0_0;
                                   let var_1 = d_1_rx.recv()?;
-                                  let x_0_0 = f_s(var_0, var_1);
-                                  x_0_0_tx.send(x_0_0)?
+                                  let x_0_0_0 = f_s(var_0, var_1);
+                                  x_0_0_0_tx.send(x_0_0_0)?
                                 };
                                 let renew_next_time = sig.0;
                                 renew = renew_next_time;
@@ -615,39 +628,29 @@ spec =
                         tasks
                           .push(Box::new(move || -> _ {
                             loop {
-                              let var_0 = s_0_3_rx.recv()?;
-                              let sp_0_0 = var_0.clone();
-                              sp_0_0_tx.send(sp_0_0)?;
-                              s_0_2_0_tx.send(var_0)?;
-                              ()
-                            }
-                          }));
-                        tasks
-                          .push(Box::new(move || -> _ {
-                            loop {
                               let renew = false;
-                              let s_0_2_0_0 = s_0_2_0_rx.recv()?;
+                              let s_0_0_1_0_0 = s_0_0_1_0_rx.recv()?;
                               while !renew {
                                 let sig = ctrl_0_rx.recv()?;
                                 let count = sig.1;
                                 for _ in 0 .. count {
-                                  let var_0 = s_0_2_0_0;
-                                  let var_1 = x_0_0_rx.recv()?;
-                                  let __1_0 = var_0.gs(var_1);
-                                  __1_0_tx.send(__1_0)?;
+                                  let var_0 = s_0_0_1_0_0;
+                                  let var_1 = x_0_0_0_rx.recv()?;
+                                  let __1_0_0 = var_0.gs(var_1);
+                                  __1_0_0_tx.send(__1_0_0)?;
                                   ()
                                 };
                                 let renew_next_time = sig.0;
                                 renew = renew_next_time;
                                 ()
                               };
-                              s_0_4_tx.send(s_0_2_0_0)?;
+                              s_0_1_1_tx.send(s_0_0_1_0_0)?;
                               ()
                             }
                           }));
                         run(tasks);
-                        b_0_rx.recv()?
-                     }
+                        b_0_0_rx.recv()?
+                    }
                     |]
                 compiled `shouldBe` expected)
         )
