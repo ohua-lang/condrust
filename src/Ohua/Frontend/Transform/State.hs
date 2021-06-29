@@ -1,31 +1,81 @@
 module Ohua.Frontend.Transform.State where
 
-import Ohua.Prelude
+import Ohua.Prelude hiding (Nat)
+import Ohua.Types.Vector
 
 import Ohua.Frontend.Lang
-import Data.HashMap.Lazy as HM 
+import Ohua.Frontend.PPrint
+import Data.HashMap.Lazy as HM
 
 -- | This essentially checks for linear state usage and is part of
 --   the according type system.
+type Action = ( Nat  -- reading
+              , Nat  -- writing
+              )
+
+data Ctxt =
+  Ctxt
+  (HM.HashMap Binding Action) -- ctxt
+  (HM.HashMap Binding Action) -- local ctxt
+
 check :: CompM m => Expr ty -> m ()
-check exp = void $ evalStateT (transformM f exp) HM.empty
-    where
-        f :: CompM m => Expr ty -> StateT (HM.HashMap Binding Int) m (Expr ty)
-        f e@(BindE (VarE bnd) _) = modify (HM.insertWith (+) bnd 1) >> return e
-        f e@(LetE p _ _) = clearDefined p >> return e
-        f e@(LamE ps _) = clearDefined (TupP ps) >> return e
-        f e@(MapE _ _)= checkAndFail e >> return e
-        f e@IfE{} = checkAndFail e >> return e
-        f e = return e
+check expr = f (Ctxt HM.empty HM.empty) expr >> return ()
+  where
+    f ctxt e@(BindE (VarE bnd) b) = do
+      (Ctxt ctxt' local') <- f ctxt b
+      case HM.lookup bnd local' of
+         (Just (Succ _,_)) ->
+                        error $ "State variable " <> show (unwrap bnd) <>
+                        " used for reading *and* writing in expression:\n" <> prettyExpr e <>
+                        "\n In the program:\n" <> prettyExpr expr
+         (Just (Zero,y)) -> return $ Ctxt ctxt' $ HM.insert bnd (Zero,Succ y) local'
+         Nothing ->
+           case HM.lookup bnd ctxt' of
+             (Just (Succ _,_)) ->
+                            error $ "State variable " <> show (unwrap bnd) <>
+                            " used for reading *and* writing in expression:\n" <> prettyExpr e <>
+                            "\n In the program:\n" <> prettyExpr expr
+             (Just (_,Succ _)) ->
+                            error $ "State variable " <> show (unwrap bnd) <>
+                            " is used a second time (inside this context) in expression:\n" <> prettyExpr e <>
+                            "\n In the program:\n" <> prettyExpr expr
+             (Just (Zero,Zero)) -> return $ Ctxt (HM.insert bnd (Zero,Succ Zero) ctxt') local'
+             Nothing -> error $ "invariant broken: expression is not well-scoped!\n" <>
+                        prettyExpr e <> "\n Unbound var: " <> show bnd
+    f (Ctxt ctxt loc) e@(VarE bnd) =
+      case HM.lookup bnd loc of
+        (Just (_,Succ _)) ->
+                       error $ "State variable " <> show (unwrap bnd) <>
+                       " used for reading *and* writing in expression:\n" <> prettyExpr e <>
+                       "\n In the program:\n" <> prettyExpr expr
+        (Just (x,Zero)) -> return $ Ctxt ctxt $ HM.insert bnd (Succ x,Zero) loc
+        Nothing ->
+          case HM.lookup bnd ctxt of
+            (Just (_,Succ _)) -> error $ "State variable " <> show (unwrap bnd) <>
+                            " used for reading *and* writing in expression:\n" <> prettyExpr e <>
+                            "\n In the program:\n" <> prettyExpr expr
+            (Just (x,Zero)) -> return $ Ctxt (HM.insert bnd (Succ x,Zero) ctxt) loc
+            Nothing -> error $ "invariant broken: expression is not well-scoped!\n" <>
+                       prettyExpr e <> "\n Unbound var: " <> show bnd
+    f ctxt (AppE a bs) = f ctxt a >>= (\ctxt' -> foldM f ctxt' bs)
+    f ctxt (LetE p a b) = (`f` b) =<< (`addToCtxt` p) <$> f ctxt a
+    f ctxt (LamE ps b) = f (addToCtxt ctxt $ TupP ps) b
+    f ctxt (MapE b d) = do
+      ctxt' <- f ctxt d
+      ctxt'' <- f (liftLocalIntoCtxt ctxt') b
+      return ctxt' -- ???
+    f ctxt (IfE a b c) = do
+      ctxt' <- f ctxt a
+      ctxt'' <- f ctxt' b
+      ctxt''' <- f ctxt' c
+      return ctxt' -- ???
+    f ctxt _ = return ctxt
 
-        clearDefined :: CompM m => Pat -> StateT (HM.HashMap Binding Int) m ()
-        clearDefined p =
-            mapM_ (modify . HM.delete) [bnd | VarP bnd <- universe p]
+    addToCtxt (Ctxt ctxt loc) p =
+      Ctxt ctxt $ foldl (\local' b -> HM.insert b (Zero,Zero) local') loc [bnd | VarP bnd <- universe p]
 
-        checkAndFail :: CompM m => Expr ty -> StateT (HM.HashMap Binding Int) m ()
-        checkAndFail e = do
-            reused <- HM.keys . HM.filter (>1) <$> get
-            mapM_ (lift . fail e) reused
+    liftLocalIntoCtxt (Ctxt ctxt loc) =
+      Ctxt
+      (foldl (\c b -> HM.insert b (Zero,Zero) c) ctxt $ HM.keys loc)
+      HM.empty
 
-        fail :: CompM m => Expr ty -> Binding -> m ()
-        fail e v = throwError $ "State variable" <> show v <> "used more than once in expression:\n" <> show e

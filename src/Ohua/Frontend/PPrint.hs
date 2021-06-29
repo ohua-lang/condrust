@@ -9,12 +9,12 @@ import Data.Text.Prettyprint.Doc as PP
 
 import Data.Text.Prettyprint.Doc.Render.Text
 
-import Data.Text.Lazy as T (Text)
-import qualified Data.Text.Lazy.IO as LT
+import Data.Text as T (Text)
+import qualified Data.Text.IO as LT
 
 
 prettyExpr :: Pretty a => a -> T.Text
-prettyExpr = renderLazy . layoutSmart ohuaDefaultLayoutOpts . pretty
+prettyExpr = renderStrict . layoutSmart ohuaDefaultLayoutOpts . pretty
 
 prettyExprM :: Pretty a => a -> IO ()
 prettyExprM = LT.putStr . prettyExpr
