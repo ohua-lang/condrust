@@ -206,7 +206,6 @@ handleApplyExpr (Apply fn a) = go (a :| []) fn
                 failWith $ "Wrong function type 'pure' for st function: " <> show fn
             BindState state0 (Lit (FunRefLit (FunRef fn _ (STFunType sType argTypes)))) -> do
                 assertTermTypes args argTypes "stateful function" fn
-                traceShowM $ "length: " <> (show $ length args)
                 state' <- expectStateBnd state0
                 return (fn, Just (sType, state'), zip' argTypes args)
             x -> failWith $ "Expected Apply or Var but got: " <> show (x :: ALang.Expr ty)

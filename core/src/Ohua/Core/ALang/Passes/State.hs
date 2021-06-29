@@ -30,10 +30,14 @@ import Control.Lens.Plated (plate)
 
 -- TODO recursion support is still pending here!
 
+-- | The SSA pass after transforming control state threads is vital.
+--   It makes sure that all succeeding state threads after a control
+--   state thread, take the state outputs of the control state threads.
 preControlPasses :: MonadOhua m => Expr ty -> m (Expr ty)
 preControlPasses =
-  addCtxtExit >=>
-  transformIntoStateThreads >=>
+  transformControlStateThreads >=>
+  performSSA >=>
+  transformFundamentalStateThreads >=>
   performSSA
 
 -- FIXME there is code missing that turns the basic state threads into real state threads! this is the very first transformation that needs to run.
@@ -68,8 +72,8 @@ ctxtExitFunRef num = Lit $ FunRefLit $ FunRef ctxtExit Nothing $ FunType $ Right
 -- @
 --  let (state', v) = state.f () in c[state'/state]
 -- @
-transformIntoStateThreads :: (MonadOhua m) => Expr ty -> m (Expr ty)
-transformIntoStateThreads = transformM f
+transformFundamentalStateThreads :: (MonadOhua m) => Expr ty -> m (Expr ty)
+transformFundamentalStateThreads = transformM f
   where
     f e@(Let v app cont) = do
       s <- stBndForStatefulFun app
@@ -127,47 +131,78 @@ transformIntoStateThreads = transformM f
 --          z
 -- @
 -- Here 'state' is NOT a free variable!
-addCtxtExit :: MonadGenBnd m => Expr ty -> m (Expr ty)
-addCtxtExit = transformM f
-    where
-        f (Let v (fun@(PureFunction op _) `Apply` trueBranch `Apply` falseBranch) cont)
-            | op == Refs.ifThenElse =
-                let trueBranchStates = HS.fromList $ collectStates trueBranch
-                    falseBranchStates = HS.fromList $ collectStates falseBranch
+--
+-- Another important point concerns the destructuring of the result:
+-- @
+--   let ctxtOut = ctxt \d ->
+--                         let x = before d in
+--                         let y1 = state1.f x in
+--                         let z = after y1 in
+--                         let allOut = ctxtExit z state1 in
+--                         allOut
+--   let result = ohua.lang/nth 0 2 ctxtOut in
+--   let state1 = ohua.lang/nth 1 2 ctxtOut in
+--   cont
+-- @
+-- Note that we assign the returned state to the same variable!
+-- As a result of this, a consecutive SSA pass can make sure that every
+-- consecutive state thread in `cont` references the result of the ctxt
+-- and *not* the initial state thread reference!
+-- After SSA:
+-- @
+--   let ctxtOut = ctxt \d ->
+--                         let x = before d in
+--                         let y1 = state1.f x in
+--                         let z = after y1 in
+--                         let allOut = ctxtExit z state1 in
+--                         allOut
+--   let result = ohua.lang/nth 0 2 ctxtOut in
+--   let state1' = ohua.lang/nth 1 2 ctxtOut in
+--   [state |-> state']cont
+-- @
+transformControlStateThreads :: MonadGenBnd m => Expr ty -> m (Expr ty)
+transformControlStateThreads = transformM f
+  where
+    f (Let v (fun@(PureFunction op _) `Apply` trueBranch `Apply` falseBranch) cont)
+      | op == Refs.ifThenElse =
+          let
+            trueBranchStates = HS.fromList $ collectStates trueBranch
+            falseBranchStates = HS.fromList $ collectStates falseBranch
 
-                    trueBranchStatesMissing = HS.difference falseBranchStates trueBranchStates
-                    falseBranchStatesMissing = HS.difference trueBranchStates falseBranchStates
-                    addMissing =
-                        HS.foldr
-                            (\missingState c ->
-                                Let missingState (pureFunction Refs.id Nothing (FunType (Right (TypeVar :| [])) )`Apply` Var missingState)
-                                    c)
-                    trueBranch' = applyToBody (`addMissing` trueBranchStatesMissing) trueBranch
-                    falseBranch' = applyToBody (`addMissing` falseBranchStatesMissing) falseBranch
+            trueBranchStatesMissing = HS.difference falseBranchStates trueBranchStates
+            falseBranchStatesMissing = HS.difference trueBranchStates falseBranchStates
+            addMissing =
+              HS.foldr
+              (\missingState c ->
+                 Let missingState
+                 (pureFunction Refs.id Nothing (FunType (Right (TypeVar :| [])) )
+                   `Apply` Var missingState)
+                 c)
+            trueBranch' = applyToBody (`addMissing` trueBranchStatesMissing) trueBranch
+            falseBranch' = applyToBody (`addMissing` falseBranchStatesMissing) falseBranch
 
-                    allStates = HS.toList $ HS.union trueBranchStates falseBranchStates
-                in do
-                    trueBranch'' <- mkST (map Var allStates) trueBranch'
-                    falseBranch'' <- mkST (map Var allStates) falseBranch'
-                    ctxtOut <- generateBindingWith "ctxt_out"
-                    return $
-                        Let ctxtOut (fun `Apply` trueBranch'' `Apply` falseBranch'') $
-                        mkDestructured (v:allStates) ctxtOut
-                        cont
-
-        f (Let v (fun@(PureFunction op _) `Apply` lam `Apply` ds) cont)
-            | op == Refs.smap =
-                let (args, expr) = lambdaArgsAndBody lam
-                    states = filter (not . (`HS.member` (HS.fromList args))) $ collectStates expr
-                in do
-                    expr' <- mkST (map Var states) expr
-                    ctxtOut <- generateBindingWith "ctxt_out"
-                    let lam' = mkLambda args expr'
-                    return $
-                        Let ctxtOut (fun `Apply` lam' `Apply` ds) $
-                        mkDestructured (v:states) ctxtOut
-                        cont
-        f expr = return expr
+            allStates = HS.toList $ HS.union trueBranchStates falseBranchStates
+          in do
+            trueBranch'' <- mkST (map Var allStates) trueBranch'
+            falseBranch'' <- mkST (map Var allStates) falseBranch'
+            ctxtOut <- generateBindingWith "ctxt_out"
+            return $
+              Let ctxtOut (fun `Apply` trueBranch'' `Apply` falseBranch'') $
+              mkDestructured (v:allStates) ctxtOut
+              cont
+    f (Let v (fun@(PureFunction op _) `Apply` lam `Apply` ds) cont)
+      | op == Refs.smap =
+          let (args, expr) = lambdaArgsAndBody lam
+              states = filter (not . (`HS.member` (HS.fromList args))) $ collectStates expr
+          in do
+            expr' <- mkST (map Var states) expr
+            ctxtOut <- generateBindingWith "ctxt_out"
+            let lam' = mkLambda args expr'
+            return $
+              Let ctxtOut (fun `Apply` lam' `Apply` ds) $
+              mkDestructured (v:states) ctxtOut
+              cont
+    f expr = return expr
 
 
 -- Assumptions: This function is applied to a normalized and SSAed expression.
