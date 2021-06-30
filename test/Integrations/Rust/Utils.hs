@@ -74,61 +74,25 @@ compileCode' inCode opts =
     withSystemTempDirectory "testDir" 
         $ \testDir -> do
             setCurrentDirectory testDir
-            writeFile 
-                (testDir </> "funs.rs")
-                " \
-                \ fn hello_world() -> String { unimplemented!{} } \
-                \ fn f() -> i32 { unimplemented!{} } \
-                \ fn f_arc() -> Arc<i32> { unimplemented!{} } \
-                \ fn g(i:i32) -> String { unimplemented!{} } \
-                \ fn h(i:i32) -> i32 { unimplemented!{} } \
-                \ fn h2(i:i32, j:i32) -> i32 { unimplemented!{} }\
-                \ fn f0(i:i32) -> i32 { unimplemented!{} } \
-                \ fn f1(i:i32) -> i32 { unimplemented!{} } \
-                \ fn f2(i:i32) -> i32 { unimplemented!{} } \
-                \ fn g0(i:i32) -> i32 { unimplemented!{} } \
-                \ fn g1(i:i32) -> i32 { unimplemented!{} } \
-                \ fn check(i:i32) -> bool { unimplemented!{} } \
-                \\
-                \ struct S {} \
-                \ impl S { \
-                \   fn new(i:i32) -> S { unimplemented!{} } \
-                \   fn gs(self, i:i32) -> i32 { unimplemented!{} } \
-                \ } \
-                \ fn k(s:S) -> () { unimplemented!{} } \
-                \\
-                \ fn iter() -> Iterator<S> { unimplemented!{} } \
-                \ impl Iterator for S { \
-                \   type Item=S; \
-                \   fn next(&mut self) -> Option<S> { unimplemented!{} } \
-                \   fn size_hint(&self) -> (usize, Option<usize>) { unimplemented!{} } \
-                \ } \
-                \ fn iter_i32() -> Iterator<i32> { unimplemented!{} } \
-                \\
-                \ struct Arc {} \
-                \ impl Arc { \
-                \   fn new(i: i32) -> i32 { unimplemented!() } \
-                \ } \
-                \ impl Clone for Arc { \
-                \   fn clone(&self) -> Self { unimplemented!() } \
-                \ } \
-                \ "
+            writeFile (testDir </> "funs.rs") funs
+            writeFile (testDir </> "benchs.rs") benchs
+            writeFile (testDir </> "std.rs") std
             let inFile = testDir </> "test.rs"
             L.writeFile inFile $ renderRustCode inCode
-            withSystemTempDirectory "output" 
+            withSystemTempDirectory "output"
                 $ \outDir -> do
                     let compScope = HM.empty
                     let options = if debug then withDebug opts else opts
                     runCompM
                         LevelWarn
                         $ compile inFile compScope options outDir
-                    outCode :: SourceFile Span 
+                    outCode :: SourceFile Span
                         <- parse' <$> readInputStream (outDir </> takeFileName inFile)
                     return outCode
 
 showCode :: T.Text -> SourceFile Span -> IO T.Text
-showCode msg code = 
-    let 
+showCode msg code =
+    let
         c = renderStrict $ layoutSmart defaultLayoutOptions $ pretty' code
     in do
         when debug $ printCode c
@@ -138,3 +102,90 @@ showCode msg code =
         boundary = "\n" <> T.concat (replicate 20 ("-"::T.Text)) <> "\n"
         header = msg <> "\n\n"
 
+funs :: Text
+funs =
+  " \
+  \ fn hello_world() -> String { unimplemented!{} } \
+  \ fn f() -> i32 { unimplemented!{} } \
+  \ fn f_arc() -> Arc<i32> { unimplemented!{} } \
+  \ fn g(i:i32) -> String { unimplemented!{} } \
+  \ fn h(i:i32) -> i32 { unimplemented!{} } \
+  \ fn h2(i:i32, j:i32) -> i32 { unimplemented!{} }\
+  \ fn f0(i:i32) -> i32 { unimplemented!{} } \
+  \ fn f1(i:i32) -> i32 { unimplemented!{} } \
+  \ fn f2(i:i32) -> i32 { unimplemented!{} } \
+  \ fn g0(i:i32) -> i32 { unimplemented!{} } \
+  \ fn g1(i:i32) -> i32 { unimplemented!{} } \
+  \ fn check(i:i32) -> bool { unimplemented!{} } \
+  \\
+  \ struct S {} \
+  \ impl S { \
+  \   fn new(i:i32) -> S { unimplemented!{} } \
+  \   fn gs(self, i:i32) -> i32 { unimplemented!{} } \
+  \ } \
+  \ fn k(s:S) -> () { unimplemented!{} } \
+  \\
+  \ fn iter() -> Iterator<S> { unimplemented!{} } \
+  \ impl Iterator for S { \
+  \   type Item=S; \
+  \   fn next(&mut self) -> Option<S> { unimplemented!{} } \
+  \   fn size_hint(&self) -> (usize, Option<usize>) { unimplemented!{} } \
+  \ } \
+  \ impl Clone for S { \
+  \   fn clone(&self) -> Self { unimplemented!() } \
+  \ } \
+  \ fn iter_i32() -> Iterator<i32> { unimplemented!{} } \
+  \ fn f_s(s:&S, i:i32) -> i32 { unimplemented!() } \
+  \\
+  \ struct Arc {} \
+  \ impl Arc { \
+  \   fn new(i: i32) -> i32 { unimplemented!() } \
+  \ } \
+  \ impl Clone for Arc { \
+  \   fn clone(&self) -> Self { unimplemented!() } \
+  \ } \
+  \ "
+
+benchs :: Text
+benchs =
+  " \
+  \ struct Maze {} \
+  \ impl Maze { \
+  \   fn init(salt: i32) -> Self \
+  \   { unimplemented!() } \
+  \ \
+  \   fn update(&mut self, path: Vec<Point>) -> Option<(Point,Point)> \
+  \   { unimplemented!() } \
+  \ } \
+  \ \
+  \ impl Clone for Arc { \
+  \   fn clone(&self) -> Self { unimplemented!() } \
+  \ } \
+  \ \
+  \ struct Point {} \
+  \ \
+  \ fn find_path(m: Maze, pair: (Point, Point)) -> Vec<Point> \
+  \ { unimplemented!() } \
+  \ \
+  \ fn get_unmapped(results: Vec<Option<(Point,Point)>>, its_left: u32) -> (Vec<(Point,Point)>,bool, u32)\
+  \ { unimplemented!() } \
+  \ \
+  \ fn filter_mapped(results: Vec<Option<(Point,Point)>>) -> Vec<(Point,Point)>\
+  \ { unimplemented!() } \
+  \ \
+  \ fn calculate_done(results: Vec<(Point,Point)>, its_left: u32) -> bool\
+  \ { unimplemented!() } \
+  \ \
+  \ fn decrement(u: u32) -> u32\
+  \ { unimplemented!() } \
+  \ "
+
+std :: Text
+std =
+  " \
+  \ struct Vec<T> {} \
+  \ impl<T> Vec<T> { \
+  \   pub const fn new() -> Self { unimplemented!() } \
+  \   pub fn push(&mut self, value: T) { unimplemented!() } \
+  \ } \
+  \ "
