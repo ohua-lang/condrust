@@ -32,7 +32,7 @@ import qualified Data.ByteString.Lazy.Char8 as L
 
 -- TODO turn this into a parameter for a particular test
 debug :: Bool
-debug = True
+debug = False
 
 renderRustCode :: SourceFile Span -> L.ByteString
 renderRustCode =
@@ -177,6 +177,9 @@ benchs =
   \ { unimplemented!() } \
   \ \
   \ fn decrement(u: u32) -> u32\
+  \ { unimplemented!() } \
+  \ \
+  \ fn fill1(m: Maze, p:Vec<(Point,Point)>, ma:u32) -> Maze \
   \ { unimplemented!() } \
   \ "
 
