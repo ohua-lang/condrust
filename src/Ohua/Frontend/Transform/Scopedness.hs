@@ -4,7 +4,7 @@ import Ohua.Prelude
 
 import Ohua.Frontend.Lang
 import Ohua.Frontend.PPrint ()
-import Data.HashSet as HS 
+import Data.HashSet as HS
 import Control.Lens.Combinators (mapMOf)
 import Control.Lens.Plated (plate)
 
@@ -40,4 +40,4 @@ makeWellScoped currentFun expr = runIdentity $ contextedTraversal intoFunLit (HS
   where
     intoFunLit _ (VarE bdg) = return $ LitE $ FunRefLit $ FunRef (QualifiedBinding (makeThrow []) bdg) Nothing Untyped
     intoFunLit _ e = return e -- FIXME type above is not precise enough
- 
+

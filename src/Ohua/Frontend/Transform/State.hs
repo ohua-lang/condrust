@@ -26,7 +26,7 @@ check expr = f (Ctxt HM.empty HM.empty) expr >> return ()
       case HM.lookup bnd local' of
          (Just (Succ _,_)) ->
                         error $ "State variable " <> show (unwrap bnd) <>
-                        " used for reading *and* writing in expression:\n" <> prettyExpr e <>
+                        " used for reading *before* writing in expression:\n" <> prettyExpr e <>
                         "\n In the program:\n" <> prettyExpr expr
          (Just (Zero,y)) -> return $ Ctxt ctxt' $ HM.insert bnd (Zero,Succ y) local'
          Nothing ->
@@ -41,14 +41,13 @@ check expr = f (Ctxt HM.empty HM.empty) expr >> return ()
                             "\n In the program:\n" <> prettyExpr expr
              (Just (Zero,Zero)) -> return $ Ctxt (HM.insert bnd (Zero,Succ Zero) ctxt') local'
              Nothing -> error $ "invariant broken: expression is not well-scoped!\n" <>
-                        prettyExpr e <> "\n Unbound var: " <> show bnd
+                        prettyExpr e <> "\n Unbound var: " <> show bnd <>
+                        "\n Expression:\n" <> prettyExpr expr
     f (Ctxt ctxt loc) e@(VarE bnd) =
       case HM.lookup bnd loc of
-        (Just (_,Succ _)) ->
-                       error $ "State variable " <> show (unwrap bnd) <>
-                       " used for reading *and* writing in expression:\n" <> prettyExpr e <>
-                       "\n In the program:\n" <> prettyExpr expr
-        (Just (x,Zero)) -> return $ Ctxt ctxt $ HM.insert bnd (Succ x,Zero) loc
+        -- Note that reading *after* writing is actually ok, because each
+        -- state thread creates a new state ref that is used in the continuation.
+        (Just (x,y)) -> return $ Ctxt ctxt $ HM.insert bnd (Succ x,y) loc
         Nothing ->
           case HM.lookup bnd ctxt of
             (Just (_,Succ _)) -> error $ "State variable " <> show (unwrap bnd) <>
@@ -56,9 +55,13 @@ check expr = f (Ctxt HM.empty HM.empty) expr >> return ()
                             "\n In the program:\n" <> prettyExpr expr
             (Just (x,Zero)) -> return $ Ctxt (HM.insert bnd (Succ x,Zero) ctxt) loc
             Nothing -> error $ "invariant broken: expression is not well-scoped!\n" <>
-                       prettyExpr e <> "\n Unbound var: " <> show bnd
+                       prettyExpr e <> "\n Unbound var: " <> show bnd <>
+                       "\n Expression:\n" <> prettyExpr expr
     f ctxt (AppE a bs) = f ctxt a >>= (\ctxt' -> foldM f ctxt' bs)
-    f ctxt (LetE p a b) = (`f` b) =<< (`addToCtxt` p) <$> f ctxt a
+    f ctxt (LetE p a b) =
+      -- I have to add it here into the check for a because p may be the identifier
+      -- for a recursive function.
+       f (addToCtxt ctxt p) a >>= (`f` b)
     f ctxt (LamE ps b) = f (addToCtxt ctxt $ TupP ps) b
     f ctxt (MapE b d) = do
       ctxt' <- f ctxt d

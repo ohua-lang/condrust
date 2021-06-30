@@ -25,19 +25,24 @@ frontend lang compScope inFile = do
         (langNs, (ns,reg)) <- load lang compScope inFile
         -- FIXME we should exclude recursive functions from stand-alone compilation.
         -- there is really no value in compiling them.
-        ns'    <- updateExprs' ns transform
+        ns'    <- updateExprs' ns trans
         ns''   <- resolveNS (ns',reg)
         ns'''  <- updateExprs' ns'' wellScopedness
         ns'''' <- loadTypes lang langNs ns'''
-        return
-          ( langNs
-          -- we exclude recursive functions from stand-alone compilation.
-          -- there is really no value in compiling them.
-          , over algos (filter (not . isRecAlgo)) ns''''
-          )
+        let finalNs@(_, fNs) =
+              ( langNs
+              -- we exclude recursive functions from stand-alone compilation.
+              -- there is really no value in compiling them.
+              , over algos (filter (not . isRecAlgo)) ns''''
+              )
+        _      <- updateExprs' fNs linearState
+        return finalNs
     where
-        transform :: CompM m => Binding -> FrLang.Expr ty -> m (FrLang.Expr ty)
-        transform b e = prepareRootAlgoVars . transformFinalLiterals =<< wellScopedness b e
+        trans :: CompM m => Binding -> FrLang.Expr ty -> m (FrLang.Expr ty)
+        trans b e = prepareRootAlgoVars . transformFinalLiterals =<< wellScopedness b e
 
         wellScopedness :: CompM m => Binding -> FrLang.Expr ty -> m (FrLang.Expr ty)
-        wellScopedness b e = (\a -> check a >> return a) $ makeWellScoped b e
+        wellScopedness b e = pure $ makeWellScoped b e
+
+        linearState :: CompM m => Binding -> FrLang.Expr ty -> m ()
+        linearState _ = check
