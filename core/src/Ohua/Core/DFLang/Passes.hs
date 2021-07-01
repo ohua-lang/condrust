@@ -23,11 +23,12 @@ import qualified Data.List.NonEmpty.Extra as NEE
 import Ohua.Core.ALang.Lang as ALang
 import Ohua.Core.ALang.Util
 
-import Ohua.Core.DFLang.Lang as DFLang
+import Ohua.Core.DFLang.Lang as DFLang hiding (length)
+import Ohua.Core.DFLang.Passes.DeadCodeElimination (eliminate)
 
 
 runCorePasses :: (MonadOhua m) => NormalizedExpr ty -> m (NormalizedDFExpr ty)
-runCorePasses = removeNth
+runCorePasses = removeNth >=> eliminate
 
 -- I really should not have to do this in the first place.
 -- All transformations that need an Nth node because they introduce functions whose output
@@ -72,7 +73,7 @@ removeNth expr = do
             hm <- get
             let out' = toDFOuts (unwrapABnd out) DataBinding hm
             let stateOut' = (\s -> toDFOuts (unwrapABnd s) StateBinding hm) <$> stateOut
-            return $ Just $ StateDFFun (stateOut',out') fun stateIn ins
+            return $ Just $ StateDFFun (stateOut',Just out') fun stateIn ins
         toDFOuts :: Binding -> (Binding -> ABinding a) -> HM.HashMap Binding (NonEmpty (Integer, Binding)) -> OutData a
         toDFOuts out bndFun = maybe
                 -- TODO normally I would not have to unwrap the bindings here but they would preserve their
@@ -96,7 +97,7 @@ checkDefinedUsage expr = evalStateT (f expr) HS.empty
             defined <- get
             mapM_ (failWith . ("Undefined binding:" <> ) . show) $
                 filter (not . (`HS.member` defined)) ins
-            put $ HS.union defined $ HS.fromList $ NE.toList outs
+            put $ HS.union defined $ HS.fromList outs
             f cont
 
 -- FIXME This thing should be a type level annotation, so we do not have to verify
@@ -116,7 +117,7 @@ checkSSA e =
         foldl (\hm (out,f) -> HM.insertWith (++) out [f] hm) HM.empty
         (allOuts e)
     allOuts :: DFLang.Expr ty a  -> [(Binding, Text)]
-    allOuts (DFLang.Let app cont) = NE.toList (map (,show app) (outBindings app)) ++ allOuts cont
+    allOuts (DFLang.Let app cont) = (map (,show app) (outBindings app)) ++ allOuts cont
     allOuts _ = []
 
 -- | Transform an ALang expression into a DFExpression.
