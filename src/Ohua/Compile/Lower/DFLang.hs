@@ -54,8 +54,13 @@ generateFunctionCode = \case
     where
         pureOut _ (Direct out) = return $ unwrapABnd out
         pureOut fn e = throwError $ "Unsupported multiple outputs on pure function " <> show fn <> ": " <> show e
-        stateOut _ (sOut, Direct out) = return ((\(Direct bnd) -> unwrapABnd bnd) <$> sOut, Just $ unwrapABnd out)
-        stateOut fn e = throwError $ "Unsupported multiple outputson stateful function " <> show fn <> ": " <> show e
+        stateOut fn (sOut, out) = do
+          sOut' <- toDirect fn sOut
+          out' <- toDirect fn out
+          return (sOut', out')
+        toDirect _ (Just (Direct bnd)) = return $ Just $ unwrapABnd bnd
+        toDirect _ Nothing = return Nothing
+        toDirect fn e = throwError $ "Unsupported multiple outputs on stateful function " <> show fn <> ": " <> show e
 
 generateReceive :: DFVar semTy ty -> Ops.CallArg ty
 generateReceive (DFVar t bnd) =

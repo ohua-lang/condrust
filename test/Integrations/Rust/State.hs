@@ -83,8 +83,7 @@ spec =
                     loop {
                       let var_0 = state_0_0_2_rx.recv()?;
                       let var_1 = 5;
-                      let r0_0_0_0 = var_0.gs(var_1);
-                      r0_0_0_0_tx.send(r0_0_0_0)?;
+                      var_0.gs(var_1);
                       state_0_0_1_0_tx.send(var_0)?;
                       ()
                     }
@@ -139,7 +138,13 @@ spec =
                         let (size_0_tx, size_0_rx) = std::sync::mpsc::channel();
                         let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel();
                         let mut tasks: Vec<Box<FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
-                        tasks
+                      tasks
+                        .push(Box::new(move || -> _ {
+                          // FIXME this is still not ok!
+                          // even though the output is not used anywhere, it needs to be the result of the loop!
+                          loop { let var_0 = d_0_rx.recv()?; let var_1 = 5; var_0.gs(var_1); () }
+                        }));
+                       tasks
                           .push(Box::new(move || -> _ {
                             let stream_0_0_0 = iter();
                             stream_0_0_0_tx.send(stream_0_0_0)?
@@ -200,16 +205,6 @@ spec =
                                 renew = renew_next_time;
                                 ()
                               }
-                            }
-                          }));
-                        tasks
-                          .push(Box::new(move || -> _ {
-                            loop {
-                              let var_0 = d_0_rx.recv()?;
-                              let var_1 = 5;
-                              let __0_0_0 = var_0.gs(var_1);
-                              __0_0_0_tx.send(__0_0_0)?; // FIXME sertel/ohua-core#11
-                              ()
                             }
                           }));
                         tasks
