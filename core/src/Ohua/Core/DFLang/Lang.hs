@@ -3,7 +3,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Ohua.Core.DFLang.Lang where
 
-import Ohua.Core.Prelude
+import Ohua.Core.Prelude hiding (length)
 import Ohua.Types.Vector as V hiding (map)
 
 import Ohua.Core.DFLang.Refs as DFLangRefs (recurFun)
@@ -18,12 +18,12 @@ data ABinding :: BindingType -> Type where
     StateBinding :: Binding -> ABinding 'State
 
 deriving instance Show (ABinding a)
-deriving instance Eq (ABinding a) 
+deriving instance Eq (ABinding a)
 
 data OutData :: BindingType -> Type where
     -- | Direct output
     Direct :: ABinding b -> OutData b
-    -- | Destructuring 
+    -- | Destructuring
     Destruct :: NonEmpty (OutData b) -> OutData b
     -- | Copying of output data
     Dispatch :: NonEmpty (ABinding b) -> OutData b
@@ -68,7 +68,7 @@ data App (f::FunANF) (ty::Type) :: Type where
     --      as a state. Currently, we really only tag the types of an app with almost no implication on the
     --      whole expression. This would then immediately remove the unwrapABnd function.
     PureFun :: ABinding b -> QualifiedBinding -> NonEmpty (DFVar 'Data ty) -> App 'Fun ty
-    StateFun :: (Maybe (ABinding 'State), ABinding 'Data) 
+    StateFun :: (Maybe (ABinding 'State), ABinding 'Data)
             -> QualifiedBinding -> DFVar 'State ty -> NonEmpty (DFVar 'Data ty) -> App 'ST ty
     -- TODO define the builtin functions right here:
     -- SMap :: Binding -> '[Binding, Binding] -> App 'SMapFun
@@ -79,9 +79,7 @@ data App (f::FunANF) (ty::Type) :: Type where
 --   (a function with output destructuring and dispatched result)
 data DFApp (f::FunANF) (ty::Type) :: Type where
     PureDFFun :: OutData b -> QualifiedBinding -> NonEmpty (DFVar 'Data ty) -> DFApp 'Fun ty
-    -- FIXME This type is actually incorrect. The data output must not be used necessarily
-    --       when the state output is!
-    StateDFFun :: (Maybe (OutData 'State), OutData 'Data)
+    StateDFFun :: (Maybe (OutData 'State), Maybe (OutData 'Data))
                 -> QualifiedBinding -> DFVar 'State ty -> NonEmpty (DFVar 'Data ty) -> DFApp 'ST ty
     RecurFun :: --(n ~ 'Succ m) =>
             -- (final) result out
@@ -104,7 +102,6 @@ data DFApp (f::FunANF) (ty::Type) :: Type where
     -- Ctrl
     -- IfFun
     -- Select
-    -- RecurFun
 
 data Expr (fun:: FunANF -> Type -> Type) (ty::Type) :: Type where
      Let :: (Show (fun a ty), Function (fun a ty)) => fun a ty -> Expr fun ty -> Expr fun ty
@@ -120,13 +117,15 @@ outsApp (PureFun out _ _) = unwrapABnd out :| []
 outsApp (StateFun (Nothing, out) _ _ _) = unwrapABnd out :| []
 outsApp (StateFun (Just stateOut, out) _ _ _) = unwrapABnd stateOut :| [unwrapABnd out]
 
-outsDFApp :: DFApp ty a -> NonEmpty Binding
-outsDFApp (PureDFFun out _ _) = outBnds out
-outsDFApp (StateDFFun (Nothing, out) _ _ _) = outBnds out
-outsDFApp (StateDFFun (Just stateOut, out) _ _ _) = outBnds stateOut <> outBnds out
+outsDFApp :: DFApp ty a -> [Binding]
+outsDFApp (PureDFFun out _ _) = NE.toList $ outBnds out
+outsDFApp (StateDFFun (Nothing, Nothing) _ _ _) = []
+outsDFApp (StateDFFun (Nothing, Just out) _ _ _) = NE.toList $ outBnds out
+outsDFApp (StateDFFun (Just stateOut, Nothing) _ _ _) = NE.toList $ outBnds stateOut
+outsDFApp (StateDFFun (Just stateOut, Just out) _ _ _) = NE.toList $ outBnds stateOut <> outBnds out
 outsDFApp (RecurFun result ctrl recurs _ _ _ _) =
     let (x:|xs) = outBnds result
-    in (x :| (xs <> join (map (NE.toList . outBnds) $ V.toList recurs))) <> outBnds ctrl
+    in NE.toList $ (x :| (xs <> join (map (NE.toList . outBnds) $ V.toList recurs))) <> outBnds ctrl
 
 outBnds :: OutData a -> NonEmpty Binding
 outBnds (Destruct o) = sconcat $ NE.map outBnds o
@@ -232,12 +231,12 @@ type NormalizedDFExpr ty = Expr DFApp ty
 --     NormalizedDFExpr :: Expression DFApp
 
 class Function a where
-    outBindings :: a -> NonEmpty Binding
+    outBindings :: a -> [Binding]
     inBindings :: a -> [Binding]
     funRef :: a -> QualifiedBinding
 
 instance Function (App ty a) where
-    outBindings = outsApp
+    outBindings = NE.toList . outsApp
     inBindings = insApp
     funRef = fnApp
 
@@ -274,3 +273,8 @@ mapFunsM _ v = return v
 -- This is what I want!
 -- paraExpr :: ('Let -> a -> a) -> ('Var -> a) -> NormalizedDFExpr -> a
 -- paraExpr = undefined
+
+
+length :: Expr semTy ty -> V.Nat
+length (Let _ cont) = Succ $ length cont
+length Var{} = Zero

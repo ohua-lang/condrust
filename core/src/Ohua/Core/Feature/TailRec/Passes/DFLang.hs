@@ -6,7 +6,7 @@ import Ohua.Core.Prelude
 import qualified Ohua.Types.Vector as V
 import Data.Singletons
 
-import Ohua.Core.DFLang.Lang
+import Ohua.Core.DFLang.Lang hiding (length)
 -- import Ohua.Core.DFLang.PPrint (prettyExprM)
 import qualified Ohua.Core.Feature.TailRec.Passes.ALang as ALangPass
 import Ohua.Core.DFLang.Passes (checkDefinedUsage)
@@ -29,8 +29,11 @@ recurLowering expr
       -- recurStartToRecurFun (Let app@(PureDFFun (Destruct [_, _]) fun inp) rest)
       recurStartToRecurFun (Let app@(PureDFFun (Destruct{}) fun inp) rest)
         | fun == ALangPass.recurStartMarker = do
-          recurFun <- findEnd (outsANew app) inp rest
-          return $ Let recurFun rest
+            outs <- case outsANew app of
+                      [] -> error $ "invariant broken: the recur start marker does not have outputs"
+                      (o:os) -> pure $ o :| os
+            recurFun <- findEnd outs inp rest
+            return $ Let recurFun rest
       recurStartToRecurFun (Let app rest) = Let app <$> recurStartToRecurFun rest
       recurStartToRecurFun e = return e
 
@@ -58,12 +61,12 @@ recurLowering expr
 
               ctrlOut = head outs
               recurArgsOuts = tail outs
-              -- assumption: the end marker only has the final output
-              finalResultOut = last $ outsANew app
 
-              fun :: [(OutData 'Data, DFVar 'Data ty, DFVar 'Data ty)] -> V.SNat n
+              fun :: OutData 'Data
+                  -> [(OutData 'Data, DFVar 'Data ty, DFVar 'Data ty)]
+                  -> V.SNat n
                   -> DFApp 'BuiltIn ty
-              fun xs snat =
+              fun finalResultOut xs snat =
                 let vec = V.fromList snat xs
                     recurArgsOuts' = V.map (\(x,_,_) -> x) vec
                     recurInitArgs' = V.map (\(_,x,_) -> x) vec
@@ -76,16 +79,22 @@ recurLowering expr
                     recurArgs''
                     condIn
                     finalResultIn
-              toRecurFun =
+              toRecurFun out =
                 let xs = zip3 recurArgsOuts recurInitArgs recurArgs'
-                in withSomeSing (V.nlength xs) (fun xs)
+                in withSomeSing (V.nlength xs) (fun out xs)
 
-              rf = assert
+              rf out = assert
                     (length recurArgsOuts == length recurInitArgs
                      && length recurInitArgs == length recurArgs')
-                    toRecurFun
+                    toRecurFun out
 
-          in pure rf
+          in do
+              -- assumption: the end marker only has the final output
+              finalResultOut <-
+                case outsANew app of
+                  [finalOut] -> pure finalOut
+                  o -> error $ "invariant broken: recurEnd must have exactly one result but had: " <> show o
+              pure $ rf finalResultOut
       findEnd outs inp (Let _ cont) = findEnd outs inp cont
       -- FIXME This looks like we should perform this transformation differently, so we
       -- can avoid this failure case. 
