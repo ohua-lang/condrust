@@ -107,9 +107,7 @@ generateNodeCode e@(PureDFFun out fun inp)  | fun == smapFun = do
             Destruct [Direct x, Direct y, Direct z] ->
                 return (SChan $ unwrapABnd x, SChan $ unwrapABnd y, SChan $ unwrapABnd z)
             _ -> invariantBroken $ "SMap must have 3 outputs:\n" <> show e
-    return $ Unfusable $
-        EndlessLoop $
-            Ops.smapFun input dataOut ctrlOut collectOut
+    return $ SMap $ Ops.smapFun input dataOut ctrlOut collectOut
 
 generateNodeCode e@(PureDFFun out fun inp) | fun == collect = do
     (sizeIn, dataIn) <-
@@ -121,9 +119,7 @@ generateNodeCode e@(PureDFFun out fun inp) | fun == collect = do
         case out of
             Direct x -> return $ SChan $ unwrapABnd x
             _ -> invariantBroken $ "Collect outputs don't match:\n" <> show e
-    return $ Unfusable $
-        EndlessLoop $
-            Ops.collect sizeIn dataIn collectedOutput
+    return $ SMap $ Ops.collect dataIn sizeIn collectedOutput
 
 generateNodeCode e@(PureDFFun out fun inp) | fun == ifFun = do
     condIn <-
