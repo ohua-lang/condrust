@@ -4,6 +4,7 @@ module Ohua.Backend.Fusion where
 import Ohua.Prelude
 
 import Ohua.Backend.Operators hiding (Fun)
+import Ohua.Backend.Operators.SMap as SMap
 import Ohua.Backend.Lang
 import Ohua.Backend.Types
 
@@ -17,11 +18,10 @@ data Fusable ty ctrl0 ctrl1
     | STC (STCLangSMap ty)
     | Control (Either ctrl0 ctrl1)
     | Recur (RecFun ty)
+    | SMap (Op ty)
     | Unfusable (TaskExpr ty) -- TODO this is only here until the below was implemented properly
     --  IfFun
     --  Select
-    --  SMapFun
-    --  Collect
     --  UnitFun
     deriving (Eq, Functor, Generic)
 
@@ -34,22 +34,23 @@ instance Bifunctor (Fusable ty) where
     first _ (STC s) = STC s
     first _ (Recur r) = Recur r
     first _ (Unfusable u) = Unfusable u
+    first _ (SMap s) = SMap s
     second = fmap
 
 type FusableExpr ty = Fusable ty (VarCtrl ty) (LitCtrl ty)
 
 -- TODO add config flag to make fusion optional
 
-fuse :: CompM m => Namespace (TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (VarCtrl ty) (LitCtrl ty))) anno 
+fuse :: CompM m => Namespace (TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (VarCtrl ty) (LitCtrl ty))) anno
              -> m (Namespace (TCProgram (Channel ty) (Com 'Recv ty) (TaskExpr ty)) anno)
-fuse ns = 
+fuse ns =
     return $ ns & algos %~ map (\algo -> algo & algoCode %~ go)
-    where 
-        go :: TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (VarCtrl ty) (LitCtrl ty)) 
+    where
+        go :: TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (VarCtrl ty) (LitCtrl ty))
            -> TCProgram (Channel ty) (Com 'Recv ty) (TaskExpr ty)
-        go = evictUnusedChannels . concludeFusion . fuseStateThreads
+        go = evictUnusedChannels . concludeFusion . fuseStateThreads . fuseSMaps
 
-concludeFusion :: TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty)) 
+concludeFusion :: TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty))
                -> TCProgram (Channel ty) (Com 'Recv ty) (TaskExpr ty)
 concludeFusion (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ map go exprs
     where
@@ -58,6 +59,7 @@ concludeFusion (TCProgram chans resultChan exprs) = TCProgram chans resultChan $
         go (Control (Left ctrl)) = genFused ctrl
         go (Control (Right ctrl)) = genLitCtrl ctrl
         go (Recur r) = mkRecFun r
+        go (SMap s) = SMap.gen s
         go (Unfusable e) = e
 
 -- invariant length in >= length out -- TODO use length-indexed vectors
@@ -134,40 +136,46 @@ mergeCtrls (TCProgram chans resultChan exprs) =
 fuseCtrls :: forall ty.
              TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (FunCtrl ty) (LitCtrl ty)) 
           -> TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty))
-fuseCtrls (TCProgram chans resultChan exprs) = 
+fuseCtrls (TCProgram chans resultChan exprs) =
     let (ctrls, noFunCtrls) = split exprs
     in TCProgram chans resultChan $ go ctrls noFunCtrls
     where
-        go funCtrls noFunCtrls = 
+        go funCtrls noFunCtrls =
             let sAndT = srcsAndTgts noFunCtrls funCtrls
                 fused = map (uncurry fuseIt) sAndT
-                orphans = HS.fromList $ 
+                orphans = HS.fromList $
                     map ((\case Left f -> Fun f; Right c -> Control $ Left c) . snd)
                         sAndT
                 noFunCtrls' = filter (not . (`HS.member` orphans)) noFunCtrls
                 noFunCtrls'' = fused ++ noFunCtrls'
-                pendingFunCtrls = 
+                pendingFunCtrls =
                     HS.toList $ foldr (HS.delete . fst) (HS.fromList funCtrls) sAndT
             in if null pendingFunCtrls
                 then noFunCtrls''
                 else
                  if HS.fromList pendingFunCtrls == HS.fromList funCtrls
-                 then error "endless loop detected. there are controls that can not be fused."
+                 then error $
+                      " There are controls that can not be fused." <>
+                      "\nNumber of pending controls: " <> (show $ length pendingFunCtrls) <>
+                      "\nPending controls: " <> (show pendingFunCtrls)
                  else go pendingFunCtrls noFunCtrls''
 
-        split :: [Fusable ty (FunCtrl ty) (LitCtrl ty)] 
-              -> ([Either (FunCtrl ty) (LitCtrl ty)], [Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty)])
-        split = partitionEithers . 
-                map (\case 
+        split :: [Fusable ty (FunCtrl ty) (LitCtrl ty)]
+              -> ( [Either (FunCtrl ty) (LitCtrl ty)]
+                 , [Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty)])
+        split = partitionEithers .
+                map (\case
                         (Control c) -> Left c
                         -- type conversion from Fusable FunCtrl to Fusable FusedFunCtrl
                         (Fun f) -> Right (Fun f)
                         (STC s) -> Right (STC s)
                         (Recur r) -> Right (Recur r)
+                        (SMap s) -> Right $ SMap s
                         (Unfusable u) -> Right (Unfusable u))
-        srcsAndTgts :: [Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty)] 
-                    -> [Either (FunCtrl ty) (LitCtrl ty)] 
-                    -> [(Either (FunCtrl ty) (LitCtrl ty), Either (FusableFunction ty) (FusedFunCtrl ty))]
+        srcsAndTgts :: [Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty)]
+                    -> [Either (FunCtrl ty) (LitCtrl ty)]
+                    -> [ (Either (FunCtrl ty) (LitCtrl ty)
+                       , Either (FusableFunction ty) (FusedFunCtrl ty))]
         srcsAndTgts es = mapMaybe (`findTarget` es)
         fuseIt :: Either (FunCtrl ty) (LitCtrl ty)
                -> Either (FusableFunction ty) (FusedFunCtrl ty)
@@ -177,11 +185,13 @@ fuseCtrls (TCProgram chans resultChan exprs) =
         fuseIt (Right ctrl) (Left c) = Control $ Right $ fuseLitCtrlIntoFun ctrl c
         fuseIt (Right ctrl) (Right c) = Control $ Right $ fuseLitCtrlIntoCtrl ctrl c
         findTarget :: Either (FunCtrl ty) (LitCtrl ty)
-                   -> [Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty)] 
-                   -> Maybe (Either (FunCtrl ty) (LitCtrl ty), Either (FusableFunction ty) (FusedFunCtrl ty))
-        findTarget fc es = 
+                   -> [Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty)]
+                   -> Maybe ( Either (FunCtrl ty) (LitCtrl ty)
+                            , Either (FusableFunction ty) (FusedFunCtrl ty))
+        findTarget fc es =
             let chan = case fc of
-                        (Left (FunCtrl _ outsAndIns)) -> unwrapChan $ fst $ NE.head outsAndIns
+                        (Left (FunCtrl _ outsAndIns)) ->
+                          unwrapChan $ fst $ NE.head outsAndIns
                         (Right (LitCtrl _ (OutputChannel out,_))) -> out
             in case filter (isTarget chan) es of
                 [] -> Nothing
@@ -231,6 +241,7 @@ fuseSTCLang (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ go
         fuseIt (Fun _) _ = error "Invariant broken: Trying to fuse fun!"
         fuseIt (STC _) _ = error "Invariant broken: Trying to fuse STC!"
         fuseIt (Recur _) _ = error "Invariant broken: Trying to fuse recur!"
+        fuseIt (SMap _) _ = error "Invariant broken: Trying to fuse smap/collect!"
         fuseIt (Unfusable _) _ = error "Invariant broken: Trying to fuse unfusable!"
 
         split xs =
@@ -272,3 +283,58 @@ fuseSTCLang (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ go
         isSource _inp (Fun PureFusable{}) = False
         isSource inp (Fun (STFusable _ _ app _ send)) = (== Just inp) send
         isSource inp (Fun IdFusable{}) = False
+        isSource inp SMap{} = False
+        isSource inp Recur{} = False
+
+fuseSMaps :: forall ty.
+          TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (VarCtrl ty) (LitCtrl ty))
+          -> TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (VarCtrl ty) (LitCtrl ty))
+fuseSMaps (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ go exprs
+  where
+    go all = let smaps = mapMaybe getSMap exprs
+                 exprs' = filter (not . isSMap) exprs
+             in foldl getAndDropIt exprs' smaps
+
+    getAndDropIt :: [Fusable ty (VarCtrl ty) (LitCtrl ty)]
+                 -> Op ty
+                 -> [Fusable ty (VarCtrl ty) (LitCtrl ty)]
+    getAndDropIt (e:expressions) smap =
+      case SMap.getInput smap of
+        Nothing -> e:expressions
+        Just (SRecv _ c) ->
+          case getAndDrop smap c e of
+            Just task -> Unfusable task : expressions
+            Nothing -> e : getAndDropIt expressions smap
+
+    isSMap SMap{} = True
+    isSMap _ = False
+
+    getSMap (SMap s) = Just s
+    getSMap _ = Nothing
+
+    getAndDrop :: Op ty
+               -> Com 'Channel ty
+               -> Fusable ty (VarCtrl ty) (LitCtrl ty)
+               -> Maybe (TaskExpr ty)
+    getAndDrop smap inp
+      (Control (Left (VarCtrl cIn p@(OutputChannel c@(SChan b),inData) )))
+      | c == inp =
+          Just $ genFused $ fuseSMap (FunCtrl cIn (p:|[])) $ SMap.fuse b smap
+    getAndDrop smap inp (Fun fun@(PureFusable _ _ (Identity c@(SChan b))))
+      | c == inp =
+          Just $ genFun' (SMap.gen $ SMap.fuse b smap) $ toFuseFun fun
+    getAndDrop smap inp (Fun st@(STFusable sIn dIn app dOut sOut)) =
+      case sOut of
+        (Just c@(SChan b))
+          | c == inp ->
+            let send' = genSend $ toFuseFun $ STFusable sIn dIn app dOut Nothing
+            in Just $ genFun' (Stmt send' $ SMap.gen' $ SMap.fuse b smap) $ toFuseFun st
+        Nothing ->
+          case dOut of
+            (Just c@(SChan b))
+              | c == inp ->
+                let send' = genSend $ toFuseFun $ STFusable sIn dIn app Nothing sOut
+                in Just $ genFun' (Stmt send' $ SMap.gen' $ SMap.fuse b smap) $ toFuseFun st
+            Nothing -> Nothing
+    getAndDrop _ _ _ = Nothing
+

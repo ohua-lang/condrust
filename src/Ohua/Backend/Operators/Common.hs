@@ -9,7 +9,7 @@ import qualified Data.List.NonEmpty as NE
 import qualified Data.HashSet as HS
 
 
-newtype OutputChannel ty = OutputChannel (Com 'Channel ty) deriving (Eq, Generic)
+newtype OutputChannel ty = OutputChannel (Com 'Channel ty) deriving (Eq, Show, Generic)
 instance Hashable (OutputChannel ty)
 
 -- FIXME Should use annotations ST and Data from BindingType

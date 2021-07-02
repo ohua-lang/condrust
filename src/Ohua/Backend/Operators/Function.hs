@@ -105,7 +105,7 @@ genFun' ct = \case
                 sendRes
     (IdFusable i o) ->
         let varsAndReceives = zipWith (curry generateReceiveCode) [0 ..] [i]
-        in letReceives ct varsAndReceives 
+        in letReceives ct varsAndReceives
     where
         getCallArgs =
           map (\(_,v,_) -> Var v) .

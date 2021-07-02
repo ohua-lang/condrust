@@ -7,12 +7,13 @@ import Ohua.Backend.Operators.Common
 import Ohua.Backend.Lang as L hiding (Function)
 import Ohua.Backend.Operators.State
 import qualified Ohua.Backend.Operators.Function as F
+import qualified Ohua.Backend.Operators.SMap as SMap
 
 import qualified Data.List.NonEmpty as NE
 import qualified Data.HashSet as HS
 
 
-newtype  CtrlInput ty = CtrlInput (Com 'Recv ty) deriving (Eq, Generic)
+newtype  CtrlInput ty = CtrlInput (Com 'Recv ty) deriving (Eq, Show, Generic)
 
 instance Hashable (CtrlInput ty)
 
@@ -29,6 +30,7 @@ data Ctrl (anno::CtrlAnno) (ty::Type) :: Type where
     LitCtrl ::  CtrlInput ty -> (OutputChannel ty, Lit ty) -> Ctrl 'CtxtLit ty
 
 deriving instance Eq (Ctrl semTy ty)
+deriving instance Show (Ctrl semTy ty)
 
 instance Hashable (Ctrl semTy ty) where
     hashWithSalt s (VarCtrl cInp inOut) = s `hashWithSalt` cInp `hashWithSalt` inOut
@@ -204,7 +206,8 @@ fuseFun (FunCtrl ctrlInput vars) =
                 (F.genFun'' $  F.IdFusable (f arg) res)
                 []
         where
-            f (F.Arg (SRecv _ (SChan ch))) | HS.member (SChan ch) ctrled = F.Converted $ Var ch
+            f (F.Arg (SRecv _ (SChan ch))) | HS.member (SChan ch) ctrled =
+                                             F.Converted $ Var ch
             f (F.Drop (Left (SRecv _ (SChan ch)))) | HS.member (SChan ch) ctrled =
                                                    F.Drop $ Right $ Var ch
             f e  = e
@@ -223,6 +226,14 @@ fuseFun (FunCtrl ctrlInput vars) =
                         vars
             propagateTypeFromArg =
               propagateType . mapMaybe (\case (F.Arg s) -> Just s; _ -> Nothing)
+
+fuseSMap :: FunCtrl ty -> SMap.Op ty -> FusedFunCtrl ty
+fuseSMap (FunCtrl ctrlInput (( o, inData):|[])) smap = -- invariant
+  FusedFunCtrl
+    ctrlInput
+    [PureVar o inData]
+    (SMap.gen' $ SMap.fuse (unwrapBnd o) smap)
+    []
 
 propagateType :: [Com 'Recv ty] -> (OutputChannel ty, Com 'Recv ty) -> (OutputChannel ty, Com 'Recv ty)
 propagateType args (o@(OutputChannel outChan), r@(SRecv _ rChan)) =
@@ -338,11 +349,11 @@ genCtrl' ctrlInput initVars comp cont =
 -- | A context control marks the end of a fusion chain. It is the very last control
 --   and therefore can only be fused into.
 mkLittedCtrl :: Com 'Recv ty -> Lit ty -> Com 'Channel ty -> LitCtrl ty
-mkLittedCtrl ctrl lit out = 
+mkLittedCtrl ctrl lit out =
     LitCtrl (CtrlInput ctrl) (OutputChannel out, lit)
 
 mkCtrl :: Com 'Recv ty -> Com 'Recv ty -> Com 'Channel ty -> VarCtrl ty
-mkCtrl ctrlInput input output = 
+mkCtrl ctrlInput input output =
     VarCtrl (CtrlInput ctrlInput) (OutputChannel output, input)
 
 sigStateInit :: Binding -> TaskExpr ty -> TaskExpr ty
