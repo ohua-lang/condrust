@@ -300,11 +300,12 @@ fuseSMaps (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ go e
                  -> [Fusable ty (VarCtrl ty) (LitCtrl ty)]
     getAndDropIt (e:expressions) smap =
       case SMap.getInput smap of
-        Nothing -> e:expressions
         Just (SRecv _ c) ->
           case getAndDrop smap c e of
             Just task -> Unfusable task : expressions
             Nothing -> e : getAndDropIt expressions smap
+        _ -> e:expressions
+    getAndDropIt [] smap = [SMap smap] -- this should actually never happen!
 
     isSMap SMap{} = True
     isSMap _ = False
@@ -329,12 +330,12 @@ fuseSMaps (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ go e
           | c == inp ->
             let send' = genSend $ toFuseFun $ STFusable sIn dIn app dOut Nothing
             in Just $ genFun' (Stmt send' $ SMap.gen' $ SMap.fuse b smap) $ toFuseFun st
-        Nothing ->
+        _ ->
           case dOut of
             (Just c@(SChan b))
               | c == inp ->
                 let send' = genSend $ toFuseFun $ STFusable sIn dIn app Nothing sOut
                 in Just $ genFun' (Stmt send' $ SMap.gen' $ SMap.fuse b smap) $ toFuseFun st
-            Nothing -> Nothing
+            _ -> Nothing
     getAndDrop _ _ _ = Nothing
 
