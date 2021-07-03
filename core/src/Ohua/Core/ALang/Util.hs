@@ -53,18 +53,22 @@ destructure source bnds =
 lambdaLifting :: forall ty m.
        (MonadGenBnd m) => Expr ty -> m (Expr ty, [Expr ty])
 lambdaLifting e = do
-    (e', actuals) <- go findFreeVariables e
-    (e'', actuals') <- go findLonelyLiterals e'
+    (e', actuals) <- go findFreeVariables renameVar e
+    (e'', actuals') <- go findLonelyLiterals replaceLit e'
     return (e'', actuals ++ actuals')
   where
-    go :: (Expr ty -> [Expr ty]) -> Expr ty -> m (Expr ty, [Expr ty])
-    go findFreeExprs expr
+    go :: (Expr ty -> [Expr ty])
+       -> (Expr ty -> (Expr ty, Binding) -> Expr ty)
+       -> Expr ty
+       -> m (Expr ty, [Expr ty])
+    go findFreeExprs rewriteFreeExprs expr
         | null freeExprs = pure (expr, [])
         | otherwise = do
             newFormals <- mapM bindingFromAny freeExprs
             let rewrittenExp =
                     foldl
-                        (\newExpr (from, to) -> renameExpr from (Var to) newExpr)
+                        rewriteFreeExprs
+                        -- (\newExpr (from, to) -> renameExpr from (Var to) newExpr)
                         body
                         (zip freeExprs newFormals)
             return (mkLambda (formalVars ++ newFormals) rewrittenExp, freeExprs)
@@ -74,11 +78,11 @@ lambdaLifting e = do
                 (Lambda _ _) -> lambdaArgsAndBody expr
                 _            -> ([], expr)
         freeExprs = findFreeExprs expr
-        renameExpr from to =
-            rewrite $ \expression ->
-                if expression == from
-                    then Just to
-                    else Nothing
+--         renameExpr from to =
+--             rewrite $ \expression ->
+--                 if expression == from
+--                     then Just to
+--                     else Nothing
     bindingFromAny (Var v) = generateBindingWith v
     bindingFromAny (Lit l) = generateBindingWith $ "lit_" <> litType
       where
@@ -101,8 +105,12 @@ mkLambda args expr = go expr $ reverse args
 replaceLit :: Expr ty -> (Expr ty, Binding) -> Expr ty
 replaceLit e (Lit old, new) =
     flip transform e $ \case
-        Lit l
-            | l == old -> Var new
+        f@Apply{} -> case isPureAndAllArgsLit f of
+                       (True, True) -> flip transform f
+                                      (\case
+                                          Lit l | l == old -> Var new
+                                          other -> other)
+                       _ -> f
         other -> other
 
 -- FIXME pattern match failure because ALang not precise enough (see issue #8)
@@ -153,31 +161,59 @@ findLiterals e =
 -- | A literal is lonely if it does not accompany a var in the argument list to a call.
 findLonelyLiterals :: HasCallStack => Expr ty -> [Expr ty]
 findLonelyLiterals =
+--     Lens.para $ \case
+--         f@Apply {} ->
+--             const $
+--             if isPureAndAllArgsLit f
+--                 then take 1 $
+--                      -- HACK see #34
+--                      filter
+--                          (\case
+--                               Lit (FunRefLit _) -> False
+--                               _ -> True)
+--                          args
+--                 -- We could also return `[]` in the else branch, because the
+--                 -- expression should be normalized, but this is cleaner
+--                 else args >>= findLonelyLiterals
+--             where args = getFunctionArgs f --snd $ fromApplyToList f
+--         _ -> join
+--   where
+--     isPureAndAllArgsLit e =
+--       case fromApplyToList' e of
+--         (_, Nothing, args) -> areAllLits args
+--         _ -> False
+--     areAllLits =
+--         all $ \case
+--             Lit _ -> True
+--             _ -> False
     Lens.para $ \case
         f@Apply {} ->
             const $
-            if isPureAndAllArgsLit f
-                then take 1 $
-                     -- HACK see #34
-                     filter
-                         (\case
-                              Lit (FunRefLit _) -> False
-                              _ -> True)
-                         args
-                -- We could also return `[]` in the else branch, because the
-                -- expression should be normalized, but this is cleaner
-                else args >>= findLonelyLiterals
-            where args = getFunctionArgs f --snd $ fromApplyToList f
+            case isPureAndAllArgsLit f of
+              (True, True) ->
+                take 1 $
+                -- HACK see #34
+                filter
+                (\case
+                    Lit (FunRefLit _) -> False
+                    _ -> True)
+                args
+              (False, _) -> []
+              (True, _)  -> []
+            where args = getFunctionArgs f
         _ -> join
-  where
-    isPureAndAllArgsLit e =
-      case fromApplyToList' e of
-        (_, Nothing, args) -> areAllLits args
-        _ -> False
-    areAllLits =
-        all $ \case
-            Lit _ -> True
-            _ -> False
+
+isPureAndAllArgsLit :: Expr ty -> (Bool, Bool)
+isPureAndAllArgsLit e =
+  case fromApplyToList' e of
+    (_, Nothing, args) -> (True , areAllLits args)
+    (_, _, args)       -> (False, areAllLits args)
+
+areAllLits :: [Expr ty] -> Bool
+areAllLits =
+  all $ \case
+    Lit _ -> True
+    _ -> False
 
 mkApply :: Expr ty -> [Expr ty] -> Expr ty
 mkApply f args = go $ reverse args
