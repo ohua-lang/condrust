@@ -32,7 +32,7 @@ import qualified Data.ByteString.Lazy.Char8 as L
 
 -- TODO turn this into a parameter for a particular test
 debug :: Bool
-debug = True
+debug = False
 
 renderRustCode :: SourceFile Span -> L.ByteString
 renderRustCode =

@@ -27,18 +27,11 @@ spec =
 
                       fn test() -> () {
                         let (b_0_0_tx, b_0_0_rx) = std::sync::mpsc::channel();
-                        let (stream_0_0_0_tx, stream_0_0_0_rx) = std::sync::mpsc::channel();
                         let (ctrl_0_tx, ctrl_0_rx) = std::sync::mpsc::channel();
-                        let (d_0_tx, d_0_rx) = std::sync::mpsc::channel();
                         let (c_0_0_tx, c_0_0_rx) = std::sync::mpsc::channel();
                         let (size_0_tx, size_0_rx) = std::sync::mpsc::channel();
                         let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel();
                         let mut tasks: Vec<Box<FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
-                        tasks
-                          .push(Box::new(move || -> _ {
-                            let stream_0_0_0 = iter();
-                            stream_0_0_0_tx.send(stream_0_0_0)?
-                          }));
                         tasks
                           .push(Box::new(move || -> _ {
                             loop {
@@ -53,8 +46,9 @@ spec =
                           }));
                         tasks
                           .push(Box::new(move || -> _ {
+                            let stream_0_0_0 = iter();
                             loop {
-                              let data = stream_0_0_0_rx.recv()?;
+                              let data = stream_0_0_0;
                               let hasSize =
                                 {
                                   let tmp_has_size = data.iter().size_hint();
@@ -65,7 +59,7 @@ spec =
                                 size_0_tx.send(size)?;
                                 let ctrl = (true, size);
                                 ctrl_0_tx.send(ctrl)?;
-                                ()
+                                for d in data { d_0_tx.send(d)? }
                               } else {
                                 let size = 0;
                                 for d in data {
@@ -84,6 +78,12 @@ spec =
                           }));
                         tasks
                           .push(Box::new(move || -> _ {
+                            x_0_0_0_rx.recv()?;
+                            let x = ();
+                            b_0_0_tx.send(x)?
+                          }));
+                        tasks
+                          .push(Box::new(move || -> _ {
                             loop {
                               let renew = false;
                               let lit_unit_0 = ();
@@ -95,20 +95,6 @@ spec =
                                 renew = renew_next_time;
                                 ()
                               }
-                            }
-                          }));
-                        tasks
-                          .push(Box::new(move || -> _ {
-                            x_0_0_0_rx.recv()?;
-                            let x = ();
-                            b_0_0_tx.send(x)?
-                          }));
-                        tasks
-                          .push(Box::new(move || -> _ {
-                            loop {
-                              let var_0 = d_0_rx.recv()?;
-                              let __0_0_0 = k(var_0);
-                              __0_0_0_tx.send(__0_0_0)?
                             }
                           }));
                         run(tasks);
