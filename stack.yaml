@@ -13,6 +13,7 @@ extra-deps:
   #- git: https://github.com/sertel/ohua-backend
   #  commit: ???
   - ../ohua-backend # debugging
+  - ../ohua-core/core
 
   ### integration deps:
   # - language-rust-0.2.0.27@sha256:d96ec43076689ca8932a78b523b668de30a6b1f3b4fb6386017732028e591da7,6835
