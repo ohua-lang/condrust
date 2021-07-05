@@ -52,7 +52,6 @@ gen = EndlessLoop . gen'
 
 gen' :: Op ty -> TaskExpr ty
 gen' (SMap input dataOut ctrlOut collectOut) =
-  EndlessLoop $
   Let "data" (genInput input) $
   Let "hasSize" (HasSize "data") $
     Cond (L.Var "hasSize")
@@ -61,7 +60,9 @@ gen' (SMap input dataOut ctrlOut collectOut) =
       Let "size" (Size "data") $
       Stmt (SendData $ SSend collectOut "size") $
       Let "ctrl" (Tuple (Right $ BoolLit True) (Left "size")) $
-      Stmt (SendData $ SSend ctrlOut "ctrl") $ Lit UnitLit
+      Stmt (SendData $ SSend ctrlOut "ctrl") $
+      ForEach "d" "data" $
+          SendData $ SSend dataOut "d"
     )
     -- unknown size --> generator-style
     (
@@ -76,7 +77,6 @@ gen' (SMap input dataOut ctrlOut collectOut) =
         Stmt (SendData $ SSend ctrlOut "ctrl") $ Lit UnitLit
     )
 gen' (Collect dataInput sizeInput collectedOutput) =
-  EndlessLoop $
   Let "num" (ReceiveData sizeInput) $
   Let "collection" (ListOp Create) $
   Stmt

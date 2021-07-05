@@ -286,6 +286,8 @@ fuseSTCLang (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ go
         isSource inp SMap{} = False
         isSource inp Recur{} = False
 
+-- TODO actually, the fusion of functions into SMap is context-dependent.
+--      in case of a nested SMap, the fusion actually kills pipeline parallelism!
 fuseSMaps :: forall ty.
           TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (VarCtrl ty) (LitCtrl ty))
           -> TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (VarCtrl ty) (LitCtrl ty))
