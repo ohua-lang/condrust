@@ -14,6 +14,7 @@ data Nat where
     Succ :: Nat -> Nat
 
 deriving instance Show Nat
+deriving instance Eq Nat
 
 data Vec (n::Nat) a where
     VNil :: Vec 'Zero a
