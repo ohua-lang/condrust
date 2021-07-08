@@ -11,14 +11,6 @@ documentation](https://ohua.readthedocs.org/en/latest/ohuac.html)
 
 For a complete list of the options available use the `--help` flag.
 
-## Installing
-
-Prebuilt binaries are available for 64bit Linux and OSX. Provided for each
-release by [Travis CI](https://travis-ci.org/ohua-dev/ohuac).
-
-Simply download the appropriate executable for you platform (`ohuac-linux` or
-`ohuac-osx`) from the [releases page](https://github.com/ohua-dev/ohuac/releases/latest).
-
 ## Building from source
 
 Required tools:
@@ -46,5 +38,4 @@ Required tools:
 
 ## Examples
 
-The [test-resources](test-resources) directory contains example namespaces
-using both the ohua S-Expression syntax (`ohuas`) and C/Rust-like syntax (`ohuac`).
+Check out the test cases in the `test` folder for our existing integrations.
