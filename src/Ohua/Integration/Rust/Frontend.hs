@@ -310,7 +310,6 @@ instance (Show a) => ConvertExpr (Rust.Block a) where
 
             convertLastStmt e@(NoSemi expr _) =
               case expr of
-                -- TODO we might need special handling if we do not translate this properly in the frontend. (we still have Seq in the language.)
                 ForLoop{} -> (\e -> e $ LitE UnitLit) <$> (convertStmt e)
                 _ -> convertExpr expr
             convertLastStmt e = (\e -> e $ LitE UnitLit) <$> (convertStmt e)
