@@ -20,23 +20,23 @@ extractTypes :: Show a => SourceFile a -> IO (HM.HashMap QualifiedBinding (FunTy
 extractTypes srcFile = runCompM LevelDebug $ extract "" srcFile
 
 spec :: Spec
-spec = 
+spec =
     describe "type extraction" $ do
         it "top-level functions" $
-            extractTypes (void [sourceFile| 
+            extractTypes (void [sourceFile|
                 fn void_input() -> String { unimplemented!{}}
                 fn void_output(i:i32) { unimplemented!{} }
-                fn simple(i:i32) -> String { unimplemented!{} }                
-                |]) >>= (`shouldBe` 
+                fn simple(i:i32) -> String { unimplemented!{} }
+                |]) >>= (`shouldBe`
                     HM.fromList [
                         ( QualifiedBinding (makeThrow []) "void_input"
-                        , FunType [] -- $ Just $ void [ty| String |]
+                        , FunType $ Left Unit -- $ Just $ void [ty| String |]
                         ) ,
                         ( QualifiedBinding (makeThrow []) "void_output"
-                        , FunType [ Type $ Normal $ void [ty| i32 |] ] -- Nothing
+                        , FunType $ Right ((Type $ Normal $ void [ty| i32 |]) :| []) -- Nothing
                         ) ,
                         ( QualifiedBinding (makeThrow []) "simple"
-                        , FunType [ Type $ Normal $ void [ty| i32 |] ] -- $ Just $ void [ty| String |]
+                        , FunType $ Right ((Type $ Normal $ void [ty| i32 |]) :| []) -- $ Just $ void [ty| String |]
                         )
                     ]
                 )
@@ -49,29 +49,26 @@ spec =
                     fn simple_self(self, i:i32) -> String { unimplemented!{} }
                     fn simple_mut_self(mut self, i:i32) -> String { unimplemented!{} }
                 }
-                |]) >>= (`shouldBe` 
+                |]) >>= (`shouldBe`
                     HM.fromList [
                         ( QualifiedBinding (makeThrow []) "void_input"
-                        , FunType 
-                            [] -- $ Just $ void [ty| String |]
+                        , FunType $ Left Unit  -- $ Just $ void [ty| String |]
                         ) ,
                         ( QualifiedBinding (makeThrow []) "void_output"
-                        , FunType 
-                            [ Type $ Normal $ void [ty| i32 |] ] -- Nothing
+                        , FunType $ Right ((Type $ Normal $ void [ty| i32 |]) :| []) -- Nothing
                         ) ,
                         ( QualifiedBinding (makeThrow []) "simple"
-                        , FunType 
-                            [ Type $ Normal $ void [ty| i32 |] ] -- $ Just $ void [ty| String |]
-                        ),
+                        , FunType $ Right ((Type $ Normal $ void [ty| i32 |]) :| []) -- $ Just $ void [ty| String |]
+                        ) ,
                         ( QualifiedBinding (makeThrow []) "simple_self"
-                        , STFunType 
-                            (Type $ Self (void [ty| Foo |]) Immutable)
-                            [ Type $ Normal $ void [ty| i32 |] ] -- $ Just $ void [ty| String |]
+                        , STFunType
+                            (Type $ Self (void [ty| Foo |]) Nothing Immutable)
+                            $ Right ((Type $ Normal $ void [ty| i32 |]) :| []) -- $ Just $ void [ty| String |]
                         ),
                         ( QualifiedBinding (makeThrow []) "simple_mut_self"
-                        , STFunType 
-                            (Type $ Self (void [ty| Foo |]) Mutable)
-                            [ Type $ Normal $ void [ty| i32 |] ] -- $ Just $ void [ty| String |]
+                        , STFunType
+                            (Type $ Self (void [ty| Foo |]) Nothing Mutable)
+                            $ Right ((Type $ Normal $ void [ty| i32 |]) :| []) -- $ Just $ void [ty| String |]
                         )
                     ]
                 )
