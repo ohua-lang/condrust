@@ -58,6 +58,7 @@ dependencies:
 - filepath
 - bytestring
 - language-rust
+- language-python
 - unordered-containers
 - text
 - prettyprinter
