@@ -8,6 +8,9 @@ import Ohua.Core.DFLang.Refs
 import Ohua.Types.Reference
 import Ohua.Types.Literal
 
+import qualified Data.List as L
+import qualified Data.List.NonEmpty as NE
+
 liftPureFunctions :: forall ty. NormalizedDFExpr ty -> OhuaM (NormalizedDFExpr ty)
 liftPureFunctions expr = return $ locateSmap expr
     where
@@ -34,7 +37,7 @@ liftPureFunctions expr = return $ locateSmap expr
             let liftableFunctions = findLiftable b
             foldl liftFunction b liftableFunctions
             -- TODO: Optimize away now-obsolete smap functions
-        
+
         combine :: NormalizedDFExpr ty -> NormalizedDFExpr ty -> NormalizedDFExpr ty
         combine (Let app cont) rest = Let app $ combine cont rest
         combine (Var "__end") rest = rest
@@ -51,59 +54,71 @@ liftPureFunctions expr = return $ locateSmap expr
         isIgnorable (QualifiedBinding (NSRef [(Binding "ohua"), (Binding "lang")]) _) = True
         isIgnorable _ = False
 
-        liftFunction :: DFApp 'Fun ty -> NormalizedDFExpr ty -> NormalizedDFExpr ty
-        liftFunction fun e@(Let smap cont) = do
-            let matchingArgs = findMatchingArgs fun smap
-            -- prepend Pool creation
-            let expr = Let (createPool "pool") e
-            let sizeChan = case smap of
-                             (PureDFFun (Destruct out) smapFun _) -> case last out of
-                                                                       (Direct (DataBinding db)) -> db
-                                                                       otherwise -> error "Incorrect smap function return type"
-                             otherwise -> error "Internal error: Expected smap function"
-            insertFunctions expr fun matchingArgs sizeChan "pool"
+        liftFunction :: DFApp 'Fun ty
+                     -> (DFApp 'Fun ty, NormalizedDFExpr ty)
+                     -> NormalizedDFExpr ty
+        liftFunction fun (smap,cont) =
+          let matchingArgs = findMatchingArgs fun smap
+              -- prepend Pool creation
+              expr = Let (createPool "pool") $ Let smap cont
+              sizeChan =
+                case smap of
+                  (PureDFFun (Destruct out) smapFun _) ->
+                    case last out of
+                      (Direct (DataBinding db)) -> db
+                      otherwise -> error "Incorrect smap function return type"
+                  otherwise -> error "Internal error: Expected smap function"
+          in insertFunctions expr fun matchingArgs sizeChan "pool"
 
         -- Finds all bindings that are outputs from smap and inputs to the pure function -> these will be collected
-        findMatchingArgs :: DFApp 'Fun ty -> DFApp 'Fun ty -> [ABinding 'Data]
-        findMatchingArgs (PureDFFun _ _ inp) (PureDFFun outp _ _) = do
+        findMatchingArgs :: DFApp 'Fun ty -> DFApp 'Fun ty -> [DFVar 'Data ty]
+        findMatchingArgs (PureDFFun _ _ inp) (PureDFFun outp _ _) =
             let inpBindings = mapMaybe (\case
-                                            (DFVar _ bnd) -> Just bnd
+                                            d@DFVar{} -> Just d
                                             otherwise -> Nothing
-                                       ) inp
-            let outpBindings = collectOutBindings outp
-            intersect inpBindings outpBindings
-                where
-                    -- maybe this function is a bit stupid given the structure of smap, but oh well
-                    collectOutBindings :: OutData 'Data -> [ABinding 'Data]
-                    collectOutBindings (Direct b) = [b]
-                    collectOutBindings (Destruct lst) = map (\(acc, item) -> acc ++ collectOutBindings item) [] lst
-                    collectOutBindings (Dispatch lst) = map (\(acc, item) -> acc ++ collectOutBindings item) [] lst
+                                       ) $ NE.toList inp
+                outpBindings = findInput outp-- collectOutBindings outp
+            in L.intersect inpBindings outpBindings
+              where
+                findInput :: OutData b -> [DFVar 'Data ty]
+                findInput = undefined
+                -- maybe this function is a bit stupid given the structure of smap, but oh well
+                collectOutBindings :: OutData b -> [ABinding b]
+                collectOutBindings (Direct b) = [b]
+                collectOutBindings (Destruct lst) = map (\(acc, item) -> acc ++ collectOutBindings item) [] lst
+                collectOutBindings (Dispatch lst) = map (\(acc, item) -> acc ++ collectOutBindings item) [] lst
 
         createPool :: Binding -> DFApp 'Fun ty
         createPool name = PureDFFun (Direct $ DataBinding name) (QualifiedBinding ["pool"] "new") ((DFEnvVar TypeVar UnitLit) :| [])
 
-        insertFunctions :: NormalizedDFExpr ty -> DFApp 'Fun ty -> [ABinding 'Data] -> Binding -> Binding -> NormalizedDFExpr ty
+        insertFunctions :: NormalizedDFExpr ty
+                        -> DFApp 'Fun ty
+                        -> [ABinding 'Data]
+                        -> Binding
+                        -> Binding
+                        -> NormalizedDFExpr ty
         insertFunctions (Let app@(PureDFFun fnOut fnName fnIn) cont) fun binds sizeChan poolName
-            | app == fun = do
+            | app == fun =
                 -- insert collect, split, pool spawn & pool collect as well as a new smap
                 -- (use the result binding from the current function as binding for that)
                 let collectedBindings = buildBindings binds "_0" -- generate bindings based on `binds` for the output of 'collect'
-                let collectCalls = buildCollects collectedBindings binds sizeChan
-                let splitDataNames = buildBindings binds "_split"
-                let splits = buildSplits splitDataNames collectedBindings
-                let alteredPoolName = poolName ++ "_0"
+                    collectCalls = buildCollects collectedBindings binds sizeChan
+                    splitDataNames = buildBindings binds "_split"
+                    splits = buildSplits splitDataNames collectedBindings
+                    alteredPoolName = poolName ++ "_0"
                 -- TODO: add FunRefLit (?) at top of the list!
-                let argList = map (replaceArgument $ zip binds splits) fnIn
-                let spawn = PureDFFun (Direct $ DataBinding alteredPoolName) (QualifiedBinding ["pool"] "spawn") argList
+                    argList = map (replaceArgument $ zip binds splits) fnIn
+                    spawn = PureDFFun (Direct $ DataBinding alteredPoolName) (QualifiedBinding ["pool"] "spawn") argList
                 -- TODO: Ensure argument list is length 1!
-                let alteredPoolName2 = poolName ++ "_1"
-                let join = PureDFFun (Direct $ DataBinding alteredPoolName2) (QualifiedBinding ["pool"] "join") ((DFVar (Type ty) (DataBinding alteredPoolName)) :| [])
-                let newSmapCall = undefined
-                foldr (\(app,cnt) -> Let app cnt) cont (collectCalls ++ splits ++ spawn ++ join ++ newSmapCall)
+                    alteredPoolName2 = poolName ++ "_1"
+                    join = PureDFFun (Direct $ DataBinding alteredPoolName2) (QualifiedBinding ["pool"] "join") ((DFVar TypeVar  (DataBinding alteredPoolName)) :| [])
+                    newSmapCall = undefined
+                in foldr (\(app,cnt) -> Let app cnt) cont (collectCalls ++ splits ++ spawn ++ join ++ newSmapCall)
             | otherwise = Let app $ insertFunctions cont fun binds poolName
 
-        buildCollects :: [Binding] -> [ABinding 'Data] -> Binding -> [DFApp 'Fun ty]
-        buildCollects (out:outs) (inp:inps) sizeChan = (PureDFFun (Direct $ DataBinding out) collectFun $ (DFVar (Type ty) inp) :| [(DFVar (Type ty) (DataBinding sizeChan))]) : buildCollects outs inps sizeChan
+        buildCollects :: [Binding] -> [DFVar 'Data ty] -> DFVar 'Data ty -> [DFApp 'Fun ty]
+        buildCollects (out:outs) (inp:inps) sizeChan =
+          (PureDFFun (Direct $ DataBinding out) collect $ inp :| [(DFVar (Type ty) (DataBinding sizeChan))]) : buildCollects outs inps sizeChan
         buildCollects [] [] _ = []
         buildCollects _ _ _ = error "Internal error: Got incomplete list of bindings for pure function lifting"
 
