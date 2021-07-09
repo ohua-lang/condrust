@@ -4,8 +4,9 @@ module Ohua.Integration where
 
 import Ohua.Prelude
 
-import qualified Ohua.Frontend.Types as F 
+import qualified Ohua.Frontend.Types as F
 import qualified Ohua.Backend.Types as B
+import qualified Ohua.Core.Compile.Configuration as CConfig
 import Ohua.Integration.Lang
 import Ohua.Integration.Architecture
 import Ohua.Integration.Rust.Architecture.SharedMemory ()
@@ -18,43 +19,46 @@ type FileExtension = Text
 type ArchId = Text
 type Description = Text
 
-type FullIntegration lang arch = 
-        ( F.Integration (Language lang)
-        , B.Integration (Language lang)
-        , F.NS (Language lang) ~ B.NS (Language lang)
-        , F.Type (Language lang) ~ B.Type (Language lang)
-        , F.AlgoSrc (Language lang) ~ B.AlgoSrc (Language lang)
-        , B.Architecture (Architectures arch)
-        , B.Lang (Architectures arch) ~ (Language lang)
-        )
+type FullIntegration lang arch =
+  ( F.Integration (Language lang)
+  , B.Integration (Language lang)
+  , F.NS (Language lang) ~ B.NS (Language lang)
+  , F.Type (Language lang) ~ B.Type (Language lang)
+  , F.AlgoSrc (Language lang) ~ B.AlgoSrc (Language lang)
+  , B.Architecture (Architectures arch)
+  , B.Lang (Architectures arch) ~ (Language lang)
+  )
 
-data Integration = 
-    forall (lang::Lang) (arch::Arch). FullIntegration lang arch => I (Language lang) (Architectures arch)
+type Compiler m a = (forall lang arch.
+                     FullIntegration lang arch
+                    => Maybe CConfig.CustomPasses
+                    -> Language lang
+                    -> Architectures arch
+                    -> m a)
+
+data Integration =
+    forall (lang::Lang) (arch::Arch).
+    FullIntegration lang arch =>
+    I (Language lang) (Architectures arch) (Maybe CConfig.CustomPasses)
 
 class Apply integration where
-    apply :: CompM m 
-        => integration 
-        -> (forall lang arch.
-            FullIntegration lang arch
-            => Language lang 
-            -> Architectures arch
-            -> m a)
+    apply :: CompM m
+        => integration
+        -> Compiler m a
         -> m a
 
 instance Apply Integration where
-    apply (I lang arch) comp = comp lang arch
+    apply (I lang arch config) comp = comp config lang arch
 
 definedIntegrations :: [(FileExtension, ArchId, Description, Integration)]
-definedIntegrations = 
-    [ (".rs", "sm", "Rust integration", I SRust SSharedMemory)
-    , (".rs", "m3", "Rust integration", I SRust SM3)]
+definedIntegrations =
+    [ (".rs", "sm", "Rust integration", I SRust SSharedMemory Nothing)
+    , (".rs", "m3", "Rust integration", I SRust SM3 Nothing)]
 
-runIntegration :: CompM m 
-                => Text 
+runIntegration :: CompM m
+                => Text
                 -> Text
-                -> (forall lang arch.
-                    FullIntegration lang arch
-                    => Language lang -> Architectures arch -> m a)
+                -> Compiler m a
                 -> m a
 runIntegration ext arch comp
     | Just a <- find (\int -> (int ^. _1 == ext) && (int ^. _2 == arch) ) definedIntegrations
