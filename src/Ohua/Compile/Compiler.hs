@@ -19,6 +19,7 @@ import Ohua.Frontend.Types (CompilationScope)
 import Ohua.Core.Types.Environment (Options)
 import Ohua.Core.Compile.Configuration as CoreConfig
 import Ohua.Core.Compile as Core (compile)
+import qualified Ohua.Core.Compile.Configuration as CConfig
 import Ohua.Backend as B (backend)
 import Ohua.Compile.Lower.FrLang (toAlang)
 import Ohua.Compile.Lower.DFLang (toTCLang)
@@ -30,27 +31,36 @@ import Ohua.Integration.Architecture
 import System.FilePath
 
 
-compile :: CompM m 
+compile :: CompM m
     => FilePath -> CompilationScope -> Options -> FilePath -> m ()
-compile inFile compScope coreOpts outDir = 
-    runIntegration 
-        (toText $ takeExtension inFile) 
+compile inFile compScope coreOpts outDir =
+    runIntegration
+        (toText $ takeExtension inFile)
         "sm" -- TODO integrate backend architecture option into config
         (compilation inFile compScope coreOpts outDir)
-    
+
 compilation :: forall (lang::Lang) (arch::Arch) m.
     (CompM m, FullIntegration lang arch)
-    => 
+    =>
     FilePath -> CompilationScope -> Options -> FilePath
+    -> Maybe CConfig.CustomPasses
     -> Language lang -> Architectures arch -> m ()
-compilation inFile compScope coreOpts outDir integration arch = do
+compilation inFile compScope coreOpts outDir optimizations integration arch = do
     -- frontend
     (ctxt, n) <- Fr.frontend integration compScope inFile
     -- middle end
     n' <- updateExprs n $ toAlang >=> core >=> toTCLang
-    -- backend 
+    -- backend
     B.backend outDir n' ctxt arch
 
     where
-        core = Core.compile coreOpts def
-
+        core = Core.compile coreOpts coreOptimizations
+        coreOptimizations =
+          case optimizations of
+            Nothing -> def
+            Just (CConfig.CustomPasses pbn pan pad) ->
+              def
+              { passBeforeNormalize = passBeforeNormalize def >=> pbn
+              , passAfterNormalize = passAfterNormalize def >=> pan
+              , passAfterDFLowering = passAfterDFLowering def >=> pad
+              }
