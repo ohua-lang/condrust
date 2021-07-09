@@ -54,6 +54,7 @@ dependencies:
 - ohuac-commons
 - ohua-frontend
 - ohua-backend
+- ohua-core
 - filepath
 - bytestring
 - language-rust
