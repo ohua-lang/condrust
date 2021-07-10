@@ -47,7 +47,7 @@ import System.Directory (doesFileExist)
 
 type Feature = Text
 
-data DebugOptions = DebugOptions 
+data DebugOptions = DebugOptions
     { logLevel :: LogLevel
     , stageHandlingOpt :: StageHandling
     } deriving (Show, Eq)
@@ -151,8 +151,8 @@ loadConfig Nothing    = return defaultCompilerOptions
 loadConfig (Just ref) = decodeFileThrow ref
 
 extractCoreOptions :: CompilerOptions -> Options
-extractCoreOptions CompilerOptions {..} = 
-    def 
+extractCoreOptions CompilerOptions {..} =
+    def
         & stageHandling .~ stageHandlingOpt debug
         & transformRecursiveFunctions .~ ("tail-recursion" `elem` extraFeatures)
 
