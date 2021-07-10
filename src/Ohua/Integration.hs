@@ -10,6 +10,7 @@ import qualified Ohua.Core.Compile.Configuration as CConfig
 import Ohua.Integration.Lang
 import Ohua.Integration.Architecture
 import Ohua.Integration.Rust.Architecture.SharedMemory ()
+import Ohua.Integration.Rust.Architecture.SharedMemory.Transformations.LoopParallelism (dataPar)
 import Ohua.Integration.Rust.Architecture.M3 ()
 import Ohua.Integration.Rust.Frontend ()
 import Ohua.Integration.Rust.Backend ()
@@ -52,7 +53,8 @@ instance Apply Integration where
 
 definedIntegrations :: [(FileExtension, ArchId, Description, Integration)]
 definedIntegrations =
-    [ (".rs", "sm", "Rust integration", I SRust SSharedMemory Nothing)
+    [ (".rs", "sm", "Rust integration",
+       I SRust SSharedMemory $ Just dataPar)
     , (".rs", "m3", "Rust integration", I SRust SM3 Nothing)]
 
 runIntegration :: CompM m

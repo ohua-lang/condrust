@@ -2,15 +2,18 @@
 module Ohua.Integration.Rust.Architecture.SharedMemory.Transformations.LoopParallelism where
 
 import Ohua.Core.Prelude
+import Ohua.Core.Compile.Configuration
 import Ohua.Core.DFLang.Lang
 import Ohua.Core.DFLang.Refs
 
 import Ohua.Types.Reference
-import Ohua.Types.Literal
 
 import qualified Data.List as L
 import qualified Data.List.NonEmpty as NE
 
+
+dataPar :: CustomPasses
+dataPar = CustomPasses pure pure liftPureFunctions
 
 invariantBroken :: Text -> OhuaM a
 invariantBroken s = throwError $ "Invariant broken: " <> s
