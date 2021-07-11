@@ -74,7 +74,7 @@ unsupported s = throwError $ "Not supported: " <> s
 --    ctrl --------->| f | ------------> collect --> smap
 --       g --------->|   |
 --                   +---+
--- Naturally, the collect gets the size from the `smap` that is located in.
+-- Naturally, the ``collect`` gets the size from the `smap` that is located in.
 -- For the smap that we are about to introduce, we can easily drop the size
 -- channel because it just transports the same information as the initial `smap`.
 -- *That is an invariant in our transformation!*
@@ -108,70 +108,75 @@ unsupported s = throwError $ "Not supported: " <> s
 --           g ---- collect ----->|    <f>   |
 --                                +----------+
 --
+
+-- |
+-- Ideally, SMap would be defined in DFLang as follows:
+data SMap ty =
+  SMap
+  -- | smapFun
+  (DFApp 'Fun ty)
+  -- | body
+  (NormalizedDFExpr ty)
+  -- | collect
+  (DFApp 'Fun ty)
+
 liftPureFunctions :: forall ty.
                      NormalizedDFExpr ty -> OhuaM (NormalizedDFExpr ty)
-liftPureFunctions = locateSmap
+liftPureFunctions = rewriteSMap
   where
-    locateSmap :: NormalizedDFExpr ty -> OhuaM (NormalizedDFExpr ty)
-    locateSmap e@(Let app cont) =
+    rewriteSMap :: NormalizedDFExpr ty -> OhuaM (NormalizedDFExpr ty)
+    rewriteSMap e@(Let app cont) =
       case app of
         -- catch smapFun
         (PureDFFun _ fn _)
           | fn == smapFun -> do
-              (smap, cont') <- collectSmapBody e
-              smap'         <- rewriteBody smap
-              cont''        <- locateSmap cont'
-              combine smap' cont''
+              (smapBody, coll, cont') <- collectSMap cont
+              let smap = SMap app smapBody coll
+              let (SMap app' smapBody' coll') = rewrite smap
+              let e' = Let app' $ appendExpr smapBody $ Let coll cont'
+              rewriteSMap e'
         _ -> Let app <$> locateSmap cont
-    locateSmap v = pure v
+    rewriteSMap v = pure v
 
     -- collects the body of a smap for processing
-    collectSmapBody :: NormalizedDFExpr ty
-                    -> OhuaM (NormalizedDFExpr ty, NormalizedDFExpr ty)
-    collectSmapBody (Var _) =
+    collectSMap :: NormalizedDFExpr ty
+                -> OhuaM (NormalizedDFExpr ty, DFApp 'Fun ty, NormalizedDFExpr ty)
+    collectSMap Var{} =
       invariantBroken
-      "Found a smap expression not delimited by a collect"
-    collectSmapBody (Let app cont) =
+      "Found an smap expression not delimited by a collect"
+    collectSMap (Let app cont) =
       case app of
         -- loop body has ended
+        (PureDFFun _ fn ((DFVar _ result) :|_))
+          | fn == collect ->
+            pure (Let app $ Var $ unwrapABnd result, app, cont)
         (PureDFFun _ fn _)
-          | fn == collect -> pure (Let app $ Var "__end", cont)
           | fn == smapFun ->
               unsupported "Nested smap expressions"
-        _ -> do (next, cont') <- collectSmapBody cont
-                return (Let app next, cont')
+        _ -> do (contBody, coll, cont') <- collectSMap cont
+                return (Let app contBody, coll, cont')
 
-    rewriteBody :: NormalizedDFExpr ty -> OhuaM (NormalizedDFExpr ty)
-    rewriteBody (Let smap@PureDFFun{} b) =
-      let liftableFunctions = findLiftable b
-       in do
-        (_, rewritten) <-
-            foldM liftFunction (smap,b) liftableFunctions
-        pure $ Let smap rewritten
-    rewriteBody _ = invariantBroken "smapFun not found"
-      -- TODO: Optimize away now-obsolete smap functions
+rewrite :: SMap ty -> SMap ty
+rewrite (SMap smapF body collectF) =
+  SMap smapF (transformExpr rewriteBody body) collectF
 
-    combine :: NormalizedDFExpr ty
-            -> NormalizedDFExpr ty
-            -> OhuaM (NormalizedDFExpr ty)
-    combine (Let app cont) rest = Let app <$> combine cont rest
-    combine (Var "__end") rest = pure rest
-    combine _ _ =
-      invariantBroken "Expression ends with unexpected var."
+rewriteBody :: NormalizedDFExpr ty -> NormalizedDFExpr ty
+rewriteBody (Let (PureDFFun _ bnd _) cont)
+  | not (isIgnorable bnd) = undefined
+rewriteBody e = e
 
-    findLiftable :: NormalizedDFExpr ty -> [DFApp 'Fun ty]
-    findLiftable (Var _) = []
-    findLiftable (Let app cont) =
-      case app of
-        (PureDFFun _ bnd _) ->
-          if isIgnorable bnd
-          then findLiftable cont
-          else app : findLiftable cont
-        _ -> findLiftable cont
+appendExpr :: NormalizedDFExpr ty
+           -> NormalizedDFExpr ty
+           -> NormalizedDFExpr ty
+appendExpr (Let app cont) rest = Let app $ appendExpr cont rest
+appendExpr Var{} rest = pure rest
 
-    isIgnorable :: QualifiedBinding -> Bool
-    isIgnorable (QualifiedBinding (NSRef [(Binding "ohua"), (Binding "lang")]) _) = True
-    isIgnorable _ = False
+isIgnorable :: QualifiedBinding -> Bool
+isIgnorable (QualifiedBinding (NSRef [(Binding "ohua"), (Binding "lang")]) _) = True
+isIgnorable _ = False
+
+
+-- TODO continue here
 
     liftFunction :: (DFApp 'Fun ty, NormalizedDFExpr ty)
                  -> DFApp 'Fun ty
