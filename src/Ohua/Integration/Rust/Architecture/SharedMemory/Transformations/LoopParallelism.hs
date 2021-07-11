@@ -21,7 +21,93 @@ invariantBroken s = throwError $ "Invariant broken: " <> s
 unsupported :: Text -> OhuaM a
 unsupported s = throwError $ "Not supported: " <> s
 
-
+-- |
+-- This transformation wants to rewrite this:
+-- @
+--   for pair in pairs {
+--     let x = before1(pair);
+--     let z = before2(pair);
+--     let path = find_path(mro, pair);
+--     let y = after(path,z, v);
+--     let r = maze.update(y);
+--     rs.push(r);
+--   }
+-- @
+-- into that:
+-- @
+--   let xs = Vec::new();
+--   for pair in pairs {
+--     let (x,z) = before(pair); 
+--     xs.push((x,z));
+--   }
+--   let paths = Vec::new();
+--   for (x,z) in xs {
+--     let path = find_path(mro, pair);
+--     paths.push((path,z));
+--   }
+--   for (path,z) in paths {
+--     let y = after(path,z,v);
+--     let r = maze.update(y);
+--     rs.push(r);
+--   }
+-- @
+--
+-- Performing the rewrite on ALang is not trivial because it requires
+-- to capture results from `before` that are also used `after` the function
+-- (in this case `find_path`) that were lifting out.
+--
+-- Our approach is to perform the same transformation on DFLang, so we get
+-- around this problem.
+-- Here is our challenge:
+-- Let there be some function inside an SMap:
+--                   +---+
+--    smap --------->|   |   <result>
+--    ctrl --------->| f | ------------>
+--       g --------->|   |
+--                   +---+
+--
+-- Then we need to perform the following steps:
+--
+-- 1. Clearly the result needs to be collected and smapped again:
+--                   +---+
+--    smap --------->|   |   <result>
+--    ctrl --------->| f | ------------> collect --> smap
+--       g --------->|   |
+--                   +---+
+-- Naturally, the collect gets the size from the `smap` that is located in.
+-- For the smap that we are about to introduce, we can easily drop the size
+-- channel because it just transports the same information as the initial `smap`.
+-- *That is an invariant in our transformation!*
+--
+-- 2. Inject a `collect`-`smap` combo for every incoming arc.
+--                                      +---+
+--    smap ---- collect ---- smap ----->|   |   <result>
+--    ctrl ---- collect ---- smap ----->| f | ------------> collect --> smap
+--       g ---- collect ---- smap ----->|   |
+--                                      +---+
+-- Of course, the `size` for the `collect`s comes from the size channel of the
+-- initial `smap`.
+--
+-- 3. Remove redundant `collect`-`smap` combos:
+--                                      +---+
+--    smap ---------------------------->|   |   <result>
+--    ctrl ---------------------------->| f | ------------> collect --> smap
+--       g ---- collect ---- smap ----->|   |
+--                                      +---+
+-- 4. Transform loop into parallelism.
+-- Rewrite this:
+--                                                   +---+
+--    -- <xs> ---> smap ---------------------------->|   |   <result>
+--    -- <arg> --> ctrl ---------------------------->| f | ------------> collect --> smap
+--                    g ---- collect ---- smap ----->|   |
+--                                                   +---+
+-- into that:
+--                                +----------+
+--    -- <xs> ------------------->| split-&- |   <futures>               <result>
+--    -- <arg> ------------------>| spawn    | ------------> getFutures ----------> smap
+--           g ---- collect ----->|    <f>   |
+--                                +----------+
+--
 liftPureFunctions :: forall ty.
                      NormalizedDFExpr ty -> OhuaM (NormalizedDFExpr ty)
 liftPureFunctions = locateSmap
