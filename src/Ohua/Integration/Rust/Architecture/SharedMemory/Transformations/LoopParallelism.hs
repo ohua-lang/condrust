@@ -1,9 +1,10 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Ohua.Integration.Rust.Architecture.SharedMemory.Transformations.LoopParallelism where
 
-import Ohua.Core.Prelude hiding (rewrite)
+import Ohua.Core.Prelude hiding (length, rewrite)
 import Ohua.Core.Compile.Configuration
 import Ohua.Core.DFLang.Lang
+import Ohua.Core.DFLang.PPrint (prettyExprM)
 import qualified Ohua.Core.DFLang.Refs as DFRef
 
 import Ohua.Types.Reference
@@ -127,18 +128,22 @@ liftPureFunctions = rewriteSMap
     rewriteSMap :: NormalizedDFExpr ty -> OhuaM (NormalizedDFExpr ty)
     rewriteSMap (Let app cont) =
       case app of
-        -- catch smapFun
         (PureDFFun _ fn _)
-          | fn == DFRef.smapFun -> do
-              (smapBody, coll, cont') <- collectSMap cont
-              let smap = SMap app smapBody coll
-              (SMap app' smapBody' coll') <- rewrite smap
-              let e' = Let app' $ appendExpr smapBody' $ Let coll' cont'
-              rewriteSMap e'
+          | fn == DFRef.smapFun ->
+              let rewriteIt smap@(SMap _ smapBody _) = do
+                    smap'@(SMap app' smapBody' coll') <- rewrite smap
+                    case length smapBody of
+                      -- TODO a stronger termination metric would be better
+                      l | not (l == length smapBody') -> rewriteIt smap'
+                      _ -> pure $ \c -> Let app' $ appendExpr smapBody' $ Let coll' c
+              in do
+                (smapBody, coll, cont') <- collectSMap cont
+                rewritten <- rewriteIt $ SMap app smapBody coll
+                rewritten <$> rewriteSMap cont'
         _ -> Let app <$> rewriteSMap cont
     rewriteSMap v = pure v
 
-    -- collects the body of a smap for processing
+    -- collects the body of an smap for processing
     collectSMap :: NormalizedDFExpr ty
                 -> OhuaM (NormalizedDFExpr ty, DFApp 'Fun ty, NormalizedDFExpr ty)
     collectSMap Var{} =
@@ -147,9 +152,9 @@ liftPureFunctions = rewriteSMap
     collectSMap (Let app cont) =
       case app of
         -- loop body has ended
-        (PureDFFun _ fn ((DFVar _ result) :|_))
+        (PureDFFun _ fn (_ :|[DFVar _ result]))
           | fn == DFRef.collect ->
-            pure (Let app $ Var $ unwrapABnd result, app, cont)
+            pure (Var $ unwrapABnd result, app, cont)
         (PureDFFun _ fn _)
           | fn == DFRef.smapFun ->
               unsupported "Nested smap expressions"
@@ -163,7 +168,8 @@ rewrite (SMap smapF body collectF) = do
   where
     rewriteBody :: NormalizedDFExpr ty -> OhuaM (NormalizedDFExpr ty)
     rewriteBody (Let fun@(PureDFFun _ bnd _) cont)
-      | not (isIgnorable bnd) = liftFunction (findSourceAndApply body) fun cont
+      | not (isIgnorable bnd) =
+          liftFunction (findSourceAndApply $ Let smapF body) fun cont
     rewriteBody e = pure e
 
 appendExpr :: NormalizedDFExpr ty
@@ -173,10 +179,10 @@ appendExpr (Let app cont) rest = Let app $ appendExpr cont rest
 appendExpr Var{} rest = rest
 
 isIgnorable :: QualifiedBinding -> Bool
-isIgnorable (QualifiedBinding ["ohua", "lang"] _) = True
+isIgnorable (QualifiedBinding ["ohua","lang"] _) = True
 isIgnorable _ = False
 
-liftFunction :: forall ty c.
+liftFunction :: forall ty.
                 (forall a.Binding -> (forall c.DFApp c ty -> OhuaM a) -> OhuaM a)
              -> DFApp 'Fun ty
              -> NormalizedDFExpr ty
@@ -191,8 +197,8 @@ liftFunction search (PureDFFun out fun inp) cont = do
     handleOutputSide :: ABinding 'Data -> OhuaM (NormalizedDFExpr ty)
     handleOutputSide futuresBnd = do
       resultsBnd <- DataBinding <$> generateBindingWith "results"
-      sizeBnd    <- DataBinding <$> generateBindingWith "size_<unused>"
-      ctrlBnd    <- DataBinding <$> generateBindingWith "ctrl_<unused>"
+      sizeBnd    <- DataBinding <$> generateBindingWith "size_unused"
+      ctrlBnd    <- DataBinding <$> generateBindingWith "ctrl_unused"
       smapOut    <- case out of
                       Direct abnd -> pure $ DataBinding $ unwrapABnd abnd
                       _ -> unsupported "destructuring and dispatch on lifted function"
@@ -200,7 +206,7 @@ liftFunction search (PureDFFun out fun inp) cont = do
         Let
         (PureDFFun
           (Direct resultsBnd)
-          "ohua.lang.data.par/join_futures"
+          "ohua.lang/join_futures"
           (DFVar TypeVar futuresBnd  :|[])
           ) $
         Let
@@ -215,7 +221,7 @@ liftFunction search (PureDFFun out fun inp) cont = do
     handleFun inBounds futuresBnd =
       PureDFFun
       (Direct futuresBnd)
-      "ohua.lang.data.par/spawn_futures"
+      "ohua.lang/spawn_futures"
       (DFEnvVar TypeVar (FunRefLit $ FunRef fun Nothing Untyped) NE.<| inBounds)
 
     handleInbounds :: OhuaM ( NonEmpty (DFVar 'Data ty)
@@ -223,7 +229,7 @@ liftFunction search (PureDFFun out fun inp) cont = do
     handleInbounds = do
       (inBoundBnds, inBounds) <- NE.unzip <$> mapM handleInbound inp
       return ( inBoundBnds
-             , \cont -> foldr Let cont $ catMaybes $ NE.toList inBounds
+             , \c -> foldr Let c $ catMaybes $ NE.toList inBounds
              )
 
     handleInbound :: DFVar 'Data ty
@@ -236,7 +242,7 @@ liftFunction search (PureDFFun out fun inp) cont = do
           -- skip the Control. (garbage collected by dead code elimination)
           (PureDFFun _ source input) | source == DFRef.ctrl -> pure (last input, Nothing)
           -- collect.
-          fun -> do
+          _ -> do
             collectBnd <- DataBinding <$> generateBindingWith "data_par_collect"
             return ( DFVar TypeVar collectBnd
                    , Just $
