@@ -54,6 +54,9 @@ customDflang = "dflang-custom"
 coreDflang :: StageName
 coreDflang = "dflang-core"
 
+finalDflang :: StageName
+finalDflang = "dflang-final"
+
 literalsALang :: StageName
 literalsALang = "alang-literals"
 
@@ -91,6 +94,7 @@ knownStages =
     , initialDflang
     , customDflang
     , coreDflang
+    , finalDflang
     , literalsALang
     , unitFunctionsALang
     , smapTransformationALang

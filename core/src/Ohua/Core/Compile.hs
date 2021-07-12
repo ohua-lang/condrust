@@ -61,7 +61,10 @@ pipeline CustomPasses {..} e = do
     dfAfterCustom <- passAfterDFLowering coreDfE
     stage customDflang dfAfterCustom
     whenDebug $ Ohua.Core.DFLang.Passes.checkSSA dfAfterCustom
-    pure dfAfterCustom
+    dfFinal <- Ohua.Core.DFLang.Passes.finalPasses dfAfterCustom
+    stage finalDflang dfFinal
+    whenDebug $ Ohua.Core.DFLang.Passes.checkSSA dfFinal
+    pure dfFinal
 
 -- | Run the pipeline in an arbitrary monad that supports error reporting.
 compile :: CompM m => Options -> CustomPasses -> ALang.Expr ty -> m (NormalizedDFExpr ty)
