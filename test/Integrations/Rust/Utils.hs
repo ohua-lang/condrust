@@ -32,7 +32,7 @@ import qualified Data.ByteString.Lazy.Char8 as L
 
 -- TODO turn this into a parameter for a particular test
 debug :: Bool
-debug = False
+debug = True
 
 renderRustCode :: SourceFile Span -> L.ByteString
 renderRustCode =
@@ -61,6 +61,7 @@ debugStageHandling =
             , Stage postControlSTCLangALang True False
             , Stage normalizeAfterCorePasses True False
             , Stage customDflang True False
+            , Stage finalDflang True False
             ]
 
 compileCodeWithRec :: SourceFile Span -> IO (SourceFile Span)

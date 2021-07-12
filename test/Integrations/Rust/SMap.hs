@@ -9,6 +9,9 @@ import Integrations.Rust.Utils
 spec :: Spec
 spec =
     describe "SMap" $ do
+        -- this computation is deleted by dead code elimination
+        -- TODO in fact this whole computation is dead code and our
+        --      compiler should detect that!
         it "stream" $
             (showCode "Compiled: " =<< compileCode [sourceFile|
                 use funs::*;
@@ -100,5 +103,27 @@ spec =
                         run(tasks);
                         b_0_0_rx.recv()?
                       }
+                    |]
+                compiled `shouldBe` expected)
+        it "imperative" $
+            (showCode "Compiled: " =<< compileCode [sourceFile|
+                use funs::*;
+
+                fn test() -> std::Vec<i32> {
+                    let s = S::new();
+                    let stream = iter_i32();
+                    for e in stream {
+                        let r = h(e);
+                        s.gs(r);
+                    }
+                    s
+                }
+                |]) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:"
+                    [sourceFile|
+                      use funs::*;
+
+                      // TODO
                     |]
                 compiled `shouldBe` expected)
