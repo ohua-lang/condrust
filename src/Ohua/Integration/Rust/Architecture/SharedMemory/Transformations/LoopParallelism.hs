@@ -1,16 +1,16 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Ohua.Integration.Rust.Architecture.SharedMemory.Transformations.LoopParallelism where
 
-import Ohua.Core.Prelude
+import Ohua.Core.Prelude hiding (rewrite)
 import Ohua.Core.Compile.Configuration
 import Ohua.Core.DFLang.Lang
-import Ohua.Core.DFLang.Refs
+import qualified Ohua.Core.DFLang.Refs as DFRef
 
 import Ohua.Types.Reference
 
 import qualified Data.List as L
 import qualified Data.List.NonEmpty as NE
-
+import qualified Data.HashSet as HS
 
 dataPar :: CustomPasses
 dataPar = CustomPasses pure pure liftPureFunctions
@@ -37,7 +37,7 @@ unsupported s = throwError $ "Not supported: " <> s
 -- @
 --   let xs = Vec::new();
 --   for pair in pairs {
---     let (x,z) = before(pair); 
+--     let (x,z) = before(pair);
 --     xs.push((x,z));
 --   }
 --   let paths = Vec::new();
@@ -125,17 +125,17 @@ liftPureFunctions :: forall ty.
 liftPureFunctions = rewriteSMap
   where
     rewriteSMap :: NormalizedDFExpr ty -> OhuaM (NormalizedDFExpr ty)
-    rewriteSMap e@(Let app cont) =
+    rewriteSMap (Let app cont) =
       case app of
         -- catch smapFun
         (PureDFFun _ fn _)
-          | fn == smapFun -> do
+          | fn == DFRef.smapFun -> do
               (smapBody, coll, cont') <- collectSMap cont
               let smap = SMap app smapBody coll
-              let (SMap app' smapBody' coll') = rewrite smap
-              let e' = Let app' $ appendExpr smapBody $ Let coll cont'
+              (SMap app' smapBody' coll') <- rewrite smap
+              let e' = Let app' $ appendExpr smapBody' $ Let coll' cont'
               rewriteSMap e'
-        _ -> Let app <$> locateSmap cont
+        _ -> Let app <$> rewriteSMap cont
     rewriteSMap v = pure v
 
     -- collects the body of a smap for processing
@@ -148,48 +148,54 @@ liftPureFunctions = rewriteSMap
       case app of
         -- loop body has ended
         (PureDFFun _ fn ((DFVar _ result) :|_))
-          | fn == collect ->
+          | fn == DFRef.collect ->
             pure (Let app $ Var $ unwrapABnd result, app, cont)
         (PureDFFun _ fn _)
-          | fn == smapFun ->
+          | fn == DFRef.smapFun ->
               unsupported "Nested smap expressions"
         _ -> do (contBody, coll, cont') <- collectSMap cont
                 return (Let app contBody, coll, cont')
 
-rewrite :: SMap ty -> SMap ty
-rewrite (SMap smapF body collectF) =
-  SMap smapF (transformExpr rewriteBody body) collectF
-
-rewriteBody :: NormalizedDFExpr ty -> NormalizedDFExpr ty
-rewriteBody (Let fun@(PureDFFun _ bnd _) cont)
-  | not (isIgnorable bnd) = liftFunction fun cont
-rewriteBody e = e
+rewrite :: forall ty.SMap ty -> OhuaM (SMap ty)
+rewrite (SMap smapF body collectF) = do
+  body' <- transformExprM rewriteBody body
+  return $ SMap smapF body' collectF
+  where
+    rewriteBody :: NormalizedDFExpr ty -> OhuaM (NormalizedDFExpr ty)
+    rewriteBody (Let fun@(PureDFFun _ bnd _) cont)
+      | not (isIgnorable bnd) = liftFunction (findSourceAndApply body) fun cont
+    rewriteBody e = pure e
 
 appendExpr :: NormalizedDFExpr ty
            -> NormalizedDFExpr ty
            -> NormalizedDFExpr ty
 appendExpr (Let app cont) rest = Let app $ appendExpr cont rest
-appendExpr Var{} rest = pure rest
+appendExpr Var{} rest = rest
 
 isIgnorable :: QualifiedBinding -> Bool
-isIgnorable (QualifiedBinding (NSRef [(Binding "ohua"), (Binding "lang")]) _) = True
+isIgnorable (QualifiedBinding ["ohua", "lang"] _) = True
 isIgnorable _ = False
 
--- TODO continue here
-liftFunction :: DFApp 'Fun ty
+liftFunction :: forall ty c.
+                (forall a.Binding -> (forall c.DFApp c ty -> OhuaM a) -> OhuaM a)
+             -> DFApp 'Fun ty
              -> NormalizedDFExpr ty
-             -> NormalizedDFExpr ty
-liftFunction (PureDFFun out fun inp) cont = do
+             -> OhuaM (NormalizedDFExpr ty)
+liftFunction search (PureDFFun out fun inp) cont = do
   futuresBnd <- DataBinding <$> generateBindingWith "futures"
   outBound <- handleOutputSide futuresBnd
-  spawned  <- handleFun futuresBnd
-  handleInbound
-    $ Let spawned outBound
+  (inBoundBnds, inBound) <- handleInbounds
+  let spawned = handleFun inBoundBnds futuresBnd
+  return $ inBound $ Let spawned outBound
   where
+    handleOutputSide :: ABinding 'Data -> OhuaM (NormalizedDFExpr ty)
     handleOutputSide futuresBnd = do
-      resultBnd  <- DataBinding <$> generateBindingWith "results"
+      resultsBnd <- DataBinding <$> generateBindingWith "results"
       sizeBnd    <- DataBinding <$> generateBindingWith "size_<unused>"
       ctrlBnd    <- DataBinding <$> generateBindingWith "ctrl_<unused>"
+      smapOut    <- case out of
+                      Direct abnd -> pure $ DataBinding $ unwrapABnd abnd
+                      _ -> unsupported "destructuring and dispatch on lifted function"
       return $
         Let
         (PureDFFun
@@ -199,152 +205,59 @@ liftFunction (PureDFFun out fun inp) cont = do
           ) $
         Let
         (PureDFFun
-          (Destruct $ out :| [Direct ctrlBnd, Direct sizeBnd] )
-          smapFun
+          (Destruct $ Direct smapOut :| [Direct ctrlBnd, Direct sizeBnd] )
+          DFRef.smapFun
           (DFVar TypeVar resultsBnd  :|[])
           )
         cont
 
-    handleFun futuresBnd =
+    handleFun :: NonEmpty (DFVar 'Data ty) -> ABinding 'Data -> DFApp 'Fun ty
+    handleFun inBounds futuresBnd =
       PureDFFun
-      $ (Direct futuresBnd :| [] )
+      (Direct futuresBnd)
       "ohua.lang.data.par/spawn_futures"
-      (DFEnvVar TypeVar (FunRefLit $ FunRef fun Nothing Untyped)  :|[])
+      (DFEnvVar TypeVar (FunRefLit $ FunRef fun Nothing Untyped) NE.<| inBounds)
 
-    handleInbound cont = undefined
+    handleInbounds :: OhuaM ( NonEmpty (DFVar 'Data ty)
+                            , NormalizedDFExpr ty -> NormalizedDFExpr ty)
+    handleInbounds = do
+      (inBoundBnds, inBounds) <- NE.unzip <$> mapM handleInbound inp
+      return ( inBoundBnds
+             , \cont -> foldr Let cont $ catMaybes $ NE.toList inBounds
+             )
 
---    liftFunction :: (DFApp 'Fun ty, NormalizedDFExpr ty)
---                 -> DFApp 'Fun ty
---                 -> OhuaM (DFApp 'Fun ty, NormalizedDFExpr ty)
---    liftFunction (smap@(PureDFFun outSMap _ _), cont) fun =
---      let matchingArgs = findMatchingArgs fun smap
---          -- prepend Pool creation
---          poolExpr = Let (createPool "pool") cont
---          sizeChan =
---            DFVar TypeVar $ DataBinding $ last $ outBnds outSMap
---      in do
---        fs <- insertFunctions poolExpr fun matchingArgs sizeChan "pool"
---        return (smap, fs)
---
---        -- Finds all bindings that are outputs from smap and inputs to the pure function -> these will be collected
---    findMatchingArgs :: DFApp 'Fun ty
---                     -> DFApp 'Fun ty
---                     -> [DFVar 'Data ty]
---    findMatchingArgs (PureDFFun _ _ inp) (PureDFFun outp _ _) =
---      let inpBindings = mapMaybe (\case
---                                     d@DFVar{} -> Just d
---                                     _ -> Nothing
---                                 ) $ NE.toList inp
---          outpBindings = findInput outp
---      in L.intersectBy
---         (\(DFVar _ inp') (DFVar _ out) -> inp' == out)
---         inpBindings
---         outpBindings
---      where
---        findInput :: OutData b -> [DFVar 'Data ty]
---        findInput (Direct b@(DataBinding _)) = [DFVar TypeVar b]
---        findInput (Direct _) = []
---        findInput (Destruct lst) =
---          foldl (\acc item -> acc ++ findInput item) [] lst
---        findInput (Dispatch lst) =
---          mapMaybe (\case
---                       b@DataBinding{} -> Just $ DFVar TypeVar b
---                       _ -> Nothing
---                   ) $ NE.toList lst
---
---    createPool :: Binding -> DFApp 'Fun ty
---    createPool bnd =
---      PureDFFun
---      (Direct $ DataBinding bnd)
---      (QualifiedBinding ["pool"] "new")
---      ((DFEnvVar TypeVar UnitLit) :| [])
---
---    insertFunctions :: NormalizedDFExpr ty
---                    -> DFApp 'Fun ty
---                    -> [DFVar 'Data ty]
---                    -> DFVar 'Data ty
---                    -> String
---                    -> OhuaM (NormalizedDFExpr ty)
---    insertFunctions (Let app@(PureDFFun fnOut fnName fnIn) cont) fun binds sizeChan poolName
---      | fnDFApp app == fnDFApp fun =
---        -- insert collect, split, pool spawn & pool collect as well as a new smap
---        -- (use the result binding from the current function as binding for that)
---          let collectedBindings = buildBindings binds "_0" -- generate bindings based on `binds` for the output of 'collect'
---              splitDataNames = buildBindings binds "_split"
---              alteredPoolName = Binding $ toText $ poolName ++ "_0"
---                -- TODO: add FunRefLit (?) at top of the list!
---              argList =
---                map (replaceArgument $ zip binds splitDataNames) fnIn
---              spawn =
---                PureDFFun
---                (Direct $ DataBinding alteredPoolName)
---                (QualifiedBinding ["pool"] "spawn")
---                argList
---                -- TODO: Ensure argument list is length 1!
---              alteredPoolName2 = Binding $ toText $ poolName ++ "_1"
---              join =
---                PureDFFun
---                (Direct $ DataBinding alteredPoolName2)
---                (QualifiedBinding ["pool"] "join")
---                ((DFVar TypeVar $ DataBinding alteredPoolName) :| [])
---                -- TODO: Actually create the smap call
---              newSmapCall = undefined
---          in do
---            cc <- buildCollects
---                  (extractBndsFromInputs collectedBindings)
---                  binds
---                  sizeChan
---            sps <- buildSplits
---                   (extractBndsFromInputs splitDataNames)
---                   collectedBindings
---            pure $ foldr
---                   (\app cnt -> Let app cnt)
---                   cont
---                   (cc ++
---                    sps ++
---                    [spawn] ++
---                    [join] ++
---                    [newSmapCall])
---      | otherwise =
---        Let app <$> insertFunctions cont fun binds sizeChan poolName
---
---    buildCollects :: [Binding]
---                  -> [DFVar 'Data ty]
---                  -> DFVar 'Data ty
---                  -> OhuaM [DFApp 'Fun ty]
---    buildCollects (out:outs) (inp:inps) sizeChan =
---      ((PureDFFun
---        (Direct $ DataBinding out)
---        collect
---        $ inp :| [sizeChan]) :)
---      <$> buildCollects outs inps sizeChan
---    buildCollects [] [] _ = pure []
---    buildCollects _ _ _ =
---      invariantBroken "Got incomplete list of bindings for pure function lifting"
---
---    buildSplits :: [Binding] -> [DFVar 'Data ty]
---                -> OhuaM [DFApp 'Fun ty]
---    buildSplits (out:outs) (inp:inps) =
---      ((PureDFFun
---        (Direct $ DataBinding out)
---        (QualifiedBinding [] "split")
---        $ inp :| [(DFEnvVar TypeVar (NumericLit 4))]) :)
---      <$> buildSplits outs inps
---    buildSplits [] [] = pure []
---    buildSplits _ _ =
---      invariantBroken "Got incomplete list of bindings for pure function lifting"
---
---    buildBindings :: [DFVar 'Data ty] -> String -> [DFVar 'Data ty]
---    buildBindings (DFVar t (DataBinding (Binding name)):xs) suffix =
---      (DFVar
---       t
---       (DataBinding (Binding $ toText $ (toString name) ++ suffix)))
---      : buildBindings xs suffix
---    buildBindings [] _ = []
---
---    replaceArgument :: [(DFVar 'Data ty, DFVar 'Data ty)]
---                    -> DFVar 'Data ty -> DFVar 'Data ty
---    replaceArgument ((old,new):rest) arg
---      | arg == old = new
---      | otherwise = replaceArgument rest arg
---    replaceArgument [] arg = arg
+    handleInbound :: DFVar 'Data ty
+                  -> OhuaM (DFVar 'Data ty, Maybe (DFApp 'Fun ty))
+    handleInbound v@(DFVar _ty bnd) = do
+      search (unwrapABnd bnd) $ \src ->
+        case src of
+          -- skip the SMap. (garbage collected by dead code elimination)
+          (PureDFFun _ source input) | source == DFRef.smapFun -> pure (head input, Nothing)
+          -- skip the Control. (garbage collected by dead code elimination)
+          (PureDFFun _ source input) | source == DFRef.ctrl -> pure (last input, Nothing)
+          -- collect.
+          fun -> do
+            collectBnd <- DataBinding <$> generateBindingWith "data_par_collect"
+            return ( DFVar TypeVar collectBnd
+                   , Just $
+                     PureDFFun
+                     (Direct collectBnd)
+                     DFRef.collect
+                     $ v:|[]
+                   )
+    handleInbound v = pure (v, Nothing)
+
+-- assumes SSA
+findSourceAndApply ::NormalizedDFExpr ty
+                   -> Binding
+                   -> (forall c.DFApp c ty -> OhuaM a)
+                   -> OhuaM a
+findSourceAndApply e bnd f = go e
+  where
+    go (Let app _)
+      | HS.member bnd (HS.fromList $ outBindings app) = f app
+    go (Let _ cont) = go cont
+    go _ =
+      invariantBroken $
+      "Expression is not well-scoped! Binding `" <> show bnd <> "` not found."
+
