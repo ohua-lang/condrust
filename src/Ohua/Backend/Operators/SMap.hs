@@ -15,9 +15,9 @@ import qualified Ohua.Backend.Lang as L ( TaskExpr( Var ) )
 import Ohua.Backend.Operators.Common
 
 type Input = Com 'Recv
-type DataOut = Com 'Channel
-type CtrlOut = Com 'Channel
-type CollectOut = Com 'Channel
+type DataOut ty = Maybe (Com 'Channel ty)
+type CtrlOut ty = Maybe (Com 'Channel ty)
+type CollectOut ty = Maybe (Com 'Channel ty)
 
 type SizeInput = Com 'Recv
 type DataInput = Com 'Recv
@@ -58,24 +58,33 @@ gen' (SMap input dataOut ctrlOut collectOut) =
     -- known size
     (
       Let "size" (Size "data") $
-      Stmt (SendData $ SSend collectOut "size") $
-      Let "ctrl" (Tuple (Right $ BoolLit True) (Left "size")) $
-      Stmt (SendData $ SSend ctrlOut "ctrl") $
-      ForEach "d" "data" $
-          SendData $ SSend dataOut "d"
+      f collectOut (\c -> Stmt $ SendData $ SSend c "size") $
+      f ctrlOut (\c -> Let "ctrl" (Tuple (Right $ BoolLit True) (Left "size")) .
+                       Stmt (SendData $ SSend c "ctrl") ) $
+      f dataOut (\dOut -> ForEach "d" "data" .
+                          Stmt (SendData $ SSend dOut "d"))
+      $ Lit UnitLit
     )
     -- unknown size --> generator-style
     (
       Let "size" (Lit $ NumericLit 0) $
-        Stmt
-        (ForEach "d" "data" $
-          Stmt (SendData $ SSend dataOut "d") $
-          Let "ctrl" (Tuple (Right $ BoolLit False) (Right $ NumericLit 1)) $
-          Stmt (SendData $ SSend ctrlOut "ctrl") $ Increment "size") $
-        Stmt (SendData $ SSend collectOut "size") $
-        Let "ctrl" (Tuple (Right $ BoolLit True) (Right $ NumericLit 0)) $
-        Stmt (SendData $ SSend ctrlOut "ctrl") $ Lit UnitLit
+      Stmt
+      (ForEach "d" "data" $
+        f dataOut (\dOut -> Stmt $ SendData $ SSend dOut "d") $
+        f ctrlOut
+        (\c -> Let "ctrl" (Tuple (Right $ BoolLit False) (Right $ NumericLit 1)) .
+               Stmt (SendData $ SSend c "ctrl"))
+        $ Increment "size") $
+      f collectOut (\c -> Stmt $ SendData $ SSend c "size") $
+      f ctrlOut (\c -> Let "ctrl" (Tuple (Right $ BoolLit True) (Right $ NumericLit 0)) .
+                         Stmt (SendData $ SSend c "ctrl"))
+      $ Lit UnitLit
     )
+  where
+    f o e cont = case o of
+                   Just c -> (e c) cont
+                   Nothing -> cont
+
 gen' (Collect dataInput sizeInput collectedOutput) =
   Let "num" (ReceiveData sizeInput) $
   Let "collection" (ListOp Create) $
