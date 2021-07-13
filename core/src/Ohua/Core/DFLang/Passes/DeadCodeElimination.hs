@@ -46,11 +46,13 @@ eliminateExprs expr = do
     warning fun = liftIO $ T.putStrLn $ "[WARNING] The output of pure function '" <> show fun <> "' is not used. As such, it will be deleted. If the function contains side-effects then this function actually wants to be stateful!"
 
 eliminateOuts :: (MonadOhua m) => NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
-eliminateOuts = transformExprM go
+eliminateOuts expr = transformExprM go expr
   where
     go (Let app cont) =
       let
-        used = map (\b -> (isBndUsed b cont, DataBinding b)) $ outBindings app
+        -- note that I do not only check inside the continuation but the whole expression
+        -- because recurFun takes vars as arguments that are defined only later.
+        used = map (\b -> (isBndUsed b expr, DataBinding b)) $ outBindings app
       in case app of
         (PureDFFun out fun inp)
           | R.smapFun == fun ->
