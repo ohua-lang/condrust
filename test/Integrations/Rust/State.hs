@@ -167,7 +167,7 @@ spec =
                                 size_0_tx.send(size)?;
                                 let ctrl = (true, size);
                                 ctrl_0_tx.send(ctrl)?;
-                                for d in data { d_0_tx.send(d)? }
+                                for d in data { d_0_tx.send(d)?; () }
                               } else {
                                 let size = 0;
                                 for d in data {
@@ -280,7 +280,7 @@ spec =
                                 size_0_tx.send(size)?;
                                 let ctrl = (true, size);
                                 ctrl_0_tx.send(ctrl)?;
-                                for d in data { d_1_tx.send(d)? }
+                                for d in data { d_1_tx.send(d)?; () }
                               } else {
                                 let size = 0;
                                 for d in data {
@@ -384,7 +384,7 @@ spec =
                                 size_0_tx.send(size)?;
                                 let ctrl = (true, size);
                                 ctrl_0_tx.send(ctrl)?;
-                                for d in data { d_1_tx.send(d)? }
+                                for d in data { d_1_tx.send(d)?; () }
                               } else {
                                 let size = 0;
                                 for d in data {
@@ -501,7 +501,7 @@ spec =
                                 size_0_tx.send(size)?;
                                 let ctrl = (true, size);
                                 ctrl_0_tx.send(ctrl)?;
-                                for d in data { d_1_tx.send(d)? }
+                                for d in data { d_1_tx.send(d)?; () }
                               } else {
                                 let size = 0;
                                 for d in data {

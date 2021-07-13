@@ -105,7 +105,21 @@ generateNodeCode e@(PureDFFun out fun inp)  | fun == smapFun = do
     (dataOut, ctrlOut, collectOut) <-
         case out of -- FIXME: I can not even be sure here whether the order is the correct one!
             Destruct [Direct x, Direct y, Direct z] ->
-                return (SChan $ unwrapABnd x, SChan $ unwrapABnd y, SChan $ unwrapABnd z)
+                return ( Just $ SChan $ unwrapABnd x
+                       , Just $ SChan $ unwrapABnd y
+                       , Just $ SChan $ unwrapABnd z
+                       )
+            -- see hack in dead code elimination
+            Destruct [Direct ctrl, Direct size] ->
+              return ( Nothing
+                     , Just $ SChan $ unwrapABnd ctrl
+                     , Just $ SChan $ unwrapABnd size
+                     )
+            Destruct [Direct ds] ->
+              return ( Just $ SChan $ unwrapABnd ds
+                     , Nothing
+                     , Nothing
+                     )
             _ -> invariantBroken $ "SMap must have 3 outputs:\n" <> show e
     return $ SMap $ Ops.smapFun input dataOut ctrlOut collectOut
 

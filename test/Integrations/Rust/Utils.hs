@@ -32,7 +32,7 @@ import qualified Data.ByteString.Lazy.Char8 as L
 
 -- TODO turn this into a parameter for a particular test
 debug :: Bool
-debug = True
+debug = False
 
 renderRustCode :: SourceFile Span -> L.ByteString
 renderRustCode =
@@ -49,9 +49,9 @@ withRec :: Options -> Options
 withRec d = d & transformRecursiveFunctions .~ True
 
 debugStageHandling :: StageHandling
-debugStageHandling = 
+debugStageHandling =
     intoStageHandling DumpStdOut
-        $ Just 
+        $ Just
             [ Stage resolvedAlang True False
             , Stage coreDflang True False
             , Stage coreAlang True False
