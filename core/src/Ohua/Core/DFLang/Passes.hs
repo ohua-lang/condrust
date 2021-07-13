@@ -90,14 +90,16 @@ insertDispatch (DFLang.Let app cont) =
     (PureDFFun outputs fn inputs)
       | fn == DFRef.smapFun ->
         let sizeChan = last $ outBnds outputs
-            -- run the rename
-            (cont', sizeChannels) = renameChannels cont sizeChan []
-         in -- if length of bindings is 1, don't do anything, else, change the outputs and return them
-            if length sizeChannels == 1
-              then DFLang.Let app <$> insertDispatch cont
-              else
-                let outputs' = replaceSizeWithDispatch outputs sizeChannels
-                 in DFLang.Let (PureDFFun outputs' fn inputs) <$> insertDispatch cont'
+        in do
+             -- run the rename
+          (cont', sizeChannels) <- renameChannels cont sizeChan []
+          -- if length of bindings is 1, don't do anything, else, change the outputs and return t
+          if length sizeChannels == 1
+          then DFLang.Let app <$> insertDispatch cont
+          else do
+            outputs' <- replaceSizeWithDispatch outputs sizeChannels
+            cont'' <- insertDispatch cont'
+            return $ DFLang.Let (PureDFFun outputs' fn inputs) cont''
     _ -> DFLang.Let app <$> insertDispatch cont
   where
     -- takes the smap body, the binding to the size channel, whether the binding has been seen before and the replaced bindings
@@ -105,36 +107,35 @@ insertDispatch (DFLang.Let app cont) =
       NormalizedDFExpr ty ->
       Binding ->
       [ABinding 'Data] ->
-      (m (NormalizedDFExpr ty), [ABinding 'Data])
+      m (NormalizedDFExpr ty, [ABinding 'Data])
     renameChannels e@(DFLang.Let app cont) bnd newBinds =
       case app of
         (PureDFFun out fn inp)
           -- end condition
-          | fn == DFRef.collect -> (e, newBinds)
+          | fn == DFRef.collect -> pure (e, newBinds)
           -- TODO(feliix42): Do we need to catch multiple occurences of the same size channel here? Currently that can't happen, but who knows what will happen.
           | otherwise ->
             if elem bnd $ extractBndsFromInputs $ NE.toList inp
               then -- rewrite
 
                 if length newBinds == 0
-                  then
-                    let (cont', newBinds') = renameChannels cont bnd [DataBinding bnd]
-                     in ((DFLang.Let app <$> cont'), newBinds')
-                  else
-                    let -- create a new binding
-                        newBnd = undefined
-                        inp' = map (replaceInput bnd newBnd) inp
-                        newBinds' = newBnd : newBinds
-                        (cont', newBinds'') = renameChannels cont bnd newBinds'
-                     in ((DFLang.Let (PureDFFun out fn inp') cont'), newBinds'')
-              else -- no match, continue
-
-                let (cont', newBinds') = renameChannels cont bnd newBinds
-                 in ((DFLang.Let app <$> cont'), newBinds')
+                  then do
+                    (cont', newBinds') <- renameChannels cont bnd [DataBinding bnd]
+                    return (DFLang.Let app cont', newBinds')
+                  else do
+                  -- create a new binding
+                    newBnd <- generateBindingWith "prefix"
+                    let inp' = map (replaceInput bnd newBnd) inp
+                    let newBinds' = newBnd : newBinds
+                    (cont', newBinds'') <- renameChannels cont bnd newBinds'
+                    return (DFLang.Let (PureDFFun out fn inp') cont', newBinds'')
+              else do -- no match, continue
+                (cont', newBinds') <- renameChannels cont bnd newBinds
+                return (DFLang.Let app cont', newBinds')
         -- TODO(feliix42): Actually handle other function types if necessary
-        otherwise ->
-          let (cont', newBinds') = renameChannels cont bnd newBinds
-           in ((DFLang.Let app <$> cont'), newBinds')
+        otherwise -> do
+          (cont', newBinds') <- renameChannels cont bnd newBinds
+          return (DFLang.Let app cont', newBinds')
     renameChannels (DFLang.Var _) _ _ = throwError $ "Invariant broken: Found an smap not delimited by a collect"
 
     replaceInput :: Binding -> ABinding 'Data -> DFVar 'Data a -> DFVar 'Data a
@@ -144,12 +145,12 @@ insertDispatch (DFLang.Let app cont) =
         | otherwise -> var
       (DFEnvVar _ _) -> var
 
-    replaceSizeWithDispatch :: OutData b -> [ABinding 'Data] -> OutData b
+    replaceSizeWithDispatch :: OutData b -> [ABinding 'Data] -> m (OutData b)
     replaceSizeWithDispatch (Destruct binds) newBinds =
       let lst' = NE.init binds
-       in Destruct $ NEE.snoc (NE.fromList lst') $ Dispatch $ NE.fromList newBinds
+       in pure $ Destruct $ NEE.snoc (NE.fromList lst') $ Dispatch $ NE.fromList newBinds
     -- TODO(feliix42): @Sebastian how do you throw the error correctly here?
-    replaceSizeWithDispatch _ _ = error $ "Found unexpected OutData format in smap output."
+    replaceSizeWithDispatch _ _ = throwError "Found unexpected OutData format in smap output."
 insertDispatch v = pure v
 
 -- | This pass makes sure no function application is using a binding that has not been defined.
