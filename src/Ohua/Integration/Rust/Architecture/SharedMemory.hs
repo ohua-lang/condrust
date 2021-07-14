@@ -10,6 +10,7 @@ import Ohua.Integration.Lang hiding (Lang)
 import Ohua.Integration.Architecture
 import Ohua.Integration.Rust.Types as RT
 import Ohua.Integration.Rust.Architecture.Common as C
+import Ohua.Integration.Rust.Architecture.SharedMemory.Transformations.LoopParallelism
 
 import Language.Rust.Syntax as Rust hiding (Rust)
 import Language.Rust.Quote
@@ -78,3 +79,7 @@ instance Architecture (Architectures 'SharedMemory) where
                     taskRunStmt = () <$ [stmt| run(tasks); |]
                     program = toList chans ++ [taskInitStmt] ++ taskStmts ++ [taskRunStmt]
                 in Block (program ++ [NoSemi resultExpr noSpan]) Normal noSpan
+
+
+instance Transform (Architectures 'SharedMemory) where
+  transformTaskExpr = lowerTaskPar

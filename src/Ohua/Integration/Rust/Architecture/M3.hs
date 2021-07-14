@@ -125,3 +125,6 @@ instance Architecture (Architectures 'M3) where
                 in Block (program ++ [NoSemi resultExpr noSpan]) Normal noSpan
 
 unwrapMC inst = MethodCall [] inst (mkIdent "unwrap") Nothing [] noSpan
+
+
+instance Transform (Architectures 'M3)

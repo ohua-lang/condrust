@@ -28,6 +28,7 @@ type FullIntegration lang arch =
   , F.AlgoSrc (Language lang) ~ B.AlgoSrc (Language lang)
   , B.Architecture (Architectures arch)
   , B.Lang (Architectures arch) ~ (Language lang)
+  , B.Transform (Architectures arch)
   )
 
 type Compiler m a = (forall lang arch.
@@ -53,8 +54,10 @@ instance Apply Integration where
 
 definedIntegrations :: [(FileExtension, ArchId, Description, Integration)]
 definedIntegrations =
-    [ (".rs", "sm", "Rust integration",
-       I SRust SSharedMemory $ Just dataPar)
+    [ (".rs", "sm", "Rust integration"
+      , I SRust SSharedMemory Nothing
+      --, I SRust SSharedMemory $ Just dataPar
+      )
     , (".rs", "m3", "Rust integration", I SRust SM3 Nothing)]
 
 runIntegration :: CompM m

@@ -7,6 +7,8 @@ import Ohua.Core.DFLang.Lang
 import Ohua.Core.DFLang.PPrint (prettyExprM)
 import qualified Ohua.Core.DFLang.Refs as DFRef
 
+import qualified Ohua.Backend.Lang as TCLang
+
 import Ohua.Types.Reference
 
 import qualified Data.List as L
@@ -267,3 +269,7 @@ findSourceAndApply e bnd f = go e
       invariantBroken $
       "Expression is not well-scoped! Binding `" <> show bnd <> "` not found."
 
+
+
+lowerTaskPar :: lang -> arch -> TCLang.TaskExpr ty -> TCLang.TaskExpr ty
+lowerTaskPar = undefined
