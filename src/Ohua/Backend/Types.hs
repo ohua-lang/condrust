@@ -25,21 +25,21 @@ import qualified Data.ByteString.Lazy.Char8 as L
 -- deriving instance (Show chan, Show retChan, Show expr) => Show (TCProgram chan retChan expr)
 -- deriving instance (Eq chan, Eq retChan) => Eq (TCProgram chan retChan expr)
 
-data TCProgram chan retChan expr = 
-    TCProgram 
+data TCProgram chan retChan expr =
+    TCProgram
         (NonEmpty chan) -- ^ Channels
         retChan -- ^ Receive on result channel
         [expr] -- TODO (NonEmpty expr) -- ^ Tasks
 
-data Program chan retChan expr ty = 
+data Program chan retChan expr ty =
     Program
         (NonEmpty chan)
         retChan
         [FullTask ty expr]
 
-data FullTask ty expr = 
-    FullTask 
-        [Com 'Send ty] 
+data FullTask ty expr =
+    FullTask
+        [Com 'Send ty]
         [Com 'Recv ty] -- TODO Do not unwrap the binding to understand where state comes from!
         expr
     deriving (Functor)
@@ -58,7 +58,7 @@ class Integration lang where
     convertExpr :: (Architecture arch, Lang arch ~ lang) => arch -> TaskExpr (Type lang) -> Expr lang
 
     -- TODO I believe now that this function does not belong into the interface anymore!
-    lower :: 
+    lower ::
         ( CompM m
         , Architecture arch
         , Lang arch ~ lang
@@ -77,7 +77,7 @@ class Architecture arch where
     convertRecv :: arch -> Com 'Recv (Type (Lang arch)) -> Expr (Lang arch)
     convertSend:: arch -> Com 'Send (Type (Lang arch)) -> Expr (Lang arch)
 
-    build :: 
+    build ::
         ( Integration (Lang arch)
         , lang ~ (Lang arch)
         , ty ~ (Type (Lang arch))
@@ -88,7 +88,7 @@ class Architecture arch where
         -> Namespace (Program (Chan arch) expr (Task lang) ty) (AlgoSrc lang)
         -> m (Namespace (Program (Chan arch) expr (ATask arch) ty) (AlgoSrc lang))
 
-    serialize :: 
+    serialize ::
         ( CompM m
         , Integration (Lang arch)
         , lang ~ (Lang arch)
@@ -99,3 +99,15 @@ class Architecture arch where
         -> NS lang
         -> Namespace (Program (Chan arch) expr (ATask arch) ty) (AlgoSrc lang)
         -> m (NonEmpty (FilePath, L.ByteString))
+
+
+class (Architecture arch) => Transform arch where
+  transformTaskExpr :: ( Lang arch ~ lang
+                       , Integration lang
+                       , ty ~ Type lang
+                       )
+                    => NS lang
+                    -> arch
+                    -> TaskExpr ty
+                    -> TaskExpr ty
+  transformTaskExpr _ _ = id

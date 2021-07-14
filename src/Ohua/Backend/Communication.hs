@@ -6,33 +6,33 @@ import Ohua.Backend.Lang
 import Ohua.Backend.Types
 
 
-lowerRetCom :: 
+lowerRetCom ::
         ( Architecture arch
         , ty ~ Type (Lang arch)
         , task ~ (Task (Lang arch))
         , retChan ~ Expr (Lang arch))
-        => arch 
+        => arch
         -> Namespace (Program (Channel ty) (Com 'Recv ty) task ty) anno
         -> Namespace (Program (Channel ty) retChan task ty) anno
 lowerRetCom arch ns = ns & algos %~ map (\algo -> algo & algoCode %~ convertCommunication)
-    where 
-        convertCommunication (Program chans retChan tasks) = 
+    where
+        convertCommunication (Program chans retChan tasks) =
             Program
                 chans
                 (convertRecv arch retChan)
                 tasks
 
-lowerChannels :: 
+lowerChannels ::
         ( Architecture arch
         , ty ~ Type (Lang arch)
         , task ~ (Task (Lang arch))
         , retChan ~ Expr (Lang arch))
-        => arch 
+        => arch
         -> Namespace (Program (Channel ty) retChan task ty) anno
         -> Namespace (Program (Chan arch) retChan task ty) anno
 lowerChannels arch ns = ns & algos %~ map (\algo -> algo & algoCode %~ convert)
-    where 
-        convert (Program chans retChan tasks) = 
+    where
+        convert (Program chans retChan tasks) =
             Program
                 (map (convertChannel arch) chans)
                 retChan
@@ -42,11 +42,11 @@ intoProgram :: Namespace (TCProgram chan retChan (TaskExpr ty)) anno
             -> Namespace (Program chan retChan (TaskExpr ty) ty) anno
 intoProgram ns = ns & algos %~ map (\algo -> algo & algoCode %~ convert)
     where
-        convert (TCProgram chans retChan tasks) = 
+        convert (TCProgram chans retChan tasks) =
             Program chans retChan (map createFullTask tasks)
 
-        createFullTask taskExpr = 
-            FullTask 
+        createFullTask taskExpr =
+            FullTask
                 [s | SendData s <- universe taskExpr]
                 [r | ReceiveData r <- universe taskExpr]
                 taskExpr
