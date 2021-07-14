@@ -21,6 +21,7 @@ import Ohua.Core.ALang.Lang as ALang
 import Ohua.Core.ALang.Util
 import Ohua.Core.DFLang.Lang as DFLang hiding (length)
 import Ohua.Core.DFLang.Passes.DeadCodeElimination (eliminate)
+import Ohua.Core.DFLang.Passes.DispatchInsertion (insertDispatch)
 import Ohua.Core.DFLang.Refs as DFRef
 import Ohua.Core.Prelude
 
@@ -28,7 +29,7 @@ runCorePasses :: (MonadOhua m) => NormalizedExpr ty -> m (NormalizedDFExpr ty)
 runCorePasses = removeNth
 
 finalPasses :: (MonadOhua m) => NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
-finalPasses = eliminate
+finalPasses = eliminate >>= insertDispatch
 
 -- I really should not have to do this in the first place.
 -- All transformations that need an Nth node because they introduce functions whose output
@@ -83,75 +84,6 @@ removeNth expr = do
         (Direct $ bndFun out)
         (Destruct . NE.map (Direct . bndFun . snd) . NEE.sortOn fst)
         . HM.lookup out
-
--- insertDispatch :: forall ty m. MonadOhua m => NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
--- insertDispatch (DFLang.Let app cont) =
---   case app of
---     (PureDFFun outputs fn inputs)
---       | fn == DFRef.smapFun ->
---         let sizeChan = last $ outBnds outputs
---         in do
---              -- run the rename
---           (cont', sizeChannels) <- renameChannels cont sizeChan []
---           -- if length of bindings is 1, don't do anything, else, change the outputs and return t
---           if length sizeChannels == 1
---           then DFLang.Let app <$> insertDispatch cont
---           else do
---             outputs' <- replaceSizeWithDispatch outputs sizeChannels
---             cont'' <- insertDispatch cont'
---             return $ DFLang.Let (PureDFFun outputs' fn inputs) cont''
---     _ -> DFLang.Let app <$> insertDispatch cont
---   where
---     -- takes the smap body, the binding to the size channel, whether the binding has been seen before and the replaced bindings
---     renameChannels ::
---       NormalizedDFExpr ty ->
---       Binding ->
---       [ABinding 'Data] ->
---       m (NormalizedDFExpr ty, [ABinding 'Data])
---     renameChannels e@(DFLang.Let app cont) bnd newBinds =
---       case app of
---         (PureDFFun out fn inp)
---           -- end condition
---           | fn == DFRef.collect -> pure (e, newBinds)
---           -- TODO(feliix42): Do we need to catch multiple occurences of the same size channel here? Currently that can't happen, but who knows what will happen.
---           | otherwise ->
---             if elem bnd $ extractBndsFromInputs $ NE.toList inp
---               then -- rewrite
-
---                 if length newBinds == 0
---                   then do
---                     (cont', newBinds') <- renameChannels cont bnd [DataBinding bnd]
---                     return (DFLang.Let app cont', newBinds')
---                   else do
---                   -- create a new binding
---                     newBnd <- generateBindingWith "prefix"
---                     let inp' = map (replaceInput bnd newBnd) inp
---                     let newBinds' = newBnd : newBinds
---                     (cont', newBinds'') <- renameChannels cont bnd newBinds'
---                     return (DFLang.Let (PureDFFun out fn inp') cont', newBinds'')
---               else do -- no match, continue
---                 (cont', newBinds') <- renameChannels cont bnd newBinds
---                 return (DFLang.Let app cont', newBinds')
---         -- TODO(feliix42): Actually handle other function types if necessary
---         otherwise -> do
---           (cont', newBinds') <- renameChannels cont bnd newBinds
---           return (DFLang.Let app cont', newBinds')
---     renameChannels (DFLang.Var _) _ _ = throwError $ "Invariant broken: Found an smap not delimited by a collect"
-
---     replaceInput :: Binding -> ABinding 'Data -> DFVar 'Data a -> DFVar 'Data a
---     replaceInput old newBind var = case var of
---       (DFVar t bnd)
---         | unwrapABnd bnd == old -> (DFVar t newBind)
---         | otherwise -> var
---       (DFEnvVar _ _) -> var
-
---     replaceSizeWithDispatch :: OutData b -> [ABinding 'Data] -> m (OutData b)
---     replaceSizeWithDispatch (Destruct binds) newBinds =
---       let lst' = NE.init binds
---        in pure $ Destruct $ NEE.snoc (NE.fromList lst') $ Dispatch $ NE.fromList newBinds
---     -- TODO(feliix42): @Sebastian how do you throw the error correctly here?
---     replaceSizeWithDispatch _ _ = throwError "Found unexpected OutData format in smap output."
--- insertDispatch v = pure v
 
 -- | This pass makes sure no function application is using a binding that has not been defined.
 --   TODO: This is once more something that we should enforce via the type system or Liquid Haskell!
