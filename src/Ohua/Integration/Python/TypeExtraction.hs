@@ -4,7 +4,7 @@ module Ohua.Integration.Python.TypeExtraction where
 import Ohua.Prelude
 import Ohua.Integration.Python.Util
 
-import Language.Python.Common.AST as PyAST
+import Language.Python.Common.AST 
 import Language.Python.Common.SrcLocation
 
 

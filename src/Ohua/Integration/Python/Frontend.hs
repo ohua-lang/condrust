@@ -15,21 +15,26 @@ import Ohua.Integration.Python.TypeExtraction
 import qualified Language.Python.Common.AST as Py
 import Language.Python.Common (SrcSpan)
 
+import qualified Data.HashMap.Lazy as HM
+import qualified Data.HashSet as HS
+import qualified Data.List.NonEmpty as NE
+
+
+type PythonNamespace = Namespace (FrLang.Expr (PythonArgType SrcSpan)) (Py.Statement SrcSpan)
+
 instance Integration (Language 'Python) where
     type NS (Language 'Python) = Module
     type Type (Language 'Python) =  PythonArgType SrcSpan
     type AlgoSrc (Language 'Python) = Py.Statement SrcSpan
 
-type ConcreteNamespace = Namespace (FrLang.Expr (PythonArgType SrcSpan)) (Py.Statement SrcSpan)
-
-loadNs :: CompM m => Language 'Python -> FilePath -> m (Module, ConcreteNamespace)
+loadNs :: CompM m => Language 'Python -> FilePath -> m (Module, PythonNamespace)
 loadNs _ srcFile = do
         mod <- liftIO $ load srcFile
         ns <- extractNs mod
         return (Module srcFile mod, ns)
         where
-            extractNs :: CompM m => Py.Module SrcSpan -> m ConcreteNamespace
-            extractNs statements = do
+            extractNs :: CompM m => Py.Module SrcSpan -> m PythonNamespace
+            extractNs (Py.Module [statements]) = do
                 imports <- concat . catMaybes <$>
                         mapM 
                             (\case 
@@ -55,16 +60,27 @@ loadNs _ srcFile = do
             extractImports::CompM m => [Binding] -> [Py.ImportItem a] -> m (NonEmpty Import)
             extractImports = undefined 
 
+loadTypes :: CompM m => Language 'Python -> 
+                Module -> 
+                PythonNamespace -> 
+                m PythonNamespace
+loadTypes lang (Module filepath pymodule) ohuaNS = do
+    -- Note to me: '^.' is a lens operator to focus 'algos' in ohuaNs
+    filesAndPaths <- concat <$> mapM funsForAlgo (ohuaNS^.algos)
+    let filesAndPaths' = map (first convertOwn) filesAndPaths
+    fun_types <- load $ concatMap fst filesAndPaths'
+    types' <- HM.fromList <$> mapM (verifyAndRegister typez) filesAndPaths'
+    updateExprs ohuaNS (transformM (assignTypes types'))
+    where
+        assignTypes :: CompM m => FunTypes -> FrLang.Expr (PythonArgType SrcSpan) -> m (FrLang.Expr (PythonArgType SrcSpan))
+        --TODO: 
+        assignTypes typez = undefined 
 
---TODO: Make Language Python an instance of Frontend.Integration
-{-
-class Integration lang where
-    type NS lang :: *
-    type Type lang :: *
-    type AlgoSrc lang :: *
+        convertOwn :: [NSRef] -> [NSRef]
+        convertOwn [] = [filePathToNsRef filepath]
+        convertOwn n = n
 
-    loadNs :: CompM m => 
-        lang -> FilePath -> m (NS lang, Namespace (Expr (Type lang)) (AlgoSrc lang))
-    loadTypes :: CompM m => 
-        lang -> NS lang -> Namespace (Expr (Type lang)) (AlgoSrc lang) -> m (Namespace (Expr (Type lang)) (AlgoSrc lang))
--}
+        funsForAlgo :: CompM m => Algo (FrLang.Expr (PythonArgType SrcSpan)) (Py.Statement SrcSpan) -> m [([NSRef], QualifiedBinding)]
+        funsForAlgo (Algo _name code annotation) = do
+            return []
+            
