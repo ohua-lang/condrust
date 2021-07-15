@@ -38,15 +38,15 @@ foldMapOutData expr (Direct bnd@(DataBinding _)) = do
   return (cont', (Dispatch $ NE.fromList bnds'))
 foldMapOutData expr ob@(Direct (StateBinding _)) = return (expr, ob)
 foldMapOutData expr (Destruct bnds) = do
-  (cont', bnds') <- foldr g bnds (expr, [])
+  (cont', bnds') <- foldrM g (expr, []) bnds
   return (cont', (Destruct $ NE.fromList bnds'))
   where
-    g :: (NormalizedDFExpr ty, [OutData b]) -> OutData b -> m (NormalizedDFExpr ty, [OutData b])
-    g (exp, currentBinds) bnd = do
+    g :: OutData b -> (NormalizedDFExpr ty, [OutData b]) -> m (NormalizedDFExpr ty, [OutData b])
+    g bnd (exp, currentBinds) = do
       (expr', currentBinds') <- foldMapOutData exp bnd
       return (expr', (currentBinds' : currentBinds))
 foldMapOutData expr (Dispatch bnds@((DataBinding _):|_)) = do
-  (cont', bnds') <- foldl f (expr, []) bnds
+  (cont', bnds') <- foldM f (expr, []) bnds
   return (cont', (Dispatch $ NE.fromList bnds'))
   where
     f :: (NormalizedDFExpr ty, [ABinding 'Data]) -> ABinding 'Data -> m (NormalizedDFExpr ty, [ABinding 'Data])
