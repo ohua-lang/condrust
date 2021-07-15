@@ -53,6 +53,7 @@ foldMapOutData expr (Dispatch bnds@((DataBinding _):|_)) = do
     f (exp, currentBinds) bnd = do
       (expr', currentBinds') <- renameChannels (exp, []) (unwrapABnd bnd)
       return (expr', (currentBinds ++ currentBinds'))
+foldMapOutData expr ob@(Dispatch ((StateBinding _):|_)) = return (expr, ob)
 
 
 -- takes the smap body, the binding to the size channel, whether the binding has been seen before and the replaced bindings
@@ -88,7 +89,7 @@ renameChannels (e@(Let app cont), newBinds) bnd =
             (cont', newBinds') <- renameChannels (cont, newBinds) bnd
             return (Let app cont', newBinds')
     -- TODO(feliix42): Actually handle other function types if necessary
-    otherwise -> do
+    _ -> do
       (cont', newBinds') <- renameChannels (cont, newBinds) bnd
       return (Let app cont', newBinds')
 renameChannels ((Var _), _) _ = throwError $ "Invariant broken: Found an smap not delimited by a collect"
