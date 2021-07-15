@@ -16,8 +16,8 @@ import Ohua.Backend.Operators.Common
 
 type Input = Com 'Recv
 type DataOut ty = Maybe (Com 'Channel ty)
-type CtrlOut ty = Maybe (Com 'Channel ty)
-type CollectOut ty = Maybe (Com 'Channel ty)
+type CtrlOut ty = [Com 'Channel ty]
+type CollectOut ty = [Com 'Channel ty]
 
 type SizeInput = Com 'Recv
 type DataInput = Com 'Recv
@@ -58,8 +58,8 @@ gen' (SMap input dataOut ctrlOut collectOut) =
     -- known size
     (
       Let "size" (Size "data") $
-      f collectOut (\c -> Stmt $ SendData $ SSend c "size") $
-      f ctrlOut (\c -> Let "ctrl" (Tuple (Right $ BoolLit True) (Left "size")) .
+      g collectOut (\c -> Stmt $ SendData $ SSend c "size") $
+      g ctrlOut (\c -> Let "ctrl" (Tuple (Right $ BoolLit True) (Left "size")) .
                        Stmt (SendData $ SSend c "ctrl") ) $
       f dataOut (\dOut -> ForEach "d" "data" .
                           Stmt (SendData $ SSend dOut "d"))
@@ -71,12 +71,12 @@ gen' (SMap input dataOut ctrlOut collectOut) =
       Stmt
       (ForEach "d" "data" $
         f dataOut (\dOut -> Stmt $ SendData $ SSend dOut "d") $
-        f ctrlOut
+        g ctrlOut
         (\c -> Let "ctrl" (Tuple (Right $ BoolLit False) (Right $ NumericLit 1)) .
                Stmt (SendData $ SSend c "ctrl"))
         $ Increment "size") $
-      f collectOut (\c -> Stmt $ SendData $ SSend c "size") $
-      f ctrlOut (\c -> Let "ctrl" (Tuple (Right $ BoolLit True) (Right $ NumericLit 0)) .
+      g collectOut (\c -> Stmt $ SendData $ SSend c "size") $
+      g ctrlOut (\c -> Let "ctrl" (Tuple (Right $ BoolLit True) (Right $ NumericLit 0)) .
                          Stmt (SendData $ SSend c "ctrl"))
       $ Lit UnitLit
     )
@@ -84,6 +84,9 @@ gen' (SMap input dataOut ctrlOut collectOut) =
     f o e cont = case o of
                    Just c -> (e c) cont
                    Nothing -> cont
+    g o e cont = case o of
+                   [] -> cont
+                   (x:xs) -> (e x) (g xs e cont)
 
 gen' (Collect dataInput sizeInput collectedOutput) =
   Let "num" (ReceiveData sizeInput) $
