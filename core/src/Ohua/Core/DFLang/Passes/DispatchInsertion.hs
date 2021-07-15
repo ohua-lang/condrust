@@ -38,7 +38,7 @@ foldMapOutData expr (Direct bnd@(DataBinding _)) = do
   return (cont', (Dispatch $ NE.fromList bnds'))
 foldMapOutData expr ob@(Direct (StateBinding _)) = return (expr, ob)
 foldMapOutData expr (Destruct bnds) = do
-  (cont', bnds') <- foldl g (expr, []) bnds
+  (cont', bnds') <- foldr g (expr, []) bnds
   return (cont', (Destruct $ NE.fromList bnds'))
   where
     g :: m (NormalizedDFExpr ty, [OutData b]) -> OutData b -> m (NormalizedDFExpr ty, [OutData b])
