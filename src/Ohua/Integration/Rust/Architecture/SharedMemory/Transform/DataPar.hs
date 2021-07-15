@@ -70,6 +70,12 @@ pub fn create_runtime(threadcount: usize) -> Arc<Runtime> {
 |]
 
 
+collectFuture = [sourceFile|
+ pub fn collect_future<T>(future : Receiver<T>) -> T {
+   future.recv().unwrap()
+}
+|]
+
 
 collectWork = [sourceFile|
  pub fn collect_work<T>(tokio_data: (Arc<Runtime>, Vec<Receiver<Vec<T>>>)) -> Vec<T> {

@@ -129,7 +129,7 @@ spawnFutures :: QualifiedBinding
 spawnFutures = "ohua.lang/spawn_futures"
 
 joinFutures :: QualifiedBinding
-joinFutures = "ohua.lang/join_futures"
+joinFutures = "ohua.lang/collectFuture"
 
 liftPureFunctions :: forall ty.
                      NormalizedDFExpr ty -> OhuaM (NormalizedDFExpr ty)
@@ -179,7 +179,7 @@ rewrite (SMap smapF body collectF) = do
     rewriteBody :: NormalizedDFExpr ty -> OhuaM (NormalizedDFExpr ty)
     rewriteBody (Let fun@(PureDFFun _ bnd _) cont)
       | not (isIgnorable bnd) =
-          liftFunction (findSourceAndApply $ Let smapF body) fun cont
+          liftFunction fun cont
     rewriteBody e = pure e
 
 appendExpr :: NormalizedDFExpr ty
@@ -193,90 +193,42 @@ isIgnorable (QualifiedBinding ["ohua","lang"] _) = True
 isIgnorable _ = False
 
 liftFunction :: forall ty.
-                (forall a.Binding -> (forall c.DFApp c ty -> OhuaM a) -> OhuaM a)
-             -> DFApp 'Fun ty
+                DFApp 'Fun ty
              -> NormalizedDFExpr ty
              -> OhuaM (NormalizedDFExpr ty)
-liftFunction search (PureDFFun out fun inp) cont = do
+liftFunction (PureDFFun out fun inp) cont = do
   futuresBnd <- DataBinding <$> generateBindingWith "futures"
   outBound <- handleOutputSide futuresBnd
-  (inBoundBnds, inBound) <- handleInbounds
-  let spawned = handleFun inBoundBnds futuresBnd
-  return $ inBound $ Let spawned outBound
+  let spawned = handleFun futuresBnd
+  return $ Let spawned outBound
   where
     handleOutputSide :: ABinding 'Data -> OhuaM (NormalizedDFExpr ty)
     handleOutputSide futuresBnd = do
-      resultsBnd <- DataBinding <$> generateBindingWith "results"
-      sizeBnd    <- DataBinding <$> generateBindingWith "size_unused"
-      ctrlBnd    <- DataBinding <$> generateBindingWith "ctrl_unused"
-      smapOut    <- case out of
-                      Direct abnd -> pure $ DataBinding $ unwrapABnd abnd
-                      _ -> unsupported "destructuring and dispatch on lifted function"
       return $
         Let
         (PureDFFun
-          (Direct resultsBnd)
+          out
           joinFutures
           (DFVar TypeVar futuresBnd  :|[])
-          ) $
-        Let
-        (PureDFFun
-          (Destruct $ Direct smapOut :| [Direct ctrlBnd, Direct sizeBnd] )
-          DFRef.smapFun
-          (DFVar TypeVar resultsBnd  :|[])
           )
         cont
 
-    handleFun :: NonEmpty (DFVar 'Data ty) -> ABinding 'Data -> DFApp 'Fun ty
-    handleFun inBounds futuresBnd =
+    handleFun :: ABinding 'Data -> DFApp 'Fun ty
+    handleFun futuresBnd =
       PureDFFun
       (Direct futuresBnd)
       spawnFutures
-      (DFEnvVar TypeVar (FunRefLit $ FunRef fun Nothing Untyped) NE.<| inBounds)
+      (DFEnvVar TypeVar (FunRefLit $ FunRef fun Nothing Untyped) NE.<| inp)
 
-    handleInbounds :: OhuaM ( NonEmpty (DFVar 'Data ty)
-                            , NormalizedDFExpr ty -> NormalizedDFExpr ty)
-    handleInbounds = do
-      (inBoundBnds, inBounds) <- NE.unzip <$> mapM handleInbound inp
-      return ( inBoundBnds
-             , \c -> foldr Let c $ catMaybes $ NE.toList inBounds
-             )
 
-    handleInbound :: DFVar 'Data ty
-                  -> OhuaM (DFVar 'Data ty, Maybe (DFApp 'Fun ty))
-    handleInbound v@(DFVar _ty bnd) = do
-      search (unwrapABnd bnd) $ \src ->
-        case src of
-          -- skip the SMap. (garbage collected by dead code elimination)
-          (PureDFFun _ source input) | source == DFRef.smapFun -> pure (head input, Nothing)
-          -- skip the Control. (garbage collected by dead code elimination)
-          (PureDFFun _ source input) | source == DFRef.ctrl -> pure (last input, Nothing)
-          -- collect.
-          _ -> do
-            collectBnd <- DataBinding <$> generateBindingWith "data_par_collect"
-            return ( DFVar TypeVar collectBnd
-                   , Just $
-                     PureDFFun
-                     (Direct collectBnd)
-                     DFRef.collect
-                     $ v:|[]
-                   )
-    handleInbound v = pure (v, Nothing)
-
--- assumes SSA
-findSourceAndApply ::NormalizedDFExpr ty
-                   -> Binding
-                   -> (forall c.DFApp c ty -> OhuaM a)
-                   -> OhuaM a
-findSourceAndApply e bnd f = go e
-  where
-    go (Let app _)
-      | HS.member bnd (HS.fromList $ outBindings app) = f app
-    go (Let _ cont) = go cont
-    go _ =
-      invariantBroken $
-      "Expression is not well-scoped! Binding `" <> show bnd <> "` not found."
-
+-- TODO
+-- DFLang transformations:
+-- 1. create_runtime is just as a single node in the graph that gets executed once.
+--    it dispatches its output to the spawn! (do we already fuse such things due to microservices???)
+-- 2. don't collect any data! `spawn` wants to just issue a single call, so do it already!
+--    there is absolutely no need to collect the data for the calls. `spawn` is just
+--    a function in the loop!
+-- 3. Same for collectWork!
 
 -- |
 -- All that the language and backend requires to support this transformations are
@@ -284,7 +236,16 @@ findSourceAndApply e bnd f = go e
 lowerTaskPar :: lang -> arch -> B.TaskExpr ty -> B.TaskExpr ty
 lowerTaskPar _ _ = cata $
   \case
-    (B.ApplyF (B.Stateless qb args)) | qb == spawnFutures -> undefined -- TODO
-    (B.ApplyF (B.Stateless qb args)) | qb == joinFutures -> undefined -- TODO
+    -- we need to do this on the Rust level because
+    -- it would be hard to construct this call.
+    e@(B.ApplyF (B.Stateless qb args))
+      | qb == spawnFutures -> embed e
+      -- there is nothing to be done here.
+      -- because we can implement this function easily in Rust.
+    e@(B.ApplyF (B.Stateless qb args))
+      | qb == joinFutures -> embed e
     e -> embed e
 
+-- TODO
+-- There is a transformation missing that deals entirely with the take_n operation and
+-- is dedicated to irregular applications to limit the number of retries.
