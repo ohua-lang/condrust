@@ -1,5 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
-module Ohua.Integration.Rust.Architecture.SharedMemory.Transformations.LoopParallelism where
+module Ohua.Integration.Transform.DataPar where
 
 import Ohua.Core.Prelude hiding (length, rewrite)
 import Ohua.Core.Compile.Configuration
@@ -7,13 +7,15 @@ import Ohua.Core.DFLang.Lang
 import Ohua.Core.DFLang.PPrint (prettyExprM)
 import qualified Ohua.Core.DFLang.Refs as DFRef
 
-import qualified Ohua.Backend.Lang as TCLang
+import qualified Ohua.Backend.Lang as B
 
 import Ohua.Types.Reference
 
 import qualified Data.List as L
 import qualified Data.List.NonEmpty as NE
 import qualified Data.HashSet as HS
+import Data.Functor.Foldable (cata, embed)
+
 
 dataPar :: CustomPasses
 dataPar = CustomPasses pure pure liftPureFunctions
@@ -123,6 +125,12 @@ data SMap ty =
   -- | collect
   (DFApp 'Fun ty)
 
+spawnFutures :: QualifiedBinding
+spawnFutures = "ohua.lang/spawn_futures"
+
+joinFutures :: QualifiedBinding
+joinFutures = "ohua.lang/join_futures"
+
 liftPureFunctions :: forall ty.
                      NormalizedDFExpr ty -> OhuaM (NormalizedDFExpr ty)
 liftPureFunctions = rewriteSMap
@@ -208,7 +216,7 @@ liftFunction search (PureDFFun out fun inp) cont = do
         Let
         (PureDFFun
           (Direct resultsBnd)
-          "ohua.lang/join_futures"
+          joinFutures
           (DFVar TypeVar futuresBnd  :|[])
           ) $
         Let
@@ -223,7 +231,7 @@ liftFunction search (PureDFFun out fun inp) cont = do
     handleFun inBounds futuresBnd =
       PureDFFun
       (Direct futuresBnd)
-      "ohua.lang/spawn_futures"
+      spawnFutures
       (DFEnvVar TypeVar (FunRefLit $ FunRef fun Nothing Untyped) NE.<| inBounds)
 
     handleInbounds :: OhuaM ( NonEmpty (DFVar 'Data ty)
@@ -270,6 +278,13 @@ findSourceAndApply e bnd f = go e
       "Expression is not well-scoped! Binding `" <> show bnd <> "` not found."
 
 
+-- |
+-- All that the language and backend requires to support this transformations are
+-- the implementations of the below functions.
+lowerTaskPar :: lang -> arch -> B.TaskExpr ty -> B.TaskExpr ty
+lowerTaskPar _ _ = cata $
+  \case
+    (B.ApplyF (B.Stateless qb args)) | qb == spawnFutures -> undefined -- TODO
+    (B.ApplyF (B.Stateless qb args)) | qb == joinFutures -> undefined -- TODO
+    e -> embed e
 
-lowerTaskPar :: lang -> arch -> TCLang.TaskExpr ty -> TCLang.TaskExpr ty
-lowerTaskPar = undefined

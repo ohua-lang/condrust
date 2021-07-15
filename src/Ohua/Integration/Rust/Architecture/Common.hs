@@ -31,9 +31,9 @@ serialize (Module path (SourceFile modName atts items)) ns createProgram =
     where
         -- FIXME now we can just insert instead of replacing them!
         replaceAlgo algos = \case
-                f@(Fn atts vis ident decl@(FnDecl _args _ _ _) s c abi gen _ span) ->
+                f@(Fn atts vis ident decl@(FnDecl _args _ _ _) header gen _ span) ->
                     case HM.lookup (toBinding ident) algos of
                         Just algo -> 
-                            Fn atts vis ident decl s c abi gen (span <$ createProgram algo) span
+                            Fn atts vis ident decl header gen (span <$ createProgram algo) span
                         Nothing -> f
                 i -> i

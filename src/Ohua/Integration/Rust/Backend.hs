@@ -27,7 +27,7 @@ convertIntoBlock :: (Architecture arch, Lang arch ~ (Language 'Rust)) => arch ->
 convertIntoBlock arch expr = 
     let expr' = convertExpr arch expr
     in case expr' of
-        BlockExpr _ block _ -> block
+        BlockExpr _ block _ _ -> block
         e -> Block [NoSemi e noSpan] Rust.Normal noSpan
 
 instance Integration (Language 'Rust) where
@@ -42,7 +42,7 @@ instance Integration (Language 'Rust) where
         return $ 
             ns & algos %~ map (\algo -> algo & algoCode %~ convertTasks (algo^.algoAnno))
         where
-            convertTasks (Fn _ _ _ (FnDecl args typ _ span) _ _ _ _ block _) (Program chans (SRecv _ c) tasks) = 
+            convertTasks (Fn _ _ _ (FnDecl args typ _ span) _ _ block _) (Program chans (SRecv _ c) tasks) = 
                 Program 
                     chans 
                     (SRecv (Type $ TE.Normal $ fromMaybe (TupTy [] span) typ) c)
@@ -54,7 +54,7 @@ instance Integration (Language 'Rust) where
                 e -> embed e
 
             argToVar :: Rust.Arg a -> TCLang.TaskExpr RustTypeAnno
-            argToVar (Arg (Just (IdentP _ i _ _ )) _ _) = Var $ toBinding i
+            argToVar (Arg _ (Just (IdentP _ i _ _ )) _ _) = Var $ toBinding i
 
     convertExpr _ (Var bnd) = PathExpr [] Nothing (convertVar bnd) noSpan
 
@@ -69,8 +69,7 @@ instance Integration (Language 'Rust) where
         MethodCall
             []
             (convertExpr arch stateExpr)
-            (mkIdent $ unpack $ unwrap bnd)
-            Nothing
+            (PathSegment (mkIdent $ unpack $ unwrap bnd) Nothing noSpan)
             (map (convertExpr arch) args)
             noSpan
 
@@ -207,6 +206,6 @@ convertVar bnd = Path False [PathSegment (mkIdent $ unpack $ unwrap bnd) Nothing
 prependToBlock :: [Rust.Stmt ()] -> Rust.Expr () -> Rust.Expr ()
 prependToBlock stmts cont = 
     case cont of
-        BlockExpr atts (Block contStmts safety s0) s1 -> 
-            BlockExpr atts (Block (stmts ++ contStmts) safety s0) s1
-        _ -> BlockExpr [] (Block (stmts ++ [NoSemi cont noSpan]) Rust.Normal noSpan) noSpan
+        BlockExpr atts (Block contStmts safety s0) Nothing s1 -> 
+            BlockExpr atts (Block (stmts ++ contStmts) safety s0) Nothing s1
+        _ -> BlockExpr [] (Block (stmts ++ [NoSemi cont noSpan]) Rust.Normal noSpan) Nothing noSpan

@@ -29,7 +29,9 @@ instance Architecture (Architectures 'M3) where
                 (rgate, sgate)
             } |]
         in Local
-            (TupleP [mkSimpleBinding $ bnd <> "_tx", mkSimpleBinding $ bnd <> "_rx"] Nothing noSpan)
+            (TupleP
+              [mkSimpleBinding $ bnd <> "_tx", mkSimpleBinding $ bnd <> "_rx"]
+              noSpan)
             Nothing
             (Just channel)
             []
@@ -42,8 +44,10 @@ instance Architecture (Architectures 'M3) where
             send = MethodCall
                     []
                     (convertExpr SM3 $ Var $ channel <> "_rx")
-                    (mkIdent "recv_msg")
-                    (Just [ty'])
+                    (PathSegment
+                      (mkIdent "recv_msg")
+                      (Just $ AngleBracketed [TypeArg ty'] [] noSpan)
+                      noSpan)
                     []
                     noSpan
         in unwrapMC send
@@ -55,15 +59,17 @@ instance Architecture (Architectures 'M3) where
                 (mkFunRefUnqual "unwrap")
                 []
 
-    build SM3 (Module _ (SourceFile _ _ _items)) ns = 
+    build SM3 (Module _ (SourceFile _ _ _items)) ns =
         return $ ns & algos %~ map (\algo -> algo & algoCode %~ createTasksAndRetChan)
         where
-            createTasksAndRetChan (Program chans retChan tasks) = 
+            createTasksAndRetChan (Program chans retChan tasks) =
                 Program chans retChan (map create tasks)
 
-            create task@(FullTask _ _ taskE) = 
+            create task@(FullTask _ _ taskE) =
                 let initVPE = createVPE : delegateCom task
-                    taskE' = createTask $ prependToBlock (activateCom task) $ BlockExpr [] taskE noSpan
+                    taskE' = createTask $
+                             prependToBlock (activateCom task) $
+                             BlockExpr [] taskE Nothing noSpan
                     all = prependToBlock initVPE taskE'
                 in all <$ task
 
@@ -73,31 +79,32 @@ instance Architecture (Architectures 'M3) where
             activateCom :: FullTask TE.RustTypeAnno a -> [Rust.Stmt ()]
             activateCom (FullTask sends recvs _) =
                 map ((flip Semi noSpan . convertExpr SM3) .
-                    (\c -> 
-                        Apply $ Stateful 
+                    (\c ->
+                        Apply $ Stateful
                             (Apply $ Stateful (Var c) (mkFunRefUnqual "activate") [])
                             (mkFunRefUnqual "unwrap") []))
                     (map (\(SSend (SChan c) _) -> c) sends ++
                      map (\(SRecv _type (SChan c)) -> c) recvs)
 
             delegateCom :: FullTask TE.RustTypeAnno a -> [Rust.Stmt ()]
-            delegateCom (FullTask sends recvs _) = 
+            delegateCom (FullTask sends recvs _) =
                 map ((flip Semi noSpan . convertExpr SM3) .
-                    (\c -> 
-                        Apply $ Stateful 
-                            (Apply $ Stateful (Var "vpe") (mkFunRefUnqual "delegate_obj") 
+                    (\c ->
+                        Apply $ Stateful
+                            (Apply $ Stateful (Var "vpe") (mkFunRefUnqual "delegate_obj")
                                 [Apply $ Stateful (Var c) (mkFunRefUnqual "sel") []])
                             (mkFunRefUnqual "unwrap") []))
                     (map (\(SSend (SChan c) _) -> c) sends ++
                      map (\(SRecv _typ (SChan c)) -> c) recvs)
 
             createTask :: Rust.Expr () -> Rust.Expr ()
-            createTask code = 
-                let closure = 
+            createTask code =
+                let closure =
                         Closure
                             []
-                            Movable
                             Value
+                            NotAsync
+                            Movable
                             (FnDecl [] (Just $ Infer noSpan) False noSpan)
                             code
                             noSpan
@@ -111,20 +118,19 @@ instance Architecture (Architectures 'M3) where
                         MethodCall
                             []
                             (convertExpr SM3 $ Var "vpe")
-                            (mkIdent "run")
-                            Nothing
+                            (PathSegment (mkIdent "run") Nothing noSpan)
                             [box]
                             noSpan
                 in unwrapMC run
 
     serialize SM3 mod ns = C.serialize mod ns createProgram
-        where 
+        where
             createProgram (Program chans resultExpr tasks) =
                 let taskStmts = map (flip Semi noSpan . taskExpression) tasks
                     program = toList chans ++ taskStmts
                 in Block (program ++ [NoSemi resultExpr noSpan]) Normal noSpan
 
-unwrapMC inst = MethodCall [] inst (mkIdent "unwrap") Nothing [] noSpan
+unwrapMC inst = MethodCall [] inst (PathSegment (mkIdent "unwrap") Nothing noSpan) [] noSpan
 
 
 instance Transform (Architectures 'M3)

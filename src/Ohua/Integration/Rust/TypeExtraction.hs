@@ -29,7 +29,7 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
             catMaybes . concat <$>
             mapM
                 (\case
-                    (Fn _ _ ident decl _ _ _ _ _ _) -> 
+                    (Fn _ _ ident decl _ _ _ _ ) -> 
                         (: []) . Just . (createFunRef ident, ) <$> extractFunType (\x xs -> FunType . Right . (:|xs) <$> convertArg x) decl
                     (Impl _ _ _ _ _ _ _ selfType items _) -> 
                         mapM (extractFromImplItem selfType) items
@@ -37,25 +37,25 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
                         mapM (extractFromTraitItem (toTraitType ident span)) items
                     _ -> return [])
                 items
-        
+
         toTraitType :: Show a => Ident -> a -> Ty a
-        toTraitType ident span = 
-            TraitObject 
-                (TraitTyParamBound 
-                    (PolyTraitRef 
-                        [] 
+        toTraitType ident span =
+            TraitObject
+                (TraitBound
+                    (PolyTraitRef
+                        []
                         (TraitRef $ Path False [PathSegment ident Nothing span] span)
-                        span) 
+                        span)
                     None
                     span
                 :| [])
                 span
 
         createFunRef :: Ident -> QualifiedBinding
-        createFunRef = 
+        createFunRef =
             QualifiedBinding (filePathToNsRef srcFile) .
             toBinding
-        
+
         extractFunType :: (CompM m, Show a) => 
             (Arg a -> [ArgType (RustArgType a)] -> m (FunType (RustArgType a))) -> 
             FnDecl a -> 
@@ -67,22 +67,22 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
                 (x:xs) -> f x  =<< mapM convertArg xs
 
         convertImplArg :: (CompM m, Show a) => Ty a -> Arg a -> m (ArgType (RustArgType a))
-        convertImplArg selfType (SelfValue mut _) = return $ Type $ Self selfType Nothing mut
-        convertImplArg selfType (SelfRegion lifeTime mut _) = return $ Type $ Self selfType lifeTime mut
-        convertImplArg selfType (SelfExplicit _ty mut _) = return $ Type $ Self selfType Nothing mut
+        convertImplArg selfType (SelfValue _ mut _) = return $ Type $ Self selfType Nothing mut
+        convertImplArg selfType (SelfRegion _ lifeTime mut _) = return $ Type $ Self selfType lifeTime mut
+        convertImplArg selfType (SelfExplicit _ _ty mut _) = return $ Type $ Self selfType Nothing mut
         convertImplArg _ a = convertArg a
 
         convertArg :: (CompM m, Show a) => Arg a -> m (ArgType (RustArgType a))
-        convertArg (Arg _ typ _) = return $ Type $ Normal typ
+        convertArg (Arg _ _ typ _) = return $ Type $ Normal typ
         convertArg a = throwError $ "Please report: The impossible happened at argument: " <> show a
 
         extractFromImplItem :: (CompM m, Show a) => Ty a -> ImplItem a -> m (Maybe (QualifiedBinding, FunType (RustArgType a)))
-        extractFromImplItem selfType (MethodI _ _ _ ident _ (MethodSig _ _ _ decl) _ _) = 
+        extractFromImplItem selfType (MethodI _ _ _ ident _ (MethodSig _ decl) _ _) = 
             Just . (createFunRef ident, ) <$> extractFunType (extractFirstArg selfType) decl
         extractFromImplItem _ _ = return Nothing
 
         extractFromTraitItem :: (CompM m, Show a) => Ty a -> TraitItem a -> m (Maybe (QualifiedBinding, FunType (RustArgType a)))
-        extractFromTraitItem selfType (MethodT _ ident _ (MethodSig _ _ _ decl) _ _) =
+        extractFromTraitItem selfType (MethodT _ ident _ (MethodSig _ decl) _ _) =
             Just . (createFunRef ident, ) <$> extractFunType (extractFirstArg selfType) decl
         extractFromTraitItem _ _ = return Nothing
 

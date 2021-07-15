@@ -45,7 +45,7 @@ instance Integration (Language 'Rust) where
                 algos <- catMaybes <$>
                         mapM 
                             (\case
-                                f@(Fn _ _ ident decl _ _ _ _ block _) -> 
+                                f@(Fn _ _ ident decl _ _ block _) -> 
                                     Just . (\e -> Algo (toBinding ident) e f) <$> extractAlgo decl block
                                 _ -> return Nothing)
                             items
@@ -163,19 +163,18 @@ instance Integration (Language 'Rust) where
 
 instance (Show a) => ConvertExpr (Rust.Expr a) where 
     convertExpr e@Box{} = throwError $ "Currently, we do not support the construction of boxed values. Please do so in a function." <> show e
-    convertExpr e@InPlace{} = throwError $ "Currently, we do not support in-place expressions.\n" <> show e
     convertExpr e@Vec{} = throwError $ "Currently, we do not support array expressions. Please do so in a function.\n" <> show e
     convertExpr (Call [] fun args _) = do
         fun' <- convertExpr fun
         args' <- mapM convertExpr args
         return $ fun' `AppE` args'
     convertExpr e@Call{} = throwError $ "Currently, we do not support attributes on function calls.\n" <> show e
-    convertExpr (MethodCall [] receiver Ident{name=method} Nothing args _) = do
+    convertExpr (MethodCall [] receiver (PathSegment Ident{name=method} Nothing _) args _) = do
         receiver' <- convertExpr receiver
         let method' = LitE $ FunRefLit $ FunRef (QualifiedBinding (makeThrow []) $ fromString method) Nothing Untyped
         args' <- mapM convertExpr args
         return $ BindE receiver' method' `AppE` args'
-    convertExpr e@(MethodCall [] _ _ (Just _) _ _) = throwError $ "Currently, we do not support type parameters for function calls. Your best shot: wrap the call into a function.\n" <> show e
+    convertExpr e@(MethodCall [] _ (PathSegment _ (Just _) _) _ _) = throwError $ "Currently, we do not support type parameters for function calls. Your best shot: wrap the call into a function.\n" <> show e
     convertExpr e@MethodCall{} = throwError $ "Currently, we do not support attributes on method calls.\n" <> show e
     convertExpr (TupExpr [] vars _) = do
         vars' <- mapM convertExpr vars
@@ -232,18 +231,22 @@ instance (Show a) => ConvertExpr (Rust.Expr a) where
     convertExpr e@ForLoop{} = throwError $ "Currently, we do not support attributes on for loops.\n" <> show e
     convertExpr e@Loop{} = throwError $ "Currently, we do not support conditionless loops. Please file a bug if you feel that this is dearly needed.\n" <> show e
     convertExpr e@Match{} = throwError $ "Currently, we do not support match expressions. Please file a bug if you feel that this is dearly needed.\n" <> show e
-    convertExpr (Closure [] Movable Value (FnDecl args _ False _) body _) = do
+    convertExpr (Closure [] Value IsAsync Movable (FnDecl args _ False _) body _) = do
         -- FIXME We are again dropping the type info here which may later on be needed in the code gen.
         args' <- mapM convertPat args
         body' <- convertExpr body
         return $ LamE args' body'
-    convertExpr e@(Closure _ _ _ (FnDecl _ _ True _) _ _) = throwError $ "Currently, we do not support variadic argument lists. \n" <> show e
-    convertExpr e@(Closure _ Immovable _ _ _ _) = throwError $ "Currently, we do not support immovable closures. \n" <> show e
-    convertExpr e@(Closure _ _ Ref _ _ _) = throwError $ "Currently, we do not support closures that capture environment variables by reference. \n" <> show e
+    convertExpr e@(Closure _ _ _ _ (FnDecl _ _ True _) _ _) = throwError $ "Currently, we do not support variadic argument lists. \n" <> show e
+    convertExpr e@(Closure _ _ _ Immovable _ _ _) = throwError $ "Currently, we do not support immovable closures. \n" <> show e
+    convertExpr e@(Closure _ Ref _ _ _ _ _) = throwError $ "Currently, we do not support closures that capture environment variables by reference. \n" <> show e
+    convertExpr e@(Closure _ _ IsAsync _ _ _ _) = throwError $ "Async functions are not part of the supported Rust subset. \n" <> show e
     convertExpr e@Closure{} = throwError $ "Currently, we do not support attributes on closures.\n" <> show e
-    convertExpr e@(BlockExpr [] block _) = convertExpr block
+    convertExpr e@(BlockExpr [] block Nothing _) = convertExpr block
+    convertExpr e@(BlockExpr _ _ (Just _) _) = throwError $ "Labels are not part of the supported Rust subset.\n" <> show e
     convertExpr e@BlockExpr{} = throwError $ "Currently, we do not support attributes on block expressions.\n" <> show e
-    convertExpr e@Catch{} = throwError $ "Currently, we do not support catch expressions. Please use a function. \n" <> show e
+    convertExpr e@TryBlock{} = throwError $ "Currently, we do not support try-block expressions. Please use a function. \n" <> show e
+    convertExpr e@Async{} = throwError $ "Async is not part of the supported Rust subset. \n" <> show e
+    convertExpr e@Await{} = throwError $ "Async is not part of the supported Rust subset. \n" <> show e
     convertExpr e@Assign{} = throwError $ "Currently, we do not support assign expressions (because memory is managed inside the functions). Please use a function. \n" <> show e
     convertExpr e@AssignOp{} = throwError $ "Currently, we do not support assign-op expressions (because memory is managed inside the functions). Please use a function. \n" <> show e
     convertExpr e@FieldAccess{} = throwError $ "Currently, we do not support field access expressions (because memory/state is managed inside the functions). Please use a function. \n" <> show e
@@ -324,8 +327,7 @@ instance (Show a) => ConvertPat (Rust.Pat a) where
     convertPat p@StructP{} = throwError $ "Currently, we do not support struct patterns: " <> show p <> ". Please use a function."
     convertPat p@TupleStructP{} = throwError $ "Currently, we do not support tuple struct patterns: " <> show p <> ". Please use a function."
     convertPat p@PathP{} = throwError $ "Currently, we do not support path patterns: " <> show p <> ". Please use a function."
-    convertPat (TupleP patterns Nothing _) = TupP <$> mapM convertPat patterns
-    convertPat p@TupleP{} = throwError $ "Currently, we do not support .. patterns: " <> show p <> "."
+    convertPat (TupleP patterns _) = TupP <$> mapM convertPat patterns
     convertPat p@BoxP{} = throwError $ "Currently, we do not support box patterns: " <> show p <> ". Please use a function."
     convertPat p@RefP{} = throwError $ seqParProgNote <> "\n" <> show p
     convertPat p@LitP{} = throwError $ "Currently, we do not support literal patterns: " <> show p <> ". Please use a function."
@@ -335,8 +337,8 @@ instance (Show a) => ConvertPat (Rust.Pat a) where
 
 instance (Show a) => ConvertPat (Arg a) where
     -- FIXME We certainly should have a way to attach (type) information to our expressions/patterns
-    convertPat (Arg (Just p) _ _) = convertPat p
-    convertPat a@(Arg Nothing _ _) = throwError $ "Currently, we require a name for each argument, not only its type. If this is a type definition in your code, then please file a bug.\n" <> show a
+    convertPat (Arg _ (Just p) _ _) = convertPat p
+    convertPat a@(Arg _ Nothing _ _) = throwError $ "Currently, we require a name for each argument, not only its type. If this is a type definition in your code, then please file a bug.\n" <> show a
     convertPat a = throwError $ "Currently, we do not support self arguments. \n" <> show a
 
 instance ConvertExpr BinOp where

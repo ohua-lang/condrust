@@ -10,7 +10,8 @@ import Ohua.Integration.Lang hiding (Lang)
 import Ohua.Integration.Architecture
 import Ohua.Integration.Rust.Types as RT
 import Ohua.Integration.Rust.Architecture.Common as C
-import Ohua.Integration.Rust.Architecture.SharedMemory.Transformations.LoopParallelism
+import Ohua.Integration.Transform.DataPar
+import Ohua.Integration.Rust.Architecture.SharedMemory.Transform.DataPar
 
 import Language.Rust.Syntax as Rust hiding (Rust)
 import Language.Rust.Quote
@@ -22,39 +23,40 @@ instance Architecture (Architectures 'SharedMemory) where
     type Chan (Architectures 'SharedMemory) = Stmt ()
     type ATask (Architectures 'SharedMemory) = Rust.Expr ()
 
-    convertChannel SSharedMemory (SChan bnd) = 
-        let stmt = Apply $ 
-                    Stateless 
-                        (QualifiedBinding (makeThrow ["std","sync","mpsc"]) "channel") 
+    convertChannel SSharedMemory (SChan bnd) =
+        let stmt = Apply $
+                    Stateless
+                        (QualifiedBinding (makeThrow ["std","sync","mpsc"]) "channel")
                         []
         in Local
-            (TupleP [mkSimpleBinding $ bnd <> "_tx", mkSimpleBinding $ bnd <> "_rx"] Nothing noSpan)
+            (TupleP [mkSimpleBinding $ bnd <> "_tx", mkSimpleBinding $ bnd <> "_rx"] noSpan)
             Nothing
             (Just $ convertExpr SSharedMemory stmt)
             []
             noSpan
 
-    convertRecv SSharedMemory (SRecv _type (SChan channel)) =             
+    convertRecv SSharedMemory (SRecv _type (SChan channel)) =
         Try [] (convertExpr SSharedMemory $
             Apply $ Stateful (Var $ channel <> "_rx") (mkFunRefUnqual "recv") []) noSpan
     convertSend SSharedMemory (SSend (SChan channel) d) =
         Try [] (convertExpr SSharedMemory $
             Apply $ Stateful (Var $ channel <> "_tx") (mkFunRefUnqual "send") [Var d]) noSpan
 
-    build SSharedMemory (Module _ (SourceFile _ _ _items)) ns = 
+    build SSharedMemory (Module _ (SourceFile _ _ _items)) ns =
         return $ ns & algos %~ map (\algo -> algo & algoCode %~ createTasksAndChannels)
         where
-            createTasksAndChannels (Program chans retChan tasks) = 
+            createTasksAndChannels (Program chans retChan tasks) =
                 Program chans retChan (map (createTask <$>) tasks)
 
             createTask :: Rust.Block () -> Rust.Expr ()
-            createTask code = 
+            createTask code =
                 Closure
                     []
-                    Movable
                     Value
+                    NotAsync
+                    Movable
                     (FnDecl [] (Just $ Infer noSpan) False noSpan)
-                    (BlockExpr [] code noSpan)
+                    (BlockExpr [] code Nothing noSpan)
                     noSpan
 
     serialize SSharedMemory mod ns = C.serialize mod ns createProgram
@@ -62,7 +64,7 @@ instance Architecture (Architectures 'SharedMemory) where
             createProgram (Program chans resultExpr tasks) =
                 let taskInitStmt = noSpan <$ [stmt| let mut tasks:Vec<Box<dyn FnOnce() -> Result<(), RunError>+ Send >> = Vec::new(); |]
                     box task =
-                        Call 
+                        Call
                             []
                             (PathExpr [] Nothing (convertQualBnd (QualifiedBinding (makeThrow ["Box"]) "new")) noSpan)
                             [task]
@@ -71,8 +73,7 @@ instance Architecture (Architectures 'SharedMemory) where
                         MethodCall
                             []
                             (convertExpr SSharedMemory $ Var "tasks")
-                            (mkIdent "push")
-                            Nothing
+                            (PathSegment (mkIdent "push") Nothing noSpan)
                             [t]
                             noSpan
                     taskStmts = map (flip Semi noSpan . push . box . taskExpression) tasks
