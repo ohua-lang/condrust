@@ -1,6 +1,15 @@
 {-# LANGUAGE QuasiQuotes #-}
 module Ohua.Integration.Rust.Architecture.SharedMemory.Transform.DataPar where
 
+import Ohua.Prelude
+import Ohua.Backend.Types as BT
+import Ohua.Frontend.Lang as F
+import Ohua.Backend.Lang as B
+import Ohua.Integration.Rust.Frontend
+import Ohua.Integration.Rust.Backend
+import Ohua.Integration.Architecture
+import Ohua.Integration.Rust.Architecture.SharedMemory
+
 import Language.Rust.Quote
 import Language.Rust.Syntax
 import Language.Rust.Parser (Span)
@@ -36,8 +45,33 @@ pub fn split_evenly<T>(mut ds: Vec<T>, taskcount: usize) -> Vec<Vec<T>> {
 
 -- FIXME somehow we really need to get the expression to be executed onto the task.
 --       the better approach would be to turn this into a closure!
-spawnWork :: Block Span
-spawnWork = [block|
+spawnWork :: Block () -> Block ()
+spawnWork (Block blockExpr d s) = Block (concat $ map go blockExpr) d s
+  where
+    go e@(Local p t
+          (Just
+           (Call a (PathExpr _ _ (Path _ [ PathSegment "ohua" _ _
+                                         , PathSegment "lang" _ _
+                                         , PathSegment fun _ _] _)
+                     _) args _))
+           atts _) =
+      case fun of
+        -- splice in call
+        "spawn" -> undefined
+              -- simple rename
+        "collectFuture" ->
+          [Local p t
+           (Just $ Call
+            a
+            (convertExpr SSharedMemory
+              $ B.Lit $ FunRefLit $ FunRef "/collect_work" Nothing Untyped)
+            args
+            noSpan) atts noSpan]
+        _ -> [noSpan <$ e]
+    go e = [noSpan <$ e]
+    blockStmts = let (Block stmts _ _) = spawnBlock
+                 in stmts
+    spawnBlock = noSpan <$ [block|
 // define this and append via prependtoBlock
 //  let f = move || {};
 {
@@ -55,8 +89,8 @@ spawnWork = [block|
 }
 |]
 
-createRuntime :: SourceFile Span
-createRuntime = [sourceFile|
+createRuntime :: SourceFile ()
+createRuntime = noSpan <$ [sourceFile|
 pub fn create_runtime(threadcount: usize) -> Arc<Runtime> {
     Arc::new(
         Builder::new()
@@ -69,21 +103,9 @@ pub fn create_runtime(threadcount: usize) -> Arc<Runtime> {
 }
 |]
 
-
-collectFuture = [sourceFile|
+collectFuture :: SourceFile ()
+collectFuture = noSpan <$ [sourceFile|
  pub fn collect_future<T>(future : Receiver<T>) -> T {
    future.recv().unwrap()
-}
-|]
-
-
-collectWork = [sourceFile|
- pub fn collect_work<T>(tokio_data: (Arc<Runtime>, Vec<Receiver<Vec<T>>>)) -> Vec<T> {
-    let (_rt, mut receivers) = tokio_data;
-    receivers
-        .drain(..)
-        .map(|h| h.recv().unwrap())
-        .flatten()
-        .collect()
 }
 |]
