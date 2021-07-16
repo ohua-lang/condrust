@@ -130,6 +130,7 @@ instance Architecture (Architectures 'M3) where
                     program = toList chans ++ taskStmts
                 in Block (program ++ [NoSemi resultExpr noSpan]) Normal noSpan
 
+unwrapMC :: Rust.Expr () -> Rust.Expr ()
 unwrapMC inst = MethodCall [] inst (PathSegment (mkIdent "unwrap") Nothing noSpan) [] noSpan
 
 

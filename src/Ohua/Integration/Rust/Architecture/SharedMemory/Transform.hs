@@ -8,3 +8,4 @@ import Ohua.Integration.Rust.Architecture.SharedMemory.Transform.DataPar
 
 instance Transform (Architectures 'SharedMemory) where
   transformTaskExpr = lowerTaskPar
+  transformTask _ _ = spawnWork
