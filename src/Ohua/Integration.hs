@@ -10,6 +10,7 @@ import qualified Ohua.Core.Compile.Configuration as CConfig
 import Ohua.Integration.Lang
 import Ohua.Integration.Architecture
 import Ohua.Integration.Rust.Architecture.SharedMemory ()
+import Ohua.Integration.Rust.Architecture.SharedMemory.Transform ()
 import Ohua.Integration.Transform.DataPar (dataPar)
 import Ohua.Integration.Rust.Architecture.M3 ()
 import Ohua.Integration.Rust.Frontend ()

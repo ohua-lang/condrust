@@ -1,5 +1,7 @@
 module Ohua.Integration.Rust.Architecture.SharedMemory.Transform where
 
+import Ohua.Backend.Types
+
 import Ohua.Integration.Architecture
 import Ohua.Integration.Transform.DataPar
 import Ohua.Integration.Rust.Architecture.SharedMemory.Transform.DataPar

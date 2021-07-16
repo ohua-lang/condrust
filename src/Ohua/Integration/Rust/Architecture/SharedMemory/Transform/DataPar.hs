@@ -14,13 +14,12 @@ import Language.Rust.Quote
 import Language.Rust.Syntax
 import Language.Rust.Parser (Span)
 
-
 --modules = undefined
 
 splitEvenly :: SourceFile Span
 splitEvenly = [sourceFile|
 /// Splits the input vector into evenly sized vectors for `taskcount` workers.
-pub fn split_evenly<T>(mut ds: Vec<T>, taskcount: usize) -> Vec<Vec<T>> {
+pub fn split_evenly<T>(mut ds : Vec<T>, taskcount: usize) -> Vec<Vec<T>> {
     let l = ds.len() / taskcount;
     let mut rest = ds.len() % taskcount;
 
@@ -46,7 +45,24 @@ pub fn split_evenly<T>(mut ds: Vec<T>, taskcount: usize) -> Vec<Vec<T>> {
 -- FIXME somehow we really need to get the expression to be executed onto the task.
 --       the better approach would be to turn this into a closure!
 spawnWork :: Block () -> Block ()
-spawnWork (Block blockExpr d s) = Block (concat $ map go blockExpr) d s
+spawnWork (Block blockExpr d s) =
+  let (pars, blockExpr') = unzip $ map go blockExpr
+      blockExpr'' = concat blockExpr'
+  in case or pars of
+    True ->
+      let rt =
+            noSpan <$ [stmt|
+                           let rt = Arc::new(
+                           Builder::new()
+                           .threaded_scheduler()
+                           .core_threads(threadcount)
+                           .thread_name("ohua-tokio-worker")
+                           .build()
+                           .unwrap(),
+                           );
+                           |]
+      in Block (rt : blockExpr'') d s
+    False -> Block blockExpr'' d s
   where
     go e@(Local p t
           (Just
@@ -57,51 +73,60 @@ spawnWork (Block blockExpr d s) = Block (concat $ map go blockExpr) d s
            atts _) =
       case fun of
         -- splice in call
-        "spawn" -> undefined
-              -- simple rename
+        "spawn" ->
+          case args of
+            -- (fun:rt:args') -> -- would be cleaner
+            (f:args') ->
+              ( True
+              , [Local p t
+                 (Just $
+                  BlockExpr
+                   []
+                   (Block (spawnStmts' $ Call [] f args' noSpan) Normal noSpan)
+                   Nothing
+                   noSpan)
+                 [] noSpan
+                ]
+              )
+            _ -> error "invariant broken"
+        -- simple rename
         "collectFuture" ->
-          [Local p t
-           (Just $ Call
-            a
-            (convertExpr SSharedMemory
-              $ B.Lit $ FunRefLit $ FunRef "/collect_work" Nothing Untyped)
-            args
-            noSpan) atts noSpan]
-        _ -> [noSpan <$ e]
-    go e = [noSpan <$ e]
-    blockStmts = let (Block stmts _ _) = spawnBlock
-                 in stmts
-    spawnBlock = noSpan <$ [block|
-// define this and append via prependtoBlock
-//  let f = move || {};
-{
-    let mut handles = Vec::with_capacity(worklist.len());
+          ( False
+          , [Local p t
+             (Just $ Call
+               a
+               (convertExpr SSharedMemory
+                 $ B.Lit $ FunRefLit $ FunRef "/collect_future" Nothing Untyped)
+               args
+               noSpan) atts noSpan]
+          )
+        _ -> (False, [noSpan <$ e])
+    go e = (False, [noSpan <$ e])
 
-    for lst in worklist.drain(..) {
-        let (sx, rx) = mpsc::channel();
-
-        rt.spawn(async move { sx.send(f()).unwrap() });
-
-        handles.push(rx);
-    }
-
-    (rt, handles)
-}
-|]
-
-createRuntime :: SourceFile ()
-createRuntime = noSpan <$ [sourceFile|
-pub fn create_runtime(threadcount: usize) -> Arc<Runtime> {
-    Arc::new(
-        Builder::new()
-            .threaded_scheduler()
-            .core_threads(threadcount)
-            .thread_name("ohua-tokio-worker")
-            .build()
-            .unwrap(),
-    )
-}
-|]
+      -- |
+      -- {
+      --  let comp = move || { f(arg1,...,argn)
+      --  let (tx, rx) = mpsc::channel();}
+      --  let work = async { tx.send(comp()).unwrap() };
+      --  rt.spawn(work);
+      --  rx
+      -- }
+    spawnStmts' comp =
+      [ Local
+        (mkSimpleBinding "comp")
+        Nothing
+        (Just $
+          Closure [] Ref NotAsync Movable
+          (FnDecl [] (Just $ Infer noSpan) False noSpan)
+          comp
+          noSpan)
+        []
+        noSpan
+      , noSpan <$ [stmt| let (tx,rx) = std::sync::mpsc::channel(); |]
+      , noSpan <$ [stmt| let work = async move { tx.send(comp()).unwrap() };|]
+      , noSpan <$ [stmt| rt.spawn(work);|]
+      , NoSemi (noSpan <$ [expr| rx |]) noSpan
+      ]
 
 collectFuture :: SourceFile ()
 collectFuture = noSpan <$ [sourceFile|
