@@ -1,4 +1,5 @@
 {-# LANGUAGE InstanceSigs, ScopedTypeVariables #-}
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 -- Question: What are these extensions for? 
 module Ohua.Integration.Python.Frontend where
 
@@ -15,7 +16,7 @@ import Ohua.Integration.Python.Util
 import Ohua.Integration.Python.TypeExtraction
 
 import qualified Language.Python.Common.AST as Py
-import Language.Python.Common (SrcSpan)
+import Language.Python.Common (SrcSpan, startCol)
 
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
@@ -122,20 +123,32 @@ instance (Show a) => ConvertPat (Py.Parameter a) where
     -- Question: Argument conversion was commented with FIXME to attach (type) info 
     -- > why can't we make VarP have an additional Maybe ?  
     convertPat params@Py.Param{param_name=ident} = return $ VarP $ toBinding ident
-    -- Question: Varaibles can be anything anyway. 
+    -- Question: Variables can be anything anyway. 
     -- We'll have to tread them like objects as they'r only 'frozen at the surface'. 
     -- So just prepend '*'/'**' to their names (to transfer unpacking to backend)? 
     convertPat params@Py.VarArgsPos{param_name=ident} = return $ VarP $ fromString $ "*"++Py.ident_string ident
     convertPat params@Py.VarArgsKeyword{param_name=ident} = return $ VarP $ fromString $ "**"++Py.ident_string ident
     -- Question: Is UnitP the correct way to translate this? I think there has to be some recognizable token for the 
-    -- python parser at the backend. Using VarP with a part. name or deducing from the '*'-preceded parameters seems not very 
+    -- python parser at the backend. Using VarP with a particular name or deducing from the '*'-preceded parameters seems not very 
     -- elegant 
-    convertPat params@Py.EndPositional{} = return UnitP 
+    convertPat params@Py.EndPositional{} = return UnitP
 
-
+--Question: What else can be pattern in python?
+instance (Show a) => ConvertPat (Py.Expr a) where 
+    -- Question: why are wilcards not different from normal vars i.e. also a VarP ...I could deref them anywhere ?
+    convertPat Py.Var {var_ident=ident, expr_annot=_expr_annot} = return $ VarP $ toBinding ident
+    -- Question: targets of a loop come as lists of expressions. Rust's convertPat says 'currently no list patterns'
+    -- I could check if there's only one expr in the loop target, but what's wrong with making it a tuple pattern? 
+    convertPat lst@(Py.List [expr] annot) = convertPat expr
+    convertPat lst@(Py.List exprs annot) = do 
+        patterns <- mapM convertPat exprs
+        return $ TupP patterns
+    convertPat lst@(Py.Tuple exprs annot) = do 
+        patterns <- mapM convertPat exprs
+        return $ TupP patterns
 
 instance (Show a) => ConvertExpr (Py.Expr a) where
-    convertExpr Py.Var {var_ident= ident} = return $ VarE $ toBinding ident
+    convertExpr Py.Var{var_ident= ident} = return $ VarE $ toBinding ident
     convertExpr (Py.UnaryOp operation arg annot) = do 
         op' <- convertExpr operation
         arg' <- convertExpr arg
@@ -149,9 +162,83 @@ instance (Show a) => ConvertExpr (Py.Expr a) where
         fun' <- convertExpr fun
         args' <- mapM convertExpr args
         return $ fun' `AppE` args'
+    
 
 instance (Show a) => ConvertExpr (Py.Argument a) where
     convertExpr Py.ArgExpr{arg_expr=expr} = convertExpr expr
+    convertExpr a@Py.ArgVarArgsPos{arg_expr=expr} = unsupError "*args in class construction" a
+    convertExpr a@Py.ArgVarArgsKeyword {arg_expr=_arg_expr} = unsupError "**kwargs in class construction" a
+
+
+instance (Show a) => ConvertExpr (Py.Statement a) where
+-- Question: What's the matter with ItemStmt's in function blocks in Rust? According to Rust AST
+-- (Item -> ...-> Block->ItemStmt->Item) and Python AST (Statement-> Fun -> Suite -> Statement)
+-- 'recursion' occurs in both. However while in Rust this only seems to 
+-- include definitions/imports, in python also e.g. 'For'- loops are top-level statements.
+-- Can't I have e.g. function definitions in a function and if so..Why?
+    convertExpr Py.Import{import_items=items} = undefined 
+    convertExpr Py.FromImport{from_module= mod, from_items=items} = undefined
+    --TODO: Handle Else_Block
+    convertExpr whileE@(Py.While cond do_block else_block annE) = do
+        cond' <- convertExpr cond
+        block' <- convertExpr do_block
+        else_block' <- convertExpr else_block
+        --Question: Can we/Shoudl we be sure, that annotation is always a ScrSpan at this point 
+        -- and so use location in the file as reference name?
+        let loopRef = makeLoopRef "while_loop_body" annE
+        let loopLambdaRef = "while_loop_body"
+        let recur = IfE 
+                        cond' 
+                        (VarE loopLambdaRef `AppE` [])
+                        $ LitE UnitLit
+        return $ 
+            LetE 
+                (VarP loopLambdaRef)
+                (LamE [] $ StmtE block' recur)
+                recur
+    convertExpr forE@(Py.For targets generator body elseBlock annot) = do
+        pat' <- convertPat targets
+        generator' <- convertExpr generator
+        body' <- convertExpr body
+        return $
+            MapE
+                (LamE [pat'] body')
+                generator' 
+    convertExpr asyncFor@(Py.AsyncFor stmt annot) = undefined 
+    convertExpr classDef@(Py.Class cName cArgs cBody annot) = undefined 
+    convertExpr ifElifElse@(Py.Conditional condsAndBodys elseBlock annot) = undefined 
+    convertExpr assign@(Py.Assign targets exor annot) = undefined 
+    convertExpr augmAs@(Py.AugmentedAssign target operation expr annot) = undefined 
+    convertExpr annotAs@(Py.AnnotatedAssign targetAnnot target expr stmtAnnot) = undefined
+    convertExpr dec@(Py.Decorated decorators funOrClass annot) = undefined 
+    convertExpr ret@(Py.Return optReturn annot) = undefined 
+    convertExpr try@(Py.Try block excepts elseBlock finallyBlock annot)= undefined 
+    convertExpr raise@(Py.Raise raiseExor annot) = undefined 
+    convertExpr with@(Py.With contextTuples block annot) = undefined
+    convertExpr asyncWith@(Py.AsyncWith stmt annot) = undefined 
+    convertExpr (Py.Pass annot) = undefined
+    convertExpr (Py.Break annot) = undefined 
+    convertExpr (Py.Continue annot) = undefined 
+    convertExpr (Py.Delete deleteExprs annot) = undefined 
+    convertExpr (Py.StmtExpr expr annot) = undefined 
+    convertExpr e@(Py.Global globalVars annot) = unsupError "global keyword" e
+    convertExpr e@(Py.NonLocal nonlocalVars annot) = unsupError "nonlocal keyword" e
+    convertExpr e@(Py.Assert assertions annot) = unsupError "assertions" e
+    convertExpr e@(Py.Print hasChevron args isCOmmaTrailed annot) = py2Error e
+    convertExpr e@(Py.Exec expr optionalGlobalsLocals annot) = unsupError "exec statements" e
+    
+
+makeLoopRef :: (Show a) => String -> a -> String 
+-- TODO: CAse we like the idea, propagate ScrSpan => a throug all fknts and
+-- produce name based on coords here. 
+-- Alternative make case distinction here if we may want to change the annotations
+makeLoopRef loopKind loc = loopKind ++ "_"
+    
+
+
+instance (Show a) => ConvertExpr (Py.Suite a) where
+    convertExpr statements = undefined 
+
 
 
 instance (Show a) => ConvertExpr (Py.Op a) where
@@ -194,3 +281,9 @@ toExpr :: Monad m => Binding -> m (FrLang.Expr ty)
 toExpr string_repr = return $
                         LitE $ FunRefLit $
                         FunRef (QualifiedBinding (makeThrow []) string_repr) Nothing Untyped
+
+unsupError text expr = throwError $ "Currently we do not support "<> text <>" used in: "<> show expr
+
+--TODO: can this be my responsibility in any way or redirect to bjpop@csse.unimelb.edu.au here ?
+py2Error expr = throwError $ "For whatever reason you managed to get the exclusively version 2 expression " 
+                                <> show expr <> " through the python3 parser of language-python."
