@@ -55,18 +55,19 @@ class Integration lang where
     type Expr lang :: *
     type Task lang :: *
 
-    convertExpr :: (Architecture arch, Lang arch ~ lang) => arch -> TaskExpr (Type lang) -> Expr lang
+    convertExpr :: (Architecture arch, Lang arch ~ lang)
+                => arch -> TaskExpr (Type lang) -> Expr lang
 
     -- TODO I believe now that this function does not belong into the interface anymore!
     lower ::
-        ( CompM m
-        , Architecture arch
-        , Lang arch ~ lang
-        , ty ~ (Type lang))
-        => NS lang
-        -> arch
-        -> Namespace (Program (Channel ty) (Com 'Recv ty) (TaskExpr ty) ty) (AlgoSrc lang)
-        -> m (Namespace (Program (Channel ty) (Com 'Recv ty) (Task lang) ty) (AlgoSrc lang))
+      ( CompM m
+      , Architecture arch
+      , Lang arch ~ lang
+      , ty ~ (Type lang))
+      => NS lang
+      -> arch
+      -> Namespace (Program (Channel ty) (Com 'Recv ty) (TaskExpr ty) ty) (AlgoSrc lang)
+      -> m (Namespace (Program (Channel ty) (Com 'Recv ty) (Task lang) ty) (AlgoSrc lang))
 
 class Architecture arch where
     type Lang arch :: *
@@ -111,3 +112,13 @@ class (Architecture arch) => Transform arch where
                     -> TaskExpr ty
                     -> TaskExpr ty
   transformTaskExpr _ _ = id
+
+  transformTask :: ( Lang arch ~ lang
+                   , Integration lang
+                   , ty ~ Type lang
+                   )
+                => NS lang
+                -> arch
+                -> Task lang
+                -> Task lang
+  transformTask _ _ = id
