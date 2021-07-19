@@ -238,14 +238,54 @@ lowerTaskPar _ _ = cata $
   \case
     -- we need to do this on the Rust level because
     -- it would be hard to construct this call.
-    e@(B.ApplyF (B.Stateless qb args))
+    e@(B.ApplyF (B.Stateless qb _args))
       | qb == spawnFutures -> embed e
       -- there is nothing to be done here.
       -- because we can implement this function easily in Rust.
-    e@(B.ApplyF (B.Stateless qb args))
+    e@(B.ApplyF (B.Stateless qb _args))
       | qb == joinFutures -> embed e
     e -> embed e
 
--- TODO
--- There is a transformation missing that deals entirely with the take_n operation and
--- is dedicated to irregular applications to limit the number of retries.
+
+-- | This transformation adds a limit on the tries per round and therewith provides
+--   a tuning knob to control the number of invalid (colliding) computation per round.
+--
+-- The transformation itself is jolly trivial. This
+-- @
+--   let f = \inputs ->
+--     let results = smap (\input -> t) inputs in
+--     let toBeRetried = detectCollisions results in
+--     toBeRetried
+--   in f inputs
+-- @
+-- transforms into that:
+-- @
+--  let (inputs',rest) = takeN inputs in
+--  let toBeRetried' = f inputs' in
+--  let toBeRetried = concat toBeRetried' rest in ...
+-- @
+--
+-- The challenge is to detect __when__ this optimization is to be applied.
+-- Here are the ingredients:
+--   * A recursion over a data structure (,e.g., a list)
+--   * An smap (,i.e., a loop)
+--   * a state as a result.
+-- But their connection is the key:
+-- @
+--   let f = \state inputs ->
+--             let someState = t_state in
+--             let (_,[state',someState']) = smap \input ->
+--                                       let x = t_before input in
+--                                       let (y,state') = state.g x in
+--                                       let z = t_after y in
+--                                       (z,state',someState')
+--                                     inputs in
+--             let a = t_inbetween someState' in
+--             let b = state'.check a in
+--             if b
+--             then f state' a
+--             else state'
+-- @
+--
+amorphous :: NormalizedDFExpr ty -> NormalizedDFExpr ty
+amorphous = undefined
