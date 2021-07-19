@@ -1,24 +1,28 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Ohua.Integration.Transform.DataPar where
 
-import Ohua.Core.Prelude hiding (length, rewrite)
+import Ohua.Core.Prelude hiding (rewrite)
 import Ohua.Core.Compile.Configuration
-import Ohua.Core.DFLang.Lang
-import Ohua.Core.DFLang.PPrint (prettyExprM)
+
+import Ohua.Core.ALang.Refs as ALRefs
+import Ohua.Core.ALang.Lang as AL
+import Ohua.Core.ALang.Util (lambdaArgsAndBody, destructure)
+import Ohua.Core.DFLang.Lang as DFL hiding (length)
+import qualified Ohua.Core.DFLang.Lang as DFL (length)
+-- import Ohua.Core.DFLang.PPrint (prettyExprM)
 import qualified Ohua.Core.DFLang.Refs as DFRef
 
 import qualified Ohua.Backend.Lang as B
 
-import Ohua.Types.Reference
 
-import qualified Data.List as L
 import qualified Data.List.NonEmpty as NE
 import qualified Data.HashSet as HS
 import Data.Functor.Foldable (cata, embed)
 
 
+-- TODO conditionalize both via the config.
 dataPar :: CustomPasses
-dataPar = CustomPasses pure pure liftPureFunctions
+dataPar = CustomPasses pure amorphous liftPureFunctions
 
 invariantBroken :: Text -> OhuaM a
 invariantBroken s = throwError $ "Invariant broken: " <> s
@@ -96,22 +100,22 @@ unsupported s = throwError $ "Not supported: " <> s
 -- 3. Remove redundant `collect`-`smap` combos:
 --                                      +---+
 --    smap ---------------------------->|   |   <result>
---    ctrl ---------------------------->| f | ------------> collect --> smap
+--    ctrl ---- collect ---- smap ----->| f | ------------> collect --> smap
 --       g ---- collect ---- smap ----->|   |
 --                                      +---+
 -- 4. Transform loop into parallelism.
 -- Rewrite this:
---                                                   +---+
---    -- <xs> ---> smap ---------------------------->|   |   <result>
---    -- <arg> --> ctrl ---------------------------->| f | ------------> collect --> smap
---                    g ---- collect ---- smap ----->|   |
---                                                   +---+
+--                                      +---+
+--    smap ---------------------------->|   |   <result>
+--    ctrl ---- collect ---- smap ----->| f | ------------> collect --> smap
+--       g ---- collect ---- smap ----->|   |
+--                                      +---+
 -- into that:
---                                +----------+
---    -- <xs> ------------------->| split-&- |   <futures>               <result>
---    -- <arg> ------------------>| spawn    | ------------> getFutures ----------> smap
---           g ---- collect ----->|    <f>   |
---                                +----------+
+--                                      +----------+
+--    smap ---------------------------->| split-&- |  <futures>               <result>
+--    ctrl ---- collect ---- smap ----->| spawn    | -----------> getFutures ---------> smap
+--       g ---- collect ---- smap ----->|    <f>   |
+--                                      +----------+
 --
 
 -- |
@@ -136,40 +140,40 @@ liftPureFunctions :: forall ty.
 liftPureFunctions = rewriteSMap
   where
     rewriteSMap :: NormalizedDFExpr ty -> OhuaM (NormalizedDFExpr ty)
-    rewriteSMap (Let app cont) =
+    rewriteSMap (DFL.Let app cont) =
       case app of
         (PureDFFun _ fn _)
           | fn == DFRef.smapFun ->
               let rewriteIt smap@(SMap _ smapBody _) = do
                     smap'@(SMap app' smapBody' coll') <- rewrite smap
-                    case length smapBody of
+                    case DFL.length smapBody of
                       -- TODO a stronger termination metric would be better
-                      l | not (l == length smapBody') -> rewriteIt smap'
-                      _ -> pure $ \c -> Let app' $ appendExpr smapBody' $ Let coll' c
+                      l | not (l == DFL.length smapBody') -> rewriteIt smap'
+                      _ -> pure $ \c -> DFL.Let app' $ appendExpr smapBody' $ DFL.Let coll' c
               in do
                 (smapBody, coll, cont') <- collectSMap cont
                 rewritten <- rewriteIt $ SMap app smapBody coll
                 rewritten <$> rewriteSMap cont'
-        _ -> Let app <$> rewriteSMap cont
+        _ -> DFL.Let app <$> rewriteSMap cont
     rewriteSMap v = pure v
 
     -- collects the body of an smap for processing
     collectSMap :: NormalizedDFExpr ty
                 -> OhuaM (NormalizedDFExpr ty, DFApp 'Fun ty, NormalizedDFExpr ty)
-    collectSMap Var{} =
+    collectSMap DFL.Var{} =
       invariantBroken
       "Found an smap expression not delimited by a collect"
-    collectSMap (Let app cont) =
+    collectSMap (DFL.Let app cont) =
       case app of
         -- loop body has ended
         (PureDFFun _ fn (_ :|[DFVar _ result]))
           | fn == DFRef.collect ->
-            pure (Var $ unwrapABnd result, app, cont)
+            pure (DFL.Var $ unwrapABnd result, app, cont)
         (PureDFFun _ fn _)
           | fn == DFRef.smapFun ->
               unsupported "Nested smap expressions"
         _ -> do (contBody, coll, cont') <- collectSMap cont
-                return (Let app contBody, coll, cont')
+                return (DFL.Let app contBody, coll, cont')
 
 rewrite :: forall ty.SMap ty -> OhuaM (SMap ty)
 rewrite (SMap smapF body collectF) = do
@@ -177,7 +181,7 @@ rewrite (SMap smapF body collectF) = do
   return $ SMap smapF body' collectF
   where
     rewriteBody :: NormalizedDFExpr ty -> OhuaM (NormalizedDFExpr ty)
-    rewriteBody (Let fun@(PureDFFun _ bnd _) cont)
+    rewriteBody (DFL.Let fun@(PureDFFun _ bnd _) cont)
       | not (isIgnorable bnd) =
           liftFunction fun cont
     rewriteBody e = pure e
@@ -185,8 +189,8 @@ rewrite (SMap smapF body collectF) = do
 appendExpr :: NormalizedDFExpr ty
            -> NormalizedDFExpr ty
            -> NormalizedDFExpr ty
-appendExpr (Let app cont) rest = Let app $ appendExpr cont rest
-appendExpr Var{} rest = rest
+appendExpr (DFL.Let app cont) rest = DFL.Let app $ appendExpr cont rest
+appendExpr DFL.Var{} rest = rest
 
 isIgnorable :: QualifiedBinding -> Bool
 isIgnorable (QualifiedBinding ["ohua","lang"] _) = True
@@ -200,12 +204,12 @@ liftFunction (PureDFFun out fun inp) cont = do
   futuresBnd <- DataBinding <$> generateBindingWith "futures"
   outBound <- handleOutputSide futuresBnd
   let spawned = handleFun futuresBnd
-  return $ Let spawned outBound
+  return $ DFL.Let spawned outBound
   where
     handleOutputSide :: ABinding 'Data -> OhuaM (NormalizedDFExpr ty)
     handleOutputSide futuresBnd = do
       return $
-        Let
+        DFL.Let
         (PureDFFun
           out
           joinFutures
@@ -274,18 +278,83 @@ lowerTaskPar _ _ = cata $
 -- @
 --   let f = \state inputs ->
 --             let someState = t_state in
---             let (_,[state',someState']) = smap \input ->
+--             let (inputs',[state']) = smap \input ->
 --                                       let x = t_before input in
 --                                       let (y,state') = state.g x in
 --                                       let z = t_after y in
---                                       (z,state',someState')
+--                                       (z,state')
 --                                     inputs in
---             let a = t_inbetween someState' in
---             let b = state'.check a in
+--             let b = check inputs' in
 --             if b
---             then f state' a
+--             then f state' inputs' a
 --             else state'
 -- @
 --
-amorphous :: NormalizedDFExpr ty -> NormalizedDFExpr ty
-amorphous = undefined
+amorphous :: AL.Expr ty -> OhuaM (AL.Expr ty)
+amorphous = transformM go
+  where
+    go (Apply r@(PureFunction recurF Nothing) body)
+      | recurF == ALRefs.recur = Apply r <$> rewriteIrregularApp body
+    go e = pure e
+
+    rewriteIrregularApp lam =
+      let (ctxt, body) = lambdaArgsAndBody lam
+      in case ctxt of
+           ctxt' | length ctxt' < 2 -> pure lam
+           ctxt' -> do
+             result <- case findResult body of
+                         [r] -> pure r
+                         _ -> throwError $ "apparently, the recursion is not well-formed."
+                                 <> " invariant broken."
+             let ctxtHS = HS.fromList ctxt'
+             case HS.member result ctxtHS
+                     && isUsedState result body of
+                  False -> pure lam
+                  _ -> case findLoops body of
+                         [] -> pure lam
+                         loops ->
+                           case filter ((`HS.member` ctxtHS) . snd) loops of
+                             [] -> pure lam
+                             loops' ->
+                               case filter (isUsedState result . fst) loops' of
+                                 [] -> pure lam
+                                 [(_,inp)] -> transformM (doRewrite inp) lam
+                                 _ -> throwError $ "invariant broken: "
+                                      <> "state inside a context can only be used once!"
+--     findInput body =
+--       [s | (AL.Let _ cond (AL.Var _)) <- universe body
+--          , (Apply (PureFunction ifThenElse Nothing) (AL.Var condIn)) <- universe cond
+--          , (AL.Let condIn f _) <- universe body
+--          , (AL.Var s) <- universe f
+--          ]
+
+    findResult body =
+      [s | (AL.Let _ cond (AL.Var _)) <- universe body
+         , (Apply (Apply (Apply (PureFunction ifTE Nothing) _) _) (AL.Var s)) <- universe cond
+         , ifTE == ALRefs.ifThenElse
+         ]
+
+    isUsedState bnd body =
+      0 < length [s | BindState (AL.Var s) _ <- universe body
+                    , s == bnd
+                    ]
+
+    findLoops body =
+      [(smapBody,inp) |
+       (Apply (Apply (PureFunction smapF Nothing) smapBody) (AL.Var inp)) <- universe body
+                      , smapF == ALRefs.smap]
+
+    doRewrite inp (AL.Let v
+                   (Apply f@(Apply (PureFunction smapF Nothing) _) (AL.Var inp'))
+                   cont)
+      | smapF == ALRefs.smap && inp == inp' = do
+          taken <- generateBindingWith "n_taken"
+          takenInp <- generateBindingWith $ inp <> "_n"
+          rest <- generateBindingWith "rest"
+          nResults <- generateBindingWith "n_results"
+          return $
+            AL.Let taken (Apply "ohua.lang/takeN" $ AL.Var inp) $
+            destructure (AL.Var taken) [takenInp,rest] $
+            AL.Let nResults (Apply f $ AL.Var takenInp) $
+            AL.Let v (Apply (Apply "ohua.lang/concat" $ AL.Var nResults) $ AL.Var rest) cont
+    doRewrite _ e = pure e
