@@ -16,6 +16,9 @@ type Parser  = String -> String -> Either ParseError (Module SrcSpan  , [Token])
 toBinding :: Ident a -> Binding
 toBinding Ident{ident_string=n, ident_annot=annot} = fromString n
 
+fromBinding :: Binding -> annot -> Ident annot
+fromBinding bnd span= Ident{ident_string=show bnd, ident_annot= span}
+
 filePathToNsRef :: FilePath -> NSRef
 filePathToNsRef = makeThrow . map fromString . splitDirectories . dropExtension
 
