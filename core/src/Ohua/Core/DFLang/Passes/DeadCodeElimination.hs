@@ -3,8 +3,10 @@ module Ohua.Core.DFLang.Passes.DeadCodeElimination where
 import Ohua.Core.Prelude
 import Ohua.Core.DFLang.Lang as L
 import Ohua.Core.DFLang.Refs as R
+import Ohua.Types.Vector as V hiding (map)
 
 import Data.Text.Lazy.IO as T
+import Data.Singletons
 
 eliminate :: (MonadOhua m) => NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
 eliminate = eliminateExprs >=> eliminateOuts
@@ -14,20 +16,25 @@ eliminateExprs expr = do
   expr' <- f expr
   case L.length expr == L.length expr' of
     True -> pure expr'
-    False -> eliminate expr'
+    False -> eliminateExprs expr'
   where
     f :: (MonadOhua m) => NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
-    f (Let app@(PureDFFun out fun _) cont) =
-      case out `isUsedIn` cont of
-        True -> Let app <$> f cont
-        False -> warn fun >> (f cont)
-    f (Let app@(StateDFFun (stateOut,dataOut) fun sIn dIn) cont) =
-      Let
-      (StateDFFun
-       (dropOut cont =<< stateOut, dropOut cont =<< dataOut)
-       fun sIn dIn) <$>
-      f cont
-    f v = pure v
+    f (Let app cont) = case app of
+      (PureDFFun out fun _) ->
+        case out `isUsedIn` cont of
+          True -> Let app <$> f cont
+          False -> warn fun >> (f cont)
+      (StateDFFun (stateOut, dataOut) fun sIn dIn) ->
+        Let
+          (StateDFFun
+           (dropOut cont =<< stateOut, dropOut cont =<< dataOut)
+           fun sIn dIn) <$>
+          f cont
+      -- TODO(feliix42): Is recur elimination realistically possible?
+      (RecurFun _ _ _ _ _ _ _) -> Let app <$> f cont
+    f v@(Var _) = do
+      traceM $ toText $ "Terminating elimination on " ++ (show v)
+      pure v
 
     dropOut cont out =
       case (out `isUsedIn` cont) of
@@ -48,6 +55,19 @@ eliminateExprs expr = do
 eliminateOuts :: (MonadOhua m) => NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
 eliminateOuts expr = transformExprM go expr
   where
+    go (Let app@(RecurFun c ctrl outArgs init inArgs cond result) cont) =
+      let
+        zipped = zip (V.toList outArgs) (V.toList inArgs)
+        (newOut, newIn) = unzip $ filter (\case
+                                             ((Direct b), _) -> isBndUsed (unwrapABnd b) expr
+                                             (b, _) -> error $ toText $ "Unsupported OutData variant encountered in recurFun: " ++ (show b)
+                                         ) zipped
+        outArgs' = V.fromList (toSing $ nlength newOut) newOut
+        inArgs' = V.fromList (toSing $ nlength newIn) newIn
+      in case outArgs' == outArgs of
+        True -> pure $ Let app cont
+        -- recursion: run the whole elimination pass again
+        False -> eliminate $ Let (RecurFun c ctrl outArgs' init inArgs' cond result) cont
     go (Let app cont) =
       let
         -- note that I do not only check inside the continuation but the whole expression
@@ -57,6 +77,7 @@ eliminateOuts expr = transformExprM go expr
         (PureDFFun out fun inp)
           | R.smapFun == fun ->
             case used of
+              -- TODO(feliix42): wouldn't that need to be able to handle multiple ctrl outs?
               -- FIXME see issue #8. obviously, this is a big hack right now!
               -- ds  ctrl  size
               [(False,_),(False,_),(False,_)] ->
