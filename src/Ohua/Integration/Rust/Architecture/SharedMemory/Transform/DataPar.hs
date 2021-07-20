@@ -95,3 +95,63 @@ spawnWork (Block blockExpr d s) =
       , noSpan <$ [stmt| rt.spawn(work);|]
       , NoSemi (noSpan <$ [expr| rx |]) noSpan
       ]
+
+amorphous :: Block () -> Block ()
+amorphous (Block blockExpr d s) = Block (map go blockExpr) d s
+  where
+    go e@(Local p t
+          (Just
+           (Call a (PathExpr _ _ (Path _ [ PathSegment "ohua" _ _
+                                         , PathSegment "lang" _ _
+                                         , PathSegment fun _ _] _)
+                     _) args _))
+           atts _) =
+      case fun of
+        "takeN" ->
+          Local p t
+          (Just
+            (Call
+              a
+              (noSpan <$ [expr| |v, n| v.split_at(n) |])
+-- Version that only requires coll to implement iterable.
+-- But we cannot recover the original type in concat anyhow.
+--               [expr|
+--                    |coll, n|
+--                    {
+--                      let mut taken = Vec::new();
+--                      let mut rest = Vec::new();
+--                      let mut i = 0;
+--                      for c in coll {
+--                        if i < n {
+--                          taken.push(c);
+--                        } else {
+--                          rest.push(c);
+--                        }
+--                      }
+--                      (taken, rest)
+--                    }
+--                    |])
+              args
+              noSpan)
+          )
+          atts
+          noSpan
+        "concat" ->
+          Local p t
+          (Just
+            (Call
+              a
+              (noSpan <$ [expr|
+                              move |results, rest|
+                              {
+                                results.append(rest);
+                                results
+                              }
+                              |])
+              args
+              noSpan)
+          )
+          atts
+          noSpan
+        _ -> e
+    go e = e

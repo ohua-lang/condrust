@@ -321,12 +321,6 @@ amorphous = transformM go
                                  [(_,inp)] -> transformM (doRewrite inp) lam
                                  _ -> throwError $ "invariant broken: "
                                       <> "state inside a context can only be used once!"
---     findInput body =
---       [s | (AL.Let _ cond (AL.Var _)) <- universe body
---          , (Apply (PureFunction ifThenElse Nothing) (AL.Var condIn)) <- universe cond
---          , (AL.Let condIn f _) <- universe body
---          , (AL.Var s) <- universe f
---          ]
 
     findResult body =
       [s | (AL.Let _ cond (AL.Var _)) <- universe body
@@ -353,7 +347,10 @@ amorphous = transformM go
           rest <- generateBindingWith "rest"
           nResults <- generateBindingWith "n_results"
           return $
-            AL.Let taken (Apply "ohua.lang/takeN" $ AL.Var inp) $
+            AL.Let taken
+            (Apply
+              (Apply "ohua.lang/takeN" $ AL.Var inp) $
+              Lit $ NumericLit 10) $ -- TODO take the value from the specification of lang (maybe via a type class)
             destructure (AL.Var taken) [takenInp,rest] $
             AL.Let nResults (Apply f $ AL.Var takenInp) $
             AL.Let v (Apply (Apply "ohua.lang/concat" $ AL.Var nResults) $ AL.Var rest) cont
