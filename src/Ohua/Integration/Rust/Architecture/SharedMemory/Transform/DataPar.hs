@@ -2,10 +2,7 @@
 module Ohua.Integration.Rust.Architecture.SharedMemory.Transform.DataPar where
 
 import Ohua.Prelude
-import Ohua.Backend.Types as BT
-import Ohua.Backend.Lang as B
 import Ohua.Integration.Rust.Backend
-import Ohua.Integration.Architecture
 import Ohua.Integration.Rust.Architecture.SharedMemory ()
 
 import Language.Rust.Quote
