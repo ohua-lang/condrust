@@ -26,19 +26,26 @@ instance Integration (Language 'Python) where
     type Task (Language 'Python) = Py.Suite ()
 
 -- TODO: Check what happens to code generation without proper spans. Indentation matters so I might need to keep track of columns at least
-
     convertExpr _ (Var bnd) =  Py.Var{var_ident= fromBinding bnd noSpan, expr_annot= noSpan}
     -- Question: Are there only numeric == Int literals? What about Floats ? 
     convertExpr _ (TCLang.Lit (NumericLit i)) = Py.Int{int_value=i, expr_literal=show i, expr_annot= noSpan}
     convertExpr _ (TCLang.Lit (BoolLit b)) = Py.Bool b noSpan
 
+    -- ToDo: Frontend converts empty calls to fun(UnitLit), while elsewhere Unit may represent None, this must
+    -- not happen in function call translation because it would falsely add an argument 
+    -- (actually python-internally None is passed to function calls but that's not my business here)
     convertExpr _ (TCLang.Lit UnitLit) = Py.None noSpan 
     convertExpr _ (TCLang.Lit (EnvRefLit _hostExpr)) = error "Host expression encountered! This is a compiler error. Please report!"
     convertExpr _ (TCLang.Lit (FunRefLit (FunRef qBnd _ _type))) = undefined
 
     {--Note:  lower should basically turn a Programm (Backend.Types) of taskExpressions
-     (actually a function that returns the expression inside a FullExpression) into a task as defined for the Backend (in this case a Python.Suite).
+     (actually a function that returns the expression inside a FullExpression) 
+     into a task as defined for the Backend (in this case a Python.Suite).
      Question: Can we briefly go through the types and though what exactly should happen here?-}
+    
+    -- Basically converts Backend Langunange () to AST again but adds functionality to e.g. receive and send 
+    -- local vars from to channels
+    lower (Module filePath (Py.Module statments)) arch nameSpace = undefined 
     {-lower :: NS (Language 'Python)
         -> arch
         -> Namespace
@@ -48,4 +55,14 @@ instance Integration (Language 'Python) where
                 (Program (Channel ty) (Com 'Recv ty) (Task (Language 'Python)) ty)
                 (AlgoSrc (Language 'Python)))
     -}
-    lower (Module filePath (Py.Module statments)) arch nameSpace = undefined 
+
+
+
+
+
+
+
+
+
+
+

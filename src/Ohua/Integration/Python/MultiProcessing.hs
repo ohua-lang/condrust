@@ -37,6 +37,7 @@ instance Architecture (Architectures 'MultiProcessing) where
         -> Namespace (Program (Chan arch) expr (Task lang) ty) (AlgoSrc lang)
         -> m (Namespace (Program (Chan arch) expr (ATask arch) ty) (AlgoSrc lang))
 -}
+    -- Wie wird eine 'Task' (Py.Suite) ausgeführt..
     build = undefined 
 
 {-    serialize :: 
@@ -51,6 +52,10 @@ instance Architecture (Architectures 'MultiProcessing) where
         -> Namespace (Program (Chan arch) expr (ATask arch) ty) (AlgoSrc lang)
         -> m (NonEmpty (FilePath, L.ByteString))
 -}
+    -- Generiert Python Code aus dem neuen AST 
+    -- Alles was auf verteilten physischen Konten laufen soll, sollte auch in verschiedene Dateien.
+    -- Für Multiprocessing reicht erstmal eine Datei, aber zB bei CloudMirkoservices währen Tasks deutlich unabhängiger 
+    -- (eigene Module, eigene Imports etc.)
     serialize = undefined 
 
 

@@ -1,6 +1,9 @@
 {-# LANGUAGE InstanceSigs, ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 -- Question: What are these extensions for? 
+-- InstanceSigs removes error on type decls in implementation
+-- Scoped..'binds' all type variables with same name inside a scope (eg functions in functions)
+
 module Ohua.Integration.Python.Frontend where
 
 import Ohua.Prelude
@@ -32,6 +35,10 @@ instance Integration (Language 'Python) where
 
 
 -- Note: Produces namespace later refered to with/required as 'ohuaNS^.algos' and 'ohuaNS^.imports'
+-- TOdo: 1. PythonSubset als data anlegen
+-- Todo : 2. Python AST auf Subset Mappen 
+-- Todo : 3 Subset auf IR mappen 
+-- => loadNS sollte 3°2 = 3(2()) => 3 . 2 sein
     loadNs :: CompM m => Language 'Python -> FilePath -> m (Module, PythonNamespace)
     loadNs _ srcFile = do
             mod <- liftIO $ load srcFile
@@ -70,21 +77,28 @@ instance Integration (Language 'Python) where
                 extractRelativeImports::CompM m => [Binding] -> [Py.ImportItem a] -> m (NonEmpty Import)
                 extractRelativeImports = undefined
 
+    -- sollte eigentlich einen typ habend der ausdrückt, dass die funcitonene
+    -- im input namespace ungetypt sind und erst durch lookupfuntypes die typen
+    -- an die functionsreferenzen gebunden werden  
     loadTypes :: CompM m => Language 'Python ->
                     Module ->
                     PythonNamespace ->
                     m PythonNamespace
+    -- TODO: Can meanswhile be replaced by id function
     loadTypes lang (Module filepath pymodule) ohuaNS = do
         -- Note to me: '^.' is a lens operator to focus 'algos' in ohuaNs
-        filesAndPaths <- concat <$> mapM funsForAlgo (ohuaNS^.algos)
-        let filesAndPaths' = map (first convertOwn) filesAndPaths
-        fun_types <- typesFromNS $ concatMap fst filesAndPaths'
-        types' <- HM.fromList <$> mapM (verifyAndRegister fun_types) filesAndPaths'
+        -- Alles was vor update epressions steht ist dafür da, funnctionstypen aus deklarartionen (aus versch. Dateien im comilation scope zu popeln)
+        -- _> ich hole mir die typen aus den call und kann mir daher den ersten Teil erstmal sparen
+        -- filesAndPaths <- concat <$> mapM funsForAlgo (ohuaNS^.algos)
+        -- let filesAndPaths' = map (first convertOwn) filesAndPaths
+        -- fun_types <- typesFromNS $ concatMap fst filesAndPaths'
+        -- types' <- HM.fromList <$> mapM (verifyAndRegister fun_types) filesAndPaths'
         updateExprs ohuaNS (transformM (assignTypes types'))
         where
             funsForAlgo :: CompM m => Algo (FrLang.Expr (PythonArgType SrcSpan)) (Py.Statement SrcSpan)
                     -> m [([NSRef], QualifiedBinding)]
-            -- TODO: What is it supposed to do -> find out and make it do so
+            -- extracts function literals from code and extracts for each the function
+            -- type ()
             funsForAlgo (Algo _name code annotation) = do
                 return []
 
@@ -104,12 +118,19 @@ instance Integration (Language 'Python) where
             -- Question: here's a FIXME in the RUst integration, because we'd have to check that at least number of arguments in a call fits 
             -- the number of arguments. However parameters might have default in python so we can at most check that the cal doesn't have more arguments
             -- than the function has parameters
+            -- Instead of extraction function types from declaration we extract function types from calls
+    
             assignTypes funTypes = \case
-                (LitE (FunRefLit (FunRef qBinding funID _))) ->
-                    case HM.lookup qBinding funTypes of
-                        Just funType ->
-                                return $ LitE $ FunRefLit $ FunRef qBinding funID funType
-                        Nothing -> throwError "Compiler invariant broken."
+                (AppE (LitE (FunRefLit (FunRef qBinding funID _))) args) -> 
+                    case args of
+                        --at this point there should be no empty args, because empty calls are filled with call(Unit)
+                        [] -> throwError "Compiler invariant broken."
+                        [LitE UnitLit] -> return $ AppE (LitE $ FunRefLit $ FunRef qBinding funID $ FunType $ Left Unit) args
+                        (a:args') -> 
+                            return $ 
+                            AppE (
+                                LitE $ FunRefLit $ FunRef qBinding funID $ FunType $ Right $ map (const $ Type PythonObject) a:|args') 
+                                args 
                 e ->  return e
 
 

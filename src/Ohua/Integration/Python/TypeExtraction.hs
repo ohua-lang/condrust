@@ -17,8 +17,8 @@ import Data.List.NonEmpty
 --      in Rust
 -- TODO: Fun.Parameters in AST are just Expr's. Define of Expr's eg. Immutables | Structures | Callables | Self??
 -- Note: For whatever reason there is a separate Type Argument that is not used to define Fun :-/
-type PythonArgType a = Expr a
-type PythonTypeAnno = PythonArgType SrcSpan
+data PythonArgType = PythonObject
+type PythonTypeAnno = PythonArgType
 type FunTypes = HM.HashMap QualifiedBinding (FunType PythonTypeAnno)
 
 
