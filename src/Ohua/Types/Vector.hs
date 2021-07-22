@@ -5,7 +5,7 @@
 {-# LANGUAGE InstanceSigs #-}
 module Ohua.Types.Vector where
 
-import Universum hiding (Nat, toList, map, replicate)
+import Universum hiding (Nat, toList, map, replicate, zip, zip3, filter, unzip, unzip3)
 import Data.List.NonEmpty (NonEmpty(..))
 import Data.Singletons
 
@@ -19,6 +19,10 @@ deriving instance Eq Nat
 data Vec (n::Nat) a where
     VNil :: Vec 'Zero a
     (:>) :: a -> Vec n a -> Vec ('Succ n) a
+
+-- Foundation for this: https://richarde.dev/papers/2021/exists/exists.pdf
+data ExVec :: Type -> Type where
+  MkEV :: Vec n a -> ExVec a
 
 deriving instance (Show a) => Show (Vec n a)
 deriving instance (Eq a) => Eq (Vec n a)
@@ -70,6 +74,31 @@ fromList s xs =
 map :: (a -> b) -> Vec n a -> Vec n b
 map _ VNil = VNil
 map f (x :> xs) = f x :> map f xs
+
+zip :: Vec n a -> Vec n b -> Vec n (a, b)
+zip VNil VNil = VNil
+zip (x :> xs) (y :> ys) = (x, y) :> zip xs ys
+
+unzip :: Vec n (a, b) -> (Vec n a, Vec n b)
+unzip VNil = (VNil, VNil)
+unzip ((x, y) :> xys) = case unzip xys of
+  (xs, ys) -> (x :> xs, y :> ys)
+
+zip3 :: Vec n a -> Vec n b -> Vec n c -> Vec n (a, b, c)
+zip3 VNil VNil VNil = VNil
+zip3 (x :> xs) (y :> ys) (z :> zs) = (x, y, z) :> zip3 xs ys zs
+
+unzip3 :: Vec n (a, b, c) -> (Vec n a, Vec n b, Vec n c)
+unzip3 VNil = (VNil, VNil, VNil)
+unzip3 ((x, y, z) :> xyzs) = case unzip3 xyzs of
+  (xs, ys, zs) -> (x :> xs, y :> ys, z :> zs)
+
+filter :: (a -> Bool) -> Vec n a -> ExVec a
+filter f VNil = MkEV VNil
+filter f (x :> xs) = case f x of
+  True -> case filter f xs of
+    MkEV v -> MkEV (x :> v)
+  False -> filter f xs
 
 nlength :: [a] -> Nat
 nlength [] = Zero
