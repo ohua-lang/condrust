@@ -3,13 +3,17 @@ module Ohua.Core.DFLang.Passes.DeadCodeElimination where
 import Ohua.Core.Prelude
 import Ohua.Core.DFLang.Lang as L
 import Ohua.Core.DFLang.Refs as R
-import Ohua.Types.Vector as V hiding (map)
+import qualified Ohua.Types.Vector as V
 
 import Data.Text.Lazy.IO as T
 import Data.Singletons
 
 eliminate :: (MonadOhua m) => NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
-eliminate = eliminateExprs >=> eliminateOuts
+eliminate expr = do
+  expr' <- (eliminateExprs >=> eliminateOuts) expr
+  case L.countBindings expr == L.countBindings expr' of
+    True -> pure expr'
+    False -> eliminate expr'
 
 eliminateExprs :: (MonadOhua m) => NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
 eliminateExprs expr = do
@@ -55,19 +59,12 @@ eliminateExprs expr = do
 eliminateOuts :: (MonadOhua m) => NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
 eliminateOuts expr = transformExprM go expr
   where
-    go (Let app@(RecurFun c ctrl outArgs init inArgs cond result) cont) =
-      let
-        zipped = zip (V.toList outArgs) (V.toList inArgs)
-        (newOut, newIn) = unzip $ filter (\case
-                                             ((Direct b), _) -> isBndUsed (unwrapABnd b) expr
-                                             (b, _) -> error $ toText $ "Unsupported OutData variant encountered in recurFun: " ++ (show b)
-                                         ) zipped
-        outArgs' = V.fromList (toSing $ nlength newOut) newOut
-        inArgs' = V.fromList (toSing $ nlength newIn) newIn
-      in case outArgs' == outArgs of
-        True -> pure $ Let app cont
-        -- recursion: run the whole elimination pass again
-        False -> eliminate $ Let (RecurFun c ctrl outArgs' init inArgs' cond result) cont
+    go (Let app@(RecurFun c ctrl outArgs initArgs inArgs cond result) cont) =
+      case V.zip3 outArgs initArgs inArgs of
+        zipped -> case V.filter filterDead zipped of
+                    V.MkEV filtered -> case V.unzip3 filtered of
+                      (outArgs', initArgs', inArgs') ->
+                        pure $ Let (RecurFun c ctrl outArgs' initArgs' inArgs' cond result) cont
     go (Let app cont) =
       let
         -- note that I do not only check inside the continuation but the whole expression
@@ -99,6 +96,11 @@ eliminateOuts expr = transformExprM go expr
                deadEnds -> throwError $ "Found dead ends for '" <> show app
                            <> "'.\nDead ends: " <> show deadEnds
     go e = pure e
+
+    filterDead :: (OutData b, DFVar a ty, DFVar a ty) -> Bool
+    filterDead = \case
+                    ((Direct b), _, _) -> isBndUsed (unwrapABnd b) expr
+                    (b, _, _) -> error $ toText $ "Unsupported OutData variant encountered in recurFun: " ++ (show b)
 
 isBndUsed :: Binding -> NormalizedDFExpr ty -> Bool
 isBndUsed bnd (Let app cont) = bnd `elem` (insDFApp app) || bnd `isBndUsed` cont

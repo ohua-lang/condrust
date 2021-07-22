@@ -14,7 +14,7 @@ module Ohua.Core.ALang.Passes.State where
 
 import Ohua.Core.Prelude
 
-import Ohua.Types.Vector hiding (map)
+import Ohua.Types.Vector hiding (map, zip, zip3, unzip, unzip3, filter)
 import Ohua.Core.ALang.Lang
 import Ohua.Core.ALang.Util
 import Ohua.Core.ALang.Passes.SSA

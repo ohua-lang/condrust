@@ -278,3 +278,7 @@ mapFunsM _ v = return v
 length :: Expr semTy ty -> V.Nat
 length (Let _ cont) = Succ $ length cont
 length Var{} = Zero
+
+countBindings :: NormalizedDFExpr ty -> V.Nat
+countBindings (Var _) = Succ Zero
+countBindings (Let app cont) = foldl (\acc _ -> Succ $ acc) (countBindings cont) $ (insDFApp app) ++ (outsDFApp app)
