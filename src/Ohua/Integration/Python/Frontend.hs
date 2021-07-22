@@ -115,10 +115,9 @@ instance Integration (Language 'Python) where
             verifyAndRegister fun_types ([candidate], qB@(QualifiedBinding _ qBName)) = undefined 
 
             assignTypes :: CompM m => FunTypes -> FrLang.Expr (PythonArgType SrcSpan) -> m (FrLang.Expr (PythonArgType SrcSpan))
-            -- Question: here's a FIXME in the RUst integration, because we'd have to check that at least number of arguments in a call fits 
-            -- the number of arguments. However parameters might have default in python so we can at most check that the cal doesn't have more arguments
-            -- than the function has parameters
-            -- Instead of extraction function types from declaration we extract function types from calls
+            -- Todo: I dont like the idea of extracting function types from calls
+            -- We surely want to have default arguments later, so five different calls can 
+            -- yield five different numbers of arguments. Using definitions at least we get min and max
     
             assignTypes funTypes = \case
                 (AppE (LitE (FunRefLit (FunRef qBinding funID _))) args) -> 
@@ -151,7 +150,7 @@ instance (Show a) => ConvertPat (Py.Parameter a) where
     -- So just prepend '*'/'**' to their names (to transfer unpacking to backend)? 
     convertPat params@Py.VarArgsPos{param_name=ident} = return $ VarP $ fromString $ "*"++Py.ident_string ident
     convertPat params@Py.VarArgsKeyword{param_name=ident} = return $ VarP $ fromString $ "**"++Py.ident_string ident
-    -- Question: I don't think UnitP is a good idea here. Actually it should just map to nothing and cenverting on the backend should just include addding
+    -- Question: I don't think UnitP is a good idea here. Actually it should just map to nothing and converting on the backend should just include addding
     -- EndPositional again -> How to map to nothing wihtout failing?
     convertPat params@Py.EndPositional{} = return UnitP
 

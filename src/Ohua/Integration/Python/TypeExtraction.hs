@@ -17,8 +17,8 @@ import Data.List.NonEmpty
 --      in Rust
 -- TODO: Fun.Parameters in AST are just Expr's. Define of Expr's eg. Immutables | Structures | Callables | Self??
 -- Note: For whatever reason there is a separate Type Argument that is not used to define Fun :-/
-data PythonArgType = PythonObject
-type PythonTypeAnno = PythonArgType
+data PythonArgType a = PythonObject a
+type PythonTypeAnno  = PythonArgType SrcSpan   
 type FunTypes = HM.HashMap QualifiedBinding (FunType PythonTypeAnno)
 
 
@@ -67,6 +67,8 @@ extract srcFile (Module statements) = HM.fromList <$> extractTypes statements
 
         annotation_or_error:: Parameter a -> PythonArgType a
         -- Note: Let's pretend for a while there's only annotaded parameters in the world
+        -- Note: Expr's could be anything but Expr's resulting from param_py_annotation can only be Var
+        -- TODO: this should extract the string from var_ident, not the Span -> refactor that Span-type problem
         annotation_or_error param = case param_py_annotation param of
-            Just var_expression -> var_expression
+            Just Var{var_ident=typestring, expr_annot = a} -> PythonObject a
             Nothing -> error $ "Some argment wasn't typed: " <> show (param_name param)
