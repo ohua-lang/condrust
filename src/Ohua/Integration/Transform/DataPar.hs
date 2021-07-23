@@ -129,11 +129,11 @@ data SMap ty =
   -- | collect
   (DFApp 'Fun ty)
 
-spawnFutures :: QualifiedBinding
-spawnFutures = "ohua.lang/spawn_futures"
+spawnFuture :: QualifiedBinding
+spawnFuture = "ohua.lang/spawnFuture"
 
-joinFutures :: QualifiedBinding
-joinFutures = "ohua.lang/collectFuture"
+joinFuture :: QualifiedBinding
+joinFuture = "ohua.lang/collectFuture"
 
 liftPureFunctions :: forall ty.
                      NormalizedDFExpr ty -> OhuaM (NormalizedDFExpr ty)
@@ -142,13 +142,13 @@ liftPureFunctions = rewriteSMap
     rewriteSMap :: NormalizedDFExpr ty -> OhuaM (NormalizedDFExpr ty)
     rewriteSMap (DFL.Let app cont) =
       case app of
-        (PureDFFun _ fn _)
+        (PureDFFun _ (FunRef fn _ _) _)
           | fn == DFRef.smapFun ->
               let rewriteIt smap@(SMap _ smapBody _) = do
                     smap'@(SMap app' smapBody' coll') <- rewrite smap
                     case DFL.length smapBody of
                       -- TODO a stronger termination metric would be better
-                      l | not (l == DFL.length smapBody') -> rewriteIt smap'
+                      l | l /= DFL.length smapBody' -> rewriteIt smap'
                       _ -> pure $ \c -> DFL.Let app' $ appendExpr smapBody' $ DFL.Let coll' c
               in do
                 (smapBody, coll, cont') <- collectSMap cont
@@ -166,10 +166,10 @@ liftPureFunctions = rewriteSMap
     collectSMap (DFL.Let app cont) =
       case app of
         -- loop body has ended
-        (PureDFFun _ fn (_ :|[DFVar _ result]))
+        (PureDFFun _ (FunRef fn _ _) (_ :|[DFVar _ result]))
           | fn == DFRef.collect ->
             pure (DFL.Var $ unwrapABnd result, app, cont)
-        (PureDFFun _ fn _)
+        (PureDFFun _ (FunRef fn _ _) _)
           | fn == DFRef.smapFun ->
               unsupported "Nested smap expressions"
         _ -> do (contBody, coll, cont') <- collectSMap cont
@@ -182,7 +182,7 @@ rewrite (SMap smapF body collectF) = do
   where
     rewriteBody :: NormalizedDFExpr ty -> OhuaM (NormalizedDFExpr ty)
     rewriteBody (DFL.Let fun@(PureDFFun _ bnd _) cont)
-      | not (isIgnorable bnd) =
+      | not (isIgnorable $ fnDFApp fun) =
           liftFunction fun cont
     rewriteBody e = pure e
 
@@ -212,7 +212,7 @@ liftFunction (PureDFFun out fun inp) cont = do
         DFL.Let
         (PureDFFun
           out
-          joinFutures
+          (FunRef joinFuture Nothing (FunType $ Right $ TypeVar :|[]))
           (DFVar TypeVar futuresBnd  :|[])
           )
         cont
@@ -221,8 +221,14 @@ liftFunction (PureDFFun out fun inp) cont = do
     handleFun futuresBnd =
       PureDFFun
       (Direct futuresBnd)
-      spawnFutures
-      (DFEnvVar TypeVar (FunRefLit $ FunRef fun Nothing Untyped) NE.<| inp)
+      (FunRef spawnFuture Nothing (getNewFunType fun))
+      (DFEnvVar TypeVar (FunRefLit fun) NE.<| inp)
+
+    -- TODO the warning here is because there is no tight connection between the types and
+    --      the terms
+    getNewFunType :: FunRef ty -> FunType ty
+    getNewFunType (FunRef _ _ (FunType (Left Unit))) = FunType $ Right $ TypeVar NE.:| []
+    getNewFunType (FunRef _ _ (FunType (Right xs))) = FunType $ Right (TypeVar NE.<| xs)
 
 
 -- TODO
@@ -243,11 +249,11 @@ lowerTaskPar _ _ = cata $
     -- we need to do this on the Rust level because
     -- it would be hard to construct this call.
     e@(B.ApplyF (B.Stateless qb _args))
-      | qb == spawnFutures -> embed e
+      | qb == spawnFuture -> embed e
       -- there is nothing to be done here.
       -- because we can implement this function easily in Rust.
     e@(B.ApplyF (B.Stateless qb _args))
-      | qb == joinFutures -> embed e
+      | qb == joinFuture -> embed e
     e -> embed e
 
 

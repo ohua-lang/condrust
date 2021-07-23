@@ -3,20 +3,21 @@ module Ohua.Integration.Rust.Architecture.SharedMemory.Transform.DataPar where
 
 import Ohua.Prelude
 import Ohua.Integration.Rust.Backend
+import Ohua.Integration.Transform.DataPar (spawnFuture, joinFuture)
 import Ohua.Integration.Rust.Architecture.SharedMemory ()
 
 import Language.Rust.Quote
 import Language.Rust.Syntax
+import Language.Rust.Data.Ident
 
 
 spawnWork :: Block () -> Block ()
 spawnWork (Block blockExpr d s) =
   let (pars, blockExpr') = unzip $ map go blockExpr
-      blockExpr'' = concat blockExpr'
   in case or pars of
-    True ->
-      let rt =
-            noSpan <$ [stmt|
+       True ->
+         let rt =
+               noSpan <$ [stmt|
                            let rt = Arc::new(
                            Builder::new()
                            .threaded_scheduler()
@@ -26,24 +27,20 @@ spawnWork (Block blockExpr d s) =
                            .unwrap(),
                            );
                            |]
-      in Block (rt : blockExpr'') d s
-    False -> Block blockExpr'' d s
+         in Block (rt : blockExpr') d s
+       False -> Block blockExpr' d s
   where
     go e@(Local p t
           (Just
-           (Call a (PathExpr _ _ (Path _ [ PathSegment "ohua" _ _
-                                         , PathSegment "lang" _ _
-                                         , PathSegment fun _ _] _)
-                     _) args _))
+           (Call a (PathExpr _ _ path _) args _))
            atts _) =
-      case fun of
-        -- splice in call
-        "spawn" ->
+      case convertPath path of
+        (Just f) | f == spawnFuture ->
           case args of
             -- (fun:rt:args') -> -- would be cleaner
             (f:args') ->
               ( True
-              , [Local p t
+              , Local p t
                  (Just $
                   BlockExpr
                    []
@@ -51,22 +48,49 @@ spawnWork (Block blockExpr d s) =
                    Nothing
                    noSpan)
                  [] noSpan
-                ]
               )
               -- TODO swallow this invariant
             _ -> error "invariant broken"
-        -- simple rename
-        "collectFuture" ->
+        (Just f) | f == joinFuture ->
           ( False
-          , [Local p t
+          , Local p t
              (Just $ Call
                a
                (noSpan <$ [expr| |future| future.recv().unwrap() |])
                args
-               noSpan) atts noSpan]
+               noSpan) atts noSpan
           )
-        _ -> (False, [noSpan <$ e])
-    go e = (False, [noSpan <$ e])
+        _ -> (False, noSpan <$ e)
+    -- FIXME we need a good traversal here. the fix is again to be on our own Rust data structure first!
+    go (Semi (Loop atts (Block blockExprs d s0) l s1) s2) =
+      let (pars, blockExprs') = unzip $ map go blockExprs
+      in (or pars, Semi (Loop atts (Block blockExprs' d s0) l s1) s2)
+    go (Semi (ForLoop atts pat e (Block blockExprs d s0) l s1) s2) =
+      let (pars, blockExprs') = unzip $ map go blockExprs
+      in (or pars, Semi (ForLoop atts pat e (Block blockExprs' d s0) l s1) s2)
+    go (Semi (While atts e (Block blockExprs d s0) l s1) s2) =
+      let (pars, blockExprs') = unzip $ map go blockExprs
+      in (or pars, Semi (While atts e (Block blockExprs' d s0) l s1) s2)
+    go (NoSemi (Loop atts (Block blockExprs d s0) l s1) s2) =
+      let (pars, blockExprs') = unzip $ map go blockExprs
+      in (or pars, NoSemi (Loop atts (Block blockExprs' d s0) l s1) s2)
+    go (NoSemi (ForLoop atts pat e (Block blockExprs d s0) l s1) s2) =
+      let (pars, blockExprs') = unzip $ map go blockExprs
+      in (or pars, NoSemi (ForLoop atts pat e (Block blockExprs' d s0) l s1) s2)
+    go (NoSemi (While atts e (Block blockExprs d s0) l s1) s2) =
+      let (pars, blockExprs') = unzip $ map go blockExprs
+      in (or pars, NoSemi (While atts e (Block blockExprs' d s0) l s1) s2)
+    go e = (False, noSpan <$ e)
+
+    convertPath (Path _ [o,l,f] _) = do
+      o' <- fromString <$> convertSegment o
+      l' <- fromString <$> convertSegment l
+      f' <- fromString <$> convertSegment f
+      pure $ QualifiedBinding (makeThrow [o', l']) f'
+    convertPath _ = Nothing
+
+    convertSegment (PathSegment Ident{name=n} Nothing _) = Just n
+    convertSegment _ = Nothing
 
       -- |
       -- {

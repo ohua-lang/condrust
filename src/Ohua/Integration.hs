@@ -56,8 +56,8 @@ instance Apply Integration where
 definedIntegrations :: [(FileExtension, ArchId, Description, Integration)]
 definedIntegrations =
     [ (".rs", "sm", "Rust integration"
-      , I SRust SSharedMemory Nothing
-      --, I SRust SSharedMemory $ Just dataPar
+      --, I SRust SSharedMemory Nothing
+      , I SRust SSharedMemory $ Just dataPar
       )
     , (".rs", "m3", "Rust integration", I SRust SM3 Nothing)]
 
