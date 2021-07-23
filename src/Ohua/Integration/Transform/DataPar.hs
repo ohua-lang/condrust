@@ -192,8 +192,8 @@ appendExpr :: NormalizedDFExpr ty
 appendExpr (DFL.Let app cont) rest = DFL.Let app $ appendExpr cont rest
 appendExpr DFL.Var{} rest = rest
 
-isIgnorable :: QualifiedBinding -> Bool
-isIgnorable (QualifiedBinding ["ohua","lang"] _) = True
+isIgnorable :: FunRef ty-> Bool
+isIgnorable (FunRef (QualifiedBinding ["ohua","lang"] _) _ _) = True
 isIgnorable _ = False
 
 liftFunction :: forall ty.

@@ -61,6 +61,25 @@ instance Architecture (Architectures 'SharedMemory) where
         where
             createProgram (Program chans resultExpr tasks) =
                 let taskInitStmt = noSpan <$ [stmt| let mut tasks:Vec<Box<dyn FnOnce() -> Result<(), RunError>+ Send >> = Vec::new(); |]
+                    (Block prelude _ _) = void [block| {
+                                            #[derive(Debug)]
+                                            enum RunError {
+                                                SendFailed,
+                                                RecvFailed
+                                            }
+
+                                            impl<T: Send> From<std::sync::mpsc::SendError<T>> for RunError {
+                                                fn from(_err: std::sync::mpsc::SendError<T>) -> Self {
+                                                    RunError::SendFailed
+                                                }
+                                            }
+
+                                            impl From<std::sync::mpsc::RecvError> for RunError {
+                                                fn from(_err: std::sync::mpsc::RecvError) -> Self {
+                                                    RunError::RecvFailed
+                                                }
+                                            }
+                                            }|]
                     box task =
                         Call
                             []
@@ -75,8 +94,15 @@ instance Architecture (Architectures 'SharedMemory) where
                             [t]
                             noSpan
                     taskStmts = map (flip Semi noSpan . push . box . taskExpression) tasks
-                    taskRunStmt = () <$ [stmt| run(tasks); |]
-                    program = toList chans ++ [taskInitStmt] ++ taskStmts ++ [taskRunStmt]
+                    (Block taskRunStmt _ _) = void [block|{
+                                                         let mut handles = tasks.into_iter().map(|t| thread::spawn(move || { let _ = t(); })).collect();
+                                                         for h in handles {
+                                                             if let Err(_) = h.join() {
+                                                                 eprintln!("[Error] A worker thread of an Ohua algorithm has panicked!");
+                                                             }
+                                                         }
+                                                         }|]
+                    program = prelude ++ toList chans ++ [taskInitStmt] ++ taskStmts ++ taskRunStmt
                 in Block (program ++ [NoSemi resultExpr noSpan]) Normal noSpan
 
 
