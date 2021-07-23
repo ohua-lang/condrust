@@ -464,12 +464,14 @@ spec =
                         let (b_0_0_tx, b_0_0_rx) = std::sync::mpsc::channel();
                         let (s_0_0_2_tx, s_0_0_2_rx) = std::sync::mpsc::channel();
                         let (s_0_0_1_0_tx, s_0_0_1_0_rx) = std::sync::mpsc::channel();
+                        let (ctrl_0_0_tx, ctrl_0_0_rx) = std::sync::mpsc::channel();
                         let (sp_0_0_0_tx, sp_0_0_0_rx) = std::sync::mpsc::channel();
-                        let (ctrl_0_tx, ctrl_0_rx) = std::sync::mpsc::channel();
-                        let (d_1_tx, d_1_rx) = std::sync::mpsc::channel();
+                        let (ctrl_0_1_tx, ctrl_0_1_rx) = std::sync::mpsc::channel();
+                        let (d_1_0_tx, d_1_0_rx) = std::sync::mpsc::channel();
                         let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel();
                         let (s_0_1_1_tx, s_0_1_1_rx) = std::sync::mpsc::channel();
-                        let mut tasks: Vec<Box<FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
+                        let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
+                          Vec::new();
                         tasks
                           .push(Box::new(move || -> _ {
                             let var_0 = i;
@@ -488,6 +490,27 @@ spec =
                           }));
                         tasks
                           .push(Box::new(move || -> _ {
+                            loop {
+                              let renew = false;
+                              let sp_0_0_0_0 = sp_0_0_0_rx.recv()?;
+                              while !renew {
+                                let sig = ctrl_0_1_rx.recv()?;
+                                let count = sig.1;
+                                for _ in 0 .. count {
+                                  let var_0 = sp_0_0_0_0;
+                                  let var_1 = d_1_0_rx.recv()?;
+                                  let x_0_0_0 = f_s(var_0, var_1);
+                                  x_0_0_0_tx.send(x_0_0_0)?
+                                };
+                                let renew_next_time = sig.0;
+                                renew = renew_next_time;
+                                ()
+                              };
+                              ()
+                            }
+                          }));
+                        tasks
+                          .push(Box::new(move || -> _ {
                             let stream_0_0_0 = iter_i32();
                             loop {
                               let data = stream_0_0_0;
@@ -498,22 +521,34 @@ spec =
                                 };
                               if hasSize {
                                 let size = data.len();
-                                size_0_tx.send(size)?;
+                                size_0_0_tx.send(size)?;
                                 let ctrl = (true, size);
-                                ctrl_0_tx.send(ctrl)?;
-                                for d in data { d_1_tx.send(d)?; () }
+                                ctrl_0_2_tx.send(ctrl)?;
+                                let ctrl = (true, size);
+                                ctrl_0_1_tx.send(ctrl)?;
+                                let ctrl = (true, size);
+                                ctrl_0_0_tx.send(ctrl)?;
+                                for d in data { d_1_0_tx.send(d)?; () }
                               } else {
                                 let size = 0;
                                 for d in data {
-                                  d_1_tx.send(d)?;
+                                  d_1_0_tx.send(d)?;
                                   let ctrl = (false, 1);
-                                  ctrl_0_tx.send(ctrl)?;
+                                  ctrl_0_2_tx.send(ctrl)?;
+                                  let ctrl = (false, 1);
+                                  ctrl_0_1_tx.send(ctrl)?;
+                                  let ctrl = (false, 1);
+                                  ctrl_0_0_tx.send(ctrl)?;
                                   size = size + 1;
                                   ()
                                 };
-                                size_0_tx.send(size)?;
+                                size_0_0_tx.send(size)?;
                                 let ctrl = (true, 0);
-                                ctrl_0_tx.send(ctrl)?;
+                                ctrl_0_2_tx.send(ctrl)?;
+                                let ctrl = (true, 0);
+                                ctrl_0_1_tx.send(ctrl)?;
+                                let ctrl = (true, 0);
+                                ctrl_0_0_tx.send(ctrl)?;
                                 ()
                               }
                             }
@@ -532,30 +567,9 @@ spec =
                           .push(Box::new(move || -> _ {
                             loop {
                               let renew = false;
-                              let sp_0_0_0_0 = sp_0_0_0_rx.recv()?;
-                              while !renew {
-                                let sig = ctrl_0_rx.recv()?;
-                                let count = sig.1;
-                                for _ in 0 .. count {
-                                  let var_0 = sp_0_0_0_0;
-                                  let var_1 = d_1_rx.recv()?;
-                                  let x_0_0_0 = f_s(var_0, var_1);
-                                  x_0_0_0_tx.send(x_0_0_0)?
-                                };
-                                let renew_next_time = sig.0;
-                                renew = renew_next_time;
-                                ()
-                              };
-                              ()
-                            }
-                          }));
-                        tasks
-                          .push(Box::new(move || -> _ {
-                            loop {
-                              let renew = false;
                               let s_0_0_1_0_0 = s_0_0_1_0_rx.recv()?;
                               while !renew {
-                                let sig = ctrl_0_rx.recv()?;
+                                let sig = ctrl_0_0_rx.recv()?;
                                 let count = sig.1;
                                 for _ in 0 .. count {
                                   let var_0 = s_0_0_1_0_0;

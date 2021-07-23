@@ -106,22 +106,54 @@ generateNodeCode e@(PureDFFun out fun inp)  | fun == smapFun = do
         case out of -- FIXME: I can not even be sure here whether the order is the correct one!
             Destruct [Direct x, Direct y, Direct z] ->
                 return ( Just $ SChan $ unwrapABnd x
-                       , Just $ SChan $ unwrapABnd y
-                       , Just $ SChan $ unwrapABnd z
+                       , [SChan $ unwrapABnd y]
+                       , [SChan $ unwrapABnd z]
                        )
+            Destruct [Direct x, Dispatch ct, Dispatch size] ->
+              return ( Just $ wrap x
+                     , map wrap $ NE.toList ct
+                     , map wrap $ NE.toList size
+                     )
+            Destruct [Direct x, Dispatch ct, Direct size] ->
+              return ( Just $ wrap x
+                     , map wrap $ NE.toList ct
+                     , [wrap size]
+                     )
+            Destruct [Direct x, Direct ct, Dispatch size] ->
+              return ( Just $ wrap x
+                     , [wrap ct]
+                     , map wrap $ NE.toList size
+                     )
             -- see hack in dead code elimination
-            Destruct [Direct ctrl, Direct size] ->
+            Destruct [Direct ct, Direct size] ->
               return ( Nothing
-                     , Just $ SChan $ unwrapABnd ctrl
-                     , Just $ SChan $ unwrapABnd size
+                     , [SChan $ unwrapABnd ct]
+                     , [SChan $ unwrapABnd size]
+                     )
+            Destruct [Dispatch ct, Dispatch size] ->
+              return ( Nothing
+                     , map wrap $ NE.toList ct
+                     , map wrap $ NE.toList size
+                     )
+            Destruct [Dispatch ct, Direct size] ->
+              return ( Nothing
+                     , map wrap $ NE.toList ct
+                     , [wrap size]
+                     )
+            Destruct [Direct ct, Dispatch size] ->
+              return ( Nothing
+                     , [wrap ct]
+                     , map wrap $ NE.toList size
                      )
             Destruct [Direct ds] ->
               return ( Just $ SChan $ unwrapABnd ds
-                     , Nothing
-                     , Nothing
+                     , []
+                     , []
                      )
             _ -> invariantBroken $ "SMap must have 3 outputs:\n" <> show e
     return $ SMap $ Ops.smapFun input dataOut ctrlOut collectOut
+    where
+      wrap b = SChan $ unwrapABnd b
 
 generateNodeCode e@(PureDFFun out fun inp) | fun == collect = do
     (sizeIn, dataIn) <-

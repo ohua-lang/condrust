@@ -30,23 +30,12 @@ spec =
 
                       fn test() -> () {
                         let (b_0_0_tx, b_0_0_rx) = std::sync::mpsc::channel();
-                        let (ctrl_0_tx, ctrl_0_rx) = std::sync::mpsc::channel();
+                        let (ctrl_0_0_tx, ctrl_0_0_rx) = std::sync::mpsc::channel();
                         let (c_0_0_tx, c_0_0_rx) = std::sync::mpsc::channel();
-                        let (size_0_tx, size_0_rx) = std::sync::mpsc::channel();
+                        let (size_0_0_tx, size_0_0_rx) = std::sync::mpsc::channel();
                         let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel();
-                        let mut tasks: Vec<Box<FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
-                        tasks
-                          .push(Box::new(move || -> _ {
-                            loop {
-                              let num = size_0_rx.recv()?;
-                              let collection = Vec::new();
-                              for _ in 0 .. num {
-                                let data = c_0_0_rx.recv()?;
-                                collection.push(data)
-                              };
-                              x_0_0_0_tx.send(collection)?
-                            }
-                          }));
+                        let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
+                          Vec::new();
                         tasks
                           .push(Box::new(move || -> _ {
                             let stream_0_0_0 = iter();
@@ -59,22 +48,21 @@ spec =
                                 };
                               if hasSize {
                                 let size = data.len();
-                                size_0_tx.send(size)?;
+                                size_0_0_tx.send(size)?;
                                 let ctrl = (true, size);
-                                ctrl_0_tx.send(ctrl)?;
-                                for d in data { d_0_tx.send(d)? }
+                                ctrl_0_0_tx.send(ctrl)?;
+                                ()
                               } else {
                                 let size = 0;
                                 for d in data {
-                                  d_0_tx.send(d)?;
                                   let ctrl = (false, 1);
-                                  ctrl_0_tx.send(ctrl)?;
+                                  ctrl_0_0_tx.send(ctrl)?;
                                   size = size + 1;
                                   ()
                                 };
-                                size_0_tx.send(size)?;
+                                size_0_0_tx.send(size)?;
                                 let ctrl = (true, 0);
-                                ctrl_0_tx.send(ctrl)?;
+                                ctrl_0_0_tx.send(ctrl)?;
                                 ()
                               }
                             }
@@ -91,13 +79,25 @@ spec =
                               let renew = false;
                               let lit_unit_0 = ();
                               while !renew {
-                                let sig = ctrl_0_rx.recv()?;
+                                let sig = ctrl_0_0_rx.recv()?;
                                 let count = sig.1;
                                 for _ in 0 .. count { let var_0 = lit_unit_0; c_0_0_tx.send(c_0_0)? };
                                 let renew_next_time = sig.0;
                                 renew = renew_next_time;
                                 ()
                               }
+                            }
+                          }));
+                        tasks
+                          .push(Box::new(move || -> _ {
+                            loop {
+                              let num = size_0_0_rx.recv()?;
+                              let collection = Vec::new();
+                              for _ in 0 .. num {
+                                let data = c_0_0_rx.recv()?;
+                                collection.push(data)
+                              };
+                              x_0_0_0_tx.send(collection)?
                             }
                           }));
                         run(tasks);
