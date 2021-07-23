@@ -38,18 +38,18 @@ generateNodesCode = go
 generateFunctionCode :: CompM m => DFApp a ty -> LoweringM m (FusableExpr ty)
 generateFunctionCode = \case
     (PureDFFun out fn inp) -> do
-        (fun', args) <- lowerFnRef fn inp
+        let args = toList $ map generateReceive inp
         out' <- pureOut fn out
-        return $ Fusion.Fun $ Ops.PureFusable args fun' $ Identity $ SChan out'
+        return $ Fusion.Fun $ Ops.PureFusable args fn $ Identity $ SChan out'
     (StateDFFun out fn (DFVar stateT stateIn) inp) -> do
-        (fun', args) <- lowerFnRef fn inp
+        let args = toList $ map generateReceive inp
         (sOut, dataOut) <- stateOut fn out
         return $
           Fusion.Fun $
           Ops.STFusable
            (SRecv stateT $ SChan $ unwrapABnd stateIn)
            args
-           fun'
+           fn
            (SChan <$> dataOut) (SChan <$> sOut)
     where
         pureOut _ (Direct out) = return $ unwrapABnd out
@@ -67,22 +67,6 @@ generateReceive (DFVar t bnd) =
     Ops.Arg $ SRecv t $ SChan $ unwrapABnd bnd
 generateReceive (DFEnvVar t l) = Ops.Converted $ Lit l -- FIXME looses type info!
 
-lowerFnRef :: CompM m
-           => QualifiedBinding
-           -> NonEmpty (DFVar semTy ty)
-           -> LoweringM m (QualifiedBinding, [Ops.CallArg ty])
--- lowerFnRef fun vars | fun == Refs.unitFun = do -- FIXME Why not give a unit function a unit literal as an input?!
---     (f,vars') <-
---       case vars of
---         [DFEnvVar _t (FunRefLit (FunRef p _ _)), DFVar t1 bnd] -> -- FIXME looses type info!
---           return (p, [Ops.Drop $ Left $ SRecv t1 $ SChan $ unwrapABnd bnd])
---         [DFEnvVar _t (FunRefLit (FunRef p _ _)), DFEnvVar _ UnitLit] ->
---           return (p, [])
---         _ -> invariantBroken "unitFun must always have two arguments!"
---     return (f, vars')
-lowerFnRef f [DFEnvVar _ UnitLit] = return (f, [])
-lowerFnRef f vars = return (f, toList $ map generateReceive vars)
-
 generateArcsCode :: NormalizedDFExpr ty -> NonEmpty (Channel ty)
 generateArcsCode = go
     where
@@ -95,7 +79,7 @@ generateArcsCode = go
 
 -- FIXME see sertel/ohua-core#7: all these errors would immediately go away
 generateNodeCode :: CompM m => DFApp semTy ty ->  LoweringM m (FusableExpr ty)
-generateNodeCode e@(PureDFFun out fun inp)  | fun == smapFun = do
+generateNodeCode e@(PureDFFun out (FunRef fun _ _) inp)  | fun == smapFun = do
     input <-
         case inp of
             [x] -> case x of
@@ -155,7 +139,7 @@ generateNodeCode e@(PureDFFun out fun inp)  | fun == smapFun = do
     where
       wrap b = SChan $ unwrapABnd b
 
-generateNodeCode e@(PureDFFun out fun inp) | fun == collect = do
+generateNodeCode e@(PureDFFun out (FunRef fun _ _) inp) | fun == collect = do
     (sizeIn, dataIn) <-
         case inp of
             [DFVar sType s, DFVar dType d] ->
@@ -167,7 +151,7 @@ generateNodeCode e@(PureDFFun out fun inp) | fun == collect = do
             _ -> invariantBroken $ "Collect outputs don't match:\n" <> show e
     return $ SMap $ Ops.collect dataIn sizeIn collectedOutput
 
-generateNodeCode e@(PureDFFun out fun inp) | fun == ifFun = do
+generateNodeCode e@(PureDFFun out (FunRef fun _ _) inp) | fun == ifFun = do
     condIn <-
         case inp of
             [DFVar xType x] -> return $ SRecv xType $ SChan $ unwrapABnd x
@@ -180,7 +164,7 @@ generateNodeCode e@(PureDFFun out fun inp) | fun == ifFun = do
         EndlessLoop $
             Ops.ifFun condIn ctrlTrueOut ctrlFalseOut
 
-generateNodeCode e@(PureDFFun out fun inp) | fun == select = do
+generateNodeCode e@(PureDFFun out (FunRef fun _ _) inp) | fun == select = do
     (condIn, trueIn, falseIn) <-
         case inp of
             [DFVar xType x, DFVar yType y, DFVar zType z] ->
@@ -197,7 +181,7 @@ generateNodeCode e@(PureDFFun out fun inp) | fun == select = do
         EndlessLoop $
             Ops.select condIn trueIn falseIn out'
 
-generateNodeCode e@(PureDFFun out fun inp) | fun == Refs.runSTCLangSMap = do
+generateNodeCode e@(PureDFFun out (FunRef fun _ _) inp) | fun == Refs.runSTCLangSMap = do
     (sizeIn, stateIn) <-
         case inp of
             [DFVar xType x, DFVar yType y] ->
@@ -235,7 +219,7 @@ generateNodeCode e@(PureDFFun out fun inp) | fun == Refs.runSTCLangSMap = do
 --                     ins
 --                     out
 
-generateNodeCode e@(PureDFFun out fun inp) | fun == ctrl = do
+generateNodeCode e@(PureDFFun out (FunRef fun _ _) inp) | fun == ctrl = do
     out' <-
         case out of
             Direct x -> return $ SChan $ unwrapABnd x
@@ -253,7 +237,7 @@ generateNodeCode e@(PureDFFun out fun inp) | fun == ctrl = do
                 Ops.mkLittedCtrl (SRecv tc $ SChan $ unwrapABnd ctrlInp) lit out' -- FIXME loosing the semantic type here!
         _ -> invariantBroken $ "Control arguments don't match:\n" <> show e
 
-generateNodeCode e@(PureDFFun out fun inp) | fun == Refs.seqFun = do
+generateNodeCode e@(PureDFFun out (FunRef fun _ _) inp) | fun == Refs.seqFun = do
   out' <- case out of
            Direct x -> return $ SChan $ unwrapABnd x
            _ -> invariantBroken $ "Seq must only have one output:\n" <> show e
@@ -267,7 +251,7 @@ generateNodeCode e@(PureDFFun out fun inp) | fun == Refs.seqFun = do
     _ -> invariantBroken $
             "Seq must have two inputs where the second is a literal:\n" <> show e
 
-generateNodeCode e@(PureDFFun out fun inp) | fun == Refs.unitFun = do
+generateNodeCode e@(PureDFFun out (FunRef fun _ _) inp) | fun == Refs.unitFun = do
   out' <- case out of
            Direct x -> return $ SChan $ unwrapABnd x
            _ -> invariantBroken $ "unitFun must only have one output:\n" <> show e
@@ -282,8 +266,8 @@ generateNodeCode e@(PureDFFun out fun inp) | fun == Refs.unitFun = do
           return $
             Fusion.Fun $
             Ops.IdFusable (Ops.Converted $ Lit l) $ Identity out'
-   [DFEnvVar _t (FunRefLit (FunRef p _ _)), v] -> -- FIXME this feels like a bug to me. why do we take this detour via unitFun???
-     generateFunctionCode $ PureDFFun out p (v:|[])
+   [DFEnvVar _t (FunRefLit pr@(FunRef p _ _)), v] -> -- FIXME this feels like a bug to me. why do we take this detour via unitFun???
+     generateFunctionCode $ PureDFFun out pr (v:|[])
    _ -> invariantBroken $ "unknown function as first argument or wrong number of arguments (expetced 2) to unitFun:\n" <> show e
 
 -- generateNodeCode e@LetExpr {functionRef=f} | f == runSTCLang = do
