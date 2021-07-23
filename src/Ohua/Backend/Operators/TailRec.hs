@@ -23,6 +23,8 @@ deriving instance Generic (RecFun ty)
 deriving instance Eq (RecFun ty)
 deriving instance Hashable (RecFun ty)
 
+finalResult = "finalResult"
+
 mkRecFun :: RecFun ty -> TaskExpr ty
 mkRecFun (RecFun resultOut ctrlOut recArgsOuts recInitArgsIns recArgsIns recCondIn recResultIn) =
     loop $
@@ -38,8 +40,8 @@ mkRecFun (RecFun resultOut ctrlOut recArgsOuts recInitArgsIns recArgsIns recCond
                 sendLoopArgs $
                 Lit UnitLit ) $
             dispatchCtrlSig stopSig $
-            Let "finaResult" resultRecv $
-            SendData $ SSend resultOut "finalResult"
+            Let finalResult resultRecv $
+            SendData $ SSend resultOut finalResult
     where
         -- this loop stuff may go away once we start fusing recur
         loop c = case filter isLeft recInitArgsIns of
