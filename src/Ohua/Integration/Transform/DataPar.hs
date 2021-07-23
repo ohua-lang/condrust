@@ -181,7 +181,7 @@ rewrite (SMap smapF body collectF) = do
   return $ SMap smapF body' collectF
   where
     rewriteBody :: NormalizedDFExpr ty -> OhuaM (NormalizedDFExpr ty)
-    rewriteBody (DFL.Let fun@(PureDFFun _ bnd _) cont)
+    rewriteBody (DFL.Let fun@PureDFFun{} cont)
       | not (isIgnorable $ fnDFApp fun) =
           liftFunction fun cont
     rewriteBody e = pure e
@@ -192,8 +192,8 @@ appendExpr :: NormalizedDFExpr ty
 appendExpr (DFL.Let app cont) rest = DFL.Let app $ appendExpr cont rest
 appendExpr DFL.Var{} rest = rest
 
-isIgnorable :: FunRef ty-> Bool
-isIgnorable (FunRef (QualifiedBinding ["ohua","lang"] _) _ _) = True
+isIgnorable :: QualifiedBinding -> Bool
+isIgnorable (QualifiedBinding ["ohua","lang"] _) = True
 isIgnorable _ = False
 
 liftFunction :: forall ty.
