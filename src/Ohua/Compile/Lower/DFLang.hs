@@ -35,7 +35,7 @@ generateNodesCode = go
             return (task:tasks,resRecv)
         go (DFLang.Var bnd) = return ([], SRecv TypeVar $ SChan bnd) -- FIXME needs a concrete type!
 
-generateFunctionCode :: CompM m => DFApp a ty ->  LoweringM m (FusableExpr ty)
+generateFunctionCode :: CompM m => DFApp a ty -> LoweringM m (FusableExpr ty)
 generateFunctionCode = \case
     (PureDFFun out fn inp) -> do
         (fun', args) <- lowerFnRef fn inp

@@ -43,6 +43,45 @@ spec =
                         }
                     |]
                 compiled `shouldBe` expected)
+        it "no conditionals - amorphous" $
+          -- this is the version that we promise in the paper
+          -- FIXME mutability is missing until the according issue was addressed. see sertel/ohuac-integrations#4
+            (showCode "Compiled: " =<< compileCodeWithRec [sourceFile|
+                use benchs::*;
+                use std::*;
+
+                fn fill(maze: Maze, pairs: Vec<(Point, Point)>, its_left: u32) -> Maze {
+                    let rs = Vec::new();
+                    let mro = maze.clone(); // the type check for state threads in Ohua forces me to put this here. this is good!
+                    for pair in pairs {
+                        // FIXME This type check seems not be implemented yet.
+                        //       The test `var multi fail` also does not show the desired result: an error message!
+                        let path = find_path(mro, pair);
+                        let r = maze.update(path);
+                        rs.push(r);
+                    }
+                    rs.evict_mapped();
+                    let new_its_left = decrement(its_left);
+                    let not_done = rs.calculate_done(new_its_left);
+                    if not_done { fill(maze, rs, new_its_left) }
+                    else { maze }
+                }
+
+                fn run(salt: i32, pairs: Vec<(Point, Point)>, max_it:u32) -> Maze {
+                    let maze = Maze::init(salt);
+                    fill(maze, pairs, max_it)
+                }
+                |]) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:"
+                    [sourceFile|
+                        use funs::*;
+
+                        fn test(i: i32) -> i32 {
+                            TODO
+                        }
+                    |]
+                compiled `shouldBe` expected)
         it "no conditionals" $
           -- this is the version that we promise in the paper
           -- FIXME mutability is missing until the according issue was addressed. see sertel/ohuac-integrations#4
