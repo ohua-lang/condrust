@@ -142,7 +142,7 @@ liftPureFunctions = rewriteSMap
     rewriteSMap :: NormalizedDFExpr ty -> OhuaM (NormalizedDFExpr ty)
     rewriteSMap (DFL.Let app cont) =
       case app of
-        (PureDFFun _ fn _)
+        (PureDFFun _ (FunRef fn _ _) _)
           | fn == DFRef.smapFun ->
               let rewriteIt smap@(SMap _ smapBody _) = do
                     smap'@(SMap app' smapBody' coll') <- rewrite smap
@@ -166,10 +166,10 @@ liftPureFunctions = rewriteSMap
     collectSMap (DFL.Let app cont) =
       case app of
         -- loop body has ended
-        (PureDFFun _ fn (_ :|[DFVar _ result]))
+        (PureDFFun _ (FunRef fn _ _) (_ :|[DFVar _ result]))
           | fn == DFRef.collect ->
             pure (DFL.Var $ unwrapABnd result, app, cont)
-        (PureDFFun _ fn _)
+        (PureDFFun _ (FunRef fn _ _) _)
           | fn == DFRef.smapFun ->
               unsupported "Nested smap expressions"
         _ -> do (contBody, coll, cont') <- collectSMap cont
@@ -192,8 +192,8 @@ appendExpr :: NormalizedDFExpr ty
 appendExpr (DFL.Let app cont) rest = DFL.Let app $ appendExpr cont rest
 appendExpr DFL.Var{} rest = rest
 
-isIgnorable :: QualifiedBinding -> Bool
-isIgnorable (QualifiedBinding ["ohua","lang"] _) = True
+isIgnorable :: FunRef ty-> Bool
+isIgnorable (FunRef (QualifiedBinding ["ohua","lang"] _) _ _) = True
 isIgnorable _ = False
 
 liftFunction :: forall ty.
@@ -212,7 +212,7 @@ liftFunction (PureDFFun out fun inp) cont = do
         DFL.Let
         (PureDFFun
           out
-          joinFutures
+          (FunRef joinFutures Nothing Untyped)
           (DFVar TypeVar futuresBnd  :|[])
           )
         cont
@@ -221,8 +221,8 @@ liftFunction (PureDFFun out fun inp) cont = do
     handleFun futuresBnd =
       PureDFFun
       (Direct futuresBnd)
-      spawnFutures
-      (DFEnvVar TypeVar (FunRefLit $ FunRef fun Nothing Untyped) NE.<| inp)
+      (FunRef spawnFutures Nothing Untyped)
+      (DFEnvVar TypeVar (FunRefLit $ fun) NE.<| inp)
 
 
 -- TODO
