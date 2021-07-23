@@ -26,12 +26,12 @@ instance Hashable (CallArg ty)
 data FusFunction pout sin ty
     = PureFusable
         [CallArg ty]  -- data receive
-        QualifiedBinding
+        (FunRef ty)
         (pout (Com 'Channel ty)) -- send result
     | STFusable
         (sin ty) -- state receive
         [CallArg ty]  -- data receive
-        QualifiedBinding
+        (FunRef ty)
         (Maybe (Com 'Channel ty)) -- send result
         (Maybe (Com 'Channel ty)) -- send state
     | IdFusable
@@ -83,19 +83,19 @@ genFun'' fun = (\f -> genFun' (genSend f) f) $ toFuseFun fun
 
 genFun' :: TaskExpr ty -> FusedFunction ty -> TaskExpr ty
 genFun' ct = \case
-    (PureFusable receives app out) ->
+    (PureFusable receives (FunRef app _ funTy) out) ->
         let varsAndReceives = zipWith (curry generateReceiveCode) [0 ..] receives
-            callArgs = getCallArgs varsAndReceives
+            callArgs = getCallArgs funTy varsAndReceives
             call = Apply $ Stateless app callArgs
         in flip letReceives varsAndReceives $
             maybe
                 (Stmt call ct)
                 (\(SChan b) -> Let b call ct)
                 out
-    (STFusable stateRecv receives app sendRes _sendState) ->
+    (STFusable stateRecv receives (FunRef app _ funTy) sendRes _sendState) ->
         let varsAndReceives =
               NE.zipWith (curry generateReceiveCode) [0 ..] $ stateRecv :| receives
-            callArgs = getCallArgs $ NE.tail varsAndReceives
+            callArgs = getCallArgs funTy $ NE.tail varsAndReceives
             stateArg = (\(_,v,_) -> v) $ NE.head varsAndReceives
             call = (Apply $ Stateful (Var stateArg) app callArgs)
         in flip letReceives (toList varsAndReceives) $
@@ -107,9 +107,12 @@ genFun' ct = \case
         let varsAndReceives = zipWith (curry generateReceiveCode) [0 ..] [i]
         in letReceives ct varsAndReceives
     where
-        getCallArgs =
-          map (\(_,v,_) -> Var v) .
+        getCallArgs (FunType (Left Unit)) _ = []
+        getCallArgs (STFunType _ (Left Unit)) _ = []
+        getCallArgs _ vrs =
+          map (\(_,v,_) -> Var v) $
           filter (\case (Drop _, _, _) -> False; _ -> True)
+          vrs
         letReceives = foldr ((\ (v, r) c -> Let v r c) . (\(_,v,r) -> (v,r)))
 
 generateReceiveCode :: (Semigroup b, IsString b, Show a) => (a, CallArg ty) -> (CallArg ty, b, TaskExpr ty)
