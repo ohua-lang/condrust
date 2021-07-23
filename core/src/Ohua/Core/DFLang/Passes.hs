@@ -64,8 +64,11 @@ removeNth expr = do
 
     -- Note how this makes sure to preserve the semantics of the functions!
     -- TODO we would normally say that the binding does not change its type!
-    toDFAppFun :: App a ty -> State (HM.HashMap Binding (NonEmpty (Integer, Binding))) (Maybe (DFApp a ty))
-    toDFAppFun (PureFun tgt "ohua.lang/nth" [DFEnvVar _ (NumericLit i), _, DFVar _ (DataBinding src)]) =
+    toDFAppFun :: App a ty
+               -> State
+               (HM.HashMap Binding (NonEmpty (Integer, Binding)))
+               (Maybe (DFApp a ty))
+    toDFAppFun (PureFun tgt (FunRef "ohua.lang/nth" _ _) [DFEnvVar _ (NumericLit i), _, DFVar _ (DataBinding src)]) =
       modify (HM.insertWith (<>) src ((i, unwrapABnd tgt) :| [])) >> pure Nothing
     toDFAppFun (PureFun out fun ins) = do
       hm <- get
@@ -171,14 +174,14 @@ handleDefinitionalExpr' assign l@(Apply _ _) cont = do
   where
     st ::
       (MonadState (HS.HashSet Binding) m) =>
-      QualifiedBinding ->
+      FunRef ty ->
       (ArgType ty, ABinding 'State) ->
       NonEmpty (DFVar 'Data ty) ->
       m (App 'ST ty)
     st fn (stateType, stateBnd) args' =
       (\outs -> StateFun outs fn (DFVar stateType stateBnd) args')
         <$> findSTOuts assign
-    fun :: QualifiedBinding -> Binding -> NonEmpty (DFVar 'Data ty) -> App 'Fun ty
+    fun :: FunRef ty -> Binding -> NonEmpty (DFVar 'Data ty) -> App 'Fun ty
     fun fn bnd args' = PureFun (DataBinding bnd) fn args'
     findSTOuts ::
       (MonadState (HS.HashSet Binding) m) =>
@@ -203,30 +206,30 @@ handleApplyExpr ::
   forall m ty.
   (MonadOhua m) =>
   ALang.Expr ty ->
-  m (QualifiedBinding, Maybe (ArgType ty, ABinding 'State), NonEmpty (ArgType ty, ALang.Expr ty))
+  m (FunRef ty, Maybe (ArgType ty, ABinding 'State), NonEmpty (ArgType ty, ALang.Expr ty))
 handleApplyExpr (Apply fn a) = go (a :| []) fn
   where
     go args e =
       case e of
-        Apply fn arg -> do
-          go (arg NE.<| args) fn
-        Lit (FunRefLit (FunRef fn _ident (FunType argTypes))) -> do
-          assertTermTypes args argTypes "function" fn
-          return (fn, Nothing, zip' argTypes args)
+        Apply f arg -> do
+          go (arg NE.<| args) f
+        Lit (FunRefLit fr@(FunRef f _ident (FunType argTypes))) -> do
+          assertTermTypes args argTypes "function" f
+          return (fr, Nothing, zip' argTypes args)
         Lit (FunRefLit (FunRef qb _ Untyped)) ->
           failWith $ "Wrong function type 'untyped' for pure function: " <> show qb
         Lit (FunRefLit (FunRef qb _ STFunType {})) ->
           failWith $ "Wrong function type 'st' for pure function: " <> show qb
-        BindState _state0 (Lit (FunRefLit (FunRef fn _ Untyped))) ->
-          failWith $ "Wrong function type 'untyped' for st function: " <> show fn
-        BindState _state0 (Lit (FunRefLit (FunRef fn _ FunType {}))) ->
-          failWith $ "Wrong function type 'pure' for st function: " <> show fn
-        BindState state0 (Lit (FunRefLit (FunRef fn _ (STFunType sType argTypes)))) -> do
-          assertTermTypes args argTypes "stateful function" fn
+        BindState _state0 (Lit (FunRefLit (FunRef f _ Untyped))) ->
+          failWith $ "Wrong function type 'untyped' for st function: " <> show f
+        BindState _state0 (Lit (FunRefLit (FunRef f _ FunType {}))) ->
+          failWith $ "Wrong function type 'pure' for st function: " <> show f
+        BindState state0 (Lit (FunRefLit fr@(FunRef f _ (STFunType sType argTypes)))) -> do
+          assertTermTypes args argTypes "stateful function" f
           state' <- expectStateBnd state0
-          return (fn, Just (sType, state'), zip' argTypes args)
+          return (fr, Just (sType, state'), zip' argTypes args)
         x -> failWith $ "Expected Apply or Var but got: " <> show (x :: ALang.Expr ty)
-    assertTermTypes termArgs typeArgs funType fn =
+    assertTermTypes termArgs typeArgs funType f =
       assertE
         -- length of Unit = 1?
         -- implement Foldable for Either (Unit (NonEmpty ...))
@@ -237,13 +240,13 @@ handleApplyExpr (Apply fn a) = go (a :| []) fn
           <> "] don't match for stateful "
           <> funType
           <> ": "
-          <> show fn
+          <> show f
     length' expr = case expr of
       Left Unit -> 1
       Right l -> length l
 
     zip' :: Either Unit (NonEmpty (ArgType ty)) -> NonEmpty b -> NonEmpty (ArgType ty, b)
-    zip' (Left Unit) bs = NE.zip (TypeVar :| []) bs
+    zip' (Left Unit) bs = NE.zip (TypeVar :| []) bs -- FIXME this seems wrong to me. it should be a unitVal. It points to a problem that we we still have with Unit. We do not distinguish between a unit type and a unit value. and I'm not even sure that there should be such a thing as a unit value unless the controls need it.
     zip' (Right as) bs = NE.zip as bs
 handleApplyExpr g = failWith $ "Expected apply but got: " <> show g
 

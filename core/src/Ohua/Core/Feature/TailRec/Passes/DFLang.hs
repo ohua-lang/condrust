@@ -28,7 +28,7 @@ recurLowering expr
       -- TODO What was the assumption here that recurStart can only have one argument?!
       -- recurStartToRecurFun (Let app@(PureDFFun (Destruct [_, _]) fun inp) rest)
       recurStartToRecurFun (Let app@(PureDFFun (Destruct{}) fun inp) rest)
-        | fun == ALangPass.recurStartMarker = do
+        | fnDFApp app == ALangPass.recurStartMarker = do
             outs <- case outsANew app of
                       [] -> error $ "invariant broken: the recur start marker does not have outputs"
                       (o:os) -> pure $ o :| os

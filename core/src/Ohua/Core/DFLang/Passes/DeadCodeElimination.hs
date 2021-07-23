@@ -24,7 +24,7 @@ eliminateExprs expr = do
   where
     f :: (MonadOhua m) => NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
     f (Let app cont) = case app of
-      (PureDFFun out fun _) ->
+      (PureDFFun out (FunRef fun _ _) _) ->
         case out `isUsedIn` cont of
           True -> Let app <$> f cont
           False -> warn fun >> (f cont)
@@ -71,7 +71,7 @@ eliminateOuts expr = transformExprM go expr
         -- because recurFun takes vars as arguments that are defined only later.
         used = map (\b -> (isBndUsed b expr, DataBinding b)) $ outBindings app
       in case app of
-        (PureDFFun out fun inp)
+        (PureDFFun out fr@(FunRef fun _ _) inp)
           | R.smapFun == fun ->
             case used of
               -- TODO(feliix42): wouldn't that need to be able to handle multiple ctrl outs?
@@ -80,14 +80,14 @@ eliminateOuts expr = transformExprM go expr
               [(False,_),(False,_),(False,_)] ->
                 throwError $ "dead smap detected: " <> show app
               [(True,ds), (False,_), (False,_)] ->
-                pure $ Let (PureDFFun (Destruct $ Direct ds :|[]) fun inp) cont
+                pure $ Let (PureDFFun (Destruct $ Direct ds :|[]) fr inp) cont
               [(True,ds), (True,ctrl), (False,_)] ->
                 throwError "Unsupported. Please report. This requires a more explicit DFLang: Size dropped."
                 -- pure $ Let (PureDFFun (Destruct $ Direct ds :|[Direct ctrl]) fun inp) cont
               [(False,_), (True,_), (False,_)] ->
                 throwError "Unsupported. Please report. This requires a more explicit DFLang: Only ctrl used."
               [(False,_), (True,ctrl), (True,size)] ->
-                pure $ Let (PureDFFun (Destruct $ Direct ctrl :|[Direct size]) fun inp) cont
+                pure $ Let (PureDFFun (Destruct $ Direct ctrl :|[Direct size]) fr inp) cont
                 -- throwError "Unsupported. Please report. This requires a more explicit DFLang: Only data output dropped."
               [(False,_), (False,_), (True,_)] -> throwError $ "detected smap that only dispatches its size. but for what?! either something needs to be contextified or data needs to be processed then. this is a bug. please report it."
               _ -> pure $ Let app cont

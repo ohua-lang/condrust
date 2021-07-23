@@ -67,9 +67,9 @@ data App (f::FunANF) (ty::Type) :: Type where
     --      Then this should propagate through the type system an make sure that this state is used only
     --      as a state. Currently, we really only tag the types of an app with almost no implication on the
     --      whole expression. This would then immediately remove the unwrapABnd function.
-    PureFun :: ABinding b -> QualifiedBinding -> NonEmpty (DFVar 'Data ty) -> App 'Fun ty
+    PureFun :: ABinding b -> FunRef ty -> NonEmpty (DFVar 'Data ty) -> App 'Fun ty
     StateFun :: (Maybe (ABinding 'State), ABinding 'Data)
-            -> QualifiedBinding -> DFVar 'State ty -> NonEmpty (DFVar 'Data ty) -> App 'ST ty
+            -> FunRef ty -> DFVar 'State ty -> NonEmpty (DFVar 'Data ty) -> App 'ST ty
     -- TODO define the builtin functions right here:
     -- SMap :: Binding -> '[Binding, Binding] -> App 'SMapFun
     -- If
@@ -78,9 +78,9 @@ data App (f::FunANF) (ty::Type) :: Type where
 -- | The applicative normal form with the ops resolved.
 --   (a function with output destructuring and dispatched result)
 data DFApp (f::FunANF) (ty::Type) :: Type where
-    PureDFFun :: OutData b -> QualifiedBinding -> NonEmpty (DFVar 'Data ty) -> DFApp 'Fun ty
+    PureDFFun :: OutData b -> FunRef ty -> NonEmpty (DFVar 'Data ty) -> DFApp 'Fun ty
     StateDFFun :: (Maybe (OutData 'State), Maybe (OutData 'Data))
-                -> QualifiedBinding -> DFVar 'State ty -> NonEmpty (DFVar 'Data ty) -> DFApp 'ST ty
+                -> FunRef ty -> DFVar 'State ty -> NonEmpty (DFVar 'Data ty) -> DFApp 'ST ty
     RecurFun :: --(n ~ 'Succ m) =>
             -- (final) result out
             OutData b ->
@@ -150,14 +150,14 @@ extractBndsFromInputs =
     mapMaybe  (\case DFVar _ bnd -> Just $ unwrapABnd bnd; _ -> Nothing)
 
 fnApp :: App ty a -> QualifiedBinding
-fnApp (PureFun _ f _) = f
-fnApp (StateFun _ f _ _) = f
+fnApp (PureFun _ (FunRef f _ _) _) = f
+fnApp (StateFun _ (FunRef f _ _) _ _) = f
 
 fnDFApp :: DFApp 'Fun a -> QualifiedBinding
-fnDFApp (PureDFFun _ f _) = f
+fnDFApp (PureDFFun _ (FunRef f _ _) _) = f
 
 sfnDFApp :: DFApp 'ST a -> QualifiedBinding
-sfnDFApp (StateDFFun _ f _ _) = f
+sfnDFApp (StateDFFun _ (FunRef f _ _) _ _) = f
 
 unwrapABnd :: ABinding a -> Binding
 unwrapABnd (DataBinding bnd) = bnd

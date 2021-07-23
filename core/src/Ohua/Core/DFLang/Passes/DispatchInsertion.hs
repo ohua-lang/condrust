@@ -9,11 +9,11 @@ import Ohua.Core.Prelude
 insertDispatch :: forall ty m. MonadOhua m => NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
 insertDispatch (Let app cont) =
   case app of
-    (PureDFFun outputs fn inputs)
-      | fn == smapFun -> do
+    (PureDFFun outputs fr@(FunRef f _ _) inputs)
+      | f == smapFun -> do
         (cont', outputs') <- foldMapOutData cont outputs
         cont'' <- insertDispatch cont'
-        return $ Let (PureDFFun outputs' fn inputs) cont''
+        return $ Let (PureDFFun outputs' fr inputs) cont''
     _ -> Let app <$> insertDispatch cont
 insertDispatch v = pure v
 
@@ -63,11 +63,11 @@ renameChannels ((Let app@(PureDFFun out fn inp) cont), newBinds) bnd
       newBnd <- DataBinding <$> generateBindingWith bnd
       let inp' = map (replaceInput bnd newBnd) inp
       let newBinds' = newBnd : newBinds
-      (cont', newBinds'') <- f fn (cont, newBinds') bnd
+      (cont', newBinds'') <- f (fnDFApp app) (cont, newBinds') bnd
       return (Let (PureDFFun out fn inp') cont', newBinds'')
   | otherwise = do
     -- no match, continue
-    (cont', newBinds') <- f fn (cont, newBinds) bnd
+    (cont', newBinds') <- f (fnDFApp app) (cont, newBinds) bnd
     return (Let app cont', newBinds')
   where
     f fn acc bnd
