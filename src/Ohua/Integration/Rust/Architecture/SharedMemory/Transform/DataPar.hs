@@ -1,9 +1,9 @@
 {-# LANGUAGE QuasiQuotes #-}
 module Ohua.Integration.Rust.Architecture.SharedMemory.Transform.DataPar where
 
-import Ohua.Prelude
+import Ohua.Prelude hiding (concat)
 import Ohua.Integration.Rust.Backend
-import Ohua.Integration.Transform.DataPar (spawnFuture, joinFuture)
+import Ohua.Integration.Transform.DataPar (spawnFuture, joinFuture, takeN, concat)
 import Ohua.Integration.Rust.Architecture.SharedMemory ()
 
 import Language.Rust.Quote
@@ -13,7 +13,7 @@ import Language.Rust.Data.Ident
 
 spawnWork :: Block () -> Block ()
 spawnWork (Block blockExpr d s) =
-  let (pars, blockExpr') = unzip $ map go blockExpr
+  let (pars, blockExpr') = unzip $ map (transformBlockExpr go) blockExpr
   in case or pars of
        True ->
          let rt =
@@ -61,36 +61,7 @@ spawnWork (Block blockExpr d s) =
                noSpan) atts noSpan
           )
         _ -> (False, noSpan <$ e)
-    -- FIXME we need a good traversal here. the fix is again to be on our own Rust data structure first!
-    go (Semi (Loop atts (Block blockExprs d s0) l s1) s2) =
-      let (pars, blockExprs') = unzip $ map go blockExprs
-      in (or pars, Semi (Loop atts (Block blockExprs' d s0) l s1) s2)
-    go (Semi (ForLoop atts pat e (Block blockExprs d s0) l s1) s2) =
-      let (pars, blockExprs') = unzip $ map go blockExprs
-      in (or pars, Semi (ForLoop atts pat e (Block blockExprs' d s0) l s1) s2)
-    go (Semi (While atts e (Block blockExprs d s0) l s1) s2) =
-      let (pars, blockExprs') = unzip $ map go blockExprs
-      in (or pars, Semi (While atts e (Block blockExprs' d s0) l s1) s2)
-    go (NoSemi (Loop atts (Block blockExprs d s0) l s1) s2) =
-      let (pars, blockExprs') = unzip $ map go blockExprs
-      in (or pars, NoSemi (Loop atts (Block blockExprs' d s0) l s1) s2)
-    go (NoSemi (ForLoop atts pat e (Block blockExprs d s0) l s1) s2) =
-      let (pars, blockExprs') = unzip $ map go blockExprs
-      in (or pars, NoSemi (ForLoop atts pat e (Block blockExprs' d s0) l s1) s2)
-    go (NoSemi (While atts e (Block blockExprs d s0) l s1) s2) =
-      let (pars, blockExprs') = unzip $ map go blockExprs
-      in (or pars, NoSemi (While atts e (Block blockExprs' d s0) l s1) s2)
     go e = (False, noSpan <$ e)
-
-    convertPath (Path _ [o,l,f] _) = do
-      o' <- fromString <$> convertSegment o
-      l' <- fromString <$> convertSegment l
-      f' <- fromString <$> convertSegment f
-      pure $ QualifiedBinding (makeThrow [o', l']) f'
-    convertPath _ = Nothing
-
-    convertSegment (PathSegment Ident{name=n} Nothing _) = Just n
-    convertSegment _ = Nothing
 
       -- |
       -- {
@@ -118,22 +89,20 @@ spawnWork (Block blockExpr d s) =
       ]
 
 amorphous :: Block () -> Block ()
-amorphous (Block blockExpr d s) = Block (map go blockExpr) d s
+amorphous (Block blockExpr d s) = Block (snd $ unzip $ map (transformBlockExpr go) blockExpr) d s
   where
     go e@(Local p t
           (Just
-           (Call a (PathExpr _ _ (Path _ [ PathSegment "ohua" _ _
-                                         , PathSegment "lang" _ _
-                                         , PathSegment fun _ _] _)
-                     _) args _))
+           (Call a (PathExpr _ _ path _) args _))
            atts _) =
-      case fun of
-        "takeN" ->
-          Local p t
-          (Just
-            (Call
-              a
-              (noSpan <$ [expr| |v, n| v.split_at(n) |])
+      case convertPath path of
+        (Just f) | f == takeN ->
+                   ( True
+                   , Local p t
+                     (Just
+                      (Call
+                       a
+                       (noSpan <$ [expr| |v, n| v.split_at(n) |])
 -- Version that only requires coll to implement iterable.
 -- But we cannot recover the original type in concat anyhow.
 --               [expr|
@@ -152,27 +121,66 @@ amorphous (Block blockExpr d s) = Block (map go blockExpr) d s
 --                      (taken, rest)
 --                    }
 --                    |])
-              args
-              noSpan)
-          )
-          atts
-          noSpan
-        "concat" ->
-          Local p t
-          (Just
-            (Call
-              a
-              (noSpan <$ [expr|
-                              move |results, rest|
-                              {
-                                results.append(rest);
-                                results
-                              }
-                              |])
-              args
-              noSpan)
-          )
-          atts
-          noSpan
-        _ -> e
-    go e = e
+                       args
+                       noSpan)
+                     )
+                     atts
+                     noSpan
+                   )
+        (Just f) | f == concat ->
+                   ( True
+                   , Local p t
+                     (Just
+                      (Call
+                       a
+                       (noSpan <$ [expr|
+                                       move |results, rest|
+                                       {
+                                         results.append(rest);
+                                         results
+                                       }
+                                       |])
+                       args
+                       noSpan)
+                     )
+                     atts
+                     noSpan
+                   )
+        _ -> (False ,e)
+    go e = (False, e)
+
+convertPath :: Path a -> Maybe QualifiedBinding
+convertPath (Path _ [o,l,f] _) = do
+  o' <- fromString <$> convertSegment o
+  l' <- fromString <$> convertSegment l
+  f' <- fromString <$> convertSegment f
+  pure $ QualifiedBinding (makeThrow [o', l']) f'
+convertPath _ = Nothing
+
+convertSegment :: PathSegment a -> Maybe Name
+convertSegment (PathSegment Ident{name=n} Nothing _) = Just n
+convertSegment _ = Nothing
+
+-- FIXME this is a hack for now that works only for the above cases in this module.
+-- FIXME we need a good traversal here. the fix is again to be on our own Rust data structure first!
+-- FIXME should probably be monadic then applying f would just be fmap.
+transformBlockExpr :: (Stmt () -> (Bool, Stmt ())) -> Stmt () -> (Bool, Stmt ())
+transformBlockExpr f (Semi (Loop atts (Block blockExprs d s0) l s1) s2) =
+  let (pars, blockExprs') = unzip $ map (transformBlockExpr f) blockExprs
+  in (or pars, Semi (Loop atts (Block blockExprs' d s0) l s1) s2)
+transformBlockExpr f (Semi (ForLoop atts pat e (Block blockExprs d s0) l s1) s2) =
+  let (pars, blockExprs') = unzip $ map (transformBlockExpr f) blockExprs
+  in (or pars, Semi (ForLoop atts pat e (Block blockExprs' d s0) l s1) s2)
+transformBlockExpr f (Semi (While atts e (Block blockExprs d s0) l s1) s2) =
+  let (pars, blockExprs') = unzip $ map (transformBlockExpr f) blockExprs
+  in (or pars, Semi (While atts e (Block blockExprs' d s0) l s1) s2)
+transformBlockExpr f (NoSemi (Loop atts (Block blockExprs d s0) l s1) s2) =
+  let (pars, blockExprs') = unzip $ map (transformBlockExpr f) blockExprs
+  in (or pars, NoSemi (Loop atts (Block blockExprs' d s0) l s1) s2)
+transformBlockExpr f (NoSemi (ForLoop atts pat e (Block blockExprs d s0) l s1) s2) =
+  let (pars, blockExprs') = unzip $ map (transformBlockExpr f) blockExprs
+  in (or pars, NoSemi (ForLoop atts pat e (Block blockExprs' d s0) l s1) s2)
+transformBlockExpr f (NoSemi (While atts e (Block blockExprs d s0) l s1) s2) =
+  let (pars, blockExprs') = unzip $ map (transformBlockExpr f) blockExprs
+  in (or pars, NoSemi (While atts e (Block blockExprs' d s0) l s1) s2)
+transformBlockExpr f e = f e

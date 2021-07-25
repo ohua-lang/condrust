@@ -1,7 +1,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Ohua.Integration.Transform.DataPar where
 
-import Ohua.Core.Prelude hiding (rewrite)
+import Ohua.Core.Prelude hiding (rewrite,concat)
 import Ohua.Core.Compile.Configuration
 
 import Ohua.Core.ALang.Refs as ALRefs
@@ -257,6 +257,16 @@ lowerTaskPar _ _ = cata $
     e -> embed e
 
 
+takeN :: QualifiedBinding
+takeN = "ohua.lang/takeN"
+
+takeNLit = Lit $ FunRefLit $ FunRef takeN Nothing $ FunType $ Right $ TypeVar :| []
+
+concat :: QualifiedBinding
+concat = "ohua.lang/concat"
+
+concatLit = Lit $ FunRefLit $ FunRef concat Nothing $ FunType $ Right $ TypeVar :| [TypeVar]
+
 -- | This transformation adds a limit on the tries per round and therewith provides
 --   a tuning knob to control the number of invalid (colliding) computation per round.
 --
@@ -335,7 +345,7 @@ amorphous = transformM go
          ]
 
     isUsedState bnd body =
-      0 < length [s | BindState (AL.Var s) _ <- universe body
+      not $ null [s | BindState (AL.Var s) _ <- universe body
                     , s == bnd
                     ]
 
@@ -355,9 +365,9 @@ amorphous = transformM go
           return $
             AL.Let taken
             (Apply
-              (Apply "ohua.lang/takeN" $ AL.Var inp) $
+              (Apply takeNLit $ AL.Var inp) $
               Lit $ NumericLit 10) $ -- TODO take the value from the specification of lang (maybe via a type class)
             destructure (AL.Var taken) [takenInp,rest] $
             AL.Let nResults (Apply f $ AL.Var takenInp) $
-            AL.Let v (Apply (Apply "ohua.lang/concat" $ AL.Var nResults) $ AL.Var rest) cont
+            AL.Let v (Apply (Apply concatLit $ AL.Var nResults) $ AL.Var rest) cont
     doRewrite _ e = pure e
