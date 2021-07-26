@@ -70,9 +70,9 @@ renameChannels ((Let app@(PureDFFun out fn inp) cont), newBinds) bnd
     (cont', newBinds') <- f (fnDFApp app) (cont, newBinds) bnd
     return (Let app cont', newBinds')
   where
-    f fn acc bnd
-      | fn == collect = pure acc
-      | otherwise = renameChannels acc bnd
+    f fun acc bndg
+      | fun == collect = pure acc
+      | otherwise = renameChannels acc bndg
 renameChannels ((Let app cont), newBinds) bnd = do
   (cont', newBinds') <- renameChannels (cont, newBinds) bnd
   return (Let app cont', newBinds')
