@@ -63,20 +63,16 @@ renameChannels ((Let app@(PureDFFun out fn inp) cont), newBinds) bnd
       newBnd <- DataBinding <$> generateBindingWith bnd
       let inp' = map (replaceInput bnd newBnd) inp
       let newBinds' = newBnd : newBinds
-      (cont', newBinds'') <- f (fnDFApp app) (cont, newBinds') bnd
+      (cont', newBinds'') <- renameChannels (cont, newBinds') bnd
       return (Let (PureDFFun out fn inp') cont', newBinds'')
   | otherwise = do
     -- no match, continue
-    (cont', newBinds') <- f (fnDFApp app) (cont, newBinds) bnd
+    (cont', newBinds') <- renameChannels (cont, newBinds) bnd
     return (Let app cont', newBinds')
-  where
-    f fun acc bndg
-      | fun == collect = pure acc
-      | otherwise = renameChannels acc bndg
 renameChannels ((Let app cont), newBinds) bnd = do
   (cont', newBinds') <- renameChannels (cont, newBinds) bnd
   return (Let app cont', newBinds')
-renameChannels ((Var _), _) _ = throwError $ "Invariant broken: Found an smap not delimited by a collect"
+renameChannels v@((Var _), _) _ = return v
 
 replaceInput :: Binding -> ABinding 'Data -> DFVar 'Data a -> DFVar 'Data a
 replaceInput old newBind var = case var of
