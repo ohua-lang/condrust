@@ -392,10 +392,11 @@ rewriteCallExpr :: forall m ty.
        (MonadGenBnd m) => Expr ty -> m (Expr ty)
 rewriteCallExpr e = do
     let (lam@(Lambda _ _):callArgs) = snd $ fromApplyToList e
-    let (recurVars, expr) = lambdaArgsAndBody lam
     recurCtrl <- generateBindingWith "ctrl"
-    l' <- liftIntoCtrlCtxt recurCtrl expr
-    let l'' = rewriteLastCond l'
+    lam' <- liftIntoCtrlCtxt recurCtrl lam
+    let (recurVars, expr) = lambdaArgsAndBody lam'
+
+    let expr' = rewriteLastCond expr
   --   [ohualang|
   --     let (recurCtrl, b1 , ..., bn) = recurFun () () a1 ... an in
   --      let ctxt = ctrl recurCtrl b c d in
@@ -411,7 +412,7 @@ rewriteCallExpr e = do
     ctrls <- generateBindingWith "ctrls"
     return $
         Let ctrls (fromListToApply (FunRef recurStartMarker Nothing $ genFunType callArgs) callArgs) $
-        mkDestructured (recurCtrl : recurVars) ctrls l''
+        mkDestructured (recurCtrl : recurVars) ctrls expr'
   where
     rewriteLastCond :: Expr ty -> Expr ty
     rewriteLastCond (Let v ex o@(Var b))
