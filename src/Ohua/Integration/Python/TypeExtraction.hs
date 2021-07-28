@@ -12,7 +12,7 @@ import qualified Data.HashMap.Lazy as HM
 import Data.List.NonEmpty
 
 --TODO: Provide definitions for function types and argument types
---TODO: Implement extracion of function types and argument types in a given NS (py-module)
+--TODO: Implement extraction of function types and argument types in a given NS (py-module)
 --Note: OHUA functions types may be Untyped, FunType(d) or STFunType(d), last one being functions with self arg. 
 --      in Rust
 -- TODO: Fun.Parameters in AST are just Expr's. Define of Expr's eg. Immutables | Structures | Callables | Self??

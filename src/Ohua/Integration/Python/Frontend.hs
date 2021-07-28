@@ -19,7 +19,7 @@ import Ohua.Integration.Python.Util
 import Ohua.Integration.Python.TypeExtraction
 
 import qualified Language.Python.Common.AST as Py
-import Language.Python.Common (SrcSpan, startCol)
+import Language.Python.Common (SrcSpan (SpanEmpty), startCol)
 
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
@@ -61,6 +61,8 @@ instance Integration (Language 'Python) where
                                         Just . (\e -> Algo (toBinding$ Py.fun_name fun) e fun) <$> extractAlgo fun
                                     --TODO:functions inside classes
                                     --classFun@Py.Class{}
+                                    -- Classes just contain Suites inside which memeber functions are just Py.Fun{} i.e.
+                                    -- 'self' must be extracted from the arguments by ident_string
                                     _ -> return Nothing)
                                 statements
                     return $ Namespace (filePathToNsRef srcFile) imports algos
@@ -77,22 +79,19 @@ instance Integration (Language 'Python) where
                 extractRelativeImports::CompM m => [Binding] -> [Py.ImportItem a] -> m (NonEmpty Import)
                 extractRelativeImports = undefined
 
-    -- sollte eigentlich einen typ habend der ausdrückt, dass die funcitonene
-    -- im input namespace ungetypt sind und erst durch lookupfuntypes die typen
-    -- an die functionsreferenzen gebunden werden  
+
     loadTypes :: CompM m => Language 'Python ->
                     Module ->
                     PythonNamespace ->
                     m PythonNamespace
     -- TODO: Can meanswhile be replaced by id function
     loadTypes lang (Module filepath pymodule) ohuaNS = do
-        -- Note to me: '^.' is a lens operator to focus 'algos' in ohuaNs
         -- Alles was vor update epressions steht ist dafür da, funnctionstypen aus deklarartionen (aus versch. Dateien im comilation scope zu popeln)
         -- _> ich hole mir die typen aus den call und kann mir daher den ersten Teil erstmal sparen
-        -- filesAndPaths <- concat <$> mapM funsForAlgo (ohuaNS^.algos)
-        -- let filesAndPaths' = map (first convertOwn) filesAndPaths
-        -- fun_types <- typesFromNS $ concatMap fst filesAndPaths'
-        -- types' <- HM.fromList <$> mapM (verifyAndRegister fun_types) filesAndPaths'
+        filesAndPaths <- concat <$> mapM funsForAlgo (ohuaNS^.algos)
+        let filesAndPaths' = map (first convertOwn) filesAndPaths
+        fun_types <- typesFromNS $ concatMap fst filesAndPaths'
+        types' <- HM.fromList <$> mapM (verifyAndRegister fun_types) filesAndPaths'
         updateExprs ohuaNS (transformM (assignTypes types'))
         where
             funsForAlgo :: CompM m => Algo (FrLang.Expr (PythonArgType SrcSpan)) (Py.Statement SrcSpan)
@@ -115,10 +114,8 @@ instance Integration (Language 'Python) where
             verifyAndRegister fun_types ([candidate], qB@(QualifiedBinding _ qBName)) = undefined 
 
             assignTypes :: CompM m => FunTypes -> FrLang.Expr (PythonArgType SrcSpan) -> m (FrLang.Expr (PythonArgType SrcSpan))
-            -- Todo: I dont like the idea of extracting function types from calls
-            -- We surely want to have default arguments later, so five different calls can 
-            -- yield five different numbers of arguments. Using definitions at least we get min and max
-    
+            -- Todo: I don't get types right here :-/. How to get ArgType(PythonArgType SrcSpan)
+            --  instead of  Expr (PythonArgType SrcSpan)
             assignTypes funTypes = \case
                 (AppE (LitE (FunRefLit (FunRef qBinding funID _))) args) -> 
                     case args of
@@ -128,10 +125,9 @@ instance Integration (Language 'Python) where
                         (a:args') -> 
                             return $ 
                             AppE (
-                                LitE $ FunRefLit $ FunRef qBinding funID $ FunType $ Right $ map (const $ Type PythonObject) a:|args') 
-                                args 
+                                LitE $ FunRefLit $ FunRef qBinding funID $ FunType $ 
+                                Right $ map (Type $ PythonObject ) a:|args') args 
                 e ->  return e
-
 
             globs :: [NSRef]
             -- Question: Glob is an Import that represents 'path that imports all bindings in this path.'
@@ -152,7 +148,7 @@ instance (Show a) => ConvertPat (Py.Parameter a) where
     convertPat params@Py.VarArgsKeyword{param_name=ident} = return $ VarP $ fromString $ "**"++Py.ident_string ident
     -- Question: I don't think UnitP is a good idea here. Actually it should just map to nothing and converting on the backend should just include addding
     -- EndPositional again -> How to map to nothing wihtout failing?
-    convertPat params@Py.EndPositional{} = return UnitP
+    convertPat params@Py.EndPositional{} = throwError "hit EndPositional parameter. I thought they where a myth"
 
 --Question: What else can be pattern in python?
 instance (Show a) => ConvertPat (Py.Expr a) where
@@ -307,3 +303,5 @@ unsupError text expr = throwError $ "Currently we do not support "<> text <>" us
 --TODO: can this be my responsibility in any way or redirect to bjpop@csse.unimelb.edu.au here ?
 py2Error expr = throwError $ "For whatever reason you managed to get the exclusively version 2 expression "
                                 <> show expr <> " through the python3 parser of language-python."
+
+emptySpan = SpanEmpty

@@ -7,6 +7,7 @@ import Ohua.Backend.Types
 import Ohua.Backend.Lang as TCLang
 import Ohua.Integration.Lang hiding (Lang)
 import Ohua.Integration.Architecture
+import Ohua.Integration.Python.Backend
 
 
 import qualified Language.Python.Common.AST as Py
@@ -21,7 +22,20 @@ instance Architecture (Architectures 'MultiProcessing) where
 -- Question: In the backend definition a task is a block/suite, while in the architecture it's just an Expression. Why that different levels?
 
 --  convertChannel :: arch -> Channel (Type (Lang arch)) -> Chan arch
-    convertChannel = undefined 
+    convertChannel SMultiProc (SChan bnd)= 
+        let stmt = Apply $ 
+                    Stateless 
+                        -- Todo: replace with real QB as soon as I got ns extraction from 
+                        -- imports right
+                        (QualifiedBinding (makeThrow []) "mp.Pipe") 
+                        []
+            send = convertExpr SMultiProc $ TCLang.Var $ bnd <> "_send"
+            recv = convertExpr SMultiProc $ TCLang.Var $ bnd <> "_recv"
+        in Py.Assign {
+             assign_to = [Py.Tuple [send, recv] noSpan],
+             assign_expr = convertExpr SMultiProc stmt,
+             stmt_annot = noSpan}
+             
 --  convertRecv :: arch -> Com 'Recv (Type (Lang arch)) -> Expr (Lang arch)
     convertRecv = undefined 
 --  convertSend:: arch -> Com 'Send (Type (Lang arch)) -> Expr (Lang arch)

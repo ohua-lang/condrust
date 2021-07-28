@@ -20,6 +20,16 @@ import Data.Maybe
 noSpan :: ()
 noSpan = ()
 
+--Todo: I need to map TaskExprs back to Py.Statement or Py.Expr 
+data PyStmtOrExpr = PyStmt (Py.Statement ()) | PyExpr (Py.Expr ()) 
+
+convertIntoSuite::(Architecture arch, Lang arch ~ Language 'Python) 
+    => arch -> TaskExpr PythonTypeAnno -> Py.Suite ()
+convertIntoSuite arch taskExpr =
+    let expr = convertExpr arch taskExpr
+    in [expr]
+
+
 instance Integration (Language 'Python) where
     type NS (Language 'Python) = Module
     type Type (Language 'Python) = PythonArgType SrcSpan
@@ -28,8 +38,38 @@ instance Integration (Language 'Python) where
     type Expr (Language 'Python) = Py.Expr ()
     type Task (Language 'Python) = Py.Suite ()
 
+{--Note:  lower should basically turn a Programm (Backend.Types) of taskExpressions
+     (actually a function that returns the expression inside a FullExpression) 
+     into a task as defined for the Backend (in this case a Python.Suite).-}
+    
+    -- Basically converts Backend Language () to AST again but adds functionality to receive and send 
+    -- local vars from to channels
+    lower (Module filePath (Py.Module statments)) arch nameSpace = 
+        return $ 
+            -- Note: '&' -> forward application (reverse $), '%~'-> Setter from Lens
+            -- means -> map function: algoCode of algos is set by convertTask(annotation algo)
+            -- return->  ns algos, where algos are set by the map function
+            ns & algos %~ map (\algo -> algo & algoCode %~ convertTasks (algo^.algoAnno))
+        where
+            convertTasks (Py.Fun id params opt_anno body anno) (Program chans (SRecv argType channel) tasks) =                 
+                Program 
+                    chans 
+                    -- SRevs :: ArgType t -> Com 'Channel t -> Com 'Recv t
+                    (SRecv (Type $ PythonObject noSpan) channel)
+                    $ map (convertIntoSuite arch . convertEnvs args <$>) tasks 
+                            
+            convertEnvs :: [Py.Parameter a] -> TCLang.TaskExpr PythonTypeAnno -> TCLang.TaskExpr PythonTypeAnno
+            convertEnvs args = cata $ \case
+                LitF (EnvRefLit h) -> argToVar (args !! unwrap h)
+                e -> embed e
+
+            argToVar :: Py.Parameter a -> TCLang.TaskExpr PythonTypeAnno
+            argToVar Py.EndPositional{} = undefined 
+            argToVar param = Var $ toBinding $ Py.param_name param
+    
+
 -- Note: Checked, spans do not matter for code generation
-    convertExpr _ (Var bnd) =  Py.Var{var_ident= fromBinding bnd noSpan, expr_annot= noSpan}
+    convertExpr _ (TCLang.Var bnd) =  Py.Var{var_ident= fromBinding bnd noSpan, expr_annot= noSpan}
     -- Question: Are there only numeric == Int literals? What about Floats ? 
     convertExpr _ (TCLang.Lit (NumericLit i)) = Py.Int{int_value=i, expr_literal=show i, expr_annot= noSpan}
     convertExpr _ (TCLang.Lit (BoolLit b)) = Py.Bool b noSpan
@@ -41,35 +81,22 @@ instance Integration (Language 'Python) where
     convertExpr _ (TCLang.Lit (EnvRefLit _hostExpr)) = error "Host expression encountered! This is a compiler error. Please report!"
     convertExpr _ (TCLang.Lit (FunRefLit (FunRef qBnd _ _type))) = undefined
 
-    {--Note:  lower should basically turn a Programm (Backend.Types) of taskExpressions
-     (actually a function that returns the expression inside a FullExpression) 
-     into a task as defined for the Backend (in this case a Python.Suite).
-     Question: Can we briefly go through the types and though what exactly should happen here?-}
-    
-    -- Basically converts Backend Language () to AST again but adds functionality to e.g. receive and send 
-    -- local vars from to channels
-    lower (Module filePath (Py.Module statments)) arch nameSpace = 
-        return $ 
-            -- Note: '&' -> forward application (reverse $), '%~'-> Setter from Lens
-            -- means -> map function: algoCode of algos is set by convertTask(annotation algo)
-            -- return->  ns algos, where algos are set by the map function
-            ns & algos %~ map (\algo -> algo & algoCode %~ convertTasks (algo^.algoAnno))
-        where
-            -- convertTasks (Fn _ _ _ (FnDecl args typ _ span) _ _ _ _ block _) (Program chans (SRecv _ c) tasks) =
-            convertTasks (Py.Fun id params opt_anno body anno) (Program chans (SRecv _ c) tasks) =                 
-                Program 
-                    chans 
-                    (SRecv (Type $ PythonObject $ fromMaybe (TupTy [] span) typ) c)
-                    $ map (convertIntoBlock arch . convertEnvs args <$>) tasks 
-                            
-            convertEnvs :: [Py.Parameter a] -> TCLang.TaskExpr PythonTypeAnno -> TCLang.TaskExpr PythonTypeAnno
-            convertEnvs args = cata $ \case
-                LitF (EnvRefLit h) -> argToVar (args !! unwrap h)
-                e -> embed e
+    -- Todo: Actually we have nothing matching tuple in python as the backend tuple just has two components
+    -- and list are homogenous :-/ 
+    convertExpr arch (TCLang.Tuple one two) = 
+        let conv = convertExpr arch . either TCLang.Var TCLang.Lit
+        in  Py.Tuple [conv one, conv two] noSpan
 
-            argToVar :: Py.Parameter a -> TCLang.TaskExpr PythonTypeAnno
-            argToVar Py.EndPositional{} = undefined 
-            argToVar param = Var $ toBinding $ Py.param_name param
+    convertExpr arch (Apply (Stateless bnd args)) = convertFunCall arch bnd args
+    -- There are no different definitions for functions and methods
+    convertExpr arch (Apply (Stateful stateExpr (QualifiedBinding _ bnd) args)) = undefined 
+
+    convertExpr arch (TCLang.Assign bnd expr) = undefined 
+
+    convertExpr arch (TCLang.ReceiveData recv) = convertRecv arch recv
+    convertExpr arch (TCLang.SendData send) = convertSend arch send
+
+    
     
 
 pattern FunRepresentationOf :: Binding -> QualifiedBinding
