@@ -224,7 +224,7 @@ instance (Show a) => ConvertExpr (Py.Statement a) where
     convertExpr asyncFor@(Py.AsyncFor stmt annot) = undefined
     convertExpr classDef@(Py.Class cName cArgs cBody annot) = undefined
     convertExpr ifElifElse@(Py.Conditional condsAndBodys elseBlock annot) = undefined
-    convertExpr assign@(Py.Assign targets exor annot) = undefined
+    convertExpr assign@(Py.Assign targets exor annot) = unsupError "global assignments" assign
     convertExpr augmAs@(Py.AugmentedAssign target operation expr annot) = undefined
     convertExpr annotAs@(Py.AnnotatedAssign targetAnnot target expr stmtAnnot) = undefined
     convertExpr dec@(Py.Decorated decorators funOrClass annot) = undefined
@@ -246,7 +246,7 @@ instance (Show a) => ConvertExpr (Py.Statement a) where
 
 
 makeLoopRef :: (Show a) => String -> a -> String
--- TODO: CAse we like the idea, propagate ScrSpan => a throug all fknts and
+-- TODO: Case we like the idea, propagate ScrSpan => a throug all fknts and
 -- produce name based on coords here. 
 -- Alternative make case distinction here if we may want to change the annotations
 makeLoopRef loopKind loc = loopKind ++ "_"
@@ -254,8 +254,25 @@ makeLoopRef loopKind loc = loopKind ++ "_"
 
 
 instance (Show a) => ConvertExpr (Py.Suite a) where
-    convertExpr statements = undefined
-
+    -- Question: Is there another way to translate assignments than let expressions? 
+    -- Question: What's the scope of this Let assignments i.e. if I reassign 'x' three times in a funnction
+        -- will the effect just be: let x = something in (do stuff and let x = something else in (code that only sees lastx biding))
+    convertExpr statements = 
+         case statements of
+            [] -> throwError "Empty function body. Actually that shouldn't have passed the parser"
+            (x:xs) ->
+                return $ LitE  UnitLit
+                --TODO: Convert the last statment and use it as a base element to 
+                -- apply conversion of the other statements as folding operation 
+                -- Question : What kind of Expression is that overall folded to ? 
+                -- > Guesses would be either Let return_value = 'translation of all statments' or
+                --  LoopE (translation of all other statements)
+                --Question: What's the purpose of the LitE UnitLit() in the Rust implementation? 
+                where
+                    convertStmt :: CompM m => Py.Statement a -> m (FrLang.Expr ty -> FrLang.Expr ty)
+                    convertStmt assign@(Py.Assign targets exor annot) = undefined 
+                    
+                    convertLastStmt = undefined 
 
 instance (Show a) => ConvertExpr (Py.Op a) where
     convertExpr Py.Plus{} = toExpr "+"

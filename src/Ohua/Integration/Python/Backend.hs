@@ -92,7 +92,8 @@ instance Integration (Language 'Python) where
     convertExpr arch (Apply (Stateful stateExpr (QualifiedBinding _ bnd) args)) = undefined 
 
     convertExpr arch (TCLang.Assign bnd expr) = undefined 
-
+    --Question: I'd like to treat them in the context of the function call. Can I do this i.e. do I have acess to function 
+    -- biding, recv and send in one context? 
     convertExpr arch (TCLang.ReceiveData recv) = convertRecv arch recv
     convertExpr arch (TCLang.SendData send) = convertSend arch send
 
