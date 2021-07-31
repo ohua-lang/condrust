@@ -18,8 +18,8 @@ spawnWork (Block blockExpr d s) =
        True ->
          let rt =
                noSpan <$ [stmt|
-                           let rt = Arc::new(
-                           Builder::new()
+                           let rt = std::sync::Arc::new(
+                           tokio::runtime::Builder::new()
                            .threaded_scheduler()
                            .core_threads(threadcount)
                            .thread_name("ohua-tokio-worker")
@@ -56,7 +56,7 @@ spawnWork (Block blockExpr d s) =
           , Local p t
              (Just $ Call
                a
-               (noSpan <$ [expr| |future| future.recv().unwrap() |])
+               (noSpan <$ [expr| |future: std::sync::mpsc::Receiver<_>| future.recv().unwrap() |])
                args
                noSpan) atts noSpan
           )

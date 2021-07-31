@@ -3,10 +3,11 @@ module Ohua.Integration.Transform.DataPar where
 
 import Ohua.Core.Prelude hiding (rewrite,concat)
 import Ohua.Core.Compile.Configuration
+import qualified Data.Text.Prettyprint.Doc as PP
 
 import Ohua.Core.ALang.Refs as ALRefs
 import Ohua.Core.ALang.Lang as AL
-import Ohua.Core.ALang.Util (lambdaArgsAndBody, destructure)
+import Ohua.Core.ALang.Util (lambdaArgsAndBody, destructure, findFreeVariables, findFreeBindings, substitute)
 import Ohua.Core.Feature.TailRec.Passes.ALang as TR (y)
 import Ohua.Core.DFLang.Lang as DFL hiding (length)
 import qualified Ohua.Core.DFLang.Lang as DFL (length)
@@ -261,7 +262,7 @@ lowerTaskPar _ _ = cata $
 takeN :: QualifiedBinding
 takeN = "ohua.lang/takeN"
 
-takeNLit = Lit $ FunRefLit $ FunRef takeN Nothing $ FunType $ Right $ TypeVar :| []
+takeNLit = Lit $ FunRefLit $ FunRef takeN Nothing $ FunType $ Right $ TypeVar :| [TypeVar]
 
 concat :: QualifiedBinding
 concat = "ohua.lang/concat"
@@ -281,7 +282,7 @@ concatLit = Lit $ FunRefLit $ FunRef concat Nothing $ FunType $ Right $ TypeVar 
 -- @
 -- transforms into that:
 -- @
---  let (inputs',rest) = takeN inputs in
+--  let (inputs',rest) = takeN n inputs in
 --  let toBeRetried' = f inputs' in
 --  let toBeRetried = concat toBeRetried' rest in ...
 -- @
@@ -308,7 +309,9 @@ concatLit = Lit $ FunRefLit $ FunRef concat Nothing $ FunType $ Right $ TypeVar 
 -- @
 --
 amorphous :: AL.Expr ty -> OhuaM (AL.Expr ty)
-amorphous = transformM go
+amorphous targetExpr = do
+  traceM $ "Trying to check expression:\n" <> quickRender targetExpr
+  transformM go targetExpr
   where
     -- TODO: Verify the correctness of the whole transformation
     go (Apply r@(PureFunction recurF Nothing) body)
@@ -347,15 +350,58 @@ amorphous = transformM go
                                  [] -> pure lam
                                  [(_,inp)] -> do
                                    traceM $ "Detected State usage: " <> show inp
-                                   transformM (doRewrite inp) lam
+                                   recArgs <- findRecursionArgs body
+                                   workResult <-
+                                     findWorked body inp result $ HS.fromList recArgs
+                                   case workResult of
+                                     Just workResult' ->
+                                       transformM (doRewrite inp workResult') lam
+                                     _ -> pure lam
                                  _ -> throwError $ "invariant broken: "
                                       <> "state inside a context can only be used once!"
 
     findResult body =
       [s | (AL.Let _ cond (AL.Var _)) <- universe body
-         , (Apply (Apply (Apply (PureFunction ifTE Nothing) _) _) (AL.Var s)) <- universe cond
-         , ifTE == ALRefs.ifThenElse
+         , (Apply (Apply (Apply (PureFunction ifTE Nothing) _) _)
+            (AL.Lambda _
+             (AL.Let _ (Apply (PureFunction idF Nothing) (AL.Var s)) _))) <- universe cond
+         , ifTE == ALRefs.ifThenElse && idF == ALRefs.id
          ]
+
+    findRecursionArgs body =
+      let calls = [recursion
+                  | (AL.Let _ cond (AL.Var _)) <- universe body
+                  , (Apply (Apply (PureFunction ifTE Nothing) t) recursion)<- universe cond
+                  , ifTE == ALRefs.ifThenElse
+                  ]
+       in case calls of
+            [call] -> return $ findFreeBindings call
+            _ -> throwError "invariant broken. recursion is not well-formed."
+
+    findWorked body inp result recArgs = do
+      traceM $ show recArgs
+      (b,smapBody) <-
+        case [ (b, smapBody) |
+               AL.Let b (Apply
+                          (Apply
+                            (PureFunction smapF Nothing)
+                            smapBody) (AL.Var inp')) _ <- universe body
+                             , inp == inp'] of
+          [] -> throwError "invariant broken. I could not detext the already detected smap."
+          [x] -> return x
+          _ -> throwError "invariant broken. no ssa"
+      case HS.member b recArgs of
+        True -> return $ Just b -- functional case
+        _ -> -- imperative case
+          let fv    = findFreeBindings smapBody
+              fv'   = filter (`isUsedState` smapBody) $ traceShowId fv
+              fv''  = filter (`HS.member` recArgs) $ traceShowId fv'
+              fv''' = filter (/= result) fv''
+           in case fv''' of
+                [b'] -> return $ Just b'
+                bs -> do
+                  throwError $ "I was unable to detect the work variable: " <> show bs
+                  --return Nothing
 
     isUsedState bnd body =
       not $ null [s | BindState (AL.Var s) _ <- universe body
@@ -367,20 +413,25 @@ amorphous = transformM go
        (Apply (Apply (PureFunction smapF Nothing) smapBody) (AL.Var inp)) <- universe body
                       , smapF == ALRefs.smap]
 
-    doRewrite inp (AL.Let v
-                   (Apply f@(Apply (PureFunction smapF Nothing) _) (AL.Var inp'))
-                   cont)
+    doRewrite inp worked
+      (AL.Let v
+        (Apply f@(Apply (PureFunction smapF Nothing) _) (AL.Var inp'))
+        cont)
       | smapF == ALRefs.smap && inp == inp' = do
           taken <- generateBindingWith "n_taken"
           takenInp <- generateBindingWith $ inp <> "_n"
           rest <- generateBindingWith "rest"
           nResults <- generateBindingWith "n_results"
+          pendingWork <- generateBindingWith worked
           return $
             AL.Let taken
             (Apply
               (Apply takeNLit $ AL.Var inp) $
               Lit $ NumericLit 10) $ -- TODO take the value from the specification of lang (maybe via a type class)
             destructure (AL.Var taken) [takenInp,rest] $
-            AL.Let nResults (Apply f $ AL.Var takenInp) $
-            AL.Let v (Apply (Apply concatLit $ AL.Var nResults) $ AL.Var rest) cont
-    doRewrite _ e = pure e
+            -- FIXME this assumes we take the result of an smap. but for an imperative case
+            --       it is some state altered inside this smap!
+            AL.Let v (Apply f $ AL.Var takenInp) $
+            AL.Let pendingWork (Apply (Apply concatLit $ AL.Var worked) $ AL.Var rest)
+            (substitute worked (AL.Var pendingWork) cont)
+    doRewrite _ _ e = pure e

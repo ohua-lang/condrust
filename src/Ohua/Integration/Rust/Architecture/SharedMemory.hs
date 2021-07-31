@@ -95,7 +95,7 @@ instance Architecture (Architectures 'SharedMemory) where
                             noSpan
                     taskStmts = map (flip Semi noSpan . push . box . taskExpression) tasks
                     (Block taskRunStmt _ _) = void [block|{
-                                                         let mut handles = tasks.into_iter().map(|t| thread::spawn(move || { let _ = t(); })).collect();
+                                                         let mut handles: Vec<std::thread::JoinHandle<_>> = tasks.into_iter().map(|t| thread::spawn(move || { let _ = t(); })).collect();
                                                          for h in handles {
                                                              if let Err(_) = h.join() {
                                                                  eprintln!("[Error] A worker thread of an Ohua algorithm has panicked!");
@@ -103,6 +103,13 @@ instance Architecture (Architectures 'SharedMemory) where
                                                          }
                                                          }|]
                     program = prelude ++ toList chans ++ [taskInitStmt] ++ taskStmts ++ taskRunStmt
+                    resultHandling =
+                      Match []
+                      resultExpr
+                      [ Arm [] (noSpan <$ [pat| Ok(res) |]) Nothing (noSpan <$ [expr| res |]) noSpan
+                      , Arm [] (noSpan <$ [pat| Err(e) |]) Nothing (noSpan <$ [expr| panic!("{}", e) |]) noSpan
+                      ]
+                      noSpan
                 in Block (program ++ [NoSemi resultExpr noSpan]) Normal noSpan
 
 
