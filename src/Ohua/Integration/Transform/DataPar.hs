@@ -7,6 +7,7 @@ import Ohua.Core.Compile.Configuration
 import Ohua.Core.ALang.Refs as ALRefs
 import Ohua.Core.ALang.Lang as AL
 import Ohua.Core.ALang.Util (lambdaArgsAndBody, destructure)
+import Ohua.Core.Feature.TailRec.Passes.ALang as TR (y)
 import Ohua.Core.DFLang.Lang as DFL hiding (length)
 import qualified Ohua.Core.DFLang.Lang as DFL (length)
 -- import Ohua.Core.DFLang.PPrint (prettyExprM)
@@ -310,7 +311,7 @@ amorphous :: AL.Expr ty -> OhuaM (AL.Expr ty)
 amorphous = transformM go
   where
     go (Apply r@(PureFunction recurF Nothing) body)
-      | recurF == ALRefs.recur = Apply r <$> rewriteIrregularApp body
+      | recurF == TR.y = Apply r <$> rewriteIrregularApp body
     go e = pure e
 
     rewriteIrregularApp lam =
