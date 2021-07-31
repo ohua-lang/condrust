@@ -7,6 +7,7 @@ import Ohua.Core.Compile.Configuration
 import Ohua.Core.ALang.Refs as ALRefs
 import Ohua.Core.ALang.Lang as AL
 import Ohua.Core.ALang.Util (lambdaArgsAndBody, destructure)
+import Ohua.Core.Feature.TailRec.Passes.ALang as TR
 import Ohua.Core.DFLang.Lang as DFL hiding (length)
 import qualified Ohua.Core.DFLang.Lang as DFL (length)
 -- import Ohua.Core.DFLang.PPrint (prettyExprM)
@@ -309,32 +310,44 @@ concatLit = Lit $ FunRefLit $ FunRef concat Nothing $ FunType $ Right $ TypeVar 
 amorphous :: AL.Expr ty -> OhuaM (AL.Expr ty)
 amorphous = transformM go
   where
+    -- TODO: Verify the correctness of the whole transformation
     go (Apply r@(PureFunction recurF Nothing) body)
-      | recurF == ALRefs.recur = Apply r <$> rewriteIrregularApp body
+      | recurF == TR.recurStartMarker  = Apply r <$> rewriteIrregularApp body
     go e = pure e
 
     rewriteIrregularApp lam =
       let (ctxt, body) = lambdaArgsAndBody lam
       in case ctxt of
-           ctxt' | length ctxt' < 2 -> pure lam
+           ctxt' | length ctxt' < 2 -> do
+                     traceM $ "Detected only context with length < 2: " <> show ctxt'
+                     pure lam
            ctxt' -> do
+             traceM $ "Found lambda body with sufficient length"
              result <- case findResult body of
-                         [r] -> pure r
+                         [r] -> do
+                           traceM $ "Found result " <> show r
+                           pure r
                          _ -> throwError $ "apparently, the recursion is not well-formed."
                                  <> " invariant broken."
              let ctxtHS = HS.fromList ctxt'
              case HS.member result ctxtHS
                      && isUsedState result body of
                   False -> pure lam
-                  _ -> case findLoops body of
+                  _ -> do
+                    traceM $ "result is in ctxt and used in body"
+                    case findLoops body of
                          [] -> pure lam
-                         loops ->
+                         loops -> do
+                           traceM $ "Detected loops: " <> show loops
                            case filter ((`HS.member` ctxtHS) . snd) loops of
                              [] -> pure lam
-                             loops' ->
+                             loops' -> do
+                               traceM $ "Result after filtering with ctxtHS: " <> show loops'
                                case filter (isUsedState result . fst) loops' of
                                  [] -> pure lam
-                                 [(_,inp)] -> transformM (doRewrite inp) lam
+                                 [(_,inp)] -> do
+                                   traceM $ "Detected State usage: " <> show inp
+                                   transformM (doRewrite inp) lam
                                  _ -> throwError $ "invariant broken: "
                                       <> "state inside a context can only be used once!"
 
