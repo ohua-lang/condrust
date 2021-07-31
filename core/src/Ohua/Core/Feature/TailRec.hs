@@ -15,10 +15,13 @@ loadTailRecPasses enabled passes =
         { passBeforeNormalize =
               findTailRecs enabled >=> passBeforeNormalize passes
         , passAfterNormalize =
+              -- FIXME this removes the hofs for tail recursion already.
+              --       there should be a separate stage for this!
+              --       for now, we run these passes only after all other passes ran.
+              passAfterNormalize passes >=>
               (if enabled
                    then rewriteAll
-                   else pure) >=>
-              passAfterNormalize passes
+                   else pure)
         , passAfterDFLowering =
               passAfterDFLowering passes <=<
               if enabled

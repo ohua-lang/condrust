@@ -138,8 +138,10 @@ definedBindings e =
 -- intersection, therefore it relies on the fact that the expression is in SSA
 -- form.
 findFreeVariables :: Expr ty -> [Expr ty]
-findFreeVariables e =
-    map Var $
+findFreeVariables = map Var . findFreeBindings
+
+findFreeBindings :: Expr ty -> [Binding]
+findFreeBindings e =
     sort $ -- makes the list of args deterministic
     toList $
     HS.difference
