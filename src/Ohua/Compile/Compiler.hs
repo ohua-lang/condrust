@@ -61,6 +61,11 @@ compilation inFile compScope coreOpts outDir optimizations integration arch = do
             Just (CConfig.CustomPasses pbn pan pad) ->
               def
               { passBeforeNormalize = passBeforeNormalize def >=> pbn
-              , passAfterNormalize = passAfterNormalize def >=> pan
+              -- FIXME I switch this here because I want to run before the TailRec
+              --       rewrites but after normalize. Normally TailRec would not be
+              --       hooked in like this but would be a first-class part of core.
+              --       Hence, I would not have to do this.
+              --       This must be part of sertel/ohua-core#7.
+              , passAfterNormalize = pan >=> passAfterNormalize def
               , passAfterDFLowering = passAfterDFLowering def >=> pad
               }

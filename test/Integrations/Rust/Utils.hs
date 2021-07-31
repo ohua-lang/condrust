@@ -53,6 +53,7 @@ debugStageHandling =
     intoStageHandling DumpStdOut
         $ Just
             [ Stage resolvedAlang True False
+            , Stage normalizedAlang True False
             , Stage coreDflang True False
             , Stage coreAlang True False
             , Stage initialDflang True False
