@@ -192,5 +192,7 @@ std =
   \ impl<T> Vec<T> { \
   \   pub const fn new() -> Self { unimplemented!() } \
   \   pub fn push(&mut self, value: T) { unimplemented!() } \
+  \   pub fn evict_mapped(&mut self) { unimplemented!() } \
+  \   pub fn calculate_done1(&mut self, its_left: u32) -> bool { unimplemented!() } \
   \ } \
   \ "

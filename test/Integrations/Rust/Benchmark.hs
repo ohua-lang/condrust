@@ -62,7 +62,7 @@ spec =
                     }
                     rs.evict_mapped();
                     let new_its_left = decrement(its_left);
-                    let not_done = rs.calculate_done(new_its_left);
+                    let not_done = rs.calculate_done1(new_its_left);
                     if not_done { fill(maze, rs, new_its_left) }
                     else { maze }
                 }
