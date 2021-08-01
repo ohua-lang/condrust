@@ -1,7 +1,7 @@
-{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass, ScopedTypeVariables #-}
 module Ohua.Backend.Operators.Function where
 
-import Ohua.Prelude
+import Ohua.Prelude hiding (First, Second)
 
 import Ohua.Backend.Lang as L hiding (Function)
 
@@ -15,6 +15,13 @@ data CallArg ty
 
 instance Hashable (CallArg ty)
 
+data Result ty
+  = SendResult (Com 'Channel ty)
+  -- | This happens during fusion. But we still need to preserve the index positions otherwise
+  --   the destructuring breaks.
+  | DropResult
+  deriving (Eq, Generic, Show)
+
 -- TODO:
 --   1) no functions in data type -> done
 --   2) deriving instance ... -> done
@@ -23,32 +30,34 @@ instance Hashable (CallArg ty)
 --   5) certainly this definition of a function really is no different
 --      from the newly defined DFLang! (one more reason to move this into common.)
 
-data FusFunction pout sin ty
+data FusFunction sin pout ty
     = PureFusable
         [CallArg ty]  -- data receive
         (FunRef ty)
-        (pout (Com 'Channel ty)) -- send result
+        (NonEmpty (pout ty)) -- send result
     | STFusable
         (sin ty) -- state receive
         [CallArg ty]  -- data receive
         (FunRef ty)
-        (Maybe (Com 'Channel ty)) -- send result
+        [pout ty] -- send result
         (Maybe (Com 'Channel ty)) -- send state
     | IdFusable
         (CallArg ty)
-        (pout (Com 'Channel ty))
+        (NonEmpty (pout ty))
     deriving (Generic)
 
-type FusableFunction ty = FusFunction Identity (Com 'Recv) ty
-type FusedFunction ty = FusFunction Maybe CallArg ty
+-- using a vector would have been so much nicer, but implementing Eq and Hashable
+-- manually is just a pain.
+type FusableFunction ty = FusFunction (Com 'Recv) (Com 'Channel) ty
+type FusedFunction ty = FusFunction CallArg Result ty
 
 deriving instance Hashable (FusableFunction ty)
 deriving instance Eq (FusableFunction ty)
 
 toFuseFun :: FusableFunction ty -> FusedFunction ty
-toFuseFun (PureFusable recvs qb (Identity out)) = PureFusable recvs qb $ Just out
-toFuseFun (STFusable a b c d e) = STFusable (Arg a) b c d e
-toFuseFun (IdFusable recv (Identity out)) = IdFusable recv $ Just out
+toFuseFun (PureFusable recvs qb outs) = PureFusable recvs qb $ map SendResult outs
+toFuseFun (STFusable a b c d e) = STFusable (Arg a) b c (map SendResult d) e
+toFuseFun (IdFusable recv outs) = IdFusable recv $ map SendResult outs
 
 genFun :: FusableFunction ty -> TaskExpr ty
 genFun fun = loop (funReceives fun) $ (\f -> genFun' (genSend f) f) $ toFuseFun fun
@@ -62,21 +71,34 @@ loop :: [Com 'Recv ty] -> TaskExpr ty -> TaskExpr ty
 loop [] c = c
 loop _  c = EndlessLoop c
 
+resultTuple = "restup"
+
 genSend :: forall ty.FusedFunction ty -> TaskExpr ty
 genSend = \case
-    (PureFusable _ _ o) -> pureOut o
+    (PureFusable _ _ o) -> dataOut (toList o) $ Lit UnitLit
     (STFusable stateRecv receives _ sendRes sendState) ->
         let varsAndReceives =
               NE.zipWith (curry generateReceiveCode) [0 ..] $ stateRecv :| receives
             stateArg = (\(_,v,_) -> v) $ NE.head varsAndReceives
-        in foldr Stmt (Lit UnitLit) $
-            catMaybes [ SendData . (\o@(SChan b) -> o `SSend` b) <$> sendRes
-                      , SendData . (`SSend` stateArg) <$> sendState
-                      ]
-    (IdFusable _ o) -> pureOut o
+        in dataOut sendRes $
+           maybe (Lit UnitLit) (SendData . (`SSend` stateArg)) sendState
+    (IdFusable _ o) -> dataOut (toList o) $ Lit UnitLit
     where
-      pureOut :: Maybe (Com 'Channel ty) -> TaskExpr ty
-      pureOut = maybe (Lit UnitLit) (\out@(SChan b) -> SendData $ SSend out b)
+      dataOut :: [Result ty] -> TaskExpr ty -> TaskExpr ty
+      dataOut [] ct = ct
+      dataOut [DropResult] ct = ct
+      dataOut [SendResult (SChan b)] ct = Stmt (SendData $ SSend (SChan b) b) ct
+      dataOut [out1, out2] ct =
+        getOut out1 First $
+        getOut out2 Second $
+        ct
+      dataOut _ _ = error "unsupported: more than tuple"
+
+      getOut :: Result ty -> (Binding -> TaskExpr ty) -> TaskExpr ty -> TaskExpr ty
+      getOut DropResult _ ct = ct
+      getOut (SendResult (SChan b)) f ct =
+        Let b (f resultTuple) $
+        Stmt (SendData $ SSend (SChan b) b) ct
 
 genFun'' :: FusableFunction ty -> TaskExpr ty
 genFun'' fun = (\f -> genFun' (genSend f) f) $ toFuseFun fun
@@ -88,10 +110,7 @@ genFun' ct = \case
             callArgs = getCallArgs funTy varsAndReceives
             call = Apply $ Stateless app callArgs
         in flip letReceives varsAndReceives $
-            maybe
-                (Stmt call ct)
-                (\(SChan b) -> Let b call ct)
-                out
+           callWithResult (toList out) call ct
     (STFusable stateRecv receives (FunRef app _ funTy) sendRes _sendState) ->
         let varsAndReceives =
               NE.zipWith (curry generateReceiveCode) [0 ..] $ stateRecv :| receives
@@ -99,10 +118,7 @@ genFun' ct = \case
             stateArg = (\(_,v,_) -> v) $ NE.head varsAndReceives
             call = (Apply $ Stateful (Var stateArg) app callArgs)
         in flip letReceives (toList varsAndReceives) $
-            maybe
-                (Stmt call ct)
-                (\(SChan b) -> Let b call ct)
-                sendRes
+           callWithResult sendRes call ct
     (IdFusable i o) ->
         let varsAndReceives = zipWith (curry generateReceiveCode) [0 ..] [i]
         in letReceives ct varsAndReceives
@@ -114,6 +130,12 @@ genFun' ct = \case
           filter (\case (Drop _, _, _) -> False; _ -> True)
           vrs
         letReceives = foldr ((\ (v, r) c -> Let v r c) . (\(_,v,r) -> (v,r)))
+        callWithResult out call ct =
+          case filter (/= DropResult) out of
+            [] -> Stmt call ct
+            _ -> case out of
+                   [SendResult (SChan b)] -> Let b call ct
+                   cs -> Let resultTuple call ct
 
 generateReceiveCode :: (Semigroup b, IsString b, Show a) => (a, CallArg ty) -> (CallArg ty, b, TaskExpr ty)
 generateReceiveCode (idx, a@(Arg r)) = (a, "var_" <> show idx, ReceiveData r)

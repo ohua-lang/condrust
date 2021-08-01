@@ -323,7 +323,9 @@ fuseSMaps (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ go e
       (Control (Left (VarCtrl cIn p@(OutputChannel c@(SChan b),inData) )))
       | c == inp =
           Just $ genFused $ fuseSMap (FunCtrl cIn (p:|[])) $ SMap.fuse b smap
-    getAndDrop smap inp (Fun fun@(PureFusable _ _ (Identity c@(SChan b))))
+    -- we could of course also fuse if the function returns a tuple but let's not do
+    -- this for now.
+    getAndDrop smap inp (Fun fun@(PureFusable _ _ (c@(SChan b) :| [])))
       | c == inp =
           Just $ genFun' (SMap.gen $ SMap.fuse b smap) $ toFuseFun fun
     getAndDrop smap inp (Fun st@(STFusable sIn dIn app dOut sOut)) =
@@ -334,9 +336,9 @@ fuseSMaps (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ go e
             in Just $ genFun' (Stmt send' $ SMap.gen' $ SMap.fuse b smap) $ toFuseFun st
         _ ->
           case dOut of
-            (Just c@(SChan b))
+            [c@(SChan b)]
               | c == inp ->
-                let send' = genSend $ toFuseFun $ STFusable sIn dIn app Nothing sOut
+                let send' = genSend $ toFuseFun $ STFusable sIn dIn app [] sOut
                 in Just $ genFun' (Stmt send' $ SMap.gen' $ SMap.fuse b smap) $ toFuseFun st
             _ -> Nothing
     getAndDrop _ _ _ = Nothing

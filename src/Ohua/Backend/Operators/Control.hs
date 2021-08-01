@@ -1,4 +1,4 @@
-{-# LANGUAGE DataKinds, ScopedTypeVariables, PolyKinds, DeriveGeneric #-}
+{-# LANGUAGE DataKinds, ScopedTypeVariables, PolyKinds, DeriveGeneric, OverloadedLists #-}
 module Ohua.Backend.Operators.Control where
 
 import Ohua.Prelude
@@ -11,7 +11,7 @@ import qualified Ohua.Backend.Operators.SMap as SMap
 
 import qualified Data.List.NonEmpty as NE
 import qualified Data.HashSet as HS
-
+import qualified GHC.Exts as Ext (IsList(..))
 
 newtype  CtrlInput ty = CtrlInput (Com 'Recv ty) deriving (Eq, Show, Generic)
 
@@ -140,31 +140,48 @@ fuseCtrl
 fuseCtrlIntoFun :: forall ty. F.FusableFunction ty -> FusedFunCtrl ty -> F.FusedFun ty
 fuseCtrlIntoFun fun (FusedFunCtrl ctrlIn ins expr outs) =
     case fun of
-        (F.PureFusable recvs qb (Identity out)) ->
-            forPure out $ F.PureFusable recvs qb
+        (F.PureFusable recvs qb out) ->
+            forPure out (toList out) ins $ F.PureFusable recvs qb
         (F.STFusable sRecv recvs qb out sOut) ->
-            let ins' = f out ins
-                ins'' = f sOut ins'
-                out' = if length ins' < length ins then Nothing else out
-                sOut' = if length ins'' < length ins' then Nothing else sOut
-            in F.FusedFun
-                (F.STFusable (F.Arg sRecv) recvs qb out' sOut')
-                $ genFused $ FusedFunCtrl ctrlIn ins'' expr outs
-        (F.IdFusable recv (Identity out)) ->
-            forPure out $ F.IdFusable recv
+            let ins' = filterState sOut ins
+                sOut' = if length ins' < length ins then Nothing else sOut
+             in forPure out (toList out) ins' (\o ->F.STFusable (F.Arg sRecv) recvs qb o sOut')
+        (F.IdFusable recv out) ->
+            forPure out (toList out) [] $ F.IdFusable recv
    where
-        f Nothing ins0 = ins0
-        f (Just out) ins0 = filter ((\(SRecv _ inp) -> inp /= out) . snd . fromVarReceive) ins0
+     filterState Nothing ins0 = ins0
+     filterState (Just out) ins0 =
+       filter ((\(SRecv _ inp) -> inp /= out) . snd . fromVarReceive) ins0
 
-        forPure :: Com 'Channel ty
-                -> ((Maybe (Com 'Channel ty) -> F.FusedFunction ty) -> F.FusedFun ty)
-        forPure out =
-            let ins' = f (Just out) ins
-                out' = if length ins' < length ins then Nothing else Just out
-            in \f ->
-                  F.FusedFun (f out') $
-                  genFused $
-                  FusedFunCtrl ctrlIn ins' expr outs
+     filterData [] ins0 = ins0
+     filterData outs ins0 =
+       filter
+       ((\(SRecv _ inp) -> not $ HS.member inp $ HS.fromList outs) .
+        snd .
+        fromVarReceive)
+       ins0
+
+     forPure :: ( Ext.IsList (c (Com 'Channel ty))
+                , Ext.IsList (c (F.Result ty))
+                , Functor c)
+             => c (Com 'Channel ty)
+             -> [Com 'Channel ty]
+             -> [VarReceive ty]
+             -> ((c (F.Result ty) -> F.FusedFunction ty) -> F.FusedFun ty)
+     forPure out outsL ins' =
+       -- I could not get this to work :(
+       -- let ins'' = filterData (Ext.toList out) ins'
+       let ins'' = filterData outsL ins'
+           outHS = HS.fromList $ map ((\(SRecv _ inp) -> inp) . snd . fromVarReceive) ins
+           out' = map (\o -> case HS.member o outHS of
+                               True -> F.DropResult
+                               False -> F.SendResult o
+                      )
+                  out
+       in \f ->
+            F.FusedFun (f out') $
+            genFused $
+            FusedFunCtrl ctrlIn ins'' expr outs
 
 
 -- | This takes a control and fuses a function into it.
@@ -194,7 +211,13 @@ fuseFun (FunCtrl ctrlInput vars) =
             FusedFunCtrl
                 ctrlInput
                 (vars' stateArg args)
-                (F.genFused $ F.STFusable (f $ F.Arg stateArg) (map f args) app res Nothing)
+                (F.genFused $
+                 F.STFusable
+                 (f $ F.Arg stateArg)
+                 (map f args)
+                 app
+                 (map F.SendResult res)
+                 Nothing)
                 (maybe
                     []
                     (\g -> [SSend g $ unwrapBnd $ fst $ stateVar stateArg])
