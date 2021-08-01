@@ -35,12 +35,12 @@ generateNodesCode = go
             return (task:tasks,resRecv)
         go (DFLang.Var bnd) = return ([], SRecv TypeVar $ SChan bnd) -- FIXME needs a concrete type!
 
-generateFunctionCode :: CompM m => DFApp a ty -> LoweringM m (FusableExpr ty)
+generateFunctionCode :: forall ty a m. CompM m => DFApp a ty -> LoweringM m (FusableExpr ty)
 generateFunctionCode = \case
     (PureDFFun out fn inp) -> do
         let args = toList $ map generateReceive inp
         out' <- pureOut fn out
-        return $ Fusion.Fun $ Ops.PureFusable args fn $ Identity $ SChan out'
+        return $ Fusion.Fun $ Ops.PureFusable args fn out'
     (StateDFFun out fn (DFVar stateT stateIn) inp) -> do
         let args = toList $ map generateReceive inp
         (sOut, dataOut) <- stateOut fn out
@@ -50,17 +50,24 @@ generateFunctionCode = \case
            (SRecv stateT $ SChan $ unwrapABnd stateIn)
            args
            fn
-           (SChan <$> dataOut) (SChan <$> sOut)
+           dataOut
+           (SChan <$> sOut)
     where
-        pureOut _ (Direct out) = return $ unwrapABnd out
-        pureOut fn e = throwError $ "Unsupported multiple outputs on pure function " <> show fn <> ": " <> show e
-        stateOut fn (sOut, out) = do
-          sOut' <- toDirect fn sOut
-          out' <- toDirect fn out
-          return (sOut', out')
-        toDirect _ (Just (Direct bnd)) = return $ Just $ unwrapABnd bnd
-        toDirect _ Nothing = return Nothing
-        toDirect fn e = throwError $ "Unsupported multiple outputs on stateful function " <> show fn <> ": " <> show e
+      pureOut _ (Direct out) = return (SChan (unwrapABnd out) :| [])
+      pureOut _ (Destruct [Direct out1, Direct out2]) =
+        return (SChan (unwrapABnd out1) :| [SChan $ unwrapABnd out1])
+      pureOut fn e = throwError $ "Unsupported (more than 2) data outputs on function " <> show fn <> ": " <> show e
+
+      stateOut fn (sOut, dout) = do
+        sOut' <- toDirect fn sOut
+        dout' <- case dout of
+                   Just dout' -> toList <$> pureOut fn dout'
+                   Nothing -> return []
+        return (sOut', dout')
+
+      toDirect _ (Just (Direct bnd)) = return $ Just $ unwrapABnd bnd
+      toDirect _ Nothing = return Nothing
+      toDirect fn e = throwError $ "Unsupported multiple outputs for state on stateful function " <> show fn <> ": " <> show e
 
 generateReceive :: DFVar semTy ty -> Ops.CallArg ty
 generateReceive (DFVar t bnd) =
@@ -261,11 +268,11 @@ generateNodeCode e@(PureDFFun out (FunRef fun _ _) inp) | fun == Refs.unitFun = 
         (DFVar t bnd) ->
           return $
             Fusion.Fun $
-            Ops.IdFusable (Ops.Arg $ SRecv t $ SChan $ unwrapABnd bnd) $ Identity out'
+            Ops.IdFusable (Ops.Arg $ SRecv t $ SChan $ unwrapABnd bnd) $ out' :| []
         (DFEnvVar _ l) ->
           return $
             Fusion.Fun $
-            Ops.IdFusable (Ops.Converted $ Lit l) $ Identity out'
+            Ops.IdFusable (Ops.Converted $ Lit l) $ out' :| []
    [DFEnvVar _t (FunRefLit pr@(FunRef p _ _)), v] -> -- FIXME this feels like a bug to me. why do we take this detour via unitFun???
      generateFunctionCode $ PureDFFun out pr (v:|[])
    _ -> invariantBroken $ "unknown function as first argument or wrong number of arguments (expetced 2) to unitFun:\n" <> show e
