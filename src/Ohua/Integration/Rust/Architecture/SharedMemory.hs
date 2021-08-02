@@ -59,7 +59,7 @@ instance Architecture (Architectures 'SharedMemory) where
 
     serialize SSharedMemory mod ns = C.serialize mod ns createProgram
         where
-            createProgram (Program chans resultExpr tasks) =
+            createProgram (Program chans (Try _ resultExpr _) tasks) =
                 let taskInitStmt = noSpan <$ [stmt| let mut tasks:Vec<Box<dyn FnOnce() -> Result<(), RunError>+ Send >> = Vec::new(); |]
                     (Block prelude _ _) = void [block| {
                                             #[derive(Debug)]
@@ -95,7 +95,7 @@ instance Architecture (Architectures 'SharedMemory) where
                             noSpan
                     taskStmts = map (flip Semi noSpan . push . box . taskExpression) tasks
                     (Block taskRunStmt _ _) = void [block|{
-                                                         let mut handles: Vec<std::thread::JoinHandle<_>> = tasks.into_iter().map(|t| thread::spawn(move || { let _ = t(); })).collect();
+                                                         let mut handles: Vec<std::thread::JoinHandle<_>> = tasks.into_iter().map(|t| { std::thread::spawn(move || { let _ = t(); }) }).collect();
                                                          for h in handles {
                                                              if let Err(_) = h.join() {
                                                                  eprintln!("[Error] A worker thread of an Ohua algorithm has panicked!");
@@ -107,9 +107,9 @@ instance Architecture (Architectures 'SharedMemory) where
                       Match []
                       resultExpr
                       [ Arm [] (noSpan <$ [pat| Ok(res) |]) Nothing (noSpan <$ [expr| res |]) noSpan
-                      , Arm [] (noSpan <$ [pat| Err(e) |]) Nothing (noSpan <$ [expr| panic!("{}", e) |]) noSpan
+                      , Arm [] (noSpan <$ [pat| Err(e) |]) Nothing (noSpan <$ [expr| panic!("[Ohua Runtime Internal Exception] {}", e) |]) noSpan
                       ]
                       noSpan
-                in Block (program ++ [NoSemi resultExpr noSpan]) Normal noSpan
+                in Block (program ++ [NoSemi resultHandling noSpan]) Normal noSpan
 
 
