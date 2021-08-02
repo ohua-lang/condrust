@@ -7,6 +7,7 @@ import Ohua.Prelude
 import qualified Ohua.Frontend.Types as F
 import qualified Ohua.Backend.Types as B
 import qualified Ohua.Core.Compile.Configuration as CConfig
+import qualified Ohua.Core.DFLang.Passes.State as StateDFL
 import Ohua.Integration.Lang
 import Ohua.Integration.Architecture
 import Ohua.Integration.Rust.Architecture.SharedMemory ()
@@ -28,7 +29,7 @@ type FullIntegration lang arch =
   , F.Type (Language lang) ~ B.Type (Language lang)
   , F.AlgoSrc (Language lang) ~ B.AlgoSrc (Language lang)
   , B.Architecture (Architectures arch)
-  , B.Lang (Architectures arch) ~ (Language lang)
+  , B.Lang (Architectures arch) ~ Language lang
   , B.Transform (Architectures arch)
   )
 
@@ -56,8 +57,8 @@ instance Apply Integration where
 definedIntegrations :: [(FileExtension, ArchId, Description, Integration)]
 definedIntegrations =
     [ (".rs", "sm", "Rust integration"
-      --, I SRust SSharedMemory Nothing
-      , I SRust SSharedMemory $ Just dataPar
+      --, I SRust SSharedMemory $ Just $ StateDFL.load def
+      , I SRust SSharedMemory $ Just $ StateDFL.load dataPar
       )
     , (".rs", "m3", "Rust integration", I SRust SM3 Nothing)]
 
