@@ -4,9 +4,10 @@ import Ohua.Prelude hiding (Type)
 
 import Ohua.Backend.Types as Types
 import Ohua.Backend.Lang
+import Ohua.Backend.Normalize (normalize)
 import Ohua.Backend.Communication as Com
-import Ohua.Backend.Fusion as Fusion
-import Ohua.Backend.Transform as Transform
+import Ohua.Backend.Fusion (fuse, FusableExpr)
+import Ohua.Backend.Transform (transformTaskExprs, transformTasks)
 import qualified Data.ByteString.Lazy.Char8 as L
 import qualified Data.Text as T
 import System.FilePath as Path ((</>))
@@ -27,11 +28,12 @@ backend ::
         -> arch
         -> m ()
 backend outDir compiled lang arch =
-    Fusion.fuse compiled >>=
-    (pure . Transform.transformTaskExprs lang arch) >>=
+    fuse compiled >>=
+    (pure . transformTaskExprs lang arch) >>=
+    (pure . normalize) >>=
     (pure . Com.intoProgram) >>=
     Types.lower lang arch >>=
-    (pure. Transform.transformTasks lang arch) >>=
+    (pure. transformTasks lang arch) >>=
     (pure . Com.lowerChannels arch . Com.lowerRetCom arch) >>=
     Types.build arch lang >>=
     Types.serialize arch lang >>=

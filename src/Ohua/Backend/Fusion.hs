@@ -3,8 +3,9 @@ module Ohua.Backend.Fusion where
 
 import Ohua.Prelude
 
-import Ohua.Backend.Operators hiding (Fun)
+import Ohua.Backend.Operators hiding (Fun, Fusable, Unfusable)
 import Ohua.Backend.Operators.SMap as SMap
+import qualified Ohua.Backend.Operators.State as S (Fuse(Fusable))
 import Ohua.Backend.Lang
 import Ohua.Backend.Types
 
@@ -15,14 +16,13 @@ import qualified Data.List.NonEmpty as NE
 
 data Fusable ty ctrl0 ctrl1
     = Fun (FusableFunction ty)
-    | STC (STCLangSMap ty)
+    | STC (STCLangSMap 'S.Fusable ty)
     | Control (Either ctrl0 ctrl1)
     | Recur (RecFun ty)
     | SMap (Op ty)
     | Unfusable (TaskExpr ty) -- TODO this is only here until the below was implemented properly
     --  IfFun
     --  Select
-    --  UnitFun
     deriving (Eq, Functor, Generic)
 
 instance (Hashable ctrl0, Hashable ctrl1) => Hashable (Fusable ty ctrl0 ctrl1)
@@ -55,7 +55,7 @@ concludeFusion :: TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (FusedFunCtr
 concludeFusion (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ map go exprs
     where
         go (Fun function) = genFun function
-        go (STC stcMap) = genSTCLangSMap stcMap
+        go (STC stcMap) = error "invariant broken: pending STC found." -- FIXME catch this at the type-level via a subset type
         go (Control (Left ctrl)) = genFused ctrl
         go (Control (Right ctrl)) = genLitCtrl ctrl
         go (Recur r) = mkRecFun r
@@ -258,8 +258,8 @@ fuseSTCLang (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ go
                   _ -> Left e)
             xs
 
-        findSource :: [Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty)] ->  STCLangSMap ty -> Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty)
-        findSource noneSTCs (STCLangSMap _ (SRecv _ inp) _) =
+        findSource :: [Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty)] ->  STCLangSMap 'S.Fusable ty -> Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty)
+        findSource noneSTCs (FusableSTCLangSMap (SRecv _ inp) _) =
             case filter (isSource inp) noneSTCs of
                     [src] -> src
                     s -> error  $ "Invariant broken: every STC has exactly one source by definition!"
@@ -273,7 +273,7 @@ fuseSTCLang (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ go
         findSTCLang _ = Nothing
 
         isSource :: Com 'Channel ty -> Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty) -> Bool
-        isSource inp (STC (STCLangSMap _ _ outp)) = outp == inp
+        isSource inp (STC (FusableSTCLangSMap _ outp)) = outp == inp
         isSource inp (Control (Left (FusedFunCtrl _ _ _ outs))) =
           HS.member inp $ HS.fromList $ map (\(SSend c _) -> c) outs
         isSource inp (Control (Right (FusedLitCtrl _ _ (Left l)))) =

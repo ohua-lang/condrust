@@ -66,9 +66,9 @@ instance Hashable (FusedCtrl anno ty) where
     hashWithSalt s (FusedLitCtrl cInp inOut comp) = 
         s `hashWithSalt` cInp `hashWithSalt` inOut `hashWithSalt` comp
 
-fuseSTCSMap :: STCLangSMap ty -> FusedFunCtrl ty -> FusedFunCtrl ty
+fuseSTCSMap :: STCLangSMap 'Fusable ty -> FusedFunCtrl ty -> FusedFunCtrl ty
 fuseSTCSMap
-    (STCLangSMap _ (SRecv _ stateReceive) stateOut)
+    (FusableSTCLangSMap (SRecv _ stateReceive) stateOut)
     (FusedFunCtrl ctrlInput vars comp stateOuts)
     = FusedFunCtrl ctrlInput vars comp stateOuts'
     where

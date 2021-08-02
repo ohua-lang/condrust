@@ -122,3 +122,23 @@ class (Architecture arch) => Transform arch where
                 -> Task lang
                 -> Task lang
   transformTask _ _ = id
+
+
+updateTaskExprs :: (expr1 -> expr2)
+                -> Namespace (TCProgram chan recv expr1) anno
+                -> Namespace (TCProgram  chan recv expr2) anno
+updateTaskExprs f ns =
+  ns & algos %~ map (\algo -> algo & algoCode %~ go)
+  where
+    go (TCProgram chans resultChan exprs) =
+      TCProgram chans resultChan $ map f exprs
+
+updateTasks :: (expr1 -> expr2)
+            -> Namespace (Program chan recv expr1 ty) anno
+            -> Namespace (Program  chan recv expr2 ty) anno
+updateTasks f ns =
+  ns & algos %~ map (\algo -> algo & algoCode %~ go)
+  where
+    go (Program chans resultChan tasks) =
+      Program chans resultChan $ map (f <$>) tasks
+

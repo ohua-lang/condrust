@@ -17,11 +17,7 @@ transformTaskExprs
   => NS lang -> arch
   -> Namespace (TCProgram (Channel ty) (Com 'Recv ty) (TaskExpr ty)) anno
   -> Namespace (TCProgram (Channel ty) (Com 'Recv ty) (TaskExpr ty)) anno
-transformTaskExprs lang arch ns =
-  ns & algos %~ map (\algo -> algo & algoCode %~ go)
-  where
-    go (TCProgram chans resultChan exprs) =
-      TCProgram chans resultChan $ map (transformTaskExpr lang arch) exprs
+transformTaskExprs lang arch = updateTaskExprs (transformTaskExpr lang arch)
 
 transformTasks
   :: ( Architecture arch
@@ -34,8 +30,4 @@ transformTasks
   => NS lang -> arch
   -> Namespace (Program (Channel ty) (Com 'Recv ty) (Task lang) ty) anno
   -> Namespace (Program (Channel ty) (Com 'Recv ty) (Task lang) ty) anno
-transformTasks lang arch ns =
-  ns & algos %~ map (\algo -> algo & algoCode %~ go)
-  where
-    go (Program chans resultChan tasks) =
-      Program chans resultChan $ map (transformTask lang arch <$>) tasks
+transformTasks lang arch = updateTasks (transformTask lang arch)
