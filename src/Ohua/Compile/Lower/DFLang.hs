@@ -189,22 +189,21 @@ generateNodeCode e@(PureDFFun out (FunRef fun _ _) inp) | fun == select = do
             Ops.select condIn trueIn falseIn out'
 
 generateNodeCode e@(PureDFFun out (FunRef fun _ _) inp) | fun == Refs.runSTCLangSMap = do
-    (sizeIn, stateIn) <-
-        case inp of
-            [DFVar xType x, DFVar yType y] ->
-                return
-                    ( SRecv xType $ SChan $ unwrapABnd x
-                    , SRecv yType $ SChan $ unwrapABnd y)
-            _ -> invariantBroken $ "STCLangSMap arguments don't match:\n" <> show e
+--    (sizeIn, stateIn) <-
     out' <-
         case out of
             Direct x -> return $ SChan $ unwrapABnd x
             _ -> invariantBroken $ "STCLangSMap outputs don't match:\n" <> show e
-    return $ STC $
-            Ops.mkSTCLangSMap
-                sizeIn
-                stateIn
-                out'
+    case inp of
+      [DFVar xType x, DFVar yType y] ->
+        return $ Unfusable $ Ops.genSTCLangSMap $
+        Ops.STCLangSMap
+        (SRecv xType $ SChan $ unwrapABnd x)
+        (SRecv yType $ SChan $ unwrapABnd y)
+        out'
+      [DFVar xType x] ->
+        return $ STC $ Ops.FusableSTCLangSMap (SRecv xType $ SChan $ unwrapABnd x) out'
+      _ -> invariantBroken $ "STCLangSMap arguments don't match:\n" <> show e
 
 -- code for "non-fused" control handling without the passes on ALang
 -- generateNodeCode e@LetExpr {functionRef=f} | f == ctrl = do
