@@ -53,7 +53,9 @@ data RustType = TypeHole | TupleTyp RustType RustType deriving (Eq, Generic)
 makeBaseFunctor ''Stmt
 makeBaseFunctor ''Expr
 makeBaseFunctor ''Block
+makeBaseFunctor ''Pat
 
 instance Plated Stmt where plate = gplate
 instance Plated Expr where plate = gplate
 instance Plated Block where plate = gplate
+instance Plated Pat where plate = gplate
