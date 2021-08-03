@@ -15,6 +15,7 @@ import Language.Rust.Syntax as Rust hiding (Rust)
 import Language.Rust.Quote
 import Language.Rust.Data.Ident
 
+import qualified Data.List as LS
 
 instance Architecture (Architectures 'SharedMemory) where
     type Lang (Architectures 'SharedMemory) = Language 'Rust
@@ -93,7 +94,7 @@ instance Architecture (Architectures 'SharedMemory) where
                             (PathSegment (mkIdent "push") Nothing noSpan)
                             [t]
                             noSpan
-                    taskStmts = map (flip Semi noSpan . push . box . taskExpression) tasks
+                    taskStmts = map (flip Semi noSpan . push . box . replaceFinalStatement . taskExpression) tasks
                     (Block taskRunStmt _ _) = void [block|{
                                                          let mut handles: Vec<std::thread::JoinHandle<_>> = tasks.into_iter().map(|t| { std::thread::spawn(move || { let _ = t(); }) }).collect();
                                                          for h in handles {
@@ -112,4 +113,18 @@ instance Architecture (Architectures 'SharedMemory) where
                       noSpan
                 in Block (program ++ [NoSemi resultHandling noSpan]) Normal noSpan
 
-
+-- | Replaces the final Unit literal in a Rust operator with a `Ok(())` when the operator is *not* containing a loop.
+replaceFinalStatement :: Rust.Expr () -> Rust.Expr ()
+replaceFinalStatement e@(Closure oatt cb ia mv fun (BlockExpr att (Block blck safety ()) labels ()) ()) =
+  case LS.last blck of
+    (NoSemi (TupExpr [] [] _) _) -> let
+      blck' = changeLast blck (NoSemi (noSpan <$ [expr| Ok(()) |]) noSpan)
+      in
+        (Closure oatt cb ia mv fun (BlockExpr att (Block blck' safety noSpan) labels noSpan) noSpan)
+    _ -> e
+  where
+    changeLast :: [a] -> a -> [a]
+    changeLast []     _  = error "Cannot change last element of an empty list"
+    changeLast [_]    x  = [x]
+    changeLast (x:xs) x' = x : changeLast xs x'
+replaceFinalStatement e = e
