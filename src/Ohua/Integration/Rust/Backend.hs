@@ -165,9 +165,9 @@ mkSimpleBinding bnd =
         noSpan
 
 -- TODO we probably want a Literal for common operations
-convertFunCall :: (Architecture arch, Lang arch ~ (Language 'Rust), ty ~ B.Type (Lang arch))
+convertFunCall :: (Architecture arch, Lang arch ~ Language 'Rust, ty ~ B.Type (Lang arch))
                => arch -> QualifiedBinding -> [TCLang.TaskExpr RustTypeAnno] -> Rust.Expr ()
-convertFunCall arch op [arg1, arg2] | isJust $ binOp op = 
+convertFunCall arch op [arg1, arg2] | isJust $ binOp op =
     Binary [] (fromJust $ binOp op) (convertExpr arch arg1) (convertExpr arch arg2) noSpan
     where
         binOp = \case
@@ -176,16 +176,16 @@ convertFunCall arch op [arg1, arg2] | isJust $ binOp op =
             UnqualFun "*" -> Just Rust.MulOp
             UnqualFun "/" -> Just Rust.DivOp
             _ -> Nothing
-convertFunCall arch op [arg] | isJust $ unOp op = 
-    Unary [] (fromJust $ unOp op) (convertExpr arch arg) noSpan 
+convertFunCall arch op [arg] | isJust $ unOp op =
+    Unary [] (fromJust $ unOp op) (convertExpr arch arg) noSpan
     where
         unOp = \case
             UnqualFun "!" -> Just Rust.Not
             UnqualFun "-" -> Just Rust.Neg
             UnqualFun "*" -> Just Rust.Deref
             _ -> Nothing
-convertFunCall arch f args = 
-    Call 
+convertFunCall arch f args =
+    Call
         []
         (convertExpr arch $ TCLang.Lit $ FunRefLit $ FunRef f Nothing Untyped)
         (map (convertExpr arch) args)
