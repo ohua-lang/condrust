@@ -4,6 +4,7 @@ import Ohua.Prelude
 import Ohua.Backend.Types
 import Ohua.Backend.Lang
 
+import qualified Data.HashSet as HS
 
 
 normalize :: Namespace (TCProgram chan recv (TaskExpr ty)) anno
@@ -12,6 +13,24 @@ normalize = updateTaskExprs normalizeTaskExpr
 
 normalizeTaskExpr :: TaskExpr ty -> TaskExpr ty
 normalizeTaskExpr = normalizeLits . normalizeIndirect
+
+transformNoState :: (TaskExpr ty -> TaskExpr ty) -> TaskExpr ty -> TaskExpr ty
+transformNoState f = (`evalState` HS.empty) . transformM go
+  where
+    go e@(Apply (Stateful (Var v) _ _)) = do
+      modify $ HS.insert v
+      return e
+    go e@(Assign b _) = do
+      modify $ HS.insert b
+      return e
+    go e@(Let x y@Var{} ct) = do
+      states <- get
+      case HS.member x states of
+        True -> do
+          put $ HS.delete x states
+          return e
+        False -> return $ f e
+    go e = pure e
 
 -- |
 -- Normalizes this:
@@ -23,10 +42,10 @@ normalizeTaskExpr = normalizeLits . normalizeIndirect
 --   [x |-> y]t
 -- @
 normalizeIndirect :: TaskExpr ty -> TaskExpr ty
-normalizeIndirect = rewrite go
+normalizeIndirect = transformNoState go
   where
-    go (Let x y@Var{} ct) = Just $ substitute (x,y) ct
-    go _ = Nothing
+    go (Let x y@Var{} ct) = substitute (x,y) ct
+    go e = e
 
 -- |
 -- Normalizes this:
@@ -39,7 +58,7 @@ normalizeIndirect = rewrite go
 -- @
 -- for every literal.
 normalizeLits :: TaskExpr ty -> TaskExpr ty
-normalizeLits = transform go
+normalizeLits = transformNoState go
   where
     go (Let bnd l@Lit{} ct) = substitute (bnd,l) ct
     go e = e
@@ -49,5 +68,12 @@ normalizeLits = transform go
 substitute :: (Binding, TaskExpr ty) -> TaskExpr ty -> TaskExpr ty
 substitute (bnd, e) = transform go
   where
-    go (Var b) | b == bnd = e
+    go v@Var{} = updateVar v
+    go (Apply (Stateless fn args)) = Apply $ Stateless fn $ map (transform go) args
+    go (Apply (Stateful state fn args)) =
+      Apply $ Stateful (transform go state) fn $ map (transform go) args
+    go (ListOp (Append b e)) = ListOp $ Append b $ transform go e
     go e' = e'
+
+    updateVar (Var b) | b == bnd = e
+    updateVar v = v
