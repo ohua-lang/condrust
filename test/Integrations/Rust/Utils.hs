@@ -124,6 +124,8 @@ funs =
   \ impl S { \
   \   fn new(i:i32) -> S { unimplemented!{} } \
   \   fn gs(self, i:i32) -> i32 { unimplemented!{} } \
+  \   fn modify(&mut self, i:i32) { unimplemented!{} } \
+  \   fn gs1(self, i:i32) -> String { unimplemented!{} } \
   \ } \
   \ fn k(s:S) -> () { unimplemented!{} } \
   \\
