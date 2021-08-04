@@ -52,7 +52,7 @@ newtype HostExpr = HostExpr
     { unwrapHostExpr :: Int
     } deriving (Eq, Ord, Generic, Show, Lift, Hashable, NFData)
 
-data ArgType ty = TypeVar | Type ty deriving (Lift, Generic)
+data ArgType ty = TypeVar | Type ty | TupleTy (NonEmpty (ArgType ty)) deriving (Lift, Generic)
 data FunType ty where
      Untyped :: FunType ty
      FunType :: Either Unit (NonEmpty (ArgType ty)) -> FunType ty
