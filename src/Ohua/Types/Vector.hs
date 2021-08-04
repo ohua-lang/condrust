@@ -13,6 +13,7 @@ data Nat where
     Zero :: Nat
     Succ :: Nat -> Nat
 
+deriving instance Generic Nat
 deriving instance Show Nat
 deriving instance Eq Nat
 
@@ -118,3 +119,7 @@ withSing n f = case toSing n of
 withSuccSing :: Nat -> (forall n.SNat ('Succ n) -> a) -> a
 withSuccSing n f = case toSing n of
                      SomeSing s@(SSucc _) -> f s
+
+natToInt :: Nat -> Int
+natToInt Zero = 0
+natToInt (Succ n) = 1 + natToInt n

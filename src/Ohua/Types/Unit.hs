@@ -6,4 +6,4 @@ import Universum
 data Unit = Unit
     deriving (Show, Eq, Generic)
 
-instance Hashable (Unit)
+instance Hashable Unit
