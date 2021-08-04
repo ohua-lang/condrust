@@ -205,7 +205,7 @@ liftIntoCtrlCtxt ctrlIn e0 = do
                 Let
                     ctrlOut
                     (fromListToApply
-                      (FunRef Refs.ctrl Nothing $ FunType $ Right $ fromList $ map (const TypeVar) actuals')
+                      (FunRef Refs.ctrl Nothing $ FunType $ Right $ fromList $ map (const $ TupleTy (TypeVar:|[TypeVar])) actuals')
                       actuals')
                     ie
 

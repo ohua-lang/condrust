@@ -149,6 +149,20 @@ extractBndsFromInputs :: [DFVar a ty] -> [Binding]
 extractBndsFromInputs =
     mapMaybe  (\case DFVar _ bnd -> Just $ unwrapABnd bnd; _ -> Nothing)
 
+-- TODO refactor with above function
+insAndTypesDFApp :: DFApp ty a -> [(ArgType a, Binding)]
+insAndTypesDFApp (PureDFFun _ _ i) = extractBndsAndTypesFromInputs $ NE.toList i
+insAndTypesDFApp (StateDFFun _ _ (DFVar sTyp s) i) = (sTyp, unwrapABnd s) : extractBndsAndTypesFromInputs (NE.toList i)
+insAndTypesDFApp (RecurFun _ _ _ initIns recurs cond result) =
+    extractBndsAndTypesFromInputs (V.toList initIns) <>
+    extractBndsAndTypesFromInputs (V.toList recurs) <>
+    extractBndsAndTypesFromInputs [cond] <>
+    extractBndsAndTypesFromInputs [result]
+
+extractBndsAndTypesFromInputs :: [DFVar a ty] -> [(ArgType ty, Binding)]
+extractBndsAndTypesFromInputs =
+    mapMaybe  (\case DFVar typ bnd -> Just $ (typ,unwrapABnd bnd); _ -> Nothing)
+
 fnApp :: App ty a -> QualifiedBinding
 fnApp (PureFun _ (FunRef f _ _) _) = f
 fnApp (StateFun _ (FunRef f _ _) _ _) = f
