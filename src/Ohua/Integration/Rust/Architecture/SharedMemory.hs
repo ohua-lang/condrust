@@ -28,16 +28,30 @@ instance Architecture (Architectures 'SharedMemory) where
   type Chan (Architectures 'SharedMemory) = Sub.Stmt
   type ATask (Architectures 'SharedMemory) = Rust.Expr ()
 
-  convertChannel SSharedMemory (SChan bnd) =
-    Sub.Local
-      ( Sub.TupP
-          [ Sub.IdentPat Sub.Immutable $ bnd <> "_tx",
-            Sub.IdentPat Sub.Immutable $ bnd <> "_rx"
-          ]
-      )
-      $ Sub.Call
-        (Sub.CallRef (QualifiedBinding (makeThrow ["std", "sync", "mpsc"]) "channel") Nothing)
-        []
+  convertChannel SSharedMemory (SRecv argTy (SChan bnd)) =
+    -- help out the type inference of Rust a little here
+    let chanTy = case argTy of
+          TupleTy ts ->
+            Just $
+              Rust.AngleBracketed
+                [ Rust.TypeArg $
+                    Rust.TupTy (map (const (Rust.Infer noSpan)) $ toList ts) noSpan
+                ]
+                []
+                noSpan
+          _ -> Nothing
+     in Sub.Local
+          ( Sub.TupP
+              [ Sub.IdentPat Sub.Immutable $ bnd <> "_tx",
+                Sub.IdentPat Sub.Immutable $ bnd <> "_rx"
+              ]
+          )
+          $ Sub.Call
+            ( Sub.CallRef
+                (QualifiedBinding (makeThrow ["std", "sync", "mpsc"]) "channel")
+                chanTy
+            )
+            []
 
   convertRecv SSharedMemory (SRecv _type (SChan channel)) =
     Sub.Try $

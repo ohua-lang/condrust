@@ -29,7 +29,7 @@ instance Architecture (Architectures 'M3) where
   type Chan (Architectures 'M3) = Rust.Stmt ()
   type ATask (Architectures 'M3) = Rust.Expr ()
 
-  convertChannel SM3 (SChan bnd) =
+  convertChannel SM3 (SRecv _ty (SChan bnd)) =
     let channel =
           noSpan
             <$ [expr| {
