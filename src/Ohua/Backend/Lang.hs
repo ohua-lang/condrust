@@ -33,7 +33,7 @@ instance Show (Com a t) where
   show (SRecv _ chan) = "Recv: " <> show chan
   show (SSend chan bnd) = "Send: " <> show chan <> " bnd:" <> show bnd
 
-type Channel = Com 'Channel
+type Channel = Com 'Recv
 
 instance Hashable (Com a t) where
   hashWithSalt s (SChan bnd) = s `hashWithSalt` bnd

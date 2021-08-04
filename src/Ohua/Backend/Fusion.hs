@@ -65,11 +65,11 @@ concludeFusion (TCProgram chans resultChan exprs) = TCProgram chans resultChan $
 -- invariant length in >= length out -- TODO use length-indexed vectors
 evictUnusedChannels :: TCProgram (Channel ty) (Com 'Recv ty) (TaskExpr ty) 
                     -> TCProgram (Channel ty) (Com 'Recv ty) (TaskExpr ty)
-evictUnusedChannels (TCProgram chans resultChan@(SRecv _ resChan) exprs) = 
-    let findChannels e = [ chan | ReceiveData (SRecv _ chan) <- universe e]
+evictUnusedChannels (TCProgram chans resultChan exprs) = 
+    let findChannels e = [ chan | ReceiveData chan <- universe e]
         usedChans = HS.fromList $ concatMap findChannels exprs
         chans' = NE.filter (`HS.member` usedChans) chans
-    in TCProgram (resChan :| chans') resultChan exprs
+    in TCProgram (resultChan :| chans') resultChan exprs
 
 fuseStateThreads :: TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (VarCtrl ty) (LitCtrl ty)) 
                  -> TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty))
