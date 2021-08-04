@@ -5,6 +5,7 @@ import Ohua.Prelude hiding (Nat)
 import Ohua.Types.Vector (Nat)
 import Ohua.Integration.Rust.TypeExtraction
 import Language.Rust.Parser (Span)
+import Language.Rust.Syntax (GenericArgs)
 
 import Data.Functor.Foldable.TH (makeBaseFunctor)
 import Language.Haskell.TH.Syntax (Lift)
@@ -14,8 +15,8 @@ import Control.Lens.Plated
 data Expr
   = Lit (Lit (RustArgType Span))
   | Var Binding
-  | MethodCall Expr Binding [Expr]
-  | Call QualifiedBinding [Expr]
+  | MethodCall Expr CallRef [Expr]
+  | Call CallRef [Expr]
   | Binary BinOp Expr Expr
   | Unary UnOp Expr
   | Assign Expr Expr
@@ -28,6 +29,7 @@ data Expr
   | Try Expr
   | BlockExpr Block
   | HalfOpenRange (Maybe Expr) (Maybe Expr)
+  | Async Block
   deriving (Eq, Generic)
 
 data Stmt
@@ -43,7 +45,7 @@ data UnOp = Not | Neg | Deref deriving (Eq, Generic)
 data Pat = IdentP IdentPat | TupP [IdentPat] deriving (Eq, Generic)
 data IdentPat = IdentPat BindingMode Binding deriving (Eq, Generic)
 data BindingMode = Mutable | Immutable deriving (Eq, Generic)
-
+data CallRef = CallRef QualifiedBinding (Maybe (GenericArgs ())) deriving (Eq, Generic)
 -- TODO this should really be much more expressive and allow for RustArgTypes
 data RustType = TypeHole | TupleTyp RustType RustType deriving (Eq, Generic)
 
@@ -63,20 +65,23 @@ instance Plated Pat where plate = gplate
 --transformExpr = transform
 
 transformExprInBlock :: (Expr -> Expr) -> Block -> Block
-transformExprInBlock f = goBlock
+transformExprInBlock f = runIdentity . transformExprInBlockM (pure . f)
+
+transformExprInBlockM :: (Monad m) => (Expr -> m Expr) -> Block -> m Block
+transformExprInBlockM f = goBlock
   where
-    go (BlockExpr block) = BlockExpr $ goBlock block
-    go (If e0 block e1) = If e0 (goBlock block) e1
-    go (Loop block) = Loop $ goBlock block
-    go (ForLoop p r block) = ForLoop p r $ goBlock block
-    go (While e block) = While e $ goBlock block
-    go e = e
+    go (BlockExpr block) = BlockExpr <$> goBlock block
+    go (If e0 block e1) = (\block' -> If e0 block' e1) <$> goBlock block
+    go (Loop block) = Loop <$> goBlock block
+    go (ForLoop p r block) = ForLoop p r <$> goBlock block
+    go (While e block) = While e <$> goBlock block
+    go e = pure e
 
-    goBlock (Block stmts) =
-      let stmts' = reverse $ map goStmt (reverse stmts)
-      in Block stmts'
+    goBlock (Block stmts) = do
+      stmts' <- reverse <$> mapM goStmt (reverse stmts)
+      return $ Block stmts'
 
-    goStmt (Local p e) = Local p $ transform (f . go) e
-    goStmt (Semi e) = Semi $ transform (f . go) e
-    goStmt (NoSemi e) = NoSemi $ transform (f . go) e
+    goStmt (Local p e) = Local p <$> transformM (f <=< go) e
+    goStmt (Semi e) = Semi <$> transformM (f <=< go) e
+    goStmt (NoSemi e) = NoSemi <$> transformM (f <=< go) e
 
