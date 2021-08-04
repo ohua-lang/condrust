@@ -26,7 +26,7 @@ foldMapOutData ::
 foldMapOutData expr (Direct bnd@(DataBinding _)) = do
   (cont', bnds') <- renameChannels (expr, []) (unwrapABnd bnd)
   case bnds' of
-    [] -> throwError "Internal compiler error: Renaming a channel yielded no channel name."
+    [] -> throwError $ "Internal compiler error: Renaming a channel named " <> show bnd <> " yielded no channel name from " <> show expr
     [x] -> return (cont', (Direct x))
     _ -> return (cont', (Dispatch $ NE.fromList bnds'))
 foldMapOutData expr ob@(Direct (StateBinding _)) = return (expr, ob)
@@ -56,7 +56,7 @@ renameChannels ::
   Binding ->
   m (NormalizedDFExpr ty, [ABinding 'Data])
 renameChannels ((Let app@(PureDFFun out fn inp) cont), newBinds) bnd
-  | elem bnd $ extractBndsFromInputs $ NE.toList inp =
+  | elem bnd $ insDFApp app =
     -- rewrite
     do
       -- create a new binding
@@ -69,6 +69,34 @@ renameChannels ((Let app@(PureDFFun out fn inp) cont), newBinds) bnd
     -- no match, continue
     (cont', newBinds') <- renameChannels (cont, newBinds) bnd
     return (Let app cont', newBinds')
+renameChannels ((Let app@(StateDFFun out fn boundState inp) cont), newBinds) bnd
+  | (elem bnd $ extractBndsFromInputs [boundState]) &&
+    (elem bnd $ extractBndsFromInputs $ NE.toList inp) =
+      throwError "Invariant broken: Cannot use state variable as argument at the same time!"
+  | elem bnd $ extractBndsFromInputs [boundState] =
+    -- this is most delicate: The binding is used as state!
+    do
+      assertE (null newBinds) "Invariant broken: Cannot have a state used more than once (which would require a Dispatch)"
+      assertE (ensureNoUse bnd cont) "Invariant broken: Cannot have a state used more than once (which would require a Dispatch)"
+      return (Let app cont, [DataBinding bnd])
+  | elem bnd $ extractBndsFromInputs $ NE.toList inp =
+    do
+      -- similar procedure as for a PureDFFun
+      newBnd <- DataBinding <$> generateBindingWith bnd
+      let inp' = map (replaceInput bnd newBnd) inp
+      let newBinds' = newBnd : newBinds
+      (cont', newBinds'') <- renameChannels (cont, newBinds') bnd
+      return (Let (StateDFFun out fn boundState inp') cont', newBinds'')
+  | otherwise = do
+    -- no match, continue
+    (cont', newBinds') <- renameChannels (cont, newBinds) bnd
+    return (Let app cont', newBinds')
+  where
+    ensureNoUse :: Binding -> NormalizedDFExpr ty -> Bool
+    ensureNoUse b (Var bnd) = bnd /= b
+    ensureNoUse b (Let app cont) = case elem b $ insDFApp app of
+      True -> False
+      False -> ensureNoUse b cont
 renameChannels ((Let app cont), newBinds) bnd = do
   (cont', newBinds') <- renameChannels (cont, newBinds) bnd
   return (Let app cont', newBinds')
