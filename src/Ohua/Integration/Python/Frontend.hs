@@ -1,8 +1,5 @@
 {-# LANGUAGE InstanceSigs, ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
--- Question: What are these extensions for? 
--- InstanceSigs removes error on type decls in implementation
--- Scoped..'binds' all type variables with same name inside a scope (eg functions in functions)
 
 module Ohua.Integration.Python.Frontend where
 
@@ -111,22 +108,22 @@ instance Integration (Language 'Python) where
 
             verifyAndRegister :: CompM m => FunTypes -> ([NSRef], QualifiedBinding)
                         -> m (QualifiedBinding, FunType (PythonArgType SrcSpan))
-            verifyAndRegister fun_types ([candidate], qB@(QualifiedBinding _ qBName)) = undefined 
+            verifyAndRegister fun_types ([candidate], qB@(QualifiedBinding _ qBName)) = undefined
 
             assignTypes :: CompM m => FunTypes -> FrLang.Expr (PythonArgType SrcSpan) -> m (FrLang.Expr (PythonArgType SrcSpan))
             -- Todo: I don't get types right here :-/. How to get ArgType(PythonArgType SrcSpan)
             --  instead of  Expr (PythonArgType SrcSpan)
             assignTypes funTypes = \case
-                (AppE (LitE (FunRefLit (FunRef qBinding funID _))) args) -> 
+                (AppE (LitE (FunRefLit (FunRef qBinding funID _))) args) ->
                     case args of
                         --at this point there should be no empty args, because empty calls are filled with call(Unit)
                         [] -> throwError "Compiler invariant broken."
                         [LitE UnitLit] -> return $ AppE (LitE $ FunRefLit $ FunRef qBinding funID $ FunType $ Left Unit) args
-                        (a:args') -> 
-                            return $ 
+                        (a:args') ->
+                            return $
                             AppE (
-                                LitE $ FunRefLit $ FunRef qBinding funID $ FunType $ 
-                                Right $ map (Type $ PythonObject ) a:|args') args 
+                                LitE $ FunRefLit $ FunRef qBinding funID $ FunType $
+                                Right $ map (Type $ PythonObject ) a:|args') args
                 e ->  return e
 
             globs :: [NSRef]
@@ -138,7 +135,7 @@ instance Integration (Language 'Python) where
     {-instance ConvertPat ...Turns out, pattern matching is under way \o/ (PEP 634)-}
 
 instance (Show a) => ConvertPat (Py.Parameter a) where
-    -- Question: Argument conversion was commented with FIXME to attach (type) info 
+    -- Question: There's a FIXME in Rusts argument conversion to attach (type) info 
     -- > why can't we make VarP have an additional Maybe ?  
     convertPat params@Py.Param{param_name=ident} = return $ VarP $ toBinding ident
     -- Question: Variables can be anything anyway. 
@@ -146,16 +143,15 @@ instance (Show a) => ConvertPat (Py.Parameter a) where
     -- So just prepend '*'/'**' to their names (to transfer unpacking to backend)? 
     convertPat params@Py.VarArgsPos{param_name=ident} = return $ VarP $ fromString $ "*"++Py.ident_string ident
     convertPat params@Py.VarArgsKeyword{param_name=ident} = return $ VarP $ fromString $ "**"++Py.ident_string ident
-    -- Question: I don't think UnitP is a good idea here. Actually it should just map to nothing and converting on the backend should just include addding
-    -- EndPositional again -> How to map to nothing wihtout failing?
-    convertPat params@Py.EndPositional{} = throwError "hit EndPositional parameter. I thought they where a myth"
+    -- Question: I found out what EndPositional acutally is. It might be there and it needs to be mapped to nothing
+    -- i.e. not a fail, but realy nothing. How to do this? 
+    -- Meanwhile I will just not support it
+    convertPat params@Py.EndPositional{} = unsupError "keyword-only markers as arguments" param
 
---Question: What else can be pattern in python?
+--Todo: What else can be pattern in python?
 instance (Show a) => ConvertPat (Py.Expr a) where
-    -- Question: why are wilcards not different from normal vars i.e. also a VarP ...I could deref them anywhere ?
+    -- Question: why are wilcards not different from normal vars i.e. also a VarP ... Could I deref them anywhere ?
     convertPat Py.Var {var_ident=ident, expr_annot=_expr_annot} = return $ VarP $ toBinding ident
-    -- Question: targets of a loop come as lists of expressions. Rust's convertPat says 'currently no list patterns'
-    -- I could check if there's only one expr in the loop target, but what's wrong with making it a tuple pattern? 
     convertPat lst@(Py.List [expr] annot) = convertPat expr
     convertPat lst@(Py.List exprs annot) = do
         patterns <- mapM convertPat exprs
@@ -188,11 +184,6 @@ instance (Show a) => ConvertExpr (Py.Argument a) where
 
 
 instance (Show a) => ConvertExpr (Py.Statement a) where
--- Question: What's the matter with ItemStmt's in function blocks in Rust? According to Rust AST
--- (Item -> ...-> Block->ItemStmt->Item) and Python AST (Statement-> Fun -> Suite -> Statement)
--- 'recursion' occurs in both. However while in Rust this only seems to 
--- include definitions/imports, in python also e.g. 'For'- loops are top-level statements.
--- Can't I have e.g. function definitions in a function and if so..Why?
     convertExpr Py.Import{import_items=items} = undefined
     convertExpr Py.FromImport{from_module= mod, from_items=items} = undefined
     --TODO: Handle Else_Block
@@ -254,25 +245,39 @@ makeLoopRef loopKind loc = loopKind ++ "_"
 
 
 instance (Show a) => ConvertExpr (Py.Suite a) where
-    -- Question: Is there another way to translate assignments than let expressions? 
-    -- Question: What's the scope of this Let assignments i.e. if I reassign 'x' three times in a funnction
-        -- will the effect just be: let x = something in (do stuff and let x = something else in (code that only sees lastx biding))
-    convertExpr statements = 
+    convertExpr statements =
          case statements of
             [] -> throwError "Empty function body. Actually that shouldn't have passed the parser"
             (x:xs) ->
-                return $ LitE  UnitLit
-                --TODO: Convert the last statment and use it as a base element to 
-                -- apply conversion of the other statements as folding operation 
-                -- Question : What kind of Expression is that overall folded to ? 
-                -- > Guesses would be either Let return_value = 'translation of all statments' or
-                --  LoopE (translation of all other statements)
-                --Question: What's the purpose of the LitE UnitLit() in the Rust implementation? 
+                let last = NE.head $ NE.reverse $ x:|xs
+                    heads = NE.tail $ NE.reverse $ x:|xs
+                in do
+                    convertedLast <- convertLastStmt last
+                    foldM 
+                     (\cont stmt -> (\e -> e cont) <$> convertStmt stmt)
+                     convertedLast
+                     heads 
                 where
                     convertStmt :: CompM m => Py.Statement a -> m (FrLang.Expr ty -> FrLang.Expr ty)
-                    convertStmt assign@(Py.Assign targets exor annot) = undefined 
-                    
-                    convertLastStmt = undefined 
+                    convertStmt assign@(Py.Assign targets expr annot) = do
+                        pat' <- convertPat targets
+                        expr' <- convertExpr expr
+                        return $ LetE pat' expr'
+                    -- Question (more out of interest): I understand return statements are not supported in Rust, 
+                    -- as they are optional there and might exit functions at different points, right?
+                    -- So I'd assume that I should only support them as the last statement in a block right?                 
+                    concertStmt stmt = StmtE <$> convertExpr stmt
+                    -- Cases for last statement -> either it's a return statement, than the returned 
+                    -- expression should be converted like toplevel convertExpr
+                    -- -> or it's not a return statement, than it should be convertStmt and append s UnitLit() to 
+                    -- return None
+                    -- Question : What's up with For-Loops as last statement in Rust ? 
+                    convertLastStmt :: Py.Statement a -> m (FrLang.Expr ty)
+                    convertLastStmt ret@(Py.Return maybeExpr annot) =
+                        case maybeExpr of
+                             Just expr -> convertExpr expr
+                             Nothing -> return $ LitE UnitLit
+                    convertLastStmt stmt = (\e -> e $ LitE UnitLit) <$> convertStmt stmt
 
 instance (Show a) => ConvertExpr (Py.Op a) where
     convertExpr Py.Plus{} = toExpr "+"
