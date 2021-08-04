@@ -1,18 +1,25 @@
 module Ohua.Backend.Normalize where
 
-import Ohua.Prelude
-import Ohua.Backend.Types
-import Ohua.Backend.Lang
-
 import qualified Data.HashSet as HS
+import Ohua.Backend.Lang
+import Ohua.Backend.Types
+import Ohua.Prelude
 
-
-normalize :: Namespace (TCProgram chan recv (TaskExpr ty)) anno
-          -> Namespace (TCProgram chan recv (TaskExpr ty)) anno
+normalize ::
+  Namespace (TCProgram chan recv (TaskExpr ty)) anno ->
+  Namespace (TCProgram chan recv (TaskExpr ty)) anno
 normalize = updateTaskExprs normalizeTaskExpr
 
 normalizeTaskExpr :: TaskExpr ty -> TaskExpr ty
-normalizeTaskExpr = normalizeLits . normalizeIndirect
+normalizeTaskExpr = normalizeLits . normalizeIndirect . deadCodeElim
+
+deadCodeElim :: TaskExpr ty -> TaskExpr ty
+deadCodeElim e =
+  let usedVars = HS.fromList [b | Var b <- universe e]
+   in flip transform e $
+        \case
+          Let b Lit {} ct | not (HS.member b usedVars) -> ct
+          e' -> e'
 
 transformNoState :: (TaskExpr ty -> TaskExpr ty) -> TaskExpr ty -> TaskExpr ty
 transformNoState f = (`evalState` HS.empty) . transformM go
@@ -23,7 +30,7 @@ transformNoState f = (`evalState` HS.empty) . transformM go
     go e@(Assign b _) = do
       modify $ HS.insert b
       return e
-    go e@(Let x y@Var{} ct) = do
+    go e@(Let x y@Var {} ct) = do
       states <- get
       case HS.member x states of
         True -> do
@@ -44,7 +51,7 @@ transformNoState f = (`evalState` HS.empty) . transformM go
 normalizeIndirect :: TaskExpr ty -> TaskExpr ty
 normalizeIndirect = transformNoState go
   where
-    go (Let x y@Var{} ct) = substitute (x,y) ct
+    go (Let x y@Var {} ct) = substitute (x, y) ct
     go e = e
 
 -- |
@@ -60,7 +67,7 @@ normalizeIndirect = transformNoState go
 normalizeLits :: TaskExpr ty -> TaskExpr ty
 normalizeLits = transformNoState go
   where
-    go (Let bnd l@Lit{} ct) = substitute (bnd,l) ct
+    go (Let bnd l@Lit {} ct) = substitute (bnd, l) ct
     go e = e
 
 -- |
@@ -68,7 +75,7 @@ normalizeLits = transformNoState go
 substitute :: (Binding, TaskExpr ty) -> TaskExpr ty -> TaskExpr ty
 substitute (bnd, e) = transform go
   where
-    go v@Var{} = updateVar v
+    go v@Var {} = updateVar v
     go (Apply (Stateless fn args)) = Apply $ Stateless fn $ map (transform go) args
     go (Apply (Stateful state fn args)) =
       Apply $ Stateful (transform go state) fn $ map (transform go) args

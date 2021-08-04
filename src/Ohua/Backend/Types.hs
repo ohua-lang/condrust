@@ -63,7 +63,7 @@ class Integration lang where
       ( CompM m
       , Architecture arch
       , Lang arch ~ lang
-      , ty ~ (Type lang))
+      , ty ~ Type lang)
       => NS lang
       -> arch
       -> Namespace (Program (Channel ty) (Com 'Recv ty) (TaskExpr ty) ty) (AlgoSrc lang)
@@ -80,9 +80,9 @@ class Architecture arch where
 
     build ::
         ( Integration (Lang arch)
-        , lang ~ (Lang arch)
-        , ty ~ (Type (Lang arch))
-        , expr ~ (Expr (Lang arch))
+        , lang ~ Lang arch
+        , ty ~ Type (Lang arch)
+        , expr ~ Expr (Lang arch)
         , CompM m)
         => arch
         -> NS lang
@@ -92,9 +92,9 @@ class Architecture arch where
     serialize ::
         ( CompM m
         , Integration (Lang arch)
-        , lang ~ (Lang arch)
-        , ty ~ (Type (Lang arch))
-        , expr ~ (Expr (Lang arch))
+        , lang ~ Lang arch
+        , ty ~ Type (Lang arch)
+        , expr ~ Expr (Lang arch)
         )
         => arch
         -> NS lang
