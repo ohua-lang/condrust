@@ -20,13 +20,14 @@ data Expr
   | Unary UnOp Expr
   | Assign Expr Expr
   | Loop Block
-  | ForLoop IdentPat Range Block
+  | ForLoop IdentPat Expr Block
   | While Expr Block
   | If Expr Block (Maybe Expr)
   | Tuple [Expr]
   | TupleField Expr Nat
   | Try Expr
   | BlockExpr Block
+  | HalfOpenRange (Maybe Expr) (Maybe Expr)
   deriving (Eq, Generic)
 
 data Stmt
@@ -42,7 +43,6 @@ data UnOp = Not | Neg | Deref deriving (Eq, Generic)
 data Pat = IdentP IdentPat | TupP [IdentPat] deriving (Eq, Generic)
 data IdentPat = IdentPat BindingMode Binding deriving (Eq, Generic)
 data BindingMode = Mutable | Immutable deriving (Eq, Generic)
-data Range = Range (Maybe Expr) (Maybe Expr) deriving (Eq, Generic)
 
 -- TODO this should really be much more expressive and allow for RustArgTypes
 data RustType = TypeHole | TupleTyp RustType RustType deriving (Eq, Generic)
