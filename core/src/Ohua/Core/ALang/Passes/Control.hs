@@ -204,8 +204,7 @@ liftIntoCtrlCtxt ctrlIn e0 = do
                         fromList $
                           map
                             ( const $
-                                --TupleTy (TypeVar :| [TypeVar])
-                              TypeVar
+                                TupleTy (TypeVar :| [TypeVar])
                             )
                             actuals'
                 )
@@ -250,7 +249,13 @@ splitCtrls = transform go
                   ( \(varOut, varIn) c ->
                       Let
                         varOut
-                        ((Lit $ FunRefLit $ FunRef op i $ FunType $ Right (TypeVar :| [TypeVar])) `Apply` ctrlSig `Apply` varIn)
+                        ( Lit
+                            ( FunRefLit $
+                                FunRef op i $ FunType $ Right (TypeVar :| [TypeVar])
+                            )
+                            `Apply` ctrlSig
+                            `Apply` varIn
+                        )
                         c
                   )
                   cont

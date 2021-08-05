@@ -145,6 +145,7 @@ ifRewrite = transformM $ \case
                 trueResult <- generateBindingWith "trueResult"
                 falseResult <- generateBindingWith "falseResult"
                 result <- generateBindingWith "result"
+
                 return $
                     Let ctrls (Apply ifFunSf cond) $
                     mkDestructured [ctrlTrue, ctrlFalse] ctrls $
@@ -154,7 +155,7 @@ ifRewrite = transformM $ \case
                     result
                     (Apply (Apply (Apply selectSf cond) $ Var trueResult) $
                      Var falseResult) $
-                    Var result  
+                    Var result
               _ -> throwError $ "Found if with unexpected, non-unit-lambda branch(es)\ntrue:\n " <> show trueBranch <> "\nfalse:\n" <> show falseBranch
       where
         -- This test needs to improve
