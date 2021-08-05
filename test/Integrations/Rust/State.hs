@@ -67,7 +67,7 @@ spec =
                       state_0_0_1_tx.send(state_0_0_1)?;
                       Ok(())
                   }));
-                  let mut handles: Vec<std::thread::JoinHandle<_>> = tasks
+                  let handles: Vec<std::thread::JoinHandle<_>> = tasks
                       .into_iter()
                       .map(|t| {
                           std::thread::spawn(move || {
@@ -146,7 +146,7 @@ spec =
                       state_0_0_2_tx.send(state_0_0_2)?;
                       Ok(())
                   }));
-                  let mut handles: Vec<std::thread::JoinHandle<_>> = tasks
+                  let handles: Vec<std::thread::JoinHandle<_>> = tasks
                       .into_iter()
                       .map(|t| {
                           std::thread::spawn(move || {

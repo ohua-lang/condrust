@@ -15,7 +15,9 @@ spec =
                 use funs::*;
 
                 fn rec(one:i32) -> i32 {
-                    let i = h(one);
+                    // FIXME(feliix42): This is very unfortunate! Normally there'd be no cloning necessary here...
+                    let o2 = one.clone();
+                    let i = h(o2);
                     let j = h(one);
                     let k = h2(i, j);
                     if check(k) {
@@ -26,7 +28,7 @@ spec =
                 }
 
                 fn test() -> i32 {
-                    rec(2,4)
+                    rec(2)
                 }
                 |]) >>=
             (\compiled -> do

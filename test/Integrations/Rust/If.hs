@@ -150,7 +150,7 @@ spec =
                                     }
                                 }
                             }));
-                            let mut handles: Vec<std::thread::JoinHandle<_>> = tasks
+                            let handles: Vec<std::thread::JoinHandle<_>> = tasks
                                 .into_iter()
                                 .map(|t| {
                                     std::thread::spawn(move || {
@@ -293,7 +293,7 @@ spec =
                                     }
                                 }
                             }));
-                            let mut handles: Vec<std::thread::JoinHandle<_>> = tasks
+                            let handles: Vec<std::thread::JoinHandle<_>> = tasks
                                 .into_iter()
                                 .map(|t| {
                                     std::thread::spawn(move || {

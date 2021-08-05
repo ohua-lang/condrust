@@ -44,7 +44,7 @@ spec =
                                 a_0_0_tx.send(a_0_0)?;
                                 Ok(())
                             }));
-                            let mut handles: Vec<std::thread::JoinHandle<_>> = tasks
+                            let handles: Vec<std::thread::JoinHandle<_>> = tasks
                                 .into_iter()
                                 .map(|t| {
                                     std::thread::spawn(move || {
@@ -110,7 +110,7 @@ spec =
                                     ()
                                 }
                             }));
-                            let mut handles: Vec<std::thread::JoinHandle<_>> = tasks
+                            let handles: Vec<std::thread::JoinHandle<_>> = tasks
                                 .into_iter()
                                 .map(|t| {
                                     std::thread::spawn(move || {
@@ -227,7 +227,7 @@ spec =
                                   x1_0_0_0_0_tx.send(var_0)?
                               }
                           }));
-                          let mut handles: Vec<std::thread::JoinHandle<_>> = tasks
+                          let handles: Vec<std::thread::JoinHandle<_>> = tasks
                               .into_iter()
                               .map(|t| {
                                   std::thread::spawn(move || {
@@ -322,7 +322,7 @@ spec =
                                   x_0_0_0_0_tx.send(var_0)?
                               }
                           }));
-                          let mut handles: Vec<std::thread::JoinHandle<_>> = tasks
+                          let handles: Vec<std::thread::JoinHandle<_>> = tasks
                               .into_iter()
                               .map(|t| {
                                   std::thread::spawn(move || {
@@ -380,17 +380,17 @@ spec =
                                     loop {
                                         let var_0 = x_0_0_0_rx.recv()?;
                                         let a_0_0 = funs::g(var_0);
-                                        a_0_0_tx.send(a_0_0)?
+                                        a_0_0_tx.send(a_0_0)?;
+                                        ()
                                     }
                                 }));
                             tasks
                                 .push(Box::new(move || -> _ {
-                                    let var_0 = i;
-                                    let x_0_0_0 = funs::h(var_0);
+                                    let x_0_0_0 = funs::h(i);
                                     x_0_0_0_tx.send(x_0_0_0)?;
                                     Ok(())
                                 }));
-                            let mut handles: Vec<  std::thread::JoinHandle<  _,>,> =
+                            let handles: Vec<  std::thread::JoinHandle<  _,>,> =
                                 tasks
                                     .into_iter()
                                     .map(|t| { std::thread::spawn(move || { let _ = t(); }) })
@@ -453,12 +453,11 @@ spec =
                               }
                           }));
                           tasks.push(Box::new(move || -> _ {
-                              let var_0 = i;
-                              let x_0_0_0 = funs::h(var_0);
+                              let x_0_0_0 = funs::h(i);
                               x_0_0_0_tx.send(x_0_0_0)?;
                               Ok(())
                           }));
-                          let mut handles: Vec<std::thread::JoinHandle<_>> = tasks
+                          let handles: Vec<std::thread::JoinHandle<_>> = tasks
                               .into_iter()
                               .map(|t| {
                                   std::thread::spawn(move || {
@@ -505,12 +504,11 @@ spec =
                               }
                           }));
                           tasks.push(Box::new(move || -> _ {
-                              let var_0 = 4;
-                              let x_0_0_0 = funs::h(var_0);
+                              let x_0_0_0 = funs::h(4);
                               x_0_0_0_tx.send(x_0_0_0)?;
                               Ok(())
                           }));
-                          let mut handles: Vec<std::thread::JoinHandle<_>> = tasks
+                          let handles: Vec<std::thread::JoinHandle<_>> = tasks
                               .into_iter()
                               .map(|t| {
                                   std::thread::spawn(move || {
@@ -568,8 +566,7 @@ spec =
                             let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel();
                             let mut tasks: Vec<Box<dyn FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
                             tasks.push(Box::new(move || -> _ {
-                                let var_0 = i;
-                                let x_0_0_0 = h(var_0);
+                                let x_0_0_0 = h(i);
                                 x_0_0_0_tx.send(x_0_0_0)?;
                                 Ok(())
                             }));
@@ -581,7 +578,7 @@ spec =
                                     ()
                                 }
                             }));
-                            let mut handles: Vec<std::thread::JoinHandle<_>> = tasks
+                            let handles: Vec<std::thread::JoinHandle<_>> = tasks
                                 .into_iter()
                                 .map(|t| {
                                     std::thread::spawn(move || {
@@ -620,8 +617,7 @@ spec =
                             let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel();
                             let mut tasks: Vec<Box<dyn FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
                             tasks.push(Box::new(move || -> _ {
-                                let var_0 = 4;
-                                let x_0_0_0 = h(var_0);
+                                let x_0_0_0 = h(4);
                                 x_0_0_0_tx.send(x_0_0_0)?;
                                 Ok(())
                             }));
@@ -633,7 +629,7 @@ spec =
                                     ()
                                 }
                             }));
-                            let mut handles: Vec<std::thread::JoinHandle<_>> = tasks
+                            let handles: Vec<std::thread::JoinHandle<_>> = tasks
                                 .into_iter()
                                 .map(|t| {
                                     std::thread::spawn(move || {
