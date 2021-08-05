@@ -1,9 +1,18 @@
 module Ohua.Integration.Rust.Backend.Passes where
 
-import Ohua.Prelude
-import Ohua.Integration.Rust.Backend.Subset
-
 import qualified Data.HashSet as HS
+import qualified Ohua.Core.DFLang.Passes.State as StateDFL
+import Ohua.Integration.Rust.Backend.Subset
+import Ohua.Integration.Transform.DataPar (dataPar)
+import Ohua.Prelude
+
+
+-- TODO configuration flag
+enableDataPar = False
+
+passes = StateDFL.load $ case enableDataPar of
+  True -> dataPar
+  False -> def
 
 -- | Rust wants all __mutable__ variables to be tagged.
 --   This transformation finds them and does so.
@@ -29,9 +38,9 @@ propagateMut block =
     goBlock (Block stmts) =
       let (stmts', states) =
             runState (reverse <$> mapM goStmt (reverse stmts)) HS.empty
-      in do
-        modify $ HS.union states
-        return $ Block stmts'
+       in do
+            modify $ HS.union states
+            return $ Block stmts'
 
     goStmt (Local p e) = do
       p' <- transformM goPat p
@@ -42,9 +51,9 @@ propagateMut block =
     goPat (IdentP (IdentPat mode bnd)) = do
       s <- get
       mode' <- case HS.member bnd s of
-                 True -> do
-                   put $ HS.delete bnd s
-                   return Mutable
-                 False -> return mode
+        True -> do
+          put $ HS.delete bnd s
+          return Mutable
+        False -> return mode
       return $ IdentP $ IdentPat mode' bnd
     goPat e = pure e

@@ -7,12 +7,11 @@ import Ohua.Prelude
 import qualified Ohua.Frontend.Types as F
 import qualified Ohua.Backend.Types as B
 import qualified Ohua.Core.Compile.Configuration as CConfig
-import qualified Ohua.Core.DFLang.Passes.State as StateDFL
 import Ohua.Integration.Lang
 import Ohua.Integration.Architecture
+import Ohua.Integration.Rust.Backend.Passes (passes)
 import Ohua.Integration.Rust.Architecture.SharedMemory ()
 import Ohua.Integration.Rust.Architecture.SharedMemory.Transform ()
-import Ohua.Integration.Transform.DataPar (dataPar)
 import Ohua.Integration.Rust.Architecture.M3 ()
 import Ohua.Integration.Rust.Frontend ()
 import Ohua.Integration.Rust.Backend ()
@@ -57,8 +56,7 @@ instance Apply Integration where
 definedIntegrations :: [(FileExtension, ArchId, Description, Integration)]
 definedIntegrations =
     [ (".rs", "sm", "Rust integration"
-      , I SRust SSharedMemory $ Just $ StateDFL.load def
-      --, I SRust SSharedMemory $ Just $ StateDFL.load dataPar
+      , I SRust SSharedMemory $ Just passes
       )
     , (".rs", "m3", "Rust integration", I SRust SM3 Nothing)]
 
