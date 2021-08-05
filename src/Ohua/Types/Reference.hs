@@ -68,6 +68,7 @@ data FunRef ty where
 instance EqNoType (ArgType ty) where
     TypeVar ~= TypeVar = True
     Type _ ~= Type _ = True -- skipping to type info here!
+    (TupleTy ts) ~= (TupleTy ts') = ts == ts' -- tuns into ~=, see instance below
     _ ~= _ = False
 
 instance Eq (ArgType ty) where
