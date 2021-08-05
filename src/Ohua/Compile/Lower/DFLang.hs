@@ -81,10 +81,12 @@ generateArcsCode = go
             let collected = go cont
                 collected' = HS.fromList $ NE.toList collected
                 current = filter (not . (`HS.member` collected'))
-                          $ map (\(t,b) -> SRecv t $ SChan b) $ insAndTypesDFApp app
+                          $ manuallyDedup $ map (\(t,b) -> SRecv t $ SChan b) $ insAndTypesDFApp app
             in foldl (flip (NE.<|)) collected current
         go (DFLang.Var bnd) = SRecv TypeVar (SChan bnd) :|[] -- result channel
 
+        manuallyDedup :: [Com 'Recv ty] -> [Com 'Recv ty]
+        manuallyDedup xs = foldr (\x acc -> if x `elem` acc then acc else x : acc) [] xs
 -- FIXME see sertel/ohua-core#7: all these errors would immediately go away
 generateNodeCode :: CompM m => DFApp semTy ty ->  LoweringM m (FusableExpr ty)
 generateNodeCode e@(PureDFFun out (FunRef fun _ _) inp)  | fun == smapFun = do
