@@ -11,15 +11,7 @@ normalize ::
 normalize = updateTaskExprs normalizeTaskExpr
 
 normalizeTaskExpr :: TaskExpr ty -> TaskExpr ty
-normalizeTaskExpr = normalizeLits . normalizeIndirect . deadCodeElim
-
-deadCodeElim :: TaskExpr ty -> TaskExpr ty
-deadCodeElim e =
-  let usedVars = HS.fromList [b | Var b <- universe e]
-   in flip transform e $
-        \case
-          Let b Lit {} ct | not (HS.member b usedVars) -> ct
-          e' -> e'
+normalizeTaskExpr = normalizeLits . normalizeIndirect
 
 transformNoState :: (TaskExpr ty -> TaskExpr ty) -> TaskExpr ty -> TaskExpr ty
 transformNoState f = (`evalState` HS.empty) . transformM go
@@ -30,7 +22,7 @@ transformNoState f = (`evalState` HS.empty) . transformM go
     go e@(Assign b _) = do
       modify $ HS.insert b
       return e
-    go e@(Let x y@Var {} ct) = do
+    go e@(Let x _ _) = do
       states <- get
       case HS.member x states of
         True -> do
