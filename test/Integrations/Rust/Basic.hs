@@ -95,7 +95,7 @@ spec =
                                 }
                             }
                             let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel();
-                            let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel();
+                            let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel::<i32>();
                             let mut tasks: Vec<Box<dyn FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
                             tasks.push(Box::new(move || -> _ {
                                 let x_0_0_0 = f();
@@ -183,11 +183,11 @@ spec =
                               }
                           }
                           let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel();
-                          let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel();
+                          let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel::<i32>();
                           let (x1_0_0_1_tx, x1_0_0_1_rx) = std::sync::mpsc::channel();
-                          let (x1_0_0_0_0_tx, x1_0_0_0_0_rx) = std::sync::mpsc::channel();
-                          let (y_0_0_0_tx, y_0_0_0_rx) = std::sync::mpsc::channel();
-                          let (x2_0_0_0_tx, x2_0_0_0_rx) = std::sync::mpsc::channel();
+                          let (x1_0_0_0_0_tx, x1_0_0_0_0_rx) = std::sync::mpsc::channel::<i32>();
+                          let (y_0_0_0_tx, y_0_0_0_rx) = std::sync::mpsc::channel::<i32>();
+                          let (x2_0_0_0_tx, x2_0_0_0_rx) = std::sync::mpsc::channel::<i32>();
                           let mut tasks: Vec<Box<dyn FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
                           tasks.push(Box::new(move || -> _ {
                               loop {
@@ -288,9 +288,9 @@ spec =
                           }
                           let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel();
                           let (x_0_0_1_tx, x_0_0_1_rx) = std::sync::mpsc::channel();
-                          let (x_0_0_0_0_tx, x_0_0_0_0_rx) = std::sync::mpsc::channel();
-                          let (y_0_0_0_tx, y_0_0_0_rx) = std::sync::mpsc::channel();
-                          let (x1_0_0_0_tx, x1_0_0_0_rx) = std::sync::mpsc::channel();
+                          let (x_0_0_0_0_tx, x_0_0_0_0_rx) = std::sync::mpsc::channel::<i32>();
+                          let (y_0_0_0_tx, y_0_0_0_rx) = std::sync::mpsc::channel::<i32>();
+                          let (x1_0_0_0_tx, x1_0_0_0_rx) = std::sync::mpsc::channel::<i32>();
                           let mut tasks: Vec<Box<dyn FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
                           tasks.push(Box::new(move || -> _ {
                               loop {
@@ -373,7 +373,7 @@ spec =
                               }
                             }
                             let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel();
-                            let (x_0_0_0_tx, x_0_0_0_rx)  = std::sync::mpsc::channel();
+                            let (x_0_0_0_tx, x_0_0_0_rx)  = std::sync::mpsc::channel::<i32>();
                             let mut tasks: Vec<Box<FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
                             tasks
                                 .push(Box::new(move || -> _ {
@@ -442,7 +442,7 @@ spec =
                               }
                           }
                           let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel();
-                          let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel();
+                          let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel::<i32>();
                           let mut tasks: Vec<Box<dyn FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
                           tasks.push(Box::new(move || -> _ {
                               loop {
@@ -493,7 +493,7 @@ spec =
                               }
                           }
                           let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel();
-                          let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel();
+                          let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel::<i32>();
                           let mut tasks: Vec<Box<dyn FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
                           tasks.push(Box::new(move || -> _ {
                               loop {
@@ -563,7 +563,7 @@ spec =
                                 }
                             }
                             let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel();
-                            let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel();
+                            let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel::<i32>();
                             let mut tasks: Vec<Box<dyn FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
                             tasks.push(Box::new(move || -> _ {
                                 let x_0_0_0 = h(i);
@@ -614,7 +614,7 @@ spec =
                                 }
                             }
                             let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel();
-                            let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel();
+                            let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel::<i32>();
                             let mut tasks: Vec<Box<dyn FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
                             tasks.push(Box::new(move || -> _ {
                                 let x_0_0_0 = h(4);
