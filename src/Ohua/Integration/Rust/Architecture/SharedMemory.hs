@@ -139,7 +139,7 @@ instance Architecture (Architectures 'SharedMemory) where
             (Rust.Block taskRunStmt _ _) =
               void
                 [block|{
-                let mut handles: Vec<std::thread::JoinHandle<_>> =
+                let handles: Vec<std::thread::JoinHandle<_>> =
                   tasks.into_iter().map(|t| { std::thread::spawn(move || { let _ = t(); }) }).collect();
                 for h in handles {
                     if let Err(_) = h.join() {
@@ -159,13 +159,18 @@ instance Architecture (Architectures 'SharedMemory) where
                 noSpan
          in Rust.Block (program ++ [Rust.NoSemi resultHandling noSpan]) Rust.Normal noSpan
 
--- | Replaces the final Unit literal in a Rust operator with a `Ok(())` when the operator is *not* containing a loop.
+-- | Surrounds the final non-semicolon terminated statement in a Rust operator with a `Ok(...)` when the operator is *not* containing a loop.
 replaceFinalStatement :: Rust.Expr () -> Rust.Expr ()
 replaceFinalStatement e@(Rust.Closure oatt cb ia mv fun (Rust.BlockExpr att (Rust.Block blck safety ()) labels ()) ()) =
   case LS.last blck of
-    (Rust.NoSemi (Rust.TupExpr [] [] _) _) ->
-      let blck' = changeLast blck (Rust.NoSemi (noSpan <$ [expr| Ok(()) |]) noSpan)
-       in Rust.Closure oatt cb ia mv fun (Rust.BlockExpr att (Rust.Block blck' safety noSpan) labels noSpan) noSpan
+    (Rust.NoSemi lst _) -> case lst of
+      Rust.Loop {} -> e
+      _ ->
+        let
+          newStmt = Rust.Call [] (Rust.PathExpr [] Nothing (Rust.Path False [Rust.PathSegment "Ok" Nothing noSpan] noSpan) noSpan) [lst] noSpan
+          blck' = changeLast blck (Rust.NoSemi newStmt noSpan)
+        in
+          Rust.Closure oatt cb ia mv fun (Rust.BlockExpr att (Rust.Block blck' safety noSpan) labels noSpan) noSpan
     _ -> e
   where
     changeLast :: [a] -> a -> [a]
