@@ -21,6 +21,7 @@ import Ohua.Integration.Rust.Backend.Convert
   )
 import qualified Ohua.Integration.Rust.Backend.Subset as Sub
 import Ohua.Integration.Rust.Types as RT
+import qualified Ohua.Integration.Rust.TypeExtraction as TE
 import Ohua.Prelude
 
 instance Architecture (Architectures 'SharedMemory) where
@@ -37,6 +38,12 @@ instance Architecture (Architectures 'SharedMemory) where
                 [ Rust.TypeArg $
                     Rust.TupTy (map (const (Rust.Infer noSpan)) $ toList ts) noSpan
                 ]
+                []
+                noSpan
+          Type (TE.Normal ti) ->
+            Just $
+              Rust.AngleBracketed
+                [ Rust.TypeArg (noSpan <$ ti) ]
                 []
                 noSpan
           _ -> Nothing
