@@ -39,6 +39,10 @@ convertExpr (Sub.MethodCall stateExpr (Sub.CallRef (QualifiedBinding _ bnd) ty) 
     (PathSegment (mkIdent $ unpack $ unwrap bnd) ty noSpan)
     (map convertExpr args)
     noSpan
+convertExpr (Sub.Binary op e1 e2) =
+  Rust.Binary [] (convertBinary op) (convertExpr e1) (convertExpr e2) noSpan
+convertExpr (Sub.Unary op e) =
+  Rust.Unary [] (convertUnary op) (convertExpr e) noSpan
 convertExpr (Sub.Assign e1 e2) =
   Rust.Assign [] (convertExpr e1) (convertExpr e2) noSpan
 convertExpr (Sub.Loop block) =
@@ -107,6 +111,17 @@ convertCallRef (Sub.CallRef f ty) =
           let (l :| prev) = NE.reverse $ a :| as
            in NE.toList $ NE.reverse $ attach l :| prev
    in PathExpr [] Nothing (Path b segs' s) noSpan
+
+convertBinary :: Sub.BinOp -> Rust.BinOp
+convertBinary Sub.Add = Rust.AddOp
+convertBinary Sub.Sub = Rust.SubOp
+convertBinary Sub.Mul = Rust.MulOp
+convertBinary Sub.Div = Rust.DivOp
+
+convertUnary :: Sub.UnOp -> Rust.UnOp
+convertUnary Sub.Not = Rust.Not
+convertUnary Sub.Neg = Rust.Neg
+convertUnary Sub.Deref = Rust.Deref
 
 noSpan :: ()
 noSpan = ()
