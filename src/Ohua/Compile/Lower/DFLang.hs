@@ -294,7 +294,7 @@ generateNodeCode e@(PureDFFun out (FunRef fun _ _) inp) | fun == Refs.unitFun = 
 
 generateNodeCode e@(RecurFun resultOut ctrlOut recArgsOuts recInitArgsIns recArgsIns recCondIn recResultIn) = do
     resultOut' <- directOut resultOut
-    ctrlOut' <- directOut ctrlOut
+    ctrlOut' <- directOut' ctrlOut
     recArgsOuts' <- mapM directOut $ V.toList recArgsOuts
     let recInitArgsIns' = map varToChanOrLit $ V.toList recInitArgsIns
     -- TODO we could allow literals in the recursion args as well but we should require one to be a variable that got computed!
@@ -317,6 +317,11 @@ generateNodeCode e@(RecurFun resultOut ctrlOut recArgsOuts recInitArgsIns recArg
         directOut x = case x of
                         Direct x' -> return $ SChan $ unwrapABnd x'
                         _ -> invariantBroken $ "Control outputs don't match:\n" <> show e
+        directOut' :: CompM m => Maybe (OutData a) -> LoweringM m (Maybe (Com 'Channel ty))
+        directOut' (Just x) = case x of
+                        Direct x' -> return $ Just $ SChan $ unwrapABnd x'
+                        _ -> invariantBroken $ "Control outputs don't match:\n" <> show e
+        directOut' Nothing = pure Nothing
         varToChanOrLit :: DFVar a ty -> Either (Com 'Recv ty) (Lit ty)
         varToChanOrLit (DFVar t v) = Left $ SRecv t $ SChan $ unwrapABnd v
         varToChanOrLit (DFEnvVar _ l) = Right l
