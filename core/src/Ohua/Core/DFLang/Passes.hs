@@ -22,14 +22,14 @@ import Ohua.Core.ALang.Util
 import Ohua.Core.DFLang.Lang as DFLang hiding (length)
 import Ohua.Core.DFLang.Passes.DeadCodeElimination (eliminate)
 import Ohua.Core.DFLang.Passes.DispatchInsertion (insertDispatch)
-import Ohua.Core.DFLang.Refs as DFRef
+import Ohua.Core.DFLang.Passes.TypePropagation (propagateTypes)
 import Ohua.Core.Prelude
 
 runCorePasses :: (MonadOhua m) => NormalizedExpr ty -> m (NormalizedDFExpr ty)
 runCorePasses = removeNth
 
 finalPasses :: (MonadOhua m) => NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
-finalPasses = insertDispatch >=> eliminate
+finalPasses = pure . propagateTypes >=> insertDispatch >=> eliminate
 
 -- I really should not have to do this in the first place.
 -- All transformations that need an Nth node because they introduce functions whose output
