@@ -20,7 +20,7 @@ import Ohua.Types.Make
 import Ohua.Types.Classes
 import Ohua.Types.Unit (Unit)
 
-import qualified Text.Show 
+import qualified Text.Show
 
 
 -- | A binding name
@@ -77,6 +77,7 @@ instance Eq (ArgType ty) where
 instance ShowNoType (ArgType ty) where
     showNoType TypeVar = "TypeVar"
     showNoType (Type _) = "Type _"
+    showNoType (TupleTy ts) = "(" <>  foldl (\b a -> show a <> ", " <> b) ")" ts
 
 instance Show (ArgType ty) where
     show = T.unpack . showNoType
@@ -84,6 +85,7 @@ instance Show (ArgType ty) where
 instance Hashable (ArgType ty) where
     hashWithSalt s TypeVar = s
     hashWithSalt s (Type _) = s
+    hashWithSalt s (TupleTy _) = s
 
 deriving instance Show (FunType ty)
 deriving instance Eq (FunType ty)
