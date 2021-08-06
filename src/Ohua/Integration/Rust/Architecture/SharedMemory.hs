@@ -31,7 +31,7 @@ instance Architecture (Architectures 'SharedMemory) where
 
   convertChannel SSharedMemory (SRecv argTy (SChan bnd)) =
     -- help out the type inference of Rust a little here
-    let chanTy = case argTy of
+    let chanTy = traceShow ("Channel for arc: " <> bnd <> " type: " <> show argTy) $ case argTy of
           TupleTy ts ->
             Just $
               Rust.AngleBracketed
