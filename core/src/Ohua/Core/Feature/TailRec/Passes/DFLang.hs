@@ -73,7 +73,7 @@ recurLowering expr
                     recurArgs'' = V.map (\(_,_,x) -> x) vec
                 in RecurFun
                     finalResultOut
-                    ctrlOut
+                    (Just ctrlOut)
                     recurArgsOuts'
                     recurInitArgs'
                     recurArgs''

@@ -61,12 +61,13 @@ eliminateOuts :: forall m ty.(MonadOhua m) => NormalizedDFExpr ty -> m (Normaliz
 eliminateOuts expr = do
   transformExprM go expr
   where
-    go (Let (RecurFun c ctrl outArgs initArgs inArgs cond result) cont) =
+    -- FIXME check whether ctrlOut is really being used anywhere. if not then delete it.
+    go (Let (RecurFun c ctrlOut outArgs initArgs inArgs cond result) cont) =
       case V.zip3 outArgs initArgs inArgs of
         zipped -> case V.filter filterDead zipped of
                     V.MkEV filtered -> case V.unzip3 filtered of
                       (outArgs', initArgs', inArgs') ->
-                        pure $ Let (RecurFun c ctrl outArgs' initArgs' inArgs' cond result) cont
+                        pure $ Let (RecurFun c ctrlOut outArgs' initArgs' inArgs' cond result) cont
     go (Let app cont) = case app of
         (PureDFFun out fr@(FunRef fun _ _) inp)
           | R.smapFun == fun -> case out of
