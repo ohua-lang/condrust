@@ -30,7 +30,7 @@ deriving instance Eq (Com semTy ty)
 
 instance Show (Com a t) where
   show (SChan bnd) = "Chan: " <> show bnd
-  show (SRecv _ chan) = "Recv: " <> show chan
+  show (SRecv ty chan) = "Recv: <" <> show ty <> "> " <>show chan
   show (SSend chan bnd) = "Send: " <> show chan <> " bnd:" <> show bnd
 
 type Channel = Com 'Recv
