@@ -19,8 +19,8 @@ noSpan = ()
 toBinding :: Ident a -> Binding
 toBinding Ident{ident_string=n, ident_annot=annot} = fromString n
 
-fromBinding :: Binding -> annot -> Ident annot
-fromBinding bnd span= Ident{ident_string=show bnd, ident_annot= span}
+fromBinding :: Binding -> Ident ()
+fromBinding bnd = Ident{ident_string=show bnd, ident_annot= noSpan}
 
 filePathToNsRef :: FilePath -> NSRef
 filePathToNsRef = makeThrow . map fromString . splitDirectories . dropExtension

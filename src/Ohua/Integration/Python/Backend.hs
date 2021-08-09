@@ -15,10 +15,12 @@ import Ohua.Integration.Python.TypeExtraction
 import qualified Language.Python.Common.AST as Py
 import Language.Python.Common (SrcSpan)
 
+import Data.Text (unpack)
+import Data.List ((!!))
+import Data.Functor.Foldable (cata, embed)
+
 import Data.Maybe
 
---Todo: I need to map TaskExprs back to Py.Statement or Py.Expr 
-data PyStmtOrExpr = PyStmt (Py.Statement ()) | PyExpr (Py.Expr ()) 
 
 convertToSuite::(Architecture arch, Lang arch ~ Language 'Python) 
     => arch -> TaskExpr PythonTypeAnno -> Py.Suite ()
@@ -61,12 +63,12 @@ instance Integration (Language 'Python) where
                 e -> embed e
 
             argToVar :: Py.Parameter a -> TCLang.TaskExpr PythonTypeAnno
-            argToVar Py.EndPositional{} = undefined 
+            -- argToVar Py.EndPositional{} = undefined -- they shall not pass B-)...no, actually they just not pass the frontend
             argToVar param = Var $ toBinding $ Py.param_name param
     
 
 -- Note: Checked, spans do not matter for code generation
-    convertExpr _ (TCLang.Var bnd) = wrapExpr Py.Var{var_ident= fromBinding bnd noSpan, expr_annot= noSpan}
+    convertExpr _ (TCLang.Var bnd) = wrapExpr Py.Var{var_ident= fromBinding bnd, expr_annot= noSpan}
     -- Question: Are there only Int literals? What about Floats ? 
     convertExpr _ (TCLang.Lit (NumericLit i)) = wrapExpr Py.Int{int_value=i, expr_literal=show i, expr_annot= noSpan}
     convertExpr _ (TCLang.Lit (BoolLit b)) = wrapExpr $ Py.Bool b noSpan
@@ -82,7 +84,14 @@ instance Integration (Language 'Python) where
 
     convertExpr arch (Apply (Stateless bnd args)) = convertFunCall arch bnd args
     -- There are no different definitions for functions and methods
-    convertExpr arch (Apply (Stateful stateExpr (QualifiedBinding _ bnd) args)) = undefined 
+    convertExpr arch (Apply (Stateful stateExpr (QualifiedBinding _ bnd) args)) =
+        wrapExpr $
+        Py.Call 
+            (Py.Dot{Py.dot_expr = unwrapStmt $ convertExpr arch stateExpr,
+                    Py.dot_attribute = fromBinding bnd,
+                    Py.expr_annot = noSpan }) 
+            (map (convertArgument arch) args) 
+            noSpan 
 
     convertExpr arch (TCLang.Assign bnd expr) = 
         -- Question: An equivalent to 'prependToBlock' would be pointless as long as I don't wrap function blocks into e.g. 
@@ -171,7 +180,11 @@ convertArgument arch arg = Py.ArgExpr (unwrapStmt (convertExpr arch arg)) noSpan
 
 asUntypedFunctionLiteral qBinding = TCLang.Lit $ FunRefLit $ FunRef qBinding Nothing Untyped
 
-
+-- Turn an unqualified binding (just a name) 
+-- into a qualified binding (name with [import] context) with just no context
+-- TODO: The name is confusing...kept for consistency though
+mkFunRefUnqual :: Binding -> QualifiedBinding
+mkFunRefUnqual = QualifiedBinding (makeThrow [])
 
 
 
