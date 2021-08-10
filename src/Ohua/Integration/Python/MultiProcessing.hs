@@ -11,16 +11,19 @@ import Ohua.Integration.Python.Backend
 import Ohua.Integration.Python.Util
 import Ohua.Integration.Python.Types
 
+import Ohua.Integration.Python.TypeExtraction
+
 
 import qualified Language.Python.Common.AST as Py
-import Language.Rust.Data.Ident (mkIdent)
+
+import qualified Data.ByteString.Lazy.Char8 as L
+import qualified Data.HashMap.Lazy as HM
 
 
 instance Architecture (Architectures 'MultiProcessing) where
     type Lang (Architectures 'MultiProcessing) = Language 'Python
     type Chan (Architectures 'MultiProcessing) = Py.Statement ()
     type ATask (Architectures 'MultiProcessing) = Py.Statement ()
-
 
 -- Question: In the backend definition a task is a block/suite, while in the architecture it's just an Expression. 
 -- I assume this is because Backend constructs a BlockExpr to wrap a task
@@ -81,32 +84,36 @@ instance Architecture (Architectures 'MultiProcessing) where
     convertSend SMultiProc  (SSend (SChan chnlName) toSend)=
         convertExpr SMultiProc $ Apply $ Stateful (Var $ chnlName <> "_sender") (mkFunRefUnqual "send") [Var toSend]
 
-{-  build :: 
-        ( Integration (Lang arch)
-        , lang ~ (Lang arch)
-        , ty ~ (Type (Lang arch))
-        , expr ~ (Expr (Lang arch))
-        , CompM m)
-        => arch
-        -> NS lang
-        -> Namespace (Program (Chan arch) expr (Task lang) ty) (AlgoSrc lang)
-        -> m (Namespace (Program (Chan arch) expr (ATask arch) ty) (AlgoSrc lang))
--}
-    -- Wie wird eine 'Task' (Py.Suite) ausgeführt..
+
+    -- Wraps the tasks i.e. codeblocks of host language function calls and 'wiring' to send and
+    -- receive into actual independent tasks, in this case named closures because lambdas are to limited in python  
     build SMultiProc (Module fPath (Py.Module stmts)) ns =
          return $ ns & algos %~ map (\algo -> algo & algoCode %~ createTasksAndChannels)
         where
+            --Questions: Pattern matching to the max is probably not the most elegant solution but
+            -- I got stuck with type inference using the applicative way :-()
             createTasksAndChannels (Program chans retChan tasks) =
-                Program chans retChan (map (pure (createTask [1..]) <$>) tasks)
+                --Program chans retChan (map (createTask <$> [1..] <*>) tasks)
+                Program chans retChan (zipWith (curry taskFromSuite) [1..] tasks)
 
-            createTask ::Int -> Py.Suite ()-> Py.Statement()
-            createTask num code=
+            {- createTask ::Int -> Py.Suite ()-> Py.Statement()
+            createTask num code =
                Py.Fun
                 (Py.Ident ("node_"++show num) noSpan)
                 []
                 Nothing
                 code
-                noSpan--}
+                noSpan-}
+
+            taskFromSuite:: (Int, FullTask ty (Py.Suite ())) ->  FullTask ty (Py.Statement ())
+            taskFromSuite (num, FullTask ins out suite) = FullTask ins out fun
+                where fun=
+                        Py.Fun
+                            (Py.Ident ("task_"++show num) noSpan)
+                            []
+                            Nothing
+                            suite
+                            noSpan
 
 {-    serialize :: 
         ( CompM m
@@ -124,6 +131,34 @@ instance Architecture (Architectures 'MultiProcessing) where
     -- Alles was auf verteilten physischen Konten laufen soll, sollte auch in verschiedene Dateien.
     -- Für Multiprocessing reicht erstmal eine Datei, aber zB bei CloudMicroservices währen Tasks deutlich unabhängiger 
     -- (eigene Module, eigene Imports etc.)
-    serialize = undefined
+    serialize  SMultiProc pyNs ns = stringify' pyNs ns createProgram
+        where
+            createProgram (Program chans resultExpr tasks) = undefined 
+                --TODO:
+                -- 1. import multiprocessing
+                -- 2. tasks and channel inits NEED TO BE TL. Multiprocessing pickles, and 
+                ---   pickling only works for TL definitions
+                -- 3. init pool and tasks list
+                -- 4. add tasks to list
+                -- 5. apply pool on tasks, close pool and return result
+                -- 6. close and join pool and channels
+ 
+     
+stringify' :: CompM m
+    => Module
+    -> Namespace (Program (Py.Statement ()) (Py.Statement ()) (Py.Statement ())) anno
+    -> (Program (Py.Statement ()) (Py.Statement ()) (Py.Statement ()) PythonTypeAnno -> Py.Suite ())
+    -> m (NonEmpty (FilePath, L.ByteString))
 
-
+stringify' (Module path (Py.Module stmts)) ns createProgram = undefined
+{-
+Comment out when Bernie (hopefully soon) merged
+importMP = [pyStmt|import multiprocessing as mp|]
+initPool = [pyStmt|pool = mp.Pool(mp.cpu_count())|]
+initList = [pyStmt|tasks = []|]
+callFun = [pyStmt|
+def call(f):
+    f()
+|]
+runTasks = [pyStmt|pool.map(call, tasks)|]
+-}
