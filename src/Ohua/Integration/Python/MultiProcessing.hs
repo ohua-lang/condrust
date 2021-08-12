@@ -18,12 +18,12 @@ import qualified Language.Python.Common.AST as Py
 
 import qualified Data.ByteString.Lazy.Char8 as L
 import qualified Data.HashMap.Lazy as HM
-
+import Language.Python.Common.SrcLocation (SrcSpan)
 
 instance Architecture (Architectures 'MultiProcessing) where
     type Lang (Architectures 'MultiProcessing) = Language 'Python
-    type Chan (Architectures 'MultiProcessing) = Py.Statement ()
-    type ATask (Architectures 'MultiProcessing) = Py.Statement ()
+    type Chan (Architectures 'MultiProcessing) = Py.Statement SrcSpan
+    type ATask (Architectures 'MultiProcessing) = Py.Statement SrcSpan
 
 -- Question: In the backend definition a task is a block/suite, while in the architecture it's just an Expression. 
 -- I assume this is because Backend constructs a BlockExpr to wrap a task
@@ -43,7 +43,7 @@ instance Architecture (Architectures 'MultiProcessing) where
                         Further Staments are possible as defaults for variables: lambda x= x_0_out.recv():...
                         However I think neither of those is an option.
 
-        Conclusion: I need Suits() ie. [Staments] only possible
+        Conclusion: I need SuitsSrcSpan ie. [Staments] only possible
                     1.  in named functions, so I need names
                     - > I could have a State to enumerate fun0 - funN but using a hash of the 
                         task to be translated would probably be easier 
@@ -69,7 +69,7 @@ instance Architecture (Architectures 'MultiProcessing) where
 
 --  convertRecv :: arch -> Com 'Recv (Type (Lang arch)) -> Expr (Lang arch)
 -- Convert an 'incomming edge' of a backend channel into an expression of the target architecture
---  to receive from a process communivcation channel 
+--  to receive from a process communication channel 
     -- Todo: Rust wraps that in a 'try'. Receiving is blocking 
     -- and raises EOFError if there's nothing left to receive and the sender is allready closed
         -- > Do I need to wrap this also?
@@ -78,6 +78,8 @@ instance Architecture (Architectures 'MultiProcessing) where
         convertExpr SMultiProc $ Apply $ Stateful (Var $ channel <> "_receiver") (mkFunRefUnqual "recv") []
 
 --  convertSend:: arch -> Com 'Send (Type (Lang arch)) -> Expr (Lang arch)
+-- Convert the 'outcomming edge' of a backend channel into an expression of the target architecture
+--  to send the result of the node computation to a process communication channel 
  -- Todo: Sending is only valid for picklable objects, i.e. basic Types, things def'd at TL of a module
     -- and ADTs thereof. Restriction on the Frontend should actualy prohibit non-TL def's. Also objects 
     -- must not exceed ~ 32MiB. I might need to catch PickleError's or ValueError's here
@@ -96,16 +98,8 @@ instance Architecture (Architectures 'MultiProcessing) where
                 --Program chans retChan (map (createTask <$> [1..] <*>) tasks)
                 Program chans retChan (zipWith (curry taskFromSuite) [1..] tasks)
 
-            {- createTask ::Int -> Py.Suite ()-> Py.Statement()
-            createTask num code =
-               Py.Fun
-                (Py.Ident ("node_"++show num) noSpan)
-                []
-                Nothing
-                code
-                noSpan-}
-
-            taskFromSuite:: (Int, FullTask ty (Py.Suite ())) ->  FullTask ty (Py.Statement ())
+            taskFromSuite:: (Int, FullTask ty (Py.Suite SrcSpan))
+                 ->  FullTask ty (Py.Statement SrcSpan)
             taskFromSuite (num, FullTask ins out suite) = FullTask ins out fun
                 where fun=
                         Py.Fun
@@ -131,9 +125,13 @@ instance Architecture (Architectures 'MultiProcessing) where
     -- Alles was auf verteilten physischen Konten laufen soll, sollte auch in verschiedene Dateien.
     -- Für Multiprocessing reicht erstmal eine Datei, aber zB bei CloudMicroservices währen Tasks deutlich unabhängiger 
     -- (eigene Module, eigene Imports etc.)
-    serialize  SMultiProc pyNs ns = stringify' pyNs ns createProgram
+    serialize  SMultiProc srcModule ns = makeModule srcModule nodeFuns taskList
         where
-            createProgram (Program chans resultExpr tasks) = undefined 
+            
+            nodeFuns = undefined 
+            taskList = undefined 
+            -- in Rust-Integration this function is resposible for replacing the
+            -- body of 'in-scope' functions 
                 --TODO:
                 -- 1. import multiprocessing
                 -- 2. tasks and channel inits NEED TO BE TL. Multiprocessing pickles, and 
@@ -142,23 +140,26 @@ instance Architecture (Architectures 'MultiProcessing) where
                 -- 4. add tasks to list
                 -- 5. apply pool on tasks, close pool and return result
                 -- 6. close and join pool and channels
+                -- 7. make sure file ends with if __name__ = __main__:
+                -- and has otherwise no side effects upon importing from child processes   
  
+makeModule= undefined 
      
 stringify' :: CompM m
     => Module
-    -> Namespace (Program (Py.Statement ()) (Py.Statement ()) (Py.Statement ())) anno
-    -> (Program (Py.Statement ()) (Py.Statement ()) (Py.Statement ()) PythonTypeAnno -> Py.Suite ())
+    -> Namespace (Program (Py.Statement SrcSpan) (Py.Statement SrcSpan) (Py.Statement SrcSpan) PythonTypeAnno) anno
+    -> (Program (Py.Statement SrcSpan) (Py.Statement SrcSpan) (Py.Statement SrcSpan) PythonTypeAnno -> Py.Suite SrcSpan)
     -> m (NonEmpty (FilePath, L.ByteString))
 
 stringify' (Module path (Py.Module stmts)) ns createProgram = undefined
-{-
-Comment out when Bernie (hopefully soon) merged
-importMP = [pyStmt|import multiprocessing as mp|]
-initPool = [pyStmt|pool = mp.Pool(mp.cpu_count())|]
-initList = [pyStmt|tasks = []|]
-callFun = [pyStmt|
-def call(f):
-    f()
-|]
-runTasks = [pyStmt|pool.map(call, tasks)|]
--}
+
+entryFunction:: [String] -> Py.Statement SrcSpan
+entryFunction taskNames =  Py.Conditional [(ifMain, mainBlock)] [] noSpan 
+        where
+            taskList = Py.List (map toPyVar taskNames) noSpan 
+            initTasksStmt = Py.Assign [toPyVar "tasks"] taskList noSpan
+            mainBlock = [initPoolStmt, initTasksStmt, poolMapStmt, poolCloseStmt, poolJoinStmt]
+
+
+toPyVar :: String -> Py.Expr SrcSpan
+toPyVar name = Py.Var (mkIdent name) noSpan 

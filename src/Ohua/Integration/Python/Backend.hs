@@ -22,8 +22,8 @@ import Data.Functor.Foldable (cata, embed)
 import Data.Maybe
 
 
-convertToSuite::(Architecture arch, Lang arch ~ Language 'Python) 
-    => arch -> TaskExpr PythonTypeAnno -> Py.Suite ()
+convertToSuite::(Architecture arch, Lang arch ~ Language 'Python)
+    => arch -> TaskExpr PythonTypeAnno -> Py.Suite SrcSpan
 convertToSuite arch taskExpr =
     let expr = convertExpr arch taskExpr
     in [expr]
@@ -35,28 +35,28 @@ instance Integration (Language 'Python) where
     type Type (Language 'Python) = PythonArgType SrcSpan
     type AlgoSrc (Language 'Python) = Py.Statement SrcSpan
 
-    type Expr (Language 'Python) = Py.Statement ()
-    type Task (Language 'Python) = Py.Suite ()
+    type Expr (Language 'Python) = Py.Statement SrcSpan
+    type Task (Language 'Python) = Py.Suite SrcSpan
 
 {--Note:  lower should basically turn a Programm (Backend.Types) of taskExpressions
      (actually a function that returns the expression inside a FullExpression) 
      into a task as defined for the Backend (in this case a Python.Suite).-}
-    
+
     -- Basically converts Backend Language () to AST again but adds functionality to receive and send 
     -- local vars from to channels
-    lower (Module filePath (Py.Module statements)) arch nameSpace = 
-        return $ 
+    lower (Module filePath (Py.Module statements)) arch nameSpace =
+        return $
             -- Note: '&' -> forward application (reverse $), '%~'-> Setter from Lens
             -- means -> map function: algoCode of algos is set by convertTask(annotation algo)
             -- return->  ns algos, where algos are set by the map functione
             ns & algos %~ map (\algo -> algo & algoCode %~ convertTasks (algo^.algoAnno))
         where
-            convertTasks (Py.Fun id params opt_anno body anno) (Program chans (SRecv argType channel) tasks) =                 
-                Program 
-                    chans 
+            convertTasks (Py.Fun id params opt_anno body anno) (Program chans (SRecv argType channel) tasks) =
+                Program
+                    chans
                     (SRecv (Type $ PythonObject noSpan) channel)
-                    $ map (convertToSuite arch . convertEnvs args <$>) tasks 
-                            
+                    $ map (convertToSuite arch . convertEnvs args <$>) tasks
+
             convertEnvs :: [Py.Parameter a] -> TCLang.TaskExpr PythonTypeAnno -> TCLang.TaskExpr PythonTypeAnno
             convertEnvs args = cata $ \case
                 LitF (EnvRefLit h) -> argToVar (args !! unwrap h)
@@ -65,20 +65,20 @@ instance Integration (Language 'Python) where
             argToVar :: Py.Parameter a -> TCLang.TaskExpr PythonTypeAnno
             -- argToVar Py.EndPositional{} = undefined -- they shall not pass B-)...no, actually they just not pass the frontend
             argToVar param = Var $ toBinding $ Py.param_name param
-    
+
 
 -- Note: Checked, spans do not matter for code generation
     convertExpr _ (TCLang.Var bnd) = wrapExpr Py.Var{var_ident= fromBinding bnd, expr_annot= noSpan}
     -- Question: Are there only Int literals? What about Floats ? 
     convertExpr _ (TCLang.Lit (NumericLit i)) = wrapExpr Py.Int{int_value=i, expr_literal=show i, expr_annot= noSpan}
     convertExpr _ (TCLang.Lit (BoolLit b)) = wrapExpr $ Py.Bool b noSpan
-    convertExpr _ (TCLang.Lit UnitLit) = wrapExpr $ Py.None noSpan 
+    convertExpr _ (TCLang.Lit UnitLit) = wrapExpr $ Py.None noSpan
     convertExpr _ (TCLang.Lit (EnvRefLit _hostExpr)) = error "Host expression encountered! This is a compiler error. Please report!"
     convertExpr _ (TCLang.Lit (FunRefLit (FunRef qBnd _ _type))) = undefined
 
     -- Todo: Actually we have nothing matching tuple in python as the backend tuple just has two components
     -- and list are homogenous :-/ 
-    convertExpr arch (TCLang.Tuple one two) = 
+    convertExpr arch (TCLang.Tuple one two) =
         let conv = unwrapStmt . convertExpr arch . either TCLang.Var TCLang.Lit
         in  wrapExpr $ Py.Tuple [conv one, conv two] noSpan
 
@@ -86,14 +86,14 @@ instance Integration (Language 'Python) where
     -- There are no different definitions for functions and methods
     convertExpr arch (Apply (Stateful stateExpr (QualifiedBinding _ bnd) args)) =
         wrapExpr $
-        Py.Call 
+        Py.Call
             (Py.Dot{Py.dot_expr = unwrapStmt $ convertExpr arch stateExpr,
                     Py.dot_attribute = fromBinding bnd,
-                    Py.expr_annot = noSpan }) 
-            (map (convertArgument arch) args) 
-            noSpan 
+                    Py.expr_annot = noSpan })
+            (map (convertArgument arch) args)
+            noSpan
 
-    convertExpr arch (TCLang.Assign bnd expr) = 
+    convertExpr arch (TCLang.Assign bnd expr) =
         -- Question: An equivalent to 'prependToBlock' would be pointless as long as I don't wrap function blocks into e.g. 
         -- a StmtExpr...which itself is pointless beonde the point of type compat 
         -- But what's the purpose of the TCLang.Lit UnitLit? Is it the 'return None' at the end of the produced block?
@@ -105,19 +105,19 @@ instance Integration (Language 'Python) where
                 Py.assign_expr = unwrapStmt $ convertExpr arch expr,
                 Py.stmt_annot= noSpan}
 
-    
+
     convertExpr arch (TCLang.ReceiveData recv) = convertRecv arch recv
     convertExpr arch (TCLang.SendData send) = convertSend arch send
 
-    
-    
+
+
 
 pattern FunRepresentationOf :: Binding -> QualifiedBinding
 pattern FunRepresentationOf bnd <- QualifiedBinding [] bnd
 
-convertFunCall ::(Architecture arch, Lang arch ~ (Language 'Python)) => 
-        arch -> QualifiedBinding -> [TCLang.TaskExpr PythonTypeAnno] -> Py.Statement ()
-convertFunCall arch op [arg1, arg2] | isJust $ binOp op = 
+convertFunCall ::(Architecture arch, Lang arch ~ Language 'Python) =>
+        arch -> QualifiedBinding -> [TCLang.TaskExpr PythonTypeAnno] -> Py.Statement SrcSpan
+convertFunCall arch op [arg1, arg2] | isJust $ binOp op =
     wrapExpr $ Py.BinaryOp (fromJust $ binOp op) firstArg secondArg noSpan
     where
         firstArg = unwrapStmt $ convertExpr arch arg1
@@ -131,13 +131,13 @@ convertFunCall arch op [arg1, arg2] | isJust $ binOp op =
             FunRepresentationOf "%" -> Just $ Py.Modulo noSpan
             FunRepresentationOf "**" -> Just $ Py.Exponent noSpan
             FunRepresentationOf "@" -> Just $ Py.MatrixMult noSpan
-            FunRepresentationOf "and" -> Just $ Py.And noSpan 
+            FunRepresentationOf "and" -> Just $ Py.And noSpan
             FunRepresentationOf "or" -> Just $ Py.Or noSpan
             FunRepresentationOf "in" -> Just $ Py.In noSpan
             FunRepresentationOf "not in" -> Just $ Py.NotIn noSpan
             FunRepresentationOf "is" -> Just $ Py.Is noSpan
             FunRepresentationOf "is not" -> Just $ Py.IsNot noSpan
-            
+
             FunRepresentationOf "<" -> Just $ Py.LessThan noSpan
             FunRepresentationOf ">" -> Just $ Py.GreaterThan noSpan
             FunRepresentationOf "==" -> Just $ Py.Equality noSpan
@@ -151,25 +151,26 @@ convertFunCall arch op [arg1, arg2] | isJust $ binOp op =
             FunRepresentationOf "^" -> Just $ Py.Xor noSpan
             FunRepresentationOf "<<" -> Just $ Py.ShiftLeft noSpan
             FunRepresentationOf ">>" -> Just $ Py.ShiftRight noSpan
-            _ -> Nothing 
+            _ -> Nothing
 
-convertFunCall arch op [arg] | isJust $ unOp op = 
-    wrapExpr $ Py.UnaryOp (fromJust $ unOp op) arg' noSpan 
+convertFunCall arch op [arg] | isJust $ unOp op =
+    wrapExpr $ Py.UnaryOp (fromJust $ unOp op) arg' noSpan
     where
         arg' = unwrapStmt $ convertExpr arch arg
-        unOp = \case            
+        unOp = \case
             FunRepresentationOf "not" -> Just $ Py.Not noSpan
             FunRepresentationOf "~" -> Just $ Py.Invert noSpan
             _ -> Nothing
 
-convertFunCall arch funRef args = 
-    wrapExpr $ Py.Call 
+convertFunCall arch funRef args =
+    wrapExpr $ Py.Call
                     (unwrapStmt $ convertExpr arch $ asUntypedFunctionLiteral funRef)
-                    (map (convertArgument arch) args)  
+                    (map (convertArgument arch) args)
                     noSpan
 
 
-convertArgument:: (Architecture arch, Lang arch ~ (Language 'Python))=> arch -> TaskExpr PythonTypeAnno -> Py.Argument ()
+convertArgument:: (Architecture arch, Lang arch ~ Language 'Python)=>
+    arch -> TaskExpr PythonTypeAnno -> Py.Argument SrcSpan
 -- TODO: Translating args and kwargs at the frontend I just prepend their names with '*'/'**'
 -- > Check if translating this back just using normal args yields same behaviour
 -- > Currently original type annotation and default are lost in translation (no pun intended) anyways, otherwise 

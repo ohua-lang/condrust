@@ -17,7 +17,7 @@ import Data.List.NonEmpty
 --      in Rust
 -- TODO: Fun.Parameters in AST are just Expr's. Define of Expr's eg. Immutables | Structures | Callables | Self??
 -- Note: For whatever reason there is a separate Type Argument that is not used to define Fun :-/
-data PythonArgType a = PythonObject a
+newtype PythonArgType a = PythonObject a
 type PythonTypeAnno  = PythonArgType SrcSpan   
 type FunTypes = HM.HashMap QualifiedBinding (FunType PythonTypeAnno)
 
@@ -62,8 +62,10 @@ extract srcFile (Module statements) = HM.fromList <$> extractTypes statements
         convertArg param@Param{} = return $ Type $ annotation_or_error param
         convertArg argsP@VarArgsPos{}= throwError "Currently we can't type varargs"
         convertArg kargsP@VarArgsKeyword{}= throwError "Currently we can't type kwargs" 
-        -- TODO: other patterns are EndPositional (not a parameter but the end of varargs) and
-        -- UnPackTuple, the former will not produce anything so wrap output in Maybe? 
+        -- TODO: Can we somehow silently ignore EndPositional ? 
+        convertArg EndPositional{} = throwError "Currently we do not support keyword-only argument"
+        convertArg UnPackTuple{} = throwError "Found an 'UnPackTuple' token. This is a python 2 feature and not supposed to pass the python 3 parser used. Please contanct the author of language-python."
+        
 
         annotation_or_error:: Parameter a -> PythonArgType a
         -- Note: Let's pretend for a while there's only annotaded parameters in the world

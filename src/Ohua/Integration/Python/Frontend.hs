@@ -83,7 +83,7 @@ instance Integration (Language 'Python) where
                     m PythonNamespace
     -- TODO: Can meanswhile be replaced by id function
     loadTypes lang (Module filepath pymodule) ohuaNS = do
-        -- Alles was vor update epressions steht ist dafür da, funnctionstypen aus deklarartionen (aus versch. Dateien im comilation scope zu popeln)
+        -- Alles was vor update epressions steht ist dafür da, functionstypen aus deklarartionen (aus versch. Dateien im comilation scope zu popeln)
         -- _> ich hole mir die typen aus den call und kann mir daher den ersten Teil erstmal sparen
         filesAndPaths <- concat <$> mapM funsForAlgo (ohuaNS^.algos)
         let filesAndPaths' = map (first convertOwn) filesAndPaths
@@ -191,7 +191,7 @@ instance (Show a) => ConvertExpr (Py.Statement a) where
         cond' <- convertExpr cond
         block' <- convertExpr do_block
         else_block' <- convertExpr else_block
-        --Question: Can we/Shoudl we be sure, that annotation is always a ScrSpan at this point 
+        --Question: Can we/should we be sure, that annotation is always a ScrSpan at this point 
         -- and so use location in the file as reference name?
         let loopRef = makeLoopRef "while_loop_body" annE
         let loopLambdaRef = "while_loop_body"
@@ -214,6 +214,8 @@ instance (Show a) => ConvertExpr (Py.Statement a) where
                 generator'
     convertExpr asyncFor@(Py.AsyncFor stmt annot) = undefined
     convertExpr classDef@(Py.Class cName cArgs cBody annot) = undefined
+    -- TODO: At top level this can be if __name__ == '__main__' and needs to be translated to a
+    -- function, otherwise we might not want to allow code that is executed upon importing
     convertExpr ifElifElse@(Py.Conditional condsAndBodys elseBlock annot) = undefined
     convertExpr assign@(Py.Assign targets exor annot) = unsupError "global assignments" assign
     convertExpr augmAs@(Py.AugmentedAssign target operation expr annot) = undefined
@@ -325,5 +327,3 @@ unsupError text expr = throwError $ "Currently we do not support "<> text <>" us
 --TODO: can this be my responsibility in any way or redirect to bjpop@csse.unimelb.edu.au here ?
 py2Error expr = throwError $ "For whatever reason you managed to get the exclusively version 2 expression "
                                 <> show expr <> " through the python3 parser of language-python."
-
-emptySpan = SpanEmpty
