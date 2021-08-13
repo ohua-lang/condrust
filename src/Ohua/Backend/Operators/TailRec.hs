@@ -46,10 +46,18 @@ mkRecFun (RecFun resultOut ctrlOut recArgsOuts recInitArgsIns recArgsIns recCond
               Let finalResult resultRecv $
                 SendData $ SSend resultOut finalResult
   where
+    -- NOTE(feliix42): I changed this from `filter isLeft recInitArgsIns` because:
+    --   Using even a single env arc will produce use after move errors in Rust for said arc.
+    --   In every iteration of the endless loop the argument will be sent, creating ownership problems after the first iteration.
+    --   My solution to this was to switch the `loop` definition.
+    --   I'm happy to discuss a integration-specific solution, though.
+    loop c = case any isRight recInitArgsIns of
+      True -> c
+      False -> EndlessLoop c
     -- this loop stuff may go away once we start fusing recur
-    loop c = case filter isLeft recInitArgsIns of
-      [] -> c
-      _ -> EndlessLoop c
+    -- loop c = case filter isLeft recInitArgsIns of
+    --   [] -> c
+    --   _ -> EndlessLoop c
     contSig = Tuple (Right $ BoolLit True) (Right $ NumericLit 1)
     stopSig = Tuple (Right $ BoolLit False) (Right $ NumericLit 0)
     dispatchCtrlSig sig c =
