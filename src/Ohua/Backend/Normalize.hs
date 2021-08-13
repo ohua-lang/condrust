@@ -43,7 +43,14 @@ transformNoState f = (`evalState` HS.empty) . transformM go
 normalizeIndirect :: TaskExpr ty -> TaskExpr ty
 normalizeIndirect = transformNoState go
   where
-    go (Let x y@Var {} ct) = substitute (x, y) ct
+    go (Let x y@Var {} ct) =
+      -- NOTE(feliix42): Don't do the substitution if a subsequent check shows remaining bindings in the Expr. This is to avoid producing invalid code.
+      let
+        newExpr = substitute (x, y) ct
+      in
+        case containsBinding newExpr x of
+          True -> traceShow ("Note: Aborted a normalization of variable " <> show x <> " because I couldn't rename all occurences.") $ Let x y ct
+          False -> newExpr
     go e = e
 
 -- |
@@ -68,6 +75,11 @@ substitute :: (Binding, TaskExpr ty) -> TaskExpr ty -> TaskExpr ty
 substitute (bnd, e) = transform go
   where
     go v@Var {} = updateVar v
+    go (SendData (SSend chan sbnd)) | sbnd == bnd = case e of
+      -- Also rename outbound variables _if_ we replace with a variable. If replacing with something else we'd need to think about another solution
+      (Var newBnd) -> SendData $ SSend chan newBnd
+      l@Lit{} -> Let "tmpBinding" l $ SendData $ SSend chan "tmpBinding"
+      _ -> error $ "Internal Error: Tried running substitution on sending " <> show sbnd <> " with not yet supported task expression: " <> show e
     go (Apply (Stateless fn args)) = Apply $ Stateless fn $ map (transform go) args
     go (Apply (Stateful state fn args)) =
       Apply $ Stateful (transform go state) fn $ map (transform go) args

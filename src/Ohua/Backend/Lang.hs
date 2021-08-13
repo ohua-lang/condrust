@@ -83,11 +83,39 @@ data TaskExpr ty
   | Decrement Binding -- a - 1;
   | Not (TaskExpr ty)
 
-  deriving (Eq,Generic)
+  deriving (Show,Eq,Generic)
 
 instance Hashable (TaskExpr ty)
 
 data Function expr = Function QualifiedBinding [Binding] expr deriving (Show, Eq)
+
+containsBinding :: TaskExpr ty -> Binding -> Bool
+containsBinding (Var bnd) b = b == bnd
+containsBinding Lit{} _ = False
+containsBinding (Apply app) b = case app of
+  (Stateless _ exprs) -> any (`containsBinding` b) exprs
+  (Stateful e _ exprs) -> containsBinding e b || any (`containsBinding` b) exprs
+containsBinding (Let bnd expr cont) b = bnd == b || containsBinding expr b || containsBinding cont b
+containsBinding (Stmt expr cont) b = containsBinding expr b || containsBinding cont b
+containsBinding (Assign bnd effect) b = bnd == b || containsBinding effect b
+containsBinding ReceiveData{} _ = False
+containsBinding (SendData (SSend _ bnd)) b = bnd == b
+containsBinding (EndlessLoop expr) b = containsBinding expr b
+containsBinding (ForEach bnd1 bnd2 expr) b = bnd1 == b || bnd2 == b || containsBinding expr b
+containsBinding (Repeat cond expr) b = either (== b) (const False) cond || containsBinding expr b
+containsBinding (While cond expr) b = containsBinding cond b || containsBinding expr b
+containsBinding (Cond cond yesBranch noBranch) b = containsBinding cond b || containsBinding yesBranch b || containsBinding noBranch b
+containsBinding (HasSize bnd) b = bnd == b
+containsBinding (Size bnd) b = bnd == b
+containsBinding (ListOp Create) _ = False
+containsBinding (ListOp (Append bnd expr)) b = bnd == b || containsBinding expr b
+containsBinding (Tuple fs sc) b = either (== b) (const False) fs || either (== b) (const False) sc
+containsBinding (First bnd) b = bnd == b
+containsBinding (Second bnd) b = bnd == b
+containsBinding (Increment bnd bnd2) b = bnd == b || maybe False (== b) bnd2
+containsBinding (Decrement bnd bnd2) b = bnd == b || maybe False (== b) bnd2
+containsBinding (Not expr) b = containsBinding expr b
+
 
 -------------------- Recursion schemes support --------------------
 
