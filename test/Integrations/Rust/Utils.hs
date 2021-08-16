@@ -59,6 +59,8 @@ debugStageHandling =
             , Stage initialDflang True False
             , Stage preControlSTCLangALang True False
             , Stage smapTransformationALang True False
+            , Stage conditionalsTransformationALang True False
+            , Stage seqTransformationALang True False
             , Stage postControlSTCLangALang True False
             , Stage normalizeAfterCorePasses True False
             , Stage customDflang True False

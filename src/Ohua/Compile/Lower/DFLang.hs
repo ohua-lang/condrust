@@ -75,7 +75,7 @@ generateReceive (DFVar t bnd) =
 generateReceive (DFEnvVar t l) = Ops.Converted $ Lit l -- FIXME looses type info!
 
 generateArcsCode :: NormalizedDFExpr ty -> NonEmpty (Channel ty)
-generateArcsCode = go
+generateArcsCode = traceShowId . go
     where
         go (DFLang.Let app cont) =
             let collected = go cont
@@ -294,7 +294,7 @@ generateNodeCode e@(PureDFFun out (FunRef fun _ _) inp) | fun == Refs.unitFun = 
 
 generateNodeCode e@(RecurFun resultOut ctrlOut recArgsOuts recInitArgsIns recArgsIns recCondIn recResultIn) = do
     resultOut' <- directOut resultOut
-    ctrlOut' <- directOut ctrlOut
+    ctrlOut' <- sequence (directOut <$> ctrlOut)
     recArgsOuts' <- mapM directOut $ V.toList recArgsOuts
     let recInitArgsIns' = map varToChanOrLit $ V.toList recInitArgsIns
     -- TODO we could allow literals in the recursion args as well but we should require one to be a variable that got computed!
