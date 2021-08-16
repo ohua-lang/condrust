@@ -74,7 +74,7 @@ gen' (SMap input dataOut ctrlOut collectOut) =
         g ctrlOut
         (\c -> Let "ctrl" (Tuple (Right $ BoolLit False) (Right $ NumericLit 1)) .
                Stmt (SendData $ SSend c "ctrl"))
-        $ Increment "size") $
+        $ Assign "size" $ Increment "size") $
       g collectOut (\c -> Stmt $ SendData $ SSend c "size") $
       g ctrlOut (\c -> Let "ctrl" (Tuple (Right $ BoolLit True) (Right $ NumericLit 0)) .
                          Stmt (SendData $ SSend c "ctrl"))

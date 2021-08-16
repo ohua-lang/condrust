@@ -112,8 +112,8 @@ containsBinding (ListOp (Append bnd expr)) b = bnd == b || containsBinding expr 
 containsBinding (Tuple fs sc) b = either (== b) (const False) fs || either (== b) (const False) sc
 containsBinding (First bnd) b = bnd == b
 containsBinding (Second bnd) b = bnd == b
-containsBinding (Increment bnd bnd2) b = bnd == b || maybe False (== b) bnd2
-containsBinding (Decrement bnd bnd2) b = bnd == b || maybe False (== b) bnd2
+containsBinding (Increment bnd) b = bnd == b
+containsBinding (Decrement bnd) b = bnd == b
 containsBinding (Not expr) b = containsBinding expr b
 
 
