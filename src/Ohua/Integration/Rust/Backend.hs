@@ -44,15 +44,12 @@ instance Integration (Language 'Rust) where
         Program
           chans
           (SRecv (Type $ TE.Normal $ fromMaybe (TupTy [] span) typ) c)
-          $ map (convertIntoBlock arch . convertEnvs args <$>) tasks
+          $ map (convertIntoBlock arch . convertEnvs <$>) tasks
 
-      convertEnvs :: [Arg a] -> TCLang.TaskExpr RustTypeAnno -> TCLang.TaskExpr RustTypeAnno
-      convertEnvs args = cata $ \case
-        LitF (EnvRefLit h) -> argToVar (args !! unwrap h)
+      convertEnvs :: TCLang.TaskExpr RustTypeAnno -> TCLang.TaskExpr RustTypeAnno
+      convertEnvs = cata $ \case
+        LitF (EnvRefLit arg) -> Var arg
         e -> embed e
-
-      argToVar :: Rust.Arg a -> TCLang.TaskExpr RustTypeAnno
-      argToVar (Arg _ (Just (IdentP _ i _ _)) _ _) = Var $ toBinding i
 
   convertExpr _ (TCLang.Var b) = Sub.Var b
   convertExpr _ (TCLang.Lit l) = Sub.Lit l
