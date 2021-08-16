@@ -13,10 +13,15 @@ class Integration lang where
     type Type lang :: *
     type AlgoSrc lang :: *
 
-    loadNs :: CompM m => 
-        lang -> FilePath -> m (NS lang, Namespace (Expr (Type lang)) (AlgoSrc lang))
-    loadTypes :: CompM m => 
-        lang -> NS lang -> Namespace (Expr (Type lang)) (AlgoSrc lang) -> m (Namespace (Expr (Type lang)) (AlgoSrc lang))
+    loadNs :: CompM m
+           => lang
+           -> FilePath
+           -> m (NS lang, Namespace (Expr (Type lang)) (AlgoSrc lang))
+
+    loadTypes :: CompM m
+              => lang -> NS lang
+              ->    Namespace (Expr (Type lang)) (AlgoSrc lang)
+              -> m (Namespace (Expr (Type lang)) (AlgoSrc lang))
 
 type LanguageFileSuffix = Text
 type CompilationScope = HM.HashMap NSRef LanguageFileSuffix
