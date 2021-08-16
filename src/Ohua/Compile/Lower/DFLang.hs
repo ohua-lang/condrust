@@ -317,6 +317,7 @@ generateNodeCode e@(RecurFun resultOut ctrlOut recArgsOuts recInitArgsIns recArg
         directOut x = case x of
                         Direct x' -> return $ SChan $ unwrapABnd x'
                         _ -> invariantBroken $ "Control outputs don't match:\n" <> show e
+        directOut' Nothing = pure Nothing
         varToChanOrLit :: DFVar a ty -> Either (Com 'Recv ty) (Lit ty)
         varToChanOrLit (DFVar t v) = Left $ SRecv t $ SChan $ unwrapABnd v
         varToChanOrLit (DFEnvVar _ l) = Right l

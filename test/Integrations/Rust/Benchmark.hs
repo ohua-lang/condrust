@@ -50,8 +50,9 @@ spec =
                 use benchs::*;
                 use std::*;
 
+                // FIXME: Add 2 muts here once supported
                 fn fill(maze: Maze, pairs: Vec<(Point, Point)>, its_left: u32) -> Maze {
-                    let rs = Vec::new();
+                    let rs = Vec::default();
                     // let rs = UnmappedPaths::new();
                     let mro = maze.clone(); // the type check for state threads in Ohua forces me to put this here. this is good!
                     for pair in pairs {
@@ -72,7 +73,7 @@ spec =
                     else { maze }
                 }
 
-                fn run(salt: i32, pairs: Vec<(Point, Point)>, max_it:u32) -> Maze {
+                pub fn run(salt: i32, pairs: Vec<(Point, Point)>, max_it:u32) -> Maze {
                     let maze = Maze::init(salt);
                     fill(maze, pairs, max_it)
                 }
@@ -94,8 +95,8 @@ spec =
                 use benchs::*;
                 use std::*;
 
-                fn fill(maze: Maze, pairs: Vec<(Point, Point)>, its_left: u32) -> Maze {
-                    let rs = Vec::new();
+                fn fill(mut maze: Maze, pairs: Vec<(Point, Point)>, its_left: u32) -> Maze {
+                    let mut rs = Vec::default();
                     let mro = maze.clone(); // the type check for state threads in Ohua forces me to put this here. this is good!
                     for pair in pairs {
                         // FIXME This type check seems not be implemented yet.
@@ -117,7 +118,7 @@ spec =
                     else { maze }
                 }
 
-                fn run(salt: i32, pairs: Vec<(Point, Point)>, max_it:u32) -> Maze {
+                pub fn run(salt: i32, pairs: Vec<(Point, Point)>, max_it:u32) -> Maze {
                     let maze = Maze::init(salt);
                     fill(maze, pairs, max_it)
                 }
