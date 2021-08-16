@@ -108,10 +108,10 @@ instance Integration (Language 'Rust) where
   convertExpr arch (TCLang.Second bnd) = Sub.TupleField (convertExpr arch $ Var bnd) $ Succ Zero
   convertExpr arch (TCLang.Increment bnd) =
     convertExpr arch $
-      TCLang.Assign bnd $ Apply $ Stateless (mkFunRefUnqual "+") [Var bnd, TCLang.Lit $ NumericLit 1]
+      Apply $ Stateless (mkFunRefUnqual "+") [Var bnd, TCLang.Lit $ NumericLit 1]
   convertExpr arch (TCLang.Decrement bnd) =
     convertExpr arch $
-      TCLang.Assign bnd $ Apply $ Stateless (mkFunRefUnqual "-") [Var bnd, TCLang.Lit $ NumericLit 1]
+      Apply $ Stateless (mkFunRefUnqual "-") [Var bnd, TCLang.Lit $ NumericLit 1]
   convertExpr arch (TCLang.Not expr) = convertExpr arch $ Apply $ Stateless (mkFunRefUnqual "!") [expr]
   convertExpr arch (TCLang.HasSize bnd) =
     let intermediate = toBinding "tmp_has_size"

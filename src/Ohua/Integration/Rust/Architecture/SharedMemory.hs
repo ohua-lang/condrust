@@ -42,10 +42,16 @@ instance Architecture (Architectures 'SharedMemory) where
                 noSpan
           Type (TE.Normal ti) ->
             Just $
-              Rust.AngleBracketed
-                [ Rust.TypeArg (noSpan <$ ti) ]
-                []
-                noSpan
+                 Rust.AngleBracketed
+                 [ Rust.TypeArg (noSpan <$ ti) ]
+                 []
+                 noSpan
+          Type (TE.Self ti _ _) ->
+            Just $
+                 Rust.AngleBracketed
+                 [ Rust.TypeArg (noSpan <$ ti) ]
+                 []
+                 noSpan
           _ -> Nothing
      in Sub.Local
           ( Sub.TupP
