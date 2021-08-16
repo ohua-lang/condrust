@@ -47,11 +47,6 @@ newtype FnId =
     FnId Int
     deriving (Eq, Ord, Generic, Enum, Num, NFData, Hashable, Show, Lift)
 
--- | Numerical reference to a spliced expression from the host environment.
-newtype HostExpr = HostExpr
-    { unwrapHostExpr :: Int
-    } deriving (Eq, Ord, Generic, Show, Lift, Hashable, NFData)
-
 data ArgType ty = TypeVar | Type ty | TupleTy (NonEmpty (ArgType ty)) deriving (Lift, Generic)
 data FunType ty where
      Untyped :: FunType ty
@@ -107,11 +102,9 @@ instance Hashable QualifiedBinding
 type instance SourceType FnId = Int
 type instance SourceType Binding = Text
 type instance SourceType NSRef = [Binding]
-type instance SourceType HostExpr = Int
 
 instance UnsafeMake FnId where unsafeMake = FnId
 instance UnsafeMake Binding where unsafeMake = Binding
-instance UnsafeMake HostExpr where unsafeMake = HostExpr
 instance UnsafeMake NSRef where
     unsafeMake = NSRef
 
@@ -131,12 +124,6 @@ instance Make Binding where
 instance Make NSRef where
     make = pure . unsafeMake
 
-instance Make HostExpr where
-    make i
-        | i < 0 = throwError "HostExpr cannot be < 0"
-        | otherwise = pure $ unsafeMake i
-
-
 instance Unwrap Binding where
     unwrap (Binding b) = b
 
@@ -146,12 +133,8 @@ instance Unwrap NSRef where
 instance Unwrap FnId where
     unwrap (FnId i) = i
 
-instance Unwrap HostExpr where
-    unwrap (HostExpr i) = i
-
 instance Plated FnId where plate = gplate
 instance Plated QualifiedBinding where plate = gplate
-instance Plated HostExpr where plate = gplate
 instance Plated Binding where plate = gplate
 instance Plated NSRef where plate = gplate
 
@@ -168,15 +151,6 @@ instance IsList NSRef where
     type Item NSRef = Binding
     fromList = makeThrow . fromList
     toList = GHC.Exts.toList . unwrap
-
--- Only exists to allow literal integers to be interpreted as host expressions
-instance Num HostExpr where
-    fromInteger = makeThrow . fromInteger
-    (+) = intentionally_not_implemented
-    (-) = intentionally_not_implemented
-    (*) = intentionally_not_implemented
-    abs = intentionally_not_implemented
-    signum = intentionally_not_implemented
 
 -- | Attempt to parse a string into either a binding or a
 -- qualified binding.  Assumes a form "name.space/value" for qualified

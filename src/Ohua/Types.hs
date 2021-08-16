@@ -7,7 +7,6 @@ module Ohua.Types
     , FunType(..)
     , toFilePath
     , symbolFromString
-    , HostExpr
     , FunRef(..)
     , Lit(..)
     , Unit(..)

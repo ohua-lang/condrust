@@ -49,9 +49,6 @@ prettyLit =
         EnvRefLit he -> "$" <> pretty he
         BoolLit b -> pretty b
 
-instance Pretty HostExpr where
-    pretty = pretty . unwrap
-
 instance Pretty FnId where
     pretty = pretty . unwrap
 
