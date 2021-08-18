@@ -1,7 +1,31 @@
-{-# LANGUAGE QuasiQuotes #-}
 module Ohua.Integration.Python.MultiProcessing where
 
 import Ohua.Prelude
+    ( (++),
+      ($),
+      Monad(return),
+      Semigroup((<>)),
+      Int,
+      Maybe(Nothing),
+      FilePath,
+      String,
+      (&),
+      curry,
+      zipWith,
+      (^.),
+      (%~),
+      algoCode,
+      algos,
+      makeThrow,
+      undefined,
+      map,
+      show,
+      toList,
+      NonEmpty(..),
+      CompM,
+      Algo(Algo),
+      Namespace,
+      QualifiedBinding(QualifiedBinding), MonadError (throwError) )
 
 import Ohua.Backend.Types
 import Ohua.Backend.Lang as TCLang
@@ -10,15 +34,18 @@ import Ohua.Integration.Architecture
 import Ohua.Integration.Python.Backend
 import Ohua.Integration.Python.Util
 import Ohua.Integration.Python.Types
-
 import Ohua.Integration.Python.TypeExtraction
 
 
 import qualified Language.Python.Common.AST as Py
+import Language.Python.Common.SrcLocation (SrcSpan)
 
 import qualified Data.ByteString.Lazy.Char8 as L
 import qualified Data.HashMap.Lazy as HM
-import Language.Python.Common.SrcLocation (SrcSpan)
+
+import System.FilePath (takeFileName)
+import Language.Python.Common.Pretty (prettyText)
+import qualified GHC.Exts as L
 
 instance Architecture (Architectures 'MultiProcessing) where
     type Lang (Architectures 'MultiProcessing) = Language 'Python
@@ -125,41 +152,64 @@ instance Architecture (Architectures 'MultiProcessing) where
     -- Alles was auf verteilten physischen Konten laufen soll, sollte auch in verschiedene Dateien.
     -- Für Multiprocessing reicht erstmal eine Datei, aber zB bei CloudMicroservices währen Tasks deutlich unabhängiger 
     -- (eigene Module, eigene Imports etc.)
-    serialize  SMultiProc srcModule ns = makeModule srcModule nodeFuns taskList
-        where
-            
-            nodeFuns = undefined 
-            taskList = undefined 
-            -- in Rust-Integration this function is resposible for replacing the
-            -- body of 'in-scope' functions 
-                --TODO:
-                -- 1. import multiprocessing
-                -- 2. tasks and channel inits NEED TO BE TL. Multiprocessing pickles, and 
-                ---   pickling only works for TL definitions
-                -- 3. init pool and tasks list
-                -- 4. add tasks to list
-                -- 5. apply pool on tasks, close pool and return result
-                -- 6. close and join pool and channels
-                -- 7. make sure file ends with if __name__ = __main__:
-                -- and has otherwise no side effects upon importing from child processes   
- 
-makeModule= undefined 
-     
-stringify' :: CompM m
-    => Module
-    -> Namespace (Program (Py.Statement SrcSpan) (Py.Statement SrcSpan) (Py.Statement SrcSpan) PythonTypeAnno) anno
-    -> (Program (Py.Statement SrcSpan) (Py.Statement SrcSpan) (Py.Statement SrcSpan) PythonTypeAnno -> Py.Suite SrcSpan)
-    -> m (NonEmpty (FilePath, L.ByteString))
 
-stringify' (Module path (Py.Module stmts)) ns createProgram = undefined
+    -- in Rust-Integration serialzation just takes over the original module and replaces
+    -- the body of each function definition with the whole DFG code obviously
+    -- In Python, it can't be done this way because of point 2 in the todos 
+        --TODO:
+        -- 1. import multiprocessing
+        -- 2. tasks and channel inits NEED TO BE TL. Multiprocessing pickles, and 
+        ---   pickling only works for TL definitions
+        -- 3. init pool and tasks list
+        -- 4. add tasks to list
+        -- 5. apply pool on tasks, close pool and return result
+        -- 6. close and join pool and channels
+        -- 7. make sure file ends with if __name__ = __main__:
+        -- and has otherwise no side effects upon importing from child processes 
+    serialize  SMultiProc srcModule ns = outPut newModule
+        where
+            -- For reasons I'll have to understand later, every algo seems to carry all tasks
+            ((bnd, graph):_ ) = map (\(Algo name expr _) -> (name, expr)) $ ns^.algos
+            (Program channelInits reslt nodeFuns) = graph
+            taskList = zipWith (\ task i -> "task_" ++ show i) nodeFuns [1..]
+            ifNameIsMain = entryFunction taskList
+            newModule = makeModule srcModule channelInits nodeFuns ifNameIsMain
+
+makeModule ::
+    Module
+    -> NonEmpty (Py.Statement SrcSpan)
+    -> [FullTask (PythonArgType SrcSpan) (Py.Statement SrcSpan)]
+    -> Py.Statement SrcSpan
+    -> Module
+makeModule srcModule channelInits nodeFuns ifNameIsMain = Module path combinedModule
+    where
+        (Module path (Py.Module originalStmts)) = srcModule
+        taskFunDefs = map taskExpression nodeFuns
+        combinedStatements = importMPStmt
+                             : toList channelInits 
+                             ++ taskFunDefs 
+                             -- ToDo: I should separate import statements from the rest 
+                             -- insert them before the other 'originalStmts'
+                             ++ originalStmts
+                             -- TODO: actually I have to make sure, that there is no other 
+                             -- entry point in the module 
+                             ++ [ifNameIsMain]
+        combinedModule = Py.Module combinedStatements 
 
 entryFunction:: [String] -> Py.Statement SrcSpan
-entryFunction taskNames =  Py.Conditional [(ifMain, mainBlock)] [] noSpan 
+entryFunction taskNames =  Py.Conditional [(ifMain, mainBlock)] [] noSpan
         where
-            taskList = Py.List (map toPyVar taskNames) noSpan 
+            taskList = Py.List (map toPyVar taskNames) noSpan
             initTasksStmt = Py.Assign [toPyVar "tasks"] taskList noSpan
             mainBlock = [initPoolStmt, initTasksStmt, poolMapStmt, poolCloseStmt, poolJoinStmt]
 
 
+outPut ::CompM m => Module -> m (NonEmpty (FilePath, L.ByteString))
+outPut (Module path pyModule) = 
+    let fileName = takeFileName path
+        pyCode = L.fromString $ prettyText pyModule
+    -- Question: Why do we both do this NonEmpty fuzz here ?
+    in return $  (fileName, pyCode) :| []
+
 toPyVar :: String -> Py.Expr SrcSpan
-toPyVar name = Py.Var (mkIdent name) noSpan 
+toPyVar name = Py.Var (mkIdent name) noSpan

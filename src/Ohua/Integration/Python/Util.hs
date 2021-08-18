@@ -10,10 +10,6 @@ import qualified Language.Python.Version3 as V3
 import Language.Python.Common.AST (Ident(..))
 
 
-
--- TODO: Do we want to support python 2? Otherwise remove and just use V3.parseModule
-type Parser  = String -> String -> Either ParseError (Module SrcSpan  , [Token])
-
 noSpan :: SrcSpan 
 noSpan = SpanEmpty 
 
@@ -42,6 +38,7 @@ wrapExpr expr = StmtExpr expr noSpan
 
 unwrapStmt :: Statement SrcSpan  -> Expr SrcSpan 
 unwrapStmt StmtExpr{stmt_expr=expr, stmt_annot=annot}= expr
+unwrapStmt s = error $ "unwrapping is not supposed to be used on " Ohua.Prelude.<> show s
 
 load :: FilePath -> IO (Module SrcSpan)
 load srcFile =  do
