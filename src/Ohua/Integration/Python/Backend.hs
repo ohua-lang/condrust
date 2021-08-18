@@ -28,8 +28,6 @@ convertToSuite arch taskExpr =
     let expr = convertExpr arch taskExpr
     in [expr]
 
-
-
 instance Integration (Language 'Python) where
     type NS (Language 'Python) = Module
     type Type (Language 'Python) = PythonArgType SrcSpan
@@ -44,18 +42,21 @@ instance Integration (Language 'Python) where
 
     -- Basically converts Backend Language () to AST again but adds functionality to receive and send 
     -- local vars from to channels
-    lower (Module filePath (Py.Module statements)) arch nameSpace =
+    lower (Module filePath (Py.Module statements)) arch nameSpace = do
         return $
             -- Note: '&' -> forward application (reverse $), '%~'-> Setter from Lens
             -- means -> map function: algoCode of algos is set by convertTask(annotation algo)
             -- return->  ns algos, where algos are set by the map functione
-            ns & algos %~ map (\algo -> algo & algoCode %~ convertTasks (algo^.algoAnno))
+            nameSpace & algos %~ map (\algo -> algo & algoCode %~ convertTasks (algo^.algoAnno))
         where
+            convertTasks :: Py.Statement SrcSpan 
+                -> Program (Channel PythonTypeAnno) (Com 'Recv PythonTypeAnno) (TaskExpr PythonTypeAnno) PythonTypeAnno 
+                -> Program (Channel PythonTypeAnno) (Com 'Recv PythonTypeAnno) (Py.Suite SrcSpan) PythonTypeAnno 
             convertTasks (Py.Fun id params opt_anno body anno) (Program chans (SRecv argType channel) tasks) =
                 Program
                     chans
                     (SRecv (Type $ PythonObject noSpan) channel)
-                    $ map (convertToSuite arch . convertEnvs args <$>) tasks
+                    $ map (convertToSuite arch . convertEnvs params <$>) tasks
 
             convertEnvs :: [Py.Parameter a] -> TCLang.TaskExpr PythonTypeAnno -> TCLang.TaskExpr PythonTypeAnno
             convertEnvs args = cata $ \case
@@ -67,7 +68,6 @@ instance Integration (Language 'Python) where
             argToVar param = Var $ toBinding $ Py.param_name param
 
 
--- Note: Checked, spans do not matter for code generation
     convertExpr _ (TCLang.Var bnd) = wrapExpr Py.Var{var_ident= fromBinding bnd, expr_annot= noSpan}
     -- Question: Are there only Int literals? What about Floats ? 
     convertExpr _ (TCLang.Lit (NumericLit i)) = wrapExpr Py.Int{int_value=i, expr_literal=show i, expr_annot= noSpan}

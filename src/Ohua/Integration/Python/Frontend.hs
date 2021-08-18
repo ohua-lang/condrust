@@ -113,7 +113,7 @@ instance Integration (Language 'Python) where
             assignTypes :: CompM m => FunTypes -> FrLang.Expr (PythonArgType SrcSpan) -> m (FrLang.Expr (PythonArgType SrcSpan))
             -- Todo: I don't get types right here :-/. How to get ArgType(PythonArgType SrcSpan)
             --  instead of  Expr (PythonArgType SrcSpan)
-            assignTypes funTypes = \case
+            assignTypes funTypes function = case function of
                 (AppE (LitE (FunRefLit (FunRef qBinding funID _))) args) ->
                     case args of
                         --at this point there should be no empty args, because empty calls are filled with call(Unit)
@@ -121,10 +121,11 @@ instance Integration (Language 'Python) where
                         [LitE UnitLit] -> return $ AppE (LitE $ FunRefLit $ FunRef qBinding funID $ FunType $ Left Unit) args
                         (a:args') ->
                             return $
-                            AppE (
-                                LitE $ FunRefLit $ FunRef qBinding funID $ FunType $
-                                Right $ map (Type $ PythonObject ) a:|args') args
+                                AppE (LitE $ FunRefLit (FunRef qBinding funID (FunType $ listofPyType args))) args
                 e ->  return e
+
+            listofPyType :: [FrLang.Expr (PythonArgType SrcSpan)] -> Either Unit (NonEmpty (ArgType (PythonArgType SrcSpan)))
+            listofPyType (a:args')= Right $ map (const $ Type $ PythonObject noSpan) (a:|args')
 
             globs :: [NSRef]
             -- Question: Glob is an Import that represents 'path that imports all bindings in this path.'
@@ -146,7 +147,7 @@ instance (Show a) => ConvertPat (Py.Parameter a) where
     -- Question: I found out what EndPositional acutally is. It might be there and it needs to be mapped to nothing
     -- i.e. not a fail, but realy nothing. How to do this? 
     -- Meanwhile I will just not support it
-    convertPat params@Py.EndPositional{} = unsupError "keyword-only markers as arguments" param
+    convertPat params@Py.EndPositional{} = unsupError "keyword-only markers as arguments" params
 
 --Todo: What else can be pattern in python?
 instance (Show a) => ConvertPat (Py.Expr a) where
@@ -176,12 +177,10 @@ instance (Show a) => ConvertExpr (Py.Expr a) where
         args' <- mapM convertExpr args
         return $ fun' `AppE` args'
 
-
 instance (Show a) => ConvertExpr (Py.Argument a) where
     convertExpr Py.ArgExpr{arg_expr=expr} = convertExpr expr
     convertExpr a@Py.ArgVarArgsPos{arg_expr=expr} = unsupError "*args in class construction" a
     convertExpr a@Py.ArgVarArgsKeyword {arg_expr=_arg_expr} = unsupError "**kwargs in class construction" a
-
 
 instance (Show a) => ConvertExpr (Py.Statement a) where
     convertExpr Py.Import{import_items=items} = undefined
@@ -255,16 +254,16 @@ instance (Show a) => ConvertExpr (Py.Suite a) where
                     heads = NE.tail $ NE.reverse $ x:|xs
                 in do
                     convertedLast <- convertLastStmt last
-                    foldM 
+                    foldM
                      (\cont stmt -> (\e -> e cont) <$> convertStmt stmt)
                      convertedLast
-                     heads 
+                     heads
                 where
-                    convertStmt :: CompM m => Py.Statement a -> m (FrLang.Expr ty -> FrLang.Expr ty)
+                    convertStmt :: (CompM m, Show a) => Py.Statement a -> m (FrLang.Expr ty -> FrLang.Expr ty)
                     convertStmt assign@(Py.Assign targets expr annot) = do
-                        pat' <- convertPat targets
+                        pat' <- mapM convertPat targets
                         expr' <- convertExpr expr
-                        return $ LetE pat' expr'
+                        return $ LetE (TupP pat') expr'
                     -- Question (more out of interest): I understand return statements are not supported in Rust, 
                     -- as they are optional there and might exit functions at different points, right?
                     -- So I'd assume that I should only support them as the last statement in a block right?                 
@@ -274,7 +273,7 @@ instance (Show a) => ConvertExpr (Py.Suite a) where
                     -- -> or it's not a return statement, than it should be convertStmt and append s UnitLit() to 
                     -- return None
                     -- Question : What's up with For-Loops as last statement in Rust ? 
-                    convertLastStmt :: Py.Statement a -> m (FrLang.Expr ty)
+                    convertLastStmt :: (CompM m, Show a) => Py.Statement a -> m (FrLang.Expr ty)
                     convertLastStmt ret@(Py.Return maybeExpr annot) =
                         case maybeExpr of
                              Just expr -> convertExpr expr
@@ -314,6 +313,7 @@ instance (Show a) => ConvertExpr (Py.Op a) where
     convertExpr Py.ShiftRight{} = toExpr ">>"
     convertExpr Py.Invert{} = toExpr "~"
 
+
 toExpr :: Monad m => Binding -> m (FrLang.Expr ty)
 {-- Note: Turns given string representation into literal expression representig an untyped, 
 'unscoped' (the empty list in as Binding argument) function reference 
@@ -321,6 +321,7 @@ toExpr :: Monad m => Binding -> m (FrLang.Expr ty)
 toExpr string_repr = return $
                         LitE $ FunRefLit $
                         FunRef (QualifiedBinding (makeThrow []) string_repr) Nothing Untyped
+
 
 unsupError text expr = throwError $ "Currently we do not support "<> text <>" used in: "<> show expr
 
