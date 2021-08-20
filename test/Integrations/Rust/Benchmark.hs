@@ -65,11 +65,12 @@ spec =
                     // rs.evict_mapped();
                     let rs1 = filter_mapped(rs);
                     let rs2 = rs1.clone();
-                    let new_its_left = decrement(its_left);
-                    let new_its_left1 = new_its_left.clone();
-                    // let not_done = rs.calculate_done1(new_its_left);
-                    let not_done = calculate_done(rs1, new_its_left);
-                    if not_done { fill(maze, rs2, new_its_left1) }
+                    let (new_its_left, not_done) = calculate_done(rs1, its_left);
+                    // let new_its_left = decrement(its_left);
+                    // let new_its_left1 = new_its_left.clone();
+                    // // let not_done = rs.calculate_done1(new_its_left);
+                    // let not_done = calculate_done(rs1, new_its_left);
+                    if not_done { fill(maze, rs2, new_its_left) }
                     else { maze }
                 }
 

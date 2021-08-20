@@ -13,7 +13,7 @@ spec =
           use funs::*;
 
           fn test(i: i32) -> i32 {
-            let state = S::new(i);
+            let state = S::new_state(i);
             let result = state.gs(5);
             h(result)
           }
@@ -63,7 +63,7 @@ spec =
                   }));
                   tasks.push(Box::new(move || -> _ {
                       let var_0 = i;
-                      let state_0_0_1 = S::new(var_0);
+                      let state_0_0_1 = S::new_state(var_0);
                       state_0_0_1_tx.send(state_0_0_1)?;
                       Ok(())
                   }));
@@ -92,7 +92,7 @@ spec =
           use funs::*;
 
           fn test(i: i32) -> String {
-            let state = S::new(i);
+            let state = S::new_state(i);
             state.modify(5);
             let r1 = state.gs1(6);
             r1
@@ -142,7 +142,7 @@ spec =
                   }));
                   tasks.push(Box::new(move || -> _ {
                       let var_0 = i;
-                      let state_0_0_2 = S::new(var_0);
+                      let state_0_0_2 = S::new_state(var_0);
                       state_0_0_2_tx.send(state_0_0_2)?;
                       Ok(())
                   }));
@@ -277,7 +277,7 @@ spec =
                 use funs::*;
 
                  fn test(i:i32) -> () {
-                    let io = S::new(i);
+                    let io = S::new_state(i);
                     let stream = iter_i32();
                     for e in stream {
                         io.gs(e);
@@ -319,7 +319,7 @@ spec =
                         tasks
                           .push(Box::new(move || -> _ {
                             let var_0 = i;
-                            let io_0_0_1 = S::new(var_0);
+                            let io_0_0_1 = S::new_state(var_0);
                             io_0_0_1_tx.send(io_0_0_1)?
                           }));
                         tasks
@@ -400,7 +400,7 @@ spec =
                 use funs::*;
 
                  fn test(i:i32) -> () {
-                    let s = S::new(i);
+                    let s = S::new_state(i);
                     let stream = iter_i32();
                     for e in stream {
                         s.gs(e);
@@ -423,7 +423,7 @@ spec =
                         tasks
                           .push(Box::new(move || -> _ {
                             let var_0 = i;
-                            let s_0_0_1 = S::new(var_0);
+                            let s_0_0_1 = S::new_state(var_0);
                             s_0_0_1_tx.send(s_0_0_1)?
                           }));
                         tasks
@@ -502,7 +502,7 @@ spec =
                 use funs::*;
 
                  fn test(i:i32) -> () {
-                    let s = S::new(i);
+                    let s = S::new_state(i);
                     let sp = s.clone();
                     let stream = iter_i32();
                     for e in stream {
@@ -532,7 +532,7 @@ spec =
                         tasks
                           .push(Box::new(move || -> _ {
                             let var_0 = i;
-                            let s_0_0_2 = S::new(var_0);
+                            let s_0_0_2 = S::new_state(var_0);
                             s_0_0_2_tx.send(s_0_0_2)?
                           }));
                         tasks

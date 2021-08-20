@@ -55,18 +55,16 @@ spec =
                             let (e_0_0_tx, e_0_0_rx) = std::sync::mpsc::channel();
                             let (a_0_0_0_0_tx, a_0_0_0_0_rx) = std::sync::mpsc::channel();
                             let (a_0_0_0_1_tx, a_0_0_0_1_rx) = std::sync::mpsc::channel();
-                            let (result_0_tx, result_0_rx) = std::sync::mpsc::channel();
+                            let (result_0_tx, result_0_rx) = std::sync::mpsc::channel::<i32>();
                             let mut tasks: Vec<Box<dyn FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
                             tasks.push(Box::new(move || -> _ {
-                                let var_0 = i;
-                                let a_0_0_0 = f0(var_0);
+                                let a_0_0_0 = f0(i);
                                 a_0_0_0_0_tx.send(a_0_0_0)?;
                                 a_0_0_0_1_tx.send(a_0_0_0)?;
                                 Ok(())
                             }));
                             tasks.push(Box::new(move || -> _ {
-                                let var_0 = i;
-                                let c_0_0_0 = f2(var_0);
+                                let c_0_0_0 = f2(i);
                                 c_0_0_0_tx.send(c_0_0_0)?;
                                 Ok(())
                             }));
@@ -133,8 +131,7 @@ spec =
                                 }
                             }));
                             tasks.push(Box::new(move || -> _ {
-                                let var_0 = i;
-                                let b_0_0_0 = f1(var_0);
+                                let b_0_0_0 = f1(i);
                                 b_0_0_0_tx.send(b_0_0_0)?;
                                 Ok(())
                             }));
@@ -215,8 +212,7 @@ spec =
                             let (result_0_tx, result_0_rx) = std::sync::mpsc::channel();
                             let mut tasks: Vec<Box<dyn FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
                             tasks.push(Box::new(move || -> _ {
-                                let var_0 = i;
-                                let a_0_0_0 = f0(var_0);
+                                let a_0_0_0 = f0(i);
                                 a_0_0_0_0_tx.send(a_0_0_0)?;
                                 a_0_0_0_1_tx.send(a_0_0_0)?;
                                 Ok(())
@@ -278,7 +274,6 @@ spec =
                             tasks.push(Box::new(move || -> _ {
                                 loop {
                                     let mut renew = false;
-                                    let lit_unit_0 = ();
                                     while !renew {
                                         let sig: (_, _) = ctrlFalse_0_rx.recv()?;
                                         let count = sig.1;

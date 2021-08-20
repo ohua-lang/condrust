@@ -124,7 +124,7 @@ funs =
   \\
   \ struct S {} \
   \ impl S { \
-  \   fn new(i:i32) -> S { unimplemented!{} } \
+  \   fn new_state(i:i32) -> S { unimplemented!{} } \
   \   fn gs(self, i:i32) -> i32 { unimplemented!{} } \
   \   fn modify(&mut self, i:i32) { unimplemented!{} } \
   \   fn gs1(self, i:i32) -> String { unimplemented!{} } \
@@ -142,14 +142,6 @@ funs =
   \ } \
   \ fn iter_i32() -> Iterator<i32> { unimplemented!{} } \
   \ fn f_s(s:&S, i:i32) -> i32 { unimplemented!() } \
-  \\
-  \ struct Arc {} \
-  \ impl Arc { \
-  \   fn new(i: i32) -> i32 { unimplemented!() } \
-  \ } \
-  \ impl Clone for Arc { \
-  \   fn clone(&self) -> Self { unimplemented!() } \
-  \ } \
   \ "
 
 benchs :: Text
@@ -163,8 +155,12 @@ benchs =
   \   fn update(&mut self, path: Vec<Point>) -> Option<(Point,Point)> \
   \   { unimplemented!() } \
   \ } \
-  \ \
-  \ impl Clone for Arc { \
+  \\
+  \ struct Arc<T> {} \
+  \ impl<T> Arc<T> { \
+  \   fn new(i: T) -> Self { unimplemented!() } \
+  \ } \
+  \ impl<T> Clone for Arc<T> { \
   \   fn clone(&self) -> Self { unimplemented!() } \
   \ } \
   \ \
@@ -179,7 +175,7 @@ benchs =
   \ fn filter_mapped(results: Vec<Option<(Point,Point)>>) -> Vec<(Point,Point)>\
   \ { unimplemented!() } \
   \ \
-  \ fn calculate_done(results: Vec<(Point,Point)>, its_left: u32) -> bool\
+  \ fn calculate_done(results: Vec<(Point,Point)>, its_left: u32) -> (u32, bool)\
   \ { unimplemented!() } \
   \ \
   \ fn decrement(u: u32) -> u32\
@@ -194,9 +190,11 @@ std =
   " \
   \ struct Vec<T> {} \
   \ impl<T> Vec<T> { \
-  \   pub const fn new() -> Self { unimplemented!() } \
+  \   pub fn default() -> Self { unimplemented!() } \
   \   pub fn push(&mut self, value: T) { unimplemented!() } \
   \   pub fn evict_mapped(&mut self) { unimplemented!() } \
   \   pub fn calculate_done1(&mut self, its_left: u32) -> bool { unimplemented!() } \
   \ } \
   \ "
+
+  -- We'd normally have this in the impl block: pub const fn new() -> Self { unimplemented!() }

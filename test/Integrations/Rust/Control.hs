@@ -20,7 +20,8 @@ spec =
                     let i = h(o2);
                     let j = h(one);
                     let k = h2(i, j);
-                    if check(k) {
+                    let k2 = k.clone();
+                    if check(k2) {
                         rec(k)
                     } else {
                         k

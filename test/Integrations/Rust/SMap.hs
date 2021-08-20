@@ -110,7 +110,7 @@ spec =
                 use funs::*;
 
                 fn test() -> std::Vec<i32> {
-                    let s = S::new();
+                    let s = S::new_state();
                     let stream = iter_i32();
                     for e in stream {
                         let r = h(e);
