@@ -8,7 +8,7 @@ import Ohua.Prelude
 
 
 -- TODO configuration flag
-enableDataPar = False
+enableDataPar = True
 
 passes = StateDFL.load $ case enableDataPar of
   True -> dataPar
