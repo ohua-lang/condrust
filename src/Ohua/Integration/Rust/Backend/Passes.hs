@@ -28,8 +28,11 @@ propagateMut block =
       return e
     go (BlockExpr block) = BlockExpr <$> goBlock block
     go (If e0 block e1) = do
+      e1' <- case e1 of
+        Just elseBlock -> Just <$> transformM go elseBlock
+        Nothing -> return Nothing
       block' <- goBlock block
-      return $ If e0 block' e1
+      return $ If e0 block' e1'
     go (Loop block) = Loop <$> goBlock block
     go (ForLoop p r block) = ForLoop p r <$> goBlock block
     go (While e block) = While e <$> goBlock block
