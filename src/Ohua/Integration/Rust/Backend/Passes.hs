@@ -41,13 +41,14 @@ propagateMut block =
     goBlock (Block stmts) =
       let (stmts', states) =
             runState (reverse <$> mapM goStmt (reverse stmts)) HS.empty
-       in do
-            modify $ HS.union states
-            return $ Block stmts'
+      in do
+        modify $ HS.union states
+        return $ Block stmts'
 
     goStmt (Local p e) = do
+      e' <- transformM go e
       p' <- transformM goPat p
-      return $ Local p' e
+      return $ Local p' e'
     goStmt (Semi e) = Semi <$> transformM go e
     goStmt (NoSemi e) = NoSemi <$> transformM go e
 
