@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 module Ohua.Integration.Python.Backend where
 
 import Ohua.Prelude
@@ -20,6 +19,7 @@ import Data.List ((!!))
 import Data.Functor.Foldable (cata, embed)
 
 import Data.Maybe
+import qualified Language.Python.Common as Py
 
 
 convertToSuite::(Architecture arch, Lang arch ~ Language 'Python)
@@ -49,14 +49,12 @@ instance Integration (Language 'Python) where
             -- return->  ns algos, where algos are set by the map functione
             nameSpace & algos %~ map (\algo -> algo & algoCode %~ convertTasks (algo^.algoAnno))
         where
-            convertTasks :: Py.Statement SrcSpan 
-                -> Program (Channel PythonTypeAnno) (Com 'Recv PythonTypeAnno) (TaskExpr PythonTypeAnno) PythonTypeAnno 
-                -> Program (Channel PythonTypeAnno) (Com 'Recv PythonTypeAnno) (Py.Suite SrcSpan) PythonTypeAnno 
             convertTasks (Py.Fun id params opt_anno body anno) (Program chans (SRecv argType channel) tasks) =
                 Program
                     chans
                     (SRecv (Type $ PythonObject noSpan) channel)
                     $ map (convertToSuite arch . convertEnvs params <$>) tasks
+            convertTasks statement _ = error $ "Trying to convert something, that is not a function but "<> show statement
 
             convertEnvs :: [Py.Parameter a] -> TCLang.TaskExpr PythonTypeAnno -> TCLang.TaskExpr PythonTypeAnno
             convertEnvs args = cata $ \case
@@ -67,21 +65,19 @@ instance Integration (Language 'Python) where
             -- argToVar Py.EndPositional{} = undefined -- they shall not pass B-)...no, actually they just not pass the frontend
             argToVar param = Var $ toBinding $ Py.param_name param
 
-
     convertExpr _ (TCLang.Var bnd) = wrapExpr Py.Var{var_ident= fromBinding bnd, expr_annot= noSpan}
     -- Question: Are there only Int literals? What about Floats ? 
     convertExpr _ (TCLang.Lit (NumericLit i)) = wrapExpr Py.Int{int_value=i, expr_literal=show i, expr_annot= noSpan}
     convertExpr _ (TCLang.Lit (BoolLit b)) = wrapExpr $ Py.Bool b noSpan
     convertExpr _ (TCLang.Lit UnitLit) = wrapExpr $ Py.None noSpan
     convertExpr _ (TCLang.Lit (EnvRefLit _hostExpr)) = error "Host expression encountered! This is a compiler error. Please report!"
-    convertExpr _ (TCLang.Lit (FunRefLit (FunRef qBnd _ _type))) = undefined
-
-    -- Todo: Actually we have nothing matching tuple in python as the backend tuple just has two components
-    -- and list are homogenous :-/ 
-    convertExpr arch (TCLang.Tuple one two) =
-        let conv = unwrapStmt . convertExpr arch . either TCLang.Var TCLang.Lit
-        in  wrapExpr $ Py.Tuple [conv one, conv two] noSpan
-
+    -- Question: What are the function IDs?
+    -- It would be syntactically correct to construct a Py.Dot expression here. However it's far easier and yields the
+    -- the same results, to just concatenate 
+    convertExpr _ (TCLang.Lit (FunRefLit (FunRef qBnd mFunID _type))) = case qBnd of
+        (QualifiedBinding [] bnd) -> wrapExpr Py.Var{var_ident= fromBinding bnd, expr_annot= noSpan}
+        (QualifiedBinding refNames bnd)  -> wrapExpr $ toPyVar $ dotConcat refNames bnd
+    
     convertExpr arch (Apply (Stateless bnd args)) = convertFunCall arch bnd args
     -- There are no different definitions for functions and methods
     convertExpr arch (Apply (Stateful stateExpr (QualifiedBinding _ bnd) args)) =
@@ -92,7 +88,20 @@ instance Integration (Language 'Python) where
                     Py.expr_annot = noSpan })
             (map (convertArgument arch) args)
             noSpan
-
+    
+    convertExpr arch (TCLang.Let varName valExpr inExpr) = 
+        -- This approach wont work in Python, again because I have no single Expressions or Statements,
+        -- to wrap a list of statements
+        -- Question: I assume this is the way, Tasks are actually structured i.e. 
+        -- let y_0_0 = recv() in 
+            -- let z_0_0 = recv() in
+                -- do stuff
+        -- > Based on this assumption I'll try to handle that case in convertToSuite
+        let varAssign = convertExpr arch (TCLang.Assign varName valExpr)
+            doWithIt = convertExpr arch inExpr
+        in prependToSuite varAssign doWithIt
+        
+    convertExpr _ (TCLang.Stmt expr1 expr2) = error "Todo: I need a Stmt conversion"
     convertExpr arch (TCLang.Assign bnd expr) =
         -- Question: An equivalent to 'prependToBlock' would be pointless as long as I don't wrap function blocks into e.g. 
         -- a StmtExpr...which itself is pointless beonde the point of type compat 
@@ -104,16 +113,64 @@ instance Integration (Language 'Python) where
                 Py.assign_to = [unwrapStmt $ convertExpr arch $ Var bnd],
                 Py.assign_expr = unwrapStmt $ convertExpr arch expr,
                 Py.stmt_annot= noSpan}
-
-
+    
     convertExpr arch (TCLang.ReceiveData recv) = convertRecv arch recv
     convertExpr arch (TCLang.SendData send) = convertSend arch send
 
+    --- specific control flow
+    convertExpr arch (TCLang.EndlessLoop expr) = error "Todo: I need an EndlessLoop conversion"
+    convertExpr arch (TCLang.ForEach itemBnd itemsBnd expr) = error "Todo: I need a ForEach conversion"
+    convertExpr arch (TCLang.Repeat bndOrNum expr) = error "Todo: I need a Repeat conversion"
+    convertExpr arch (TCLang.While cond expr) = error "Todo: I need a While conversion"
+    convertExpr arch (TCLang.Cond cond thenExp elseExp) = error "Todo: I need a Cond conversion"
+
+    --- specific functions
+    convertExpr arch (TCLang.HasSize bnd) = error "Todo: I need a HasSize conversion"
+    convertExpr arch (TCLang.Size bnd) = error "Todo: I need a Size conversion"
+    convertExpr arch (TCLang.ListOp listTask) = error "Todo: I need a ListOp conversion"   
+    -- Todo: Actually we have nothing matching tuple in python as the backend tuple just has two components
+    -- and list are homogenous :-/ 
+    convertExpr arch (TCLang.Tuple one two) =
+        let conv = unwrapStmt . convertExpr arch . either TCLang.Var TCLang.Lit
+        in  wrapExpr $ Py.Tuple [conv one, conv two] noSpan
+
+    convertExpr arch (TCLang.First bnd) =  wrapExpr $
+        Py.Subscript{
+            Py.subscriptee = toPyVar $ show bnd,
+            Py.subscript_expr = Py.Int 0 "0" noSpan,
+            Py.expr_annot = noSpan
+        } 
+    convertExpr arch (TCLang.Second bnd) = wrapExpr $
+        Py.Subscript{
+            Py.subscriptee = toPyVar $ show bnd,
+            Py.subscript_expr = Py.Int 0 "0" noSpan,
+            Py.expr_annot = noSpan
+        } 
+
+    convertExpr arch (TCLang.Increment bnd) = 
+        Py.AugmentedAssign 
+            (toPyVar $ show bnd) 
+            (Py.PlusAssign noSpan) 
+            (Py.Int 1 "1" noSpan)
+            noSpan 
+
+    convertExpr arch (TCLang.Decrement bnd) = 
+        Py.AugmentedAssign 
+            (toPyVar $ show bnd) 
+            (Py.MinusAssign noSpan) 
+            (Py.Int 1 "1" noSpan)
+            noSpan 
+             
+    convertExpr arch (TCLang.Not expr) =  wrapExpr $
+        Py.UnaryOp 
+            (Py.Not noSpan) 
+            (unwrapStmt $ convertExpr arch expr) 
+            noSpan 
+
+prependToSuite :: Py.Statement SrcSpan -> Py.Statement SrcSpan -> Py.Statement SrcSpan
+prependToSuite = error "not implemented"
 
 
-
-pattern FunRepresentationOf :: Binding -> QualifiedBinding
-pattern FunRepresentationOf bnd <- QualifiedBinding [] bnd
 
 convertFunCall ::(Architecture arch, Lang arch ~ Language 'Python) =>
         arch -> QualifiedBinding -> [TCLang.TaskExpr PythonTypeAnno] -> Py.Statement SrcSpan
@@ -178,6 +235,14 @@ convertArgument:: (Architecture arch, Lang arch ~ Language 'Python)=>
 -- 'stringly typed'
 -- TODO: Keyword Arguments... Would be nice not to loose this information. 
 convertArgument arch arg = Py.ArgExpr (unwrapStmt (convertExpr arch arg)) noSpan
+
+
+
+dotConcat :: NSRef -> Binding -> String
+dotConcat (NSRef refs) bind = foldr (\ref name -> show ref ++ "." ++ name) (show bind) refs
+
+pattern FunRepresentationOf :: Binding -> QualifiedBinding
+pattern FunRepresentationOf bnd <- QualifiedBinding [] bnd
 
 asUntypedFunctionLiteral qBinding = TCLang.Lit $ FunRefLit $ FunRef qBinding Nothing Untyped
 

@@ -1,31 +1,6 @@
 module Ohua.Integration.Python.MultiProcessing where
 
 import Ohua.Prelude
-    ( (++),
-      ($),
-      Monad(return),
-      Semigroup((<>)),
-      Int,
-      Maybe(Nothing),
-      FilePath,
-      String,
-      (&),
-      curry,
-      zipWith,
-      (^.),
-      (%~),
-      algoCode,
-      algos,
-      makeThrow,
-      undefined,
-      map,
-      show,
-      toList,
-      NonEmpty(..),
-      CompM,
-      Algo(Algo),
-      Namespace,
-      QualifiedBinding(QualifiedBinding), MonadError (throwError) )
 
 import Ohua.Backend.Types
 import Ohua.Backend.Lang as TCLang
@@ -39,13 +14,12 @@ import Ohua.Integration.Python.TypeExtraction
 
 import qualified Language.Python.Common.AST as Py
 import Language.Python.Common.SrcLocation (SrcSpan)
+import Language.Python.Common.Pretty (prettyText)
 
-import qualified Data.ByteString.Lazy.Char8 as L
+import qualified Data.ByteString.Lazy as L
 import qualified Data.HashMap.Lazy as HM
 
 import System.FilePath (takeFileName)
-import Language.Python.Common.Pretty (prettyText)
-import qualified GHC.Exts as L
 
 instance Architecture (Architectures 'MultiProcessing) where
     type Lang (Architectures 'MultiProcessing) = Language 'Python
@@ -207,9 +181,8 @@ entryFunction taskNames =  Py.Conditional [(ifMain, mainBlock)] [] noSpan
 outPut ::CompM m => Module -> m (NonEmpty (FilePath, L.ByteString))
 outPut (Module path pyModule) = 
     let fileName = takeFileName path
-        pyCode = L.fromString $ prettyText pyModule
+        pyCode = encodeUtf8 $ prettyText pyModule
     -- Question: Why do we both do this NonEmpty fuzz here ?
     in return $  (fileName, pyCode) :| []
 
-toPyVar :: String -> Py.Expr SrcSpan
-toPyVar name = Py.Var (mkIdent name) noSpan
+

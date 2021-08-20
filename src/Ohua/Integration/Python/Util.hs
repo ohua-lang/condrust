@@ -22,6 +22,9 @@ fromBinding bnd = Ident{ident_string=show bnd, ident_annot= noSpan}
 mkIdent::String -> Ident SrcSpan
 mkIdent name = Ident{ident_string=name, ident_annot=SpanEmpty}
 
+toPyVar :: String -> Expr SrcSpan
+toPyVar name = Var (mkIdent name) noSpan
+
 filePathToNsRef :: FilePath -> NSRef
 filePathToNsRef = makeThrow . map fromString . splitDirectories . dropExtension
 

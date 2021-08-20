@@ -17,6 +17,12 @@ import Ohua.Integration.Rust.Architecture.M3 ()
 import Ohua.Integration.Rust.Frontend ()
 import Ohua.Integration.Rust.Backend ()
 
+import Ohua.Integration.Python.MultiProcessing ()
+import Ohua.Integration.Python.Frontend ()
+import Ohua.Integration.Python.Backend ()
+
+import qualified Data.Text as T
+
 
 type FileExtension = Text
 

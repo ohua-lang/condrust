@@ -81,7 +81,7 @@ instance Integration (Language 'Python) where
                     Module ->
                     PythonNamespace ->
                     m PythonNamespace
-    -- TODO: Can meanswhile be replaced by id function
+    -- TODO: Can meanwhile be replaced by id function
     loadTypes lang (Module filepath pymodule) ohuaNS = do
         -- Alles was vor update epressions steht ist dafür da, functionstypen aus deklarartionen (aus versch. Dateien im comilation scope zu popeln)
         -- _> ich hole mir die typen aus den call und kann mir daher den ersten Teil erstmal sparen
@@ -117,7 +117,7 @@ instance Integration (Language 'Python) where
                 (AppE (LitE (FunRefLit (FunRef qBinding funID _))) args) ->
                     case args of
                         --at this point there should be no empty args, because empty calls are filled with call(Unit)
-                        [] -> throwError "Compiler invariant broken."
+                        [] -> throwError "Empty call unfilled."
                         [LitE UnitLit] -> return $ AppE (LitE $ FunRefLit $ FunRef qBinding funID $ FunType $ Left Unit) args
                         (a:args') ->
                             return $
@@ -176,6 +176,8 @@ instance (Show a) => ConvertExpr (Py.Expr a) where
         fun' <- convertExpr fun
         args' <- mapM convertExpr args
         return $ fun' `AppE` args'
+    convertExpr (Py.Int val strRepr annot) = return $ LitE $ NumericLit val
+    convertExpr e = unsupError "the following expressions type" e
 
 instance (Show a) => ConvertExpr (Py.Argument a) where
     convertExpr Py.ArgExpr{arg_expr=expr} = convertExpr expr
@@ -183,8 +185,8 @@ instance (Show a) => ConvertExpr (Py.Argument a) where
     convertExpr a@Py.ArgVarArgsKeyword {arg_expr=_arg_expr} = unsupError "**kwargs in class construction" a
 
 instance (Show a) => ConvertExpr (Py.Statement a) where
-    convertExpr Py.Import{import_items=items} = undefined
-    convertExpr Py.FromImport{from_module= mod, from_items=items} = undefined
+    convertExpr Py.Import{import_items=items} = throwError "'import' should be handles elsewhere"
+    convertExpr Py.FromImport{from_module= mod, from_items=items} = throwError "'from .. import' should be handles elsewhere"
     --TODO: Handle Else_Block
     convertExpr whileE@(Py.While cond do_block else_block annE) = do
         cond' <- convertExpr cond
@@ -229,7 +231,7 @@ instance (Show a) => ConvertExpr (Py.Statement a) where
     convertExpr (Py.Break annot) = undefined
     convertExpr (Py.Continue annot) = undefined
     convertExpr (Py.Delete deleteExprs annot) = undefined
-    convertExpr (Py.StmtExpr expr annot) = undefined
+    convertExpr e@(Py.StmtExpr expr annot) = convertExpr expr
     convertExpr e@(Py.Global globalVars annot) = unsupError "global keyword" e
     convertExpr e@(Py.NonLocal nonlocalVars annot) = unsupError "nonlocal keyword" e
     convertExpr e@(Py.Assert assertions annot) = unsupError "assertions" e
@@ -267,7 +269,8 @@ instance (Show a) => ConvertExpr (Py.Suite a) where
                     -- Question (more out of interest): I understand return statements are not supported in Rust, 
                     -- as they are optional there and might exit functions at different points, right?
                     -- So I'd assume that I should only support them as the last statement in a block right?                 
-                    concertStmt stmt = StmtE <$> convertExpr stmt
+                    convertStmt stmt = StmtE <$> convertExpr stmt
+
                     -- Cases for last statement -> either it's a return statement, than the returned 
                     -- expression should be converted like toplevel convertExpr
                     -- -> or it's not a return statement, than it should be convertStmt and append s UnitLit() to 
