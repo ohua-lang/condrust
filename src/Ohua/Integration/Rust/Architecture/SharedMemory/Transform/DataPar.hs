@@ -27,16 +27,16 @@ spawnWork block =
                             ( MethodCall
                                 ( MethodCall
                                     (Call (CallRef "tokio.runtime.Builder/new" Nothing) [])
-                                    (CallRef "/threaded_scheduler" Nothing)
+                                    (CallRef (mkFunRefUnqual "threaded_scheduler") Nothing)
                                     []
                                 )
-                                (CallRef "/core_threads" Nothing)
+                                (CallRef (mkFunRefUnqual "core_threads") Nothing)
                                 [Lit $ NumericLit threadCount]
                             )
-                            (CallRef "/build" Nothing)
+                            (CallRef (mkFunRefUnqual "build") Nothing)
                             []
                         )
-                        (CallRef "/unwrap" Nothing)
+                        (CallRef (mkFunRefUnqual "unwrap") Nothing)
                         []
                     ]
            in Block (rt : blockExpr')
@@ -51,8 +51,8 @@ spawnWork block =
       | f == joinFuture =
         pure $
           MethodCall
-            (MethodCall future (CallRef "/recv" Nothing) [])
-            (CallRef "/unwrap" Nothing)
+            (MethodCall future (CallRef (mkFunRefUnqual "recv") Nothing) [])
+            (CallRef (mkFunRefUnqual "unwrap") Nothing)
             []
     go e = pure e
 
@@ -70,11 +70,11 @@ spawnWork block =
             Block
               [ NoSemi $
                   MethodCall
-                    (MethodCall (Var "tx") (CallRef "/send" Nothing) [comp])
-                    (CallRef "/unwrap" Nothing)
+                    (MethodCall (Var "tx") (CallRef (mkFunRefUnqual "send") Nothing) [comp])
+                    (CallRef (mkFunRefUnqual "unwrap") Nothing)
                     []
               ],
-        Semi $ MethodCall (Var runtime) (CallRef "/spawn" Nothing) [Var "work"],
+        Semi $ MethodCall (Var runtime) (CallRef (mkFunRefUnqual "spawn") Nothing) [Var "work"],
         NoSemi $ Var "rx"
       ]
 
@@ -82,12 +82,12 @@ amorphous :: Block -> Block
 amorphous = transformExprInBlock go
   where
     go (Call (CallRef f _) [v, n])
-      | f == takeN = MethodCall v (CallRef "/split_at" Nothing) [n] -- assumes Vec
+      | f == takeN = MethodCall v (CallRef (mkFunRefUnqual "split_at") Nothing) [n] -- assumes Vec
     go (Call (CallRef f _) [results, rest])
       | f == concat =
         BlockExpr $
           Block
-            [ Semi $ MethodCall results (CallRef "/append" Nothing) [rest], -- assumes Vec
+            [ Semi $ MethodCall results (CallRef (mkFunRefUnqual "append") Nothing) [rest], -- assumes Vec
               NoSemi results
             ]
     go e = e
