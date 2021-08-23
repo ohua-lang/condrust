@@ -649,3 +649,38 @@ spec =
                         }
                     |]
                 compiled `shouldBe` expected)
+        describe "tuples" $ do
+          it "different targets" $
+            (showCode "Compiled: " =<< compileCode [sourceFile|
+                use funs::*;
+
+                fn test(i:i32) -> i32 {
+                    let (x0,y0) = fi_tup(i);
+                    let x1 = f0(x0);
+                    let y1 = f1(y0);
+                    h2(x1,y1)
+                }
+                |]) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:"
+                    [sourceFile|
+                        // TODO
+                    |]
+                compiled `shouldBe` expected)
+          it "unit fun" $
+            (showCode "Compiled: " =<< compileCode [sourceFile|
+                use funs::*;
+
+                fn test() -> i32 {
+                    let (x0,y0) = f_tup();
+                    let x1 = f0(x0);
+                    let y1 = f1(y0);
+                    h2(x1,y1)
+                }
+                |]) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:"
+                    [sourceFile|
+                        // TODO
+                    |]
+                compiled `shouldBe` expected)

@@ -111,6 +111,8 @@ funs =
   " \
   \ fn hello_world() -> String { unimplemented!{} } \
   \ fn f() -> i32 { unimplemented!{} } \
+  \ fn f_tup() -> (i32,i32) { unimplemented!{} } \
+  \ fn fi_tup(i:i32) -> (i32,i32) { unimplemented!{} } \
   \ fn f_arc() -> Arc<i32> { unimplemented!{} } \
   \ fn g(i:i32) -> String { unimplemented!{} } \
   \ fn h(i:i32) -> i32 { unimplemented!{} } \
