@@ -55,7 +55,7 @@ generateFunctionCode = \case
     where
       pureOut _ (Direct out) = return (SChan (unwrapABnd out) :| [])
       pureOut _ (Destruct [Direct out1, Direct out2]) =
-        return (SChan (unwrapABnd out1) :| [SChan $ unwrapABnd out1])
+        return (SChan (unwrapABnd out1) :| [SChan $ unwrapABnd out2])
       pureOut fn e = throwError $ "Unsupported (more than 2) data outputs on function " <> show fn <> ": " <> show e
 
       stateOut fn (sOut, dout) = do
