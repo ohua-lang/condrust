@@ -51,10 +51,11 @@ spec =
                 use std::*;
 
                 // FIXME: Add 2 muts here once supported
-                fn fill(maze: Maze, pairs: Vec<(Point, Point)>, its_left: u32) -> Maze {
+                fn fill(maze: Maze, pairs: Vec<Option<(Point, Point)>>, its_left: u32) -> Maze {
                     let rs = Vec::default();
-                    // let rs = UnmappedPaths::new();
-                    let mro = maze.clone(); // the type check for state threads in Ohua forces me to put this here. this is good!
+                    // let rs = UnmappedPaths::default();
+                    let m2 = maze.clone(); // the type check for state threads in Ohua forces me to put this here. this is good!
+                    let mro = Arc::new(m2);
                     for pair in pairs {
                         // FIXME This type check seems not be implemented yet.
                         //       The test `var multi fail` also does not show the desired result: an error message!
@@ -74,8 +75,8 @@ spec =
                     else { maze }
                 }
 
-                pub fn run(salt: i32, pairs: Vec<(Point, Point)>, max_it:u32) -> Maze {
-                    let maze = Maze::init(salt);
+                pub fn run(dimensions: Point, pairs: Vec<Option<(Point, Point)>>, max_it:u32) -> Maze {
+                    let maze = Maze::init(dimensions);
                     fill(maze, pairs, max_it)
                 }
                 |]) >>=
