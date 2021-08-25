@@ -40,7 +40,7 @@ data Stmt
 
 newtype Block = Block [Stmt] deriving (Eq, Generic)
 
-data BinOp = Add | Sub | Mul | Div deriving (Eq, Generic)
+data BinOp = Add | Sub | Mul | Div | Lt | Lte | Gt | Gte | EqOp | Neq deriving (Eq, Generic)
 data UnOp = Not | Neg | Deref deriving (Eq, Generic)
 data Pat = IdentP IdentPat | TupP [IdentPat] deriving (Eq, Generic)
 data IdentPat = IdentPat BindingMode Binding deriving (Eq, Generic)

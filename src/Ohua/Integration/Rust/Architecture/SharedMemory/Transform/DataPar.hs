@@ -84,8 +84,9 @@ amorphous = transformExprInBlock go
     go (Call (CallRef f _) [v, n])
       | f == takeN = BlockExpr $ Block
                      [
-                       Local (IdentP $ IdentPat Immutable "chunk") (MethodCall v (CallRef (mkFunRefUnqual "split_off") Nothing) [n]),
-                       NoSemi (Tuple [Var "chunk", v])
+                       Local (IdentP $ IdentPat Immutable "sp") (If (Binary Lt (MethodCall v (CallRef (mkFunRefUnqual "len") Nothing) []) n) (Block [NoSemi $ MethodCall v (CallRef (mkFunRefUnqual "len") Nothing) []]) $ Just n),
+                       Local (IdentP $ IdentPat Immutable "chunk") (MethodCall v (CallRef (mkFunRefUnqual "split_off") Nothing) [Var "sp"]),
+                       NoSemi (Tuple [v, Var "chunk"])
                      ]
     go (Call (CallRef f _) [results, rest])
       | f == concat =
