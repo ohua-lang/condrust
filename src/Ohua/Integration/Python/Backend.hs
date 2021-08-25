@@ -25,6 +25,8 @@ convertToSuite::(Architecture arch, Lang arch ~ Language 'Python)
     => arch -> TaskExpr PythonTypeAnno -> Py.Suite SrcSpan
 convertToSuite arch (TCLang.Let varName valExpr inExpr) = 
     convertExpr arch (TCLang.Assign varName valExpr) : convertToSuite arch inExpr
+convertToSuite arch (TCLang.Stmt stmt otherStmts) = 
+    convertExpr arch stmt : convertToSuite arch otherStmts
 convertToSuite arch taskExpr =  [convertExpr arch taskExpr]
 
 instance Integration (Language 'Python) where

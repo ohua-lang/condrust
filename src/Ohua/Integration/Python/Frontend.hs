@@ -22,6 +22,7 @@ import qualified Data.HashSet as HS
 import qualified Data.List.NonEmpty as NE
 
 
+
 type PythonNamespace = Namespace (FrLang.Expr (PythonArgType SrcSpan)) (Py.Statement SrcSpan)
 
 instance Integration (Language 'Python) where
@@ -46,8 +47,9 @@ instance Integration (Language 'Python) where
                     imports <- concat . catMaybes <$>
                             mapM
                                 (\case
-                                    imp@Py.Import{} -> Just . toList <$> extractImports [] (Py.import_items imp)
-                                    -- frImp@Py.FromImport -> Just . toList <$> extractRelativeImports frImp
+                                    imp@Py.Import{import_items= impts} -> Just <$> extractImports impts
+                                    frImp@Py.FromImport{from_module = modName,
+                                                        from_items= items} -> Just <$> extractRelativeImports modName items
                                     _ -> return Nothing)
                                 statements
                     algos <- catMaybes <$>
@@ -69,12 +71,25 @@ instance Integration (Language 'Python) where
                     block' <- convertExpr (Py.fun_body function)
                     return $ LamE args' block'
 
-                extractImports::CompM m => [Binding] -> [Py.ImportItem a] -> m (NonEmpty Import)
-                extractImports = undefined
+                extractImports::CompM m => [Py.ImportItem SrcSpan] -> m [Import]
+                -- TODO: Normal imports are Glos, imports with an 'as' are Alias
+                -- > Full imports are allways Py.RelativeImport
+                extractImports [] = throwError "Invalid: Empty import should not have passed the pytho parser"
+                extractImports imports  = return $ map globOrAlias imports
 
-                extractRelativeImports::CompM m => [Binding] -> [Py.ImportItem a] -> m (NonEmpty Import)
-                extractRelativeImports = undefined
-
+                extractRelativeImports::CompM m => Py.ImportRelative SrcSpan -> Py.FromItems SrcSpan -> m [Import]
+                extractRelativeImports imp@(Py.ImportRelative numDots mDottedName annot) fromItems = 
+                    case mDottedName of
+                        Just names -> case fromItems of
+                            Py.ImportEverything annot -> return [Glob . makeThrow $ toBindings names]
+                            -- Question: Objects can also be imported by their 'real binding' or by alias
+                            -- Which one should be the 'binding' in the Full Import?
+                            -- OOr can we introduce an alias also for Full Imports?
+                            Py.FromItems items annot -> return $ map (fullByNameOrAlias names) items
+                        -- Question: Can we solve this by resolving the path or will this inevitably cause problems in distrb. scenario?
+                        -- TODO: I realy think we need this as I've literally seen absolut import failing in 'the cloud' cause of
+                            -- incompatible python paths (or dark magic :-/)
+                        Nothing -> throwError  "Currently we do not support relative import paths"
 
     loadTypes :: CompM m => Language 'Python ->
                     Module ->
@@ -117,7 +132,8 @@ instance Integration (Language 'Python) where
             assignTypes funTypes function = case function of
                 (AppE (LitE (FunRefLit (FunRef qBinding funID _))) args) ->
                     case args of
-                        --at this point there should be no empty args, because empty calls are filled with call(Unit)
+                        -- Question: Empty calls end up empty here -> Error
+                        -- TODO: find out were normally empty calls are filled with UnitLit, cause right now that doesn't happen
                         [] -> throwError "Empty call unfilled."
                         [LitE UnitLit] -> return $ AppE (LitE $ FunRefLit $ FunRef qBinding funID $ FunType $ Left Unit) args
                         (a:args') ->
@@ -131,14 +147,22 @@ instance Integration (Language 'Python) where
             
 
             globs :: [NSRef]
-            -- Question: Glob is an Import that represents 'path that imports all bindings in this path.'
-            -- Can I get an example?
             globs = mapMaybe (\case (Glob n) -> Just n; _ -> Nothing) (ohuaNS^.imports)
 
+fullByNameOrAlias :: Py.DottedName SrcSpan -> Py.FromItem SrcSpan -> Import
+fullByNameOrAlias dotted (Py.FromItem  ident Nothing annot) = flip Full (toBinding ident) . makeThrow $ toBindings dotted 
+-- TODO: What about aliasing fully qualified imports??
+fullByNameOrAlias dotted (Py.FromItem  ident (Just alias) annot) = undefined 
+
+globOrAlias :: Py.ImportItem SrcSpan -> Import
+globOrAlias  (Py.ImportItem dotted Nothing  annot) = Glob . makeThrow $ toBindings dotted
+globOrAlias  (Py.ImportItem dotted (Just alias) annot) = flip Alias (toBinding alias) . makeThrow $ toBindings dotted
+
+toBindings = map toBinding 
 
     {-instance ConvertPat ...Turns out, pattern matching is under way \o/ (PEP 634)-}
 
-instance (Show a) => ConvertPat (Py.Parameter a) where
+instance ConvertPat (Py.Parameter SrcSpan) where
     -- Question: There's a FIXME in Rusts argument conversion to attach (type) info 
     -- > why can't we make VarP have an additional Maybe ?  
     convertPat params@Py.Param{param_name=ident} = return $ VarP $ toBinding ident
@@ -163,7 +187,7 @@ target          ::=  identifier
                      | slicing
                      | "*" target
 -}
-instance (Show a) => ConvertPat (Py.Expr a) where
+instance ConvertPat (Py.Expr SrcSpan) where
     -- Question: why are wilcards not different from normal vars i.e. also a VarP ... Could I deref them anywhere ?
     convertPat Py.Var {var_ident=ident, expr_annot=_expr_annot} = return $ VarP $ toBinding ident
     convertPat lst@(Py.List [expr] annot) = convertPat expr
@@ -183,7 +207,7 @@ instance (Show a) => ConvertPat (Py.Expr a) where
     convertPat starred@(Py.Starred expr annot) = unsupError "starred expression patterns" starred
     convertPat any = throwError $ "Encountered " <> show any <> " while trying to convert patterns. This is a bug"
 
-instance (Show a) => ConvertExpr (Py.Expr a) where
+instance ConvertExpr (Py.Expr SrcSpan) where
     convertExpr Py.Var{var_ident= ident} = return $ VarE $ toBinding ident
     convertExpr (Py.UnaryOp operation arg annot) = do
         op' <- convertExpr operation
@@ -201,14 +225,14 @@ instance (Show a) => ConvertExpr (Py.Expr a) where
     convertExpr (Py.Int val strRepr annot) = return $ LitE $ NumericLit val
     convertExpr e = unsupError "the following expressions type" e
 
-instance (Show a) => ConvertExpr (Py.Argument a) where
+instance  ConvertExpr (Py.Argument SrcSpan) where
     convertExpr Py.ArgExpr{arg_expr=expr} = convertExpr expr
     convertExpr a@Py.ArgVarArgsPos{arg_expr=expr} = unsupError "*args in class construction" a
     convertExpr a@Py.ArgVarArgsKeyword {arg_expr=_arg_expr} = unsupError "**kwargs in class construction" a
     convertExpr a@Py.ArgKeyword{arg_keyword= varN, arg_expr= expr} = unsupError "keyword arguments in class constructors" a
 
 
-instance (Show a) => ConvertExpr (Py.Statement a) where
+instance ConvertExpr (Py.Statement SrcSpan) where
     convertExpr Py.Import{import_items=items} = throwError "'import' should be handles elsewhere"
     convertExpr Py.FromImport{from_module= mod, from_items=items} = throwError "'from .. import' should be handles elsewhere"
     convertExpr whileE@(Py.While cond do_block else_block annE) = do
@@ -257,7 +281,7 @@ instance (Show a) => ConvertExpr (Py.Statement a) where
     convertExpr (Py.Continue annot) = undefined
     convertExpr (Py.Delete deleteExprs annot) = undefined
     convertExpr e@(Py.StmtExpr expr annot) = convertExpr expr
-    -- TODO: We will probabaly never support this
+    -- TODO: We will probably never support this
     convertExpr e@(Py.Global globalVars annot) = unsupError "global keyword" e
     convertExpr e@(Py.NonLocal nonlocalVars annot) = unsupError "nonlocal keyword" e
     convertExpr e@(Py.Assert assertions annot) = unsupError "assertions" e
@@ -265,7 +289,7 @@ instance (Show a) => ConvertExpr (Py.Statement a) where
     convertExpr e@(Py.Exec expr optionalGlobalsLocals annot) = unsupError "exec statements" e
 
 
-makeLoopRef :: (Show a) => String -> a -> String
+makeLoopRef :: String -> SrcSpan -> String
 -- TODO: Case we like the idea, propagate ScrSpan => a throug all fknts and
 -- produce name based on coords here. 
 -- Alternative make case distinction here if we may want to change the annotations
@@ -273,7 +297,7 @@ makeLoopRef loopKind loc = loopKind ++ "_"
 
 
 
-instance (Show a) => ConvertExpr (Py.Suite a) where
+instance  ConvertExpr (Py.Suite SrcSpan) where
     convertExpr statements =
          case statements of
             [] -> throwError "Empty function body. Actually that shouldn't have passed the parser"
@@ -287,29 +311,33 @@ instance (Show a) => ConvertExpr (Py.Suite a) where
                      convertedLast
                      heads
                 where
-                    convertStmt :: (CompM m, Show a) => Py.Statement a -> m (FrLang.Expr ty -> FrLang.Expr ty)
+                    convertStmt :: (CompM m) => Py.Statement SrcSpan -> m (FrLang.Expr ty -> FrLang.Expr ty)
                     convertStmt assign@(Py.Assign targets expr annot) = do
                         pat' <- mapM convertPat targets
                         expr' <- convertExpr expr
                         return $ LetE (TupP pat') expr'
-                    -- Question (more out of interest): I understand return statements are not supported in Rust, 
+                    -- Question: I understand return statements are not supported in Rust, 
                     -- as they are optional there and might exit functions at different points, right?
                     -- So I'd assume that I should only support them as the last statement in a block right?                 
                     convertStmt stmt = StmtE <$> convertExpr stmt
 
-                    -- Cases for last statement -> either it's a return statement, than the returned 
-                    -- expression should be converted like toplevel convertExpr
-                    -- -> or it's not a return statement, than it should be convertStmt and append s UnitLit() to 
-                    -- return None
-                    -- Question : What's up with For-Loops as last statement in Rust ? 
-                    convertLastStmt :: (CompM m, Show a) => Py.Statement a -> m (FrLang.Expr ty)
+                    -- Cases for last statement 
+                        -- -> either it's a return statement with an expression 
+                            -- than return the converted expression 
+                        -- or it's an empty return statement
+                            -- this should be equivalent to having a Semi Statement in Rust 
+                            -- return LitE UnitLit
+                        -- or it's just any statement
+                            -- convert the statement and append LitE UnitLit
+                    
+                    convertLastStmt :: (CompM m) => Py.Statement SrcSpan -> m (FrLang.Expr ty)
                     convertLastStmt ret@(Py.Return maybeExpr annot) =
                         case maybeExpr of
                              Just expr -> convertExpr expr
                              Nothing -> return $ LitE UnitLit
                     convertLastStmt stmt = (\e -> e $ LitE UnitLit) <$> convertStmt stmt
 
-instance (Show a) => ConvertExpr (Py.Op a) where
+instance ConvertExpr (Py.Op SrcSpan) where
     convertExpr Py.Plus{} = toExpr "+"
     convertExpr Py.Minus{} = toExpr "-"
     convertExpr Py.Multiply{} = toExpr "*"
