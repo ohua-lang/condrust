@@ -17,13 +17,13 @@ toBinding :: Ident a -> Binding
 toBinding Ident{ident_string=n, ident_annot=annot} = fromString n
 
 fromBinding :: Binding -> Ident SrcSpan 
-fromBinding bnd = Ident{ident_string=show bnd, ident_annot= noSpan}
+fromBinding bnd = Ident{ident_string= T.unpack $ unwrap bnd, ident_annot= noSpan}
 
 mkIdent::String -> Ident SrcSpan
 mkIdent name = Ident{ident_string=name, ident_annot=SpanEmpty}
 
-toPyVar :: String -> Expr SrcSpan
-toPyVar name = Var (mkIdent name) noSpan
+toPyVar :: Ident SrcSpan -> Expr SrcSpan
+toPyVar ident = Var ident noSpan
 
 filePathToNsRef :: FilePath -> NSRef
 filePathToNsRef = makeThrow . map fromString . splitDirectories . dropExtension

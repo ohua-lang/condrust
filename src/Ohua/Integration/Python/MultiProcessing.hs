@@ -165,6 +165,7 @@ makeModule srcModule channelInits nodeFuns ifNameIsMain = Module path combinedMo
                              -- ToDo: I should separate import statements from the rest 
                              -- insert them before the other 'originalStmts'
                              ++ originalStmts
+                             ++ [callFunStmt] 
                              -- TODO: actually I have to make sure, that there is no other 
                              -- entry point in the module 
                              ++ [ifNameIsMain]
@@ -173,8 +174,8 @@ makeModule srcModule channelInits nodeFuns ifNameIsMain = Module path combinedMo
 entryFunction:: [String] -> Py.Statement SrcSpan
 entryFunction taskNames =  Py.Conditional [(ifMain, mainBlock)] [] noSpan
         where
-            taskList = Py.List (map toPyVar taskNames) noSpan
-            initTasksStmt = Py.Assign [toPyVar "tasks"] taskList noSpan
+            taskList = Py.List (map (toPyVar . mkIdent) taskNames) noSpan
+            initTasksStmt = Py.Assign [(toPyVar .mkIdent) "tasks"] taskList noSpan
             mainBlock = [initPoolStmt, initTasksStmt, poolMapStmt, poolCloseStmt, poolJoinStmt]
 
 

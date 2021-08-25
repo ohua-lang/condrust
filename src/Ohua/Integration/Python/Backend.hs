@@ -19,14 +19,13 @@ import Data.List ((!!))
 import Data.Functor.Foldable (cata, embed)
 
 import Data.Maybe
-import qualified Language.Python.Common as Py
 
 
 convertToSuite::(Architecture arch, Lang arch ~ Language 'Python)
     => arch -> TaskExpr PythonTypeAnno -> Py.Suite SrcSpan
-convertToSuite arch taskExpr =
-    let expr = convertExpr arch taskExpr
-    in [expr]
+convertToSuite arch (TCLang.Let varName valExpr inExpr) = 
+    convertExpr arch (TCLang.Assign varName valExpr) : convertToSuite arch inExpr
+convertToSuite arch taskExpr =  [convertExpr arch taskExpr]
 
 instance Integration (Language 'Python) where
     type NS (Language 'Python) = Module
@@ -72,8 +71,7 @@ instance Integration (Language 'Python) where
     convertExpr _ (TCLang.Lit UnitLit) = wrapExpr $ Py.None noSpan
     convertExpr _ (TCLang.Lit (EnvRefLit _hostExpr)) = error "Host expression encountered! This is a compiler error. Please report!"
     -- Question: What are the function IDs?
-    -- It would be syntactically correct to construct a Py.Dot expression here. However it's far easier and yields the
-    -- the same results, to just concatenate 
+    -- ! TODO: The NS references do not refere to original names but ohua namespace names 
     convertExpr _ (TCLang.Lit (FunRefLit (FunRef qBnd mFunID _type))) = case qBnd of
         (QualifiedBinding [] bnd) -> wrapExpr Py.Var{var_ident= fromBinding bnd, expr_annot= noSpan}
         (QualifiedBinding refNames bnd)  -> wrapExpr $ toPyVar $ dotConcat refNames bnd
@@ -90,16 +88,14 @@ instance Integration (Language 'Python) where
             noSpan
     
     convertExpr arch (TCLang.Let varName valExpr inExpr) = 
-        -- This approach wont work in Python, again because I have no single Expressions or Statements,
+        -- The Rust approach wont work in Python, again because I have no single Expressions or Statements,
         -- to wrap a list of statements
         -- Question: I assume this is the way, Tasks are actually structured i.e. 
         -- let y_0_0 = recv() in 
             -- let z_0_0 = recv() in
                 -- do stuff
         -- > Based on this assumption I'll try to handle that case in convertToSuite
-        let varAssign = convertExpr arch (TCLang.Assign varName valExpr)
-            doWithIt = convertExpr arch inExpr
-        in prependToSuite varAssign doWithIt
+       error $ "Todo: I thought I could handle this elsewhere but 'Let "<> show varName <> "' came accross" 
         
     convertExpr _ (TCLang.Stmt expr1 expr2) = error "Todo: I need a Stmt conversion"
     convertExpr arch (TCLang.Assign bnd expr) =
@@ -111,7 +107,7 @@ instance Integration (Language 'Python) where
             $ convertExpr arch $ TCLang.Lit UnitLit --}
         Py.Assign{
                 Py.assign_to = [unwrapStmt $ convertExpr arch $ Var bnd],
-                Py.assign_expr = unwrapStmt $ convertExpr arch expr,
+                Py.assign_expr = unwrapStmt $ convertExpr arch expr ,--unwrapStmt $ convertExpr arch expr,
                 Py.stmt_annot= noSpan}
     
     convertExpr arch (TCLang.ReceiveData recv) = convertRecv arch recv
@@ -122,7 +118,11 @@ instance Integration (Language 'Python) where
     convertExpr arch (TCLang.ForEach itemBnd itemsBnd expr) = error "Todo: I need a ForEach conversion"
     convertExpr arch (TCLang.Repeat bndOrNum expr) = error "Todo: I need a Repeat conversion"
     convertExpr arch (TCLang.While cond expr) = error "Todo: I need a While conversion"
-    convertExpr arch (TCLang.Cond cond thenExp elseExp) = error "Todo: I need a Cond conversion"
+    convertExpr arch (TCLang.Cond cond thenExp elseExp) = 
+        Py.Conditional 
+            [(unwrapStmt $ convertExpr arch cond, convertToSuite arch thenExp)]
+            (convertToSuite arch elseExp)
+            noSpan 
 
     --- specific functions
     convertExpr arch (TCLang.HasSize bnd) = error "Todo: I need a HasSize conversion"
@@ -136,27 +136,27 @@ instance Integration (Language 'Python) where
 
     convertExpr arch (TCLang.First bnd) =  wrapExpr $
         Py.Subscript{
-            Py.subscriptee = toPyVar $ show bnd,
+            Py.subscriptee = toPyVar $ fromBinding bnd,
             Py.subscript_expr = Py.Int 0 "0" noSpan,
             Py.expr_annot = noSpan
         } 
     convertExpr arch (TCLang.Second bnd) = wrapExpr $
         Py.Subscript{
-            Py.subscriptee = toPyVar $ show bnd,
-            Py.subscript_expr = Py.Int 0 "0" noSpan,
+            Py.subscriptee = toPyVar $ fromBinding bnd,
+            Py.subscript_expr = Py.Int 1 "1" noSpan,
             Py.expr_annot = noSpan
         } 
 
     convertExpr arch (TCLang.Increment bnd) = 
         Py.AugmentedAssign 
-            (toPyVar $ show bnd) 
+            (toPyVar $ fromBinding bnd) 
             (Py.PlusAssign noSpan) 
             (Py.Int 1 "1" noSpan)
             noSpan 
 
     convertExpr arch (TCLang.Decrement bnd) = 
         Py.AugmentedAssign 
-            (toPyVar $ show bnd) 
+            (toPyVar $ fromBinding bnd) 
             (Py.MinusAssign noSpan) 
             (Py.Int 1 "1" noSpan)
             noSpan 
@@ -167,10 +167,9 @@ instance Integration (Language 'Python) where
             (unwrapStmt $ convertExpr arch expr) 
             noSpan 
 
-prependToSuite :: Py.Statement SrcSpan -> Py.Statement SrcSpan -> Py.Statement SrcSpan
-prependToSuite = error "not implemented"
 
-
+pattern FunRepresentationOf :: Binding -> QualifiedBinding
+pattern FunRepresentationOf bnd <- QualifiedBinding [] bnd
 
 convertFunCall ::(Architecture arch, Lang arch ~ Language 'Python) =>
         arch -> QualifiedBinding -> [TCLang.TaskExpr PythonTypeAnno] -> Py.Statement SrcSpan
@@ -237,12 +236,15 @@ convertArgument:: (Architecture arch, Lang arch ~ Language 'Python)=>
 convertArgument arch arg = Py.ArgExpr (unwrapStmt (convertExpr arch arg)) noSpan
 
 
+dotConcat :: NSRef -> Binding -> Py.Ident SrcSpan
+dotConcat (NSRef refs) bind = 
+    let concatName = foldr (\ref name -> bToString ref ++ "." ++ name) (bToString bind) refs
+    in mkIdent concatName
 
-dotConcat :: NSRef -> Binding -> String
-dotConcat (NSRef refs) bind = foldr (\ref name -> show ref ++ "." ++ name) (show bind) refs
 
-pattern FunRepresentationOf :: Binding -> QualifiedBinding
-pattern FunRepresentationOf bnd <- QualifiedBinding [] bnd
+bToString:: Binding -> String 
+bToString = unpack . unwrap 
+
 
 asUntypedFunctionLiteral qBinding = TCLang.Lit $ FunRefLit $ FunRef qBinding Nothing Untyped
 

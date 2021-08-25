@@ -1,5 +1,4 @@
 {-# LANGUAGE InstanceSigs, ScopedTypeVariables #-}
-{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 
 module Ohua.Integration.Python.Frontend where
 
@@ -109,6 +108,8 @@ instance Integration (Language 'Python) where
             verifyAndRegister :: CompM m => FunTypes -> ([NSRef], QualifiedBinding)
                         -> m (QualifiedBinding, FunType (PythonArgType SrcSpan))
             verifyAndRegister fun_types ([candidate], qB@(QualifiedBinding _ qBName)) = undefined
+            -- TODO: Can this happen and what to do then?
+            verifyAndRegister fun_types ( _ , qB@(QualifiedBinding _ qBName)) = undefined
 
             assignTypes :: CompM m => FunTypes -> FrLang.Expr (PythonArgType SrcSpan) -> m (FrLang.Expr (PythonArgType SrcSpan))
             -- Todo: I don't get types right here :-/. How to get ArgType(PythonArgType SrcSpan)
@@ -121,11 +122,13 @@ instance Integration (Language 'Python) where
                         [LitE UnitLit] -> return $ AppE (LitE $ FunRefLit $ FunRef qBinding funID $ FunType $ Left Unit) args
                         (a:args') ->
                             return $
-                                AppE (LitE $ FunRefLit (FunRef qBinding funID (FunType $ listofPyType args))) args
+                                AppE (LitE $ FunRefLit (FunRef qBinding funID (listofPyType args))) args
                 e ->  return e
 
-            listofPyType :: [FrLang.Expr (PythonArgType SrcSpan)] -> Either Unit (NonEmpty (ArgType (PythonArgType SrcSpan)))
-            listofPyType (a:args')= Right $ map (const $ Type $ PythonObject noSpan) (a:|args')
+            listofPyType :: [FrLang.Expr (PythonArgType SrcSpan)] -> FunType (PythonArgType SrcSpan)
+            listofPyType [] = error "Empty call unfilled."
+            listofPyType (a:args') = FunType $ Right $ map (const $ Type $ PythonObject noSpan) (a:|args')
+            
 
             globs :: [NSRef]
             -- Question: Glob is an Import that represents 'path that imports all bindings in this path.'
@@ -148,8 +151,18 @@ instance (Show a) => ConvertPat (Py.Parameter a) where
     -- i.e. not a fail, but realy nothing. How to do this? 
     -- Meanwhile I will just not support it
     convertPat params@Py.EndPositional{} = unsupError "keyword-only markers as arguments" params
+    convertPat tplParam@Py.UnPackTuple{} = unsupError " python 2 tuple unpacking parameters (consult PEP 3113)" tplParam
 
 --Todo: What else can be pattern in python?
+{- From the py grammar:
+target          ::=  identifier
+                     | "(" target_list ")"
+                     | "[" target_list "]"
+                     | attributeref
+                     | subscription
+                     | slicing
+                     | "*" target
+-}
 instance (Show a) => ConvertPat (Py.Expr a) where
     -- Question: why are wilcards not different from normal vars i.e. also a VarP ... Could I deref them anywhere ?
     convertPat Py.Var {var_ident=ident, expr_annot=_expr_annot} = return $ VarP $ toBinding ident
@@ -160,6 +173,15 @@ instance (Show a) => ConvertPat (Py.Expr a) where
     convertPat lst@(Py.Tuple exprs annot) = do
         patterns <- mapM convertPat exprs
         return $ TupP patterns
+    -- Question: Rust implementation doesn't support PathP, which I assume to be attribute
+    -- assingment (i.e. ~ Py.Dot). Why?
+    convertPat dot@(Py.Dot exprs termVar annot) = unsupError "attribute assignment" dot
+    -- Question: I assume it's troublesome for some reason to translate this (probably because in haskell 
+    -- we do not modify things but return new ones)...Why exactly?
+    convertPat subScr@(Py.Subscript subscriptee indexExpr annot) = unsupError "indexed patterns" subScr
+    convertPat slice@(Py.SlicedExpr subscriptee slices annot) = unsupError "slice patterns" slice
+    convertPat starred@(Py.Starred expr annot) = unsupError "starred expression patterns" starred
+    convertPat any = throwError $ "Encountered " <> show any <> " while trying to convert patterns. This is a bug"
 
 instance (Show a) => ConvertExpr (Py.Expr a) where
     convertExpr Py.Var{var_ident= ident} = return $ VarE $ toBinding ident
@@ -183,11 +205,12 @@ instance (Show a) => ConvertExpr (Py.Argument a) where
     convertExpr Py.ArgExpr{arg_expr=expr} = convertExpr expr
     convertExpr a@Py.ArgVarArgsPos{arg_expr=expr} = unsupError "*args in class construction" a
     convertExpr a@Py.ArgVarArgsKeyword {arg_expr=_arg_expr} = unsupError "**kwargs in class construction" a
+    convertExpr a@Py.ArgKeyword{arg_keyword= varN, arg_expr= expr} = unsupError "keyword arguments in class constructors" a
+
 
 instance (Show a) => ConvertExpr (Py.Statement a) where
     convertExpr Py.Import{import_items=items} = throwError "'import' should be handles elsewhere"
     convertExpr Py.FromImport{from_module= mod, from_items=items} = throwError "'from .. import' should be handles elsewhere"
-    --TODO: Handle Else_Block
     convertExpr whileE@(Py.While cond do_block else_block annE) = do
         cond' <- convertExpr cond
         block' <- convertExpr do_block
@@ -214,6 +237,8 @@ instance (Show a) => ConvertExpr (Py.Statement a) where
                 (LamE patterns body')
                 generator'
     convertExpr asyncFor@(Py.AsyncFor stmt annot) = undefined
+    convertExpr funDef@(Py.Fun name params mResultAnnot body annot) = throwError $ "No function definitions expected here" <> show funDef
+    convertExpr asyncFun@Py.AsyncFun{} = unsupError "async function definitions" asyncFun
     convertExpr classDef@(Py.Class cName cArgs cBody annot) = undefined
     -- TODO: At top level this can be if __name__ == '__main__' and needs to be translated to a
     -- function, otherwise we might not want to allow code that is executed upon importing
@@ -232,6 +257,7 @@ instance (Show a) => ConvertExpr (Py.Statement a) where
     convertExpr (Py.Continue annot) = undefined
     convertExpr (Py.Delete deleteExprs annot) = undefined
     convertExpr e@(Py.StmtExpr expr annot) = convertExpr expr
+    -- TODO: We will probabaly never support this
     convertExpr e@(Py.Global globalVars annot) = unsupError "global keyword" e
     convertExpr e@(Py.NonLocal nonlocalVars annot) = unsupError "nonlocal keyword" e
     convertExpr e@(Py.Assert assertions annot) = unsupError "assertions" e
@@ -315,6 +341,8 @@ instance (Show a) => ConvertExpr (Py.Op a) where
     convertExpr Py.ShiftLeft{} = toExpr "<<"
     convertExpr Py.ShiftRight{} = toExpr ">>"
     convertExpr Py.Invert{} = toExpr "~"
+
+    convertExpr e@Py.NotEqualsV2{} = py2Error e
 
 
 toExpr :: Monad m => Binding -> m (FrLang.Expr ty)
