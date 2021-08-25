@@ -151,13 +151,15 @@ benchs =
   " \
   \ struct Maze {} \
   \ impl Maze { \
-  \   fn init(salt: i32) -> Self \
+  \   fn init(dimensions: Point) -> Self \
   \   { unimplemented!() } \
   \ \
-  \   fn update(&mut self, path: Vec<Point>) -> Option<(Point,Point)> \
+  \   fn update(&mut self, path: Option<Path>) -> Option<(Point,Point)> \
   \   { unimplemented!() } \
   \ } \
-  \\
+  \ \
+  \ struct Path {} \
+  \ \
   \ struct Arc<T> {} \
   \ impl<T> Arc<T> { \
   \   fn new(i: T) -> Self { unimplemented!() } \
@@ -168,16 +170,16 @@ benchs =
   \ \
   \ struct Point {} \
   \ \
-  \ fn find_path(m: Maze, pair: (Point, Point)) -> Vec<Point> \
+  \ fn find_path(m: Arc<Maze>, pair: (Point, Point)) -> Option<Path> \
   \ { unimplemented!() } \
   \ \
   \ fn get_unmapped(results: Vec<Option<(Point,Point)>>, its_left: u32) -> (Vec<(Point,Point)>,bool, u32)\
   \ { unimplemented!() } \
   \ \
-  \ fn filter_mapped(results: Vec<Option<(Point,Point)>>) -> Vec<(Point,Point)>\
+  \ fn filter_mapped(results: Vec<Option<(Point,Point)>>) -> Vec<Option<(Point,Point)>>\
   \ { unimplemented!() } \
   \ \
-  \ fn calculate_done(results: Vec<(Point,Point)>, its_left: u32) -> (u32, bool)\
+  \ fn calculate_done(results: Vec<Option<(Point,Point)>>, its_left: u32) -> (u32, bool)\
   \ { unimplemented!() } \
   \ \
   \ fn decrement(u: u32) -> u32\
@@ -197,6 +199,8 @@ std =
   \   pub fn evict_mapped(&mut self) { unimplemented!() } \
   \   pub fn calculate_done1(&mut self, its_left: u32) -> bool { unimplemented!() } \
   \ } \
+  \ \
+  \ enum Option<T> {} \
   \ "
 
   -- We'd normally have this in the impl block: pub const fn new() -> Self { unimplemented!() }
