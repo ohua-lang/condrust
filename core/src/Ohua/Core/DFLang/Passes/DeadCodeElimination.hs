@@ -94,9 +94,9 @@ eliminateOuts expr = do
                     pure $ Let (PureDFFun (Destruct $ (Direct ds) :|[]) fr inp) cont
                   [[ds], [], size] ->
                     throwError $ "TODO: Undefined behavior"
-                  [[ds], ctrl, []] ->
-                    throwError $ "Unsupported. Please report. This requires a more explicit DFLang: Size dropped. " <> show filtered
-                    -- pure $ Let (PureDFFun (Destruct $ Direct ds :|[Direct ctrl]) fun inp) cont
+                  [[ds], ctrl, []] -> do 
+                    ctrl' <- createOutBnd ctrl
+                    pure $ Let (PureDFFun (Destruct $ Direct ds :|[ Destruct $ ctrl' :| []]) fr inp) cont
                   [[ds], ctrl, size] -> do
                     ctrl' <- createOutBnd ctrl
                     size' <- createOutBnd size
@@ -129,6 +129,7 @@ eliminateOuts expr = do
       case isBndUsed (unwrapABnd a) expr of
         True -> pure [a]
         False -> pure []
+    filterSmapOuts (Destruct [d]) = filterSmapOuts d
     filterSmapOuts (Destruct _) = throwError "Invariant broken: Cannot have layered destructuring pattern in smap"
     filterSmapOuts (Dispatch xs) = pure $ filter (\a -> isBndUsed (unwrapABnd a) expr) $ NE.toList xs
 
