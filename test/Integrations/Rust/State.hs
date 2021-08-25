@@ -42,13 +42,17 @@ spec =
                   let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel();
                   // FIXME(feliix42): This is *not* ideal but required....
                   let (state_0_0_1_tx, state_0_0_1_rx) = std::sync::mpsc::channel::<S>();
-                  let (result_0_0_0_tx, result_0_0_0_rx) = std::sync::mpsc::channel();
+                  let (result_0_0_0_tx, result_0_0_0_rx) = std::sync::mpsc::channel::<i32>();
                   let mut tasks: Vec<Box<dyn FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
                   tasks.push(Box::new(move || -> _ {
+                      let state_0_0_1 = S::new_state(i);
+                      state_0_0_1_tx.send(state_0_0_1)?;
+                      Ok(())
+                  }));
+                  tasks.push(Box::new(move || -> _ {
                       loop {
-                          let var_0 = state_0_0_1_rx.recv()?;
-                          let var_1 = 5;
-                          let result_0_0_0 = var_0.gs(var_1);
+                          let mut var_0 = state_0_0_1_rx.recv()?;
+                          let result_0_0_0 = var_0.gs(5);
                           result_0_0_0_tx.send(result_0_0_0)?;
                           ()
                       }
@@ -60,12 +64,6 @@ spec =
                           a_0_0_tx.send(a_0_0)?;
                           ()
                       }
-                  }));
-                  tasks.push(Box::new(move || -> _ {
-                      let var_0 = i;
-                      let state_0_0_1 = S::new_state(var_0);
-                      state_0_0_1_tx.send(state_0_0_1)?;
-                      Ok(())
                   }));
                   let handles: Vec<std::thread::JoinHandle<_>> = tasks
                       .into_iter()
