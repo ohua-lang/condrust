@@ -13,12 +13,12 @@ normalize = updateTaskExprs normalizeTaskExpr
 normalizeTaskExpr :: TaskExpr ty -> TaskExpr ty
 normalizeTaskExpr = normalizeLits . normalizeIndirect
 
+-- TODO(feliix42): The name no longer makes sense since we are indeed renaming state variables :D
 transformNoState :: (TaskExpr ty -> TaskExpr ty) -> TaskExpr ty -> TaskExpr ty
 transformNoState f = (`evalState` HS.empty) . transformM go
   where
     go e@(Apply (Stateful (Var v) _ _)) = do
-      modify $ HS.insert v
-      return e
+      return $ f e
     go e@(Assign b _) = do
       modify $ HS.insert b
       return e
