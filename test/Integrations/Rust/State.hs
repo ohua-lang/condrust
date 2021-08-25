@@ -123,9 +123,8 @@ spec =
                   let mut tasks: Vec<Box<dyn FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
                   tasks.push(Box::new(move || -> _ {
                       loop {
-                          let var_0 = state_0_0_1_0_rx.recv()?;
-                          let var_1 = 6;
-                          let r1_0_0_0 = var_0.gs1(var_1);
+                          let mut var_0 = state_0_0_1_0_rx.recv()?;
+                          let r1_0_0_0 = var_0.gs1(6);
                           r1_0_0_0_tx.send(r1_0_0_0)?;
                           ()
                       }
@@ -133,14 +132,12 @@ spec =
                   tasks.push(Box::new(move || -> _ {
                       loop {
                           let mut var_0 = state_0_0_2_rx.recv()?;
-                          let var_1 = 5;
-                          var_0.modify(var_1);
+                          var_0.modify(5);
                           state_0_0_1_0_tx.send(var_0)?
                       }
                   }));
                   tasks.push(Box::new(move || -> _ {
-                      let var_0 = i;
-                      let state_0_0_2 = S::new_state(var_0);
+                      let state_0_0_2 = S::new_state(i);
                       state_0_0_2_tx.send(state_0_0_2)?;
                       Ok(())
                   }));
