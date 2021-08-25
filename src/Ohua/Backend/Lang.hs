@@ -26,7 +26,10 @@ data Com (f::ComType) (t::Type) :: Type where
   SRecv :: ArgType t -> Com 'Channel t -> Com 'Recv t
   SSend :: Com 'Channel t -> Binding -> Com 'Send t
 
-deriving instance Eq (Com semTy ty)
+instance Eq (Com semTy ty) where
+  SChan bnd0 == SChan bnd1 = bnd0 == bnd1
+  SRecv _ chan0 == SRecv _ chan1 = chan0 == chan1
+  SSend chan0 bnd0 == SSend chan1 bnd1 = chan0 == chan1 && bnd0 == bnd1
 
 instance Show (Com a t) where
   show (SChan bnd) = "Chan: " <> show bnd
@@ -37,7 +40,7 @@ type Channel = Com 'Recv
 
 instance Hashable (Com a t) where
   hashWithSalt s (SChan bnd) = s `hashWithSalt` bnd
-  hashWithSalt s (SRecv t chan) = s `hashWithSalt` t `hashWithSalt` chan
+  hashWithSalt s (SRecv _ chan) = s `hashWithSalt` chan
   hashWithSalt s (SSend chan bnd) = s `hashWithSalt` chan `hashWithSalt` bnd
 
 data List expr = Create | Append Binding expr

@@ -45,6 +45,7 @@ normalizeIndirect = transformNoState go
   where
     go (Let x y@Var {} ct) =
       -- NOTE(feliix42): Don't do the substitution if a subsequent check shows remaining bindings in the Expr. This is to avoid producing invalid code.
+      -- FIXME (Sebastian): This is a hack. I do not understand the problem here. Please explain and open an issue.
       let
         newExpr = substitute (x, y) ct
       in
