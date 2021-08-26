@@ -132,13 +132,17 @@ instance Integration (Language 'Python) where
             assignTypes funTypes function = case function of
                 (AppE (LitE (FunRefLit (FunRef qBinding funID _))) args) ->
                     case args of
-                        -- Question: Empty calls end up empty here -> Error
-                        -- TODO: find out were normally empty calls are filled with UnitLit, cause right now that doesn't happen
-                        [] -> throwError "Empty call unfilled."
-                        [LitE UnitLit] -> return $ AppE (LitE $ FunRefLit $ FunRef qBinding funID $ FunType $ Left Unit) args
+                        -- Note: In Rust this type assignment happens based on the function definitions, while the
+                        -- Python integration does this based on function calls right now.
+                        -- Therefore contrary to the Rust way, args might be empty here (I can not add Unit() to the call
+                        -- as this will produce a 'None' parameter in the backend)
+                        -- TODO: When I return to type extraction from defintions, make non-empty args an invariant again
+                        {- [] -> throwError "Empty call unfilled."
+                        --[LitE UnitLit] -> return $ AppE (LitE $ FunRefLit $ FunRef qBinding funID $ FunType $ Left Unit) args-}
                         (a:args') ->
                             return $
                                 AppE (LitE $ FunRefLit (FunRef qBinding funID (listofPyType args))) args
+                        _ -> return $ AppE (LitE $ FunRefLit $ FunRef qBinding funID $ FunType $ Left Unit) args
                 e ->  return e
 
             listofPyType :: [FrLang.Expr (PythonArgType SrcSpan)] -> FunType (PythonArgType SrcSpan)
