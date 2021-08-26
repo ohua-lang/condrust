@@ -33,6 +33,7 @@ import Data.Text.Prettyprint.Doc.Render.Text as PP
 import Data.Text as T (concat, Text, span, pack, unpack)
 import qualified Data.ByteString.Lazy.Char8 as L
 
+
 type ParseResult = Either ParseError (ModuleSpan, [Token])
 
 -- TODO turn this into a parameter for a particular test
@@ -67,7 +68,7 @@ renderPython = T.pack . prettyText
 compileCode ::  Module SrcSpan -> IO (Module SrcSpan)
 compileCode inCode = compileCode' inCode def
 
-wrappedParsing:: String -> String -> Module SrcSpan 
+wrappedParsing:: String -> String -> Module SrcSpan
 wrappedParsing pyCode filename = do
     let parseresult = V3.parseModule pyCode filename
     case parseresult of
@@ -84,23 +85,25 @@ compileCode' inCode opts =
                 (testDir </> "testLib.py")
                 (renderPython Input.testLib)
             let inFile = testDir </> "test.py"
-            writeFile 
+            writeFile
                 inFile
                 (renderPython inCode)
             withSystemTempDirectory "output"
                 $ \outDir -> do
                     let compScope = HM.empty
                     let options = if debug then withDebug opts else opts
-                    -- TODO: Replace dummy ba compilation when implented
-                    {- runCompM
+                    runCompM
                         LevelWarn
-                        $ compile inFile compScope options outDir-}
+                        $ compile inFile compScope options outDir
+                    producedFile <-readFile (outDir </> takeFileName inFile)
+                    putStr producedFile
+                    return $ wrappedParsing  (T.unpack producedFile) (takeFileName inFile)
+                    {-- Dummy replacement for 'id compilation'
                     writeFile
                         (outDir </> takeFileName inFile)
                         (renderPython inCode)
                     contents <- readFile (outDir </> takeFileName inFile)
-                    let outCode = wrappedParsing (T.unpack contents) "test.py"
-                    return outCode
+                    let outCode = wrappedParsing (T.unpack contents) "test.py"--}
 
 showCode :: T.Text -> Module SrcSpan -> IO T.Text
 showCode msg ast =
