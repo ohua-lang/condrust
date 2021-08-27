@@ -29,22 +29,28 @@ finalResult = "finalResult"
 
 mkRecFun :: RecFun ty -> TaskExpr ty
 mkRecFun (RecFun resultOut ctrlOut recArgsOuts recInitArgsIns recArgsIns recCondIn recResultIn) =
-  loop $
-    dispatchCtrlSig contSig $
-      -- here I would have loved to have the type safety again :(
-      recvInits $
-        sendInits $
-          Stmt
-            ( While condRecv $
-                Stmt resultRecv $
-                  dispatchCtrlSig contSig $
-                    recvLoopArgs $
-                      sendLoopArgs $
-                        Lit UnitLit
-            )
-            $ dispatchCtrlSig stopSig $
-              Let finalResult resultRecv $
-                SendData $ SSend resultOut finalResult
+  let innerBody =
+        dispatchCtrlSig contSig $
+          recvLoopArgs $
+            sendLoopArgs $
+              Lit UnitLit
+      loopBody = case dedupChans [recResultIn] recArgsIns of
+        [] -> innerBody
+        [_] -> Stmt resultRecv innerBody
+      finalRecv =
+        Let finalResult resultRecv $
+          SendData $ SSend resultOut finalResult
+      epilog = case dedupChans recArgsIns [recResultIn] of
+        [] -> finalRecv
+        chans -> throwAwayLoopArgs chans finalRecv
+   in loop $
+        dispatchCtrlSig contSig $
+          -- here I would have loved to have the type safety again :(
+          recvInits $
+            sendInits $
+              Stmt
+                (While condRecv loopBody)
+                $ dispatchCtrlSig stopSig epilog
   where
     -- NOTE(feliix42): I changed this from `filter isLeft recInitArgsIns` because:
     --   Using even a single env arc will produce use after move errors in Rust for said arc.
@@ -92,7 +98,13 @@ mkRecFun (RecFun resultOut ctrlOut recArgsOuts recInitArgsIns recArgsIns recCond
     resultRecv = ReceiveData recResultIn
     loopArgsRecv = zipWith (curry (first (("loop_res_" <>) . show))) [0 ..] recArgsIns
     recvLoopArgs c = foldr (\(v, r) c' -> Let v (ReceiveData r) c') c loopArgsRecv
+    throwAwayLoopArgs c ex = foldr (Stmt . ReceiveData) ex c
     sendLoopArgs c =
       foldr (\(o, v) c' -> Stmt (SendData $ SSend o v) c') c $
         zip recArgsOuts $
           map fst loopArgsRecv
+    dedupChans :: [Com 'Recv ty] -> [Com 'Recv ty] -> [Com 'Recv ty]
+    dedupChans [] _ = []
+    dedupChans (x : xs) ys
+      | x `elem` ys = dedupChans xs ys
+      | otherwise = x : dedupChans xs ys
