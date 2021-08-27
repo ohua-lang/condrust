@@ -75,6 +75,13 @@ instance Pretty (DFApp a ty) where
             , "recurFun"
             ] <>
             [align $ tupled [pretty $ V.toList iIns, pretty $ V.toList rIns, pretty cIn, pretty fIn]]
+    pretty (SMapFun (dOut, ctrlOut, sizeOut) dIn) =
+        hsep $
+            [ align $ tupled [pretty dOut, pretty ctrlOut, pretty sizeOut]
+            , "="
+            , "smapFun"
+            ] <>
+            [align $ tupled [pretty dIn]]
 
 instance Pretty (OutData a) where
     pretty (Direct b) = pretty b

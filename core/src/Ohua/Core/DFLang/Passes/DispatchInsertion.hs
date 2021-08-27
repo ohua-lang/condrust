@@ -1,19 +1,24 @@
 module Ohua.Core.DFLang.Passes.DispatchInsertion where
 
 import qualified Data.List.NonEmpty as NE
-import qualified Data.List.NonEmpty.Extra as NEE
 import Ohua.Core.DFLang.Lang hiding (length)
 import Ohua.Core.DFLang.Refs
 import Ohua.Core.Prelude
 
 insertDispatch :: forall ty m. MonadOhua m => NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
 insertDispatch (Let app cont) =
-  case app of
-    (PureDFFun outputs fr@(FunRef f _ _) inputs)
-      | f == smapFun -> do
-        (cont', outputs') <- foldMapOutData cont outputs
-        cont'' <- insertDispatch cont'
-        return $ Let (PureDFFun outputs' fr inputs) cont''
+  let onOut c o = case o of
+        Nothing -> return (c, o)
+        Just out -> do
+          (c',out') <- foldMapOutData c out
+          return (c', Just out')
+   in case app of
+    (SMapFun (dOut, ctrlOut, sizeOut) dIn) -> do
+      (cont', dOut') <- onOut cont dOut
+      (cont'', ctrlOut') <- onOut cont' ctrlOut
+      (cont''', sizeOut') <- onOut cont'' sizeOut
+      cont'''' <- insertDispatch cont'''
+      return $ Let (SMapFun (dOut', ctrlOut', sizeOut') dIn) cont''''
     _ -> Let app <$> insertDispatch cont
 insertDispatch v = pure v
 
@@ -27,25 +32,25 @@ foldMapOutData expr (Direct bnd@(DataBinding _)) = do
   (cont', bnds') <- renameChannels (expr, []) (unwrapABnd bnd)
   case bnds' of
     [] -> throwError $ "Internal compiler error: Renaming a channel named " <> show bnd <> " yielded no channel name from " <> show expr
-    [x] -> return (cont', (Direct x))
-    _ -> return (cont', (Dispatch $ NE.fromList bnds'))
+    [x] -> return (cont', Direct x)
+    _ -> return (cont', Dispatch $ NE.fromList bnds')
 foldMapOutData expr ob@(Direct (StateBinding _)) = return (expr, ob)
 foldMapOutData expr (Destruct bnds) = do
   (cont', bnds') <- foldrM g (expr, []) bnds
-  return (cont', (Destruct $ NE.fromList bnds'))
+  return (cont', Destruct $ NE.fromList bnds')
   where
     g :: OutData b -> (NormalizedDFExpr ty, [OutData b]) -> m (NormalizedDFExpr ty, [OutData b])
     g bnd (exp, currentBinds) = do
       (expr', currentBinds') <- foldMapOutData exp bnd
-      return (expr', (currentBinds' : currentBinds))
+      return (expr', currentBinds' : currentBinds)
 foldMapOutData expr (Dispatch bnds@((DataBinding _) :| _)) = do
   (cont', bnds') <- foldM f (expr, []) bnds
-  return (cont', (Dispatch $ NE.fromList bnds'))
+  return (cont', Dispatch $ NE.fromList bnds')
   where
     f :: (NormalizedDFExpr ty, [ABinding 'Data]) -> ABinding 'Data -> m (NormalizedDFExpr ty, [ABinding 'Data])
     f (exp, currentBinds) bnd = do
       (expr', currentBinds') <- renameChannels (exp, []) (unwrapABnd bnd)
-      return (expr', (currentBinds ++ currentBinds'))
+      return (expr', currentBinds ++ currentBinds')
 foldMapOutData expr ob@(Dispatch ((StateBinding _) :| _)) = return (expr, ob)
 
 -- takes the smap body, the binding to the size channel, whether the binding has been seen before and the replaced bindings
@@ -55,7 +60,7 @@ renameChannels ::
   (NormalizedDFExpr ty, [ABinding 'Data]) ->
   Binding ->
   m (NormalizedDFExpr ty, [ABinding 'Data])
-renameChannels ((Let app@(PureDFFun out fn inp) cont), newBinds) bnd
+renameChannels (Let app@(PureDFFun out fn inp) cont, newBinds) bnd
   | elem bnd $ insDFApp app =
     -- rewrite
     do

@@ -21,8 +21,8 @@ propagateTypes e = evalState (transformExprM go e) HM.empty
     -- (Sebastian to himself): Implement these damn types already!!!
     go (Let (PureDFFun out@(Direct outBnd) f@(FunRef fun _ _) [DFVar cty ctrlSig, DFVar ty dataInpBnd]) ct)
       | fun == Refs.ctrl = do
-        traceM $ "Looking at ctrl control input type " <> show cty
-        traceM $ "Looking at ctrl input type " <> show ty
+        -- traceM $ "Looking at ctrl control input type " <> show cty
+        -- traceM $ "Looking at ctrl input type " <> show ty
         vars <- get
         let dataInp' = case HM.lookup (unwrapABnd outBnd) vars of
               Just (Exists (DFVar ty' _)) -> DFVar ty' dataInpBnd
@@ -37,18 +37,16 @@ propagateTypes e = evalState (transformExprM go e) HM.empty
         modify (HM.insert (unwrapABnd ctrlSig) $ Exists ctrlInp')
 
         return $ Let (PureDFFun out f [ctrlInp', dataInp']) ct
-    go (Let (PureDFFun out@(Destruct ((Direct dataOut) :| outBnds)) f@(FunRef fun _ _) [DFVar ty dataInpBnd]) ct)
-      | fun == Refs.smapFun = do
-          -- Assumption: The first item in the list is always the data out!
-          traceM $ "Looking at smap input type " <> show ty
+    go (Let (SMapFun out@(Just (Direct dOut), _, _) (DFVar ty dataInpBnd)) ct) = do
+          -- traceM $ "Looking at smap input type " <> show ty
           vars <- get
-          let dataInp' = case HM.lookup (unwrapABnd dataOut) vars of
+          let dataInp' = case HM.lookup (unwrapABnd dOut) vars of
                 Just (Exists (DFVar ty' _)) -> DFVar ty' dataInpBnd
                 _ -> DFVar ty dataInpBnd
           modify (HM.insert (unwrapABnd dataInpBnd) $ Exists dataInp')
-          return $ Let (PureDFFun out f [dataInp']) ct
-    go (Let (PureDFFun out f@(FunRef fun _ (FunType (Right lst))) vars) ct) = do
-      traceM $ "Checking " <> show fun
+          return $ Let (SMapFun out dataInp') ct
+    go (Let (PureDFFun out f@(FunRef _fun _ (FunType (Right lst))) vars) ct) = do
+      -- traceM $ "Checking " <> show fun
       -- vars <- get
       let dataInps' = NE.map (\case
                                  (DFVar _ bnd, ty') -> DFVar ty' bnd
@@ -65,7 +63,6 @@ propagateTypes e = evalState (transformExprM go e) HM.empty
     go (Let (StateDFFun outBnds f@(FunRef _ _ (STFunType sty tyInfo)) stateIn dataIn) ct) = do
       let stateIn' = case stateIn of
             (DFVar ty bnd) -> DFVar (pickType ty sty) bnd
-            v@DFEnvVar{} -> v
       let dataIn' = case tyInfo of
             (Right info) -> NE.map (\case
                                        (DFVar _ bnd, ty') -> DFVar ty' bnd
@@ -75,7 +72,6 @@ propagateTypes e = evalState (transformExprM go e) HM.empty
       -- update state
       case stateIn' of
         v@(DFVar _ bnd) -> modify (HM.insert (unwrapABnd bnd) $ Exists v)
-        _ -> return ()
       mapM_ (\case
                 v@(DFVar _ bnd) -> modify (HM.insert (unwrapABnd bnd) $ Exists v)
                 _ -> return ()

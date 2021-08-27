@@ -27,8 +27,8 @@ recurLowering expr
       recurStartToRecurFun :: NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
       -- TODO What was the assumption here that recurStart can only have one argument?!
       -- recurStartToRecurFun (Let app@(PureDFFun (Destruct [_, _]) fun inp) rest)
-      recurStartToRecurFun (Let app@(PureDFFun (Destruct{}) fun inp) rest)
-        | fnDFApp app == ALangPass.recurStartMarker = do
+      recurStartToRecurFun (Let app@(PureDFFun Destruct{} fun inp) rest)
+        | funRef app == ALangPass.recurStartMarker = do
             outs <- case outsANew app of
                       [] -> error $ "invariant broken: the recur start marker does not have outputs"
                       (o:os) -> pure $ o :| os
@@ -37,7 +37,7 @@ recurLowering expr
       recurStartToRecurFun (Let app rest) = Let app <$> recurStartToRecurFun rest
       recurStartToRecurFun e = return e
 
-      filterEnds (Let app@PureDFFun{} cont) | fnDFApp app == ALangPass.recurEndMarker = cont
+      filterEnds (Let app@PureDFFun{} cont) | funRef app == ALangPass.recurEndMarker = cont
       filterEnds (Let app cont) = Let app $ filterEnds cont
       filterEnds v = v
 
@@ -48,7 +48,7 @@ recurLowering expr
 
       findEnd :: NonEmpty (OutData 'Data) -> NonEmpty (DFVar 'Data ty)
               -> NormalizedDFExpr ty -> m (DFApp 'BuiltIn ty)
-      findEnd outs inp (Let app@PureDFFun{} cont) | fnDFApp app == ALangPass.recurEndMarker =
+      findEnd outs inp (Let app@PureDFFun{} cont) | funRef app == ALangPass.recurEndMarker =
           let cond:(fixRef:recurArgs) = insDFApp app
               -- FIXME we don't need the var lists when we use the assertion
               -- that these two lists have the same size! and this is always

@@ -5,7 +5,7 @@
 module Ohua.Core.DFLang.Lang where
 
 import qualified Data.List.NonEmpty as NE
-import Ohua.Core.DFLang.Refs as DFLangRefs (recurFun)
+import Ohua.Core.DFLang.Refs as DFLangRefs (recurFun, smapFun)
 import Ohua.Core.Prelude hiding (length)
 import Ohua.Types.Vector as V hiding (map)
 
@@ -103,11 +103,24 @@ data DFApp (f :: FunANF) (ty :: Type) :: Type where
     Vec n (DFVar a ty) ->
     -- | recursion condition input
     DFVar 'Data ty ->
-    -- (final) result in
+    -- | (final) result in
     DFVar 'Data ty ->
     DFApp 'BuiltIn ty
+  SMapFun
+       -- TODO the below output type is not strong enough because we want to say,
+       --      that at least one of these things needs to be present.
+       --      so we need a non-empty heterogeneous list (that is at most of length 3)
+       --      and we need to be able to identify the different outputs in this list
+       --      regardless of their position in the list.
+    :: ( Maybe (OutData b)     -- ^ data out
+         -- TODO subset types would be great here to show that this out data can never be
+         --      destructured.
+       , Maybe (OutData 'Data) -- ^ control out
+       , Maybe (OutData 'Data) -- ^ size out for collect and stclangCollect
+       )
+    -> DFVar a ty  -- ^ data in
+    -> DFApp 'Fun ty -- FIXME would be this: DFApp 'BuiltIn ty (fix when all IRs are fixed and I do not need to convert a Fun into a BuiltIn)
 
--- SMapFun
 -- Collect
 -- Ctrl
 -- IfFun
@@ -139,6 +152,10 @@ outsDFApp (RecurFun result ctrl recurs _ _ _ _) =
           (x :| (xs <> join (map (NE.toList . outBnds) $ V.toList recurs)))
       )
         ++ maybe [] (NE.toList . outBnds) ctrl
+outsDFApp (SMapFun (dOut, collectOut, sizeOut) _) =
+  maybe [] (NE.toList . outBnds) dOut ++
+  maybe [] (NE.toList . outBnds) collectOut ++
+  maybe [] (NE.toList . outBnds) sizeOut
 
 outBnds :: OutData a -> NonEmpty Binding
 outBnds (Destruct o) = sconcat $ NE.map outBnds o
@@ -157,6 +174,7 @@ insDFApp (RecurFun _ _ _ initIns recurs cond result) =
     <> extractBndsFromInputs (V.toList recurs)
     <> extractBndsFromInputs [cond]
     <> extractBndsFromInputs [result]
+insDFApp (SMapFun _ dIn) = extractBndsFromInputs [dIn]
 
 extractBndsFromInputs :: [DFVar a ty] -> [Binding]
 extractBndsFromInputs =
@@ -171,6 +189,7 @@ insAndTypesDFApp (RecurFun _ _ _ initIns recurs cond result) =
     <> extractBndsAndTypesFromInputs (V.toList recurs)
     <> extractBndsAndTypesFromInputs [cond]
     <> extractBndsAndTypesFromInputs [result]
+insAndTypesDFApp (SMapFun _ dIn) = extractBndsAndTypesFromInputs [dIn]
 
 extractBndsAndTypesFromInputs :: [DFVar a ty] -> [(ArgType ty, Binding)]
 extractBndsAndTypesFromInputs =
@@ -179,12 +198,6 @@ extractBndsAndTypesFromInputs =
 fnApp :: App ty a -> QualifiedBinding
 fnApp (PureFun _ (FunRef f _ _) _) = f
 fnApp (StateFun _ (FunRef f _ _) _ _) = f
-
-fnDFApp :: DFApp 'Fun a -> QualifiedBinding
-fnDFApp (PureDFFun _ (FunRef f _ _) _) = f
-
-sfnDFApp :: DFApp 'ST a -> QualifiedBinding
-sfnDFApp (StateDFFun _ (FunRef f _ _) _ _) = f
 
 unwrapABnd :: ABinding a -> Binding
 unwrapABnd (DataBinding bnd) = bnd
@@ -280,9 +293,10 @@ instance Function (DFApp ty a) where
   inBindings = insDFApp
   funRef f =
     case f of
-      PureDFFun {} -> fnDFApp f
-      StateDFFun {} -> sfnDFApp f
+      (PureDFFun _ (FunRef fr _ _) _) -> fr
+      (StateDFFun _ (FunRef fr _ _) _ _) -> fr
       RecurFun {} -> DFLangRefs.recurFun
+      SMapFun {} -> DFLangRefs.smapFun
 
 transformExpr :: forall ty. (NormalizedDFExpr ty -> NormalizedDFExpr ty) -> NormalizedDFExpr ty -> NormalizedDFExpr ty
 transformExpr f = runIdentity . transformExprM go
@@ -305,8 +319,11 @@ transformExprTDM f l =
         )
 
 mapFunsM :: Monad m => (forall a. DFApp a ty -> m (DFApp a ty)) -> NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
-mapFunsM f (Let app cont) = Let <$> (f app) <*> mapFunsM f cont
+mapFunsM f (Let app cont) = Let <$> f app <*> mapFunsM f cont
 mapFunsM _ v = return v
+
+mapFuns :: (forall a. DFApp a ty -> DFApp a ty) -> NormalizedDFExpr ty -> NormalizedDFExpr ty
+mapFuns f e = runIdentity (mapFunsM (pure . f) e)
 
 -- This is what I want!
 -- paraExpr :: ('Let -> a -> a) -> ('Var -> a) -> NormalizedDFExpr -> a
@@ -318,4 +335,9 @@ length Var {} = Zero
 
 countBindings :: NormalizedDFExpr ty -> V.Nat
 countBindings (Var _) = Succ Zero
-countBindings (Let app cont) = foldl (\acc _ -> Succ $ acc) (countBindings cont) $ (insDFApp app) ++ (outsDFApp app)
+countBindings (Let app cont) =
+  foldl (\acc _ -> Succ acc) (countBindings cont) $ insDFApp app ++ outsDFApp app
+
+usedBindings :: NormalizedDFExpr ty -> [Binding]
+usedBindings (Let app cont) = insDFApp app ++ usedBindings cont
+usedBindings (Var result) = [result]

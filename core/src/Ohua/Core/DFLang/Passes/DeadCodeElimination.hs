@@ -1,149 +1,120 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+
 module Ohua.Core.DFLang.Passes.DeadCodeElimination where
 
-import Ohua.Core.Prelude
+import qualified Data.HashSet as HS
+import Data.Text.Lazy.IO as T
+import Data.Tuple.Extra (fst3)
 import Ohua.Core.DFLang.Lang as L
-import Ohua.Core.DFLang.Refs as R
+import Ohua.Core.Prelude
 import qualified Ohua.Types.Vector as V
 
-import qualified Data.List.NonEmpty as NE
-import Data.Text.Lazy.IO as T
-import Control.Monad.Extra
 
 eliminate :: (MonadOhua m) => NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
 eliminate expr = do
-  expr' <- (eliminateExprs >=> eliminateOuts) expr
+  expr' <- (eliminateExprs . eliminateOuts) expr
   case L.countBindings expr == L.countBindings expr' of
     True -> pure expr'
     False -> eliminate expr'
 
-eliminateExprs :: forall m ty.(MonadOhua m) => NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
+eliminateExprs :: forall m ty. (MonadOhua m) => NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
 eliminateExprs expr = do
-  expr' <- f expr
+  expr' <- eliminateDeadExprs expr
   case L.length expr == L.length expr' of
     True -> pure expr'
     False -> eliminateExprs expr'
   where
+    eliminateDeadExprs = transformExprM f
+
     f :: NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
-    f (Let app cont) = case app of
-      (PureDFFun out (FunRef fun _ _) _) ->
-        case out `isUsedIn` expr of
-          True -> Let app <$> f cont
-          False -> warn fun >> (f cont)
-      (StateDFFun (stateOut, dataOut) fun sIn dIn) ->
-        Let
-          (StateDFFun
-           (dropOut =<< stateOut, dropOut =<< dataOut)
-           fun sIn dIn) <$>
-          f cont
-      -- TODO(feliix42): Is recur elimination realistically possible?
-      RecurFun {} -> Let app <$> f cont
-    f v@(Var _) = pure v
+    f (Let app@(PureDFFun out (FunRef fun _ _) _) cont) =
+      case isUsed out of
+          True -> pure $ Let app cont
+          False -> warn fun >> return cont
+    f e = pure e
 
-    dropOut :: OutData b -> Maybe (OutData b)
-    dropOut out =
-      case (out `isUsedIn` expr) of
-        True -> Just out
-        False -> Nothing
-
-    out `isUsedIn` e = or $ map (`isBndUsed` e) $ outBnds out
+    isUsed :: OutData a -> Bool
+    isUsed out = any (`HS.member` (HS.fromList $ usedBindings expr)) $ outBnds out
 
     warn :: QualifiedBinding -> m ()
-    warn fun@(QualifiedBinding (NSRef ns) _) =
-      case ns == ["ohua","lang"] of
-        True -> return ()
-        False -> warning fun
+    warn (QualifiedBinding (NSRef ["ohua","lang"]) _) = return ()
+    warn fun = warning fun
 
     warning :: QualifiedBinding -> m ()
     warning fun = liftIO $ T.putStrLn $ "[WARNING] The output of pure function '" <> show fun <> "' is not used. As such, it will be deleted. If the function contains side-effects then this function actually wants to be stateful!"
 
-eliminateOuts :: forall m ty.(MonadOhua m) => NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
+eliminateOuts :: NormalizedDFExpr ty -> NormalizedDFExpr ty
 eliminateOuts expr = do
-  transformExprM go expr
+  mapFuns go expr
   where
-    -- FIXME check whether ctrlOut is really being used anywhere. if not then delete it.
-    go (Let (RecurFun c ctrlOut outArgs initArgs inArgs cond result) cont) = do
-      ctrlOut' <- case ctrlOut of
-        Just ctrls -> createOutBndMaybe =<< filterSmapOuts ctrls
-        Nothing -> pure Nothing
+    go (RecurFun c ctrlOut outArgs initArgs inArgs cond result) = do
+      let ctrlOut' = filterOutData =<< ctrlOut
       case V.zip3 outArgs initArgs inArgs of
-        zipped -> case V.filter filterDead zipped of
-                    V.MkEV filtered -> case V.unzip3 filtered of
-                      (outArgs', initArgs', inArgs') ->
-                        pure $ Let (RecurFun c ctrlOut' outArgs' initArgs' inArgs' cond result) cont
-    go (Let app cont) = case app of
-        (PureDFFun out fr@(FunRef fun _ _) inp)
-          | R.smapFun == fun -> case out of
-              -- this should match the initial form of an smap call. Hence, this houses the hack for issue #8
-              -- FIXME(sertel): find a better way to recognize illegal channel combinations
-              (Destruct xs@[_, _, _]) -> do
-                filtered <- mapM filterSmapOuts $ NE.toList xs
-                case filtered of
-                  [[], [], []] ->
-                    throwError $ "dead smap detected: " <> show app
-                  [[], [], size] ->
-                    throwError $ "detected smap that only dispatches its size. but for what?! either something needs to be contextified or data needs to be processed then. this is a bug. please report it."
-                  [[], ctrl, []] ->
-                    throwError "Unsupported. Please report. This requires a more explicit DFLang: Only ctrl used."
-                  [[], ctrl, size] -> do
-                    ctrl' <- createOutBnd ctrl
-                    size' <- createOutBnd size
-                    pure $ Let (PureDFFun (Destruct $ ctrl' :|[size']) fr inp) cont
-                    -- throwError "Unsupported. Please report. This requires a more explicit DFLang: Only data output dropped."
-                  [[ds], [], []] ->
-                    pure $ Let (PureDFFun (Destruct $ (Direct ds) :|[]) fr inp) cont
-                  [[ds], [], size] ->
-                    throwError $ "TODO: Undefined behavior"
-                  [[ds], ctrl, []] -> do 
-                    ctrl' <- createOutBnd ctrl
-                    pure $ Let (PureDFFun (Destruct $ Direct ds :|[ Destruct $ ctrl' :| []]) fr inp) cont
-                  [[ds], ctrl, size] -> do
-                    ctrl' <- createOutBnd ctrl
-                    size' <- createOutBnd size
-                    pure $ Let (PureDFFun (Destruct $ (Direct ds) :|[ctrl', size']) fr inp) cont
-                  x -> throwError $ "Encountered malformed smap output, most likely it has too many data outs: " <> show x
-              (Destruct xs) -> do
-                -- traverse the out bindings, filter empty ones out and create new out bindings
-                filtered <- mapM filterSmapOuts $ NE.toList xs
-                binds' <- mapMaybeM createOutBndMaybe filtered --  $ mapM filterSmapOuts $ NE.toList xs
-                -- binds' <- map (createOutBnd <=< (filter notNull) <=< filterSmapOuts) $ NE.toList xs
-                pure $ Let (PureDFFun (Destruct $ NE.fromList binds') fr inp) cont
-                --pure $ Let app cont
-        _ -> let
-          -- note that I do not only check inside the continuation but the whole expression
-          -- because recurFun takes vars as arguments that are defined only later.
-          used = map (\b -> (isBndUsed b expr, DataBinding b)) $ outBindings app
-          in case filter (not . fst) used of
-               []       -> pure $ Let app cont
-               deadEnds -> throwError $ "Found dead ends for '" <> show app
-                           <> "'.\nDead ends: " <> show deadEnds
-    go e = pure e
+        zipped ->
+          case V.filter (isJust . filterOutData . fst3) zipped of
+            V.MkEV filtered ->
+              case V.unzip3 filtered of
+                (outArgs', initArgs', inArgs') ->
+                  RecurFun c ctrlOut' outArgs' initArgs' inArgs' cond result
+    go (SMapFun (dOut, ctrlOut, sizeOut) dIn) =
+      let dOut' = filterOutData =<< dOut
+          ctrlOut' = filterOutData =<< ctrlOut
+          sizeOut' = filterOutData =<< sizeOut
+       in SMapFun (dOut', ctrlOut', sizeOut') dIn
+    --    go (Let app cont) =
+    --      let
+    --          -- note that I do not only check inside the continuation but the whole expression
+    --          -- because recurFun takes vars as arguments that are defined only later.
+    --          used = map (\b -> (isBndUsed b expr, DataBinding b)) $ outBindings app
+    --          in case filter (not . fst) used of
+    --               []       -> pure $ Let app cont
+    --               deadEnds -> throwError $ "Found dead ends for '" <> show app
+    --                           <> "'.\nDead ends: " <> show deadEnds
+    go (StateDFFun (stateOut, dataOut) fun sIn dIn) =
+      StateDFFun
+        (filterOutData =<< stateOut, filterOutData =<< dataOut)
+        fun
+        sIn
+        dIn
+    go e = e
 
-    filterDead :: (OutData b, DFVar a ty, DFVar a ty) -> Bool
-    filterDead = \case
-                    ((Direct b), _, _) -> isBndUsed (unwrapABnd b) expr
-                    (b, _, _) -> error $ toText $ "Unsupported OutData variant encountered in recurFun: " ++ (show b)
+    filterOutData :: OutData a -> Maybe (OutData a)
+    filterOutData (Direct a) | not $ isBndUsed (unwrapABnd a) = Nothing
+    filterOutData a@Direct {} = Just a
+    filterOutData (Destruct xs) =
+      case mapMaybe filterOutData $ toList xs of
+        [] -> Nothing
+        (a : as) -> Just $ Destruct $ a :| as
+    filterOutData (Dispatch bs) =
+      case filter (isBndUsed . unwrapABnd) $ toList bs of
+        [] -> Nothing
+        (a : as) -> Just $ Dispatch $ a :| as
 
-    filterSmapOuts :: OutData b -> m [ABinding b]
-    filterSmapOuts (Direct a) = do
-      case isBndUsed (unwrapABnd a) expr of
-        True -> pure [a]
-        False -> pure []
-    filterSmapOuts (Destruct [d]) = filterSmapOuts d
-    filterSmapOuts (Destruct _) = throwError "Invariant broken: Cannot have layered destructuring pattern in smap"
-    filterSmapOuts (Dispatch xs) = pure $ filter (\a -> isBndUsed (unwrapABnd a) expr) $ NE.toList xs
+    isBndUsed :: Binding -> Bool
+    isBndUsed bnd =
+      let usedBnds = HS.fromList $ usedBindings expr
+       in HS.member bnd usedBnds
 
-    createOutBnd :: [ABinding b] -> m (OutData b)
-    createOutBnd [] = throwError $ "Invariant broken: Got tasked to construct OutData from empty list of bindings."
-    createOutBnd [bnd] = pure $ Direct bnd
-    createOutBnd lst = pure $ Dispatch $ NE.fromList lst
+--    filterDead :: (OutData b, DFVar a ty, DFVar a ty) -> Bool
+--    filterDead = \case
+--                    ((Direct b), _, _) -> isBndUsed (unwrapABnd b) expr
+--                    (b, _, _) -> error $ toText $ "Unsupported OutData variant encountered in recurFun: " ++ (show b)
 
-    createOutBndMaybe :: [ABinding b] -> m (Maybe (OutData b))
-    createOutBndMaybe [] = pure Nothing
-    createOutBndMaybe [bnd] = pure $ Just $ Direct bnd
-    createOutBndMaybe lst = pure $ Just $ Dispatch $ NE.fromList lst
+--    filterSmapOuts :: OutData b -> m [ABinding b]
+--    filterSmapOuts (Direct a) = do
+--      case isBndUsed (unwrapABnd a) expr of
+--        True -> pure [a]
+--        False -> pure []
+--    filterSmapOuts (Destruct [d]) = filterSmapOuts d
+--    filterSmapOuts (Destruct _) = throwError "Invariant broken: Cannot have layered destructuring pattern in smap"
+--    filterSmapOuts (Dispatch xs) = pure $ filter (\a -> isBndUsed (unwrapABnd a) expr) $ NE.toList xs
 
-
-isBndUsed :: Binding -> NormalizedDFExpr ty -> Bool
-isBndUsed bnd (Let app cont) = bnd `elem` (insDFApp app) || bnd `isBndUsed` cont
-isBndUsed bnd (Var result) = bnd == result
+--    createOutBnd :: [ABinding b] -> m (OutData b)
+--    createOutBnd [] = throwError $ "Invariant broken: Got tasked to construct OutData from empty list of bindings."
+--    createOutBnd [bnd] = pure $ Direct bnd
+--    createOutBnd lst = pure $ Dispatch $ NE.fromList lst
+--
+--    createOutBndMaybe :: [ABinding b] -> m (Maybe (OutData b))
+--    createOutBndMaybe [] = pure Nothing
+--    createOutBndMaybe [bnd] = pure $ Just $ Direct bnd
+--    createOutBndMaybe lst = pure $ Just $ Dispatch $ NE.fromList lst
