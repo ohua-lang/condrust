@@ -61,15 +61,6 @@ eliminateOuts expr = do
           ctrlOut' = filterOutData =<< ctrlOut
           sizeOut' = filterOutData =<< sizeOut
        in SMapFun (dOut', ctrlOut', sizeOut') dIn
-    --    go (Let app cont) =
-    --      let
-    --          -- note that I do not only check inside the continuation but the whole expression
-    --          -- because recurFun takes vars as arguments that are defined only later.
-    --          used = map (\b -> (isBndUsed b expr, DataBinding b)) $ outBindings app
-    --          in case filter (not . fst) used of
-    --               []       -> pure $ Let app cont
-    --               deadEnds -> throwError $ "Found dead ends for '" <> show app
-    --                           <> "'.\nDead ends: " <> show deadEnds
     go (StateDFFun (stateOut, dataOut) fun sIn dIn) =
       StateDFFun
         (filterOutData =<< stateOut, filterOutData =<< dataOut)
@@ -94,27 +85,3 @@ eliminateOuts expr = do
     isBndUsed bnd =
       let usedBnds = HS.fromList $ usedBindings expr
        in HS.member bnd usedBnds
-
---    filterDead :: (OutData b, DFVar a ty, DFVar a ty) -> Bool
---    filterDead = \case
---                    ((Direct b), _, _) -> isBndUsed (unwrapABnd b) expr
---                    (b, _, _) -> error $ toText $ "Unsupported OutData variant encountered in recurFun: " ++ (show b)
-
---    filterSmapOuts :: OutData b -> m [ABinding b]
---    filterSmapOuts (Direct a) = do
---      case isBndUsed (unwrapABnd a) expr of
---        True -> pure [a]
---        False -> pure []
---    filterSmapOuts (Destruct [d]) = filterSmapOuts d
---    filterSmapOuts (Destruct _) = throwError "Invariant broken: Cannot have layered destructuring pattern in smap"
---    filterSmapOuts (Dispatch xs) = pure $ filter (\a -> isBndUsed (unwrapABnd a) expr) $ NE.toList xs
-
---    createOutBnd :: [ABinding b] -> m (OutData b)
---    createOutBnd [] = throwError $ "Invariant broken: Got tasked to construct OutData from empty list of bindings."
---    createOutBnd [bnd] = pure $ Direct bnd
---    createOutBnd lst = pure $ Dispatch $ NE.fromList lst
---
---    createOutBndMaybe :: [ABinding b] -> m (Maybe (OutData b))
---    createOutBndMaybe [] = pure Nothing
---    createOutBndMaybe [bnd] = pure $ Just $ Direct bnd
---    createOutBndMaybe lst = pure $ Just $ Dispatch $ NE.fromList lst
