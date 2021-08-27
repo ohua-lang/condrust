@@ -75,7 +75,7 @@ generateReceive (DFVar t bnd) =
 generateReceive (DFEnvVar t l) = Ops.Converted $ Lit l -- FIXME looses type info!
 
 generateArcsCode :: NormalizedDFExpr ty -> NonEmpty (Channel ty)
-generateArcsCode = traceShowId . go
+generateArcsCode = go
     where
         go (DFLang.Let app cont) =
             let collected = go cont
@@ -89,65 +89,31 @@ generateArcsCode = traceShowId . go
         manuallyDedup xs = foldr (\x acc -> if x `elem` acc then acc else x : acc) [] xs
 -- FIXME see sertel/ohua-core#7: all these errors would immediately go away
 generateNodeCode :: CompM m => DFApp semTy ty ->  LoweringM m (FusableExpr ty)
-generateNodeCode e@(PureDFFun out (FunRef fun _ _) inp)  | fun == smapFun = do
+generateNodeCode e@(SMapFun (dOut,ctrlOut,sizeOut) inp) = do
     input <-
-        case inp of
-            [x] -> case x of
-                        (DFVar t v) -> return $ SRecv t $ SChan $ unwrapABnd v
-                        _ -> invariantBroken $ "Input to SMap must var not literal:\n" <> show e
-            _ -> invariantBroken $ "SMap should only have a single input." <> show e
-    (dataOut, ctrlOut, collectOut) <-
-        case out of -- FIXME: I can not even be sure here whether the order is the correct one!
-            Destruct [Direct x, Direct y, Direct z] ->
-                return ( Just $ SChan $ unwrapABnd x
-                       , [SChan $ unwrapABnd y]
-                       , [SChan $ unwrapABnd z]
-                       )
-            Destruct [Direct x, Dispatch ct, Dispatch size] ->
-              return ( Just $ wrap x
-                     , map wrap $ NE.toList ct
-                     , map wrap $ NE.toList size
-                     )
-            Destruct [Direct x, Dispatch ct, Direct size] ->
-              return ( Just $ wrap x
-                     , map wrap $ NE.toList ct
-                     , [wrap size]
-                     )
-            Destruct [Direct x, Direct ct, Dispatch size] ->
-              return ( Just $ wrap x
-                     , [wrap ct]
-                     , map wrap $ NE.toList size
-                     )
-            -- see hack in dead code elimination
-            Destruct [Direct ct, Direct size] ->
-              return ( Nothing
-                     , [SChan $ unwrapABnd ct]
-                     , [SChan $ unwrapABnd size]
-                     )
-            Destruct [Dispatch ct, Dispatch size] ->
-              return ( Nothing
-                     , map wrap $ NE.toList ct
-                     , map wrap $ NE.toList size
-                     )
-            Destruct [Dispatch ct, Direct size] ->
-              return ( Nothing
-                     , map wrap $ NE.toList ct
-                     , [wrap size]
-                     )
-            Destruct [Direct ct, Dispatch size] ->
-              return ( Nothing
-                     , [wrap ct]
-                     , map wrap $ NE.toList size
-                     )
-            Destruct [Direct ds] ->
-              return ( Just $ SChan $ unwrapABnd ds
-                     , []
-                     , []
-                     )
-            _ -> invariantBroken $ "SMap must have 3 outputs:\n" <> show e
-    return $ SMap $ Ops.smapFun input dataOut ctrlOut collectOut
+      case inp of
+        (DFVar t v) -> return $ SRecv t $ SChan $ unwrapABnd v
+        -- FIXME Why not allow an env var as well?!
+        _ -> invariantBroken $ "Input to SMap must be var not literal:\n" <> show e
+    dOut'    <- intoChan dOut
+    dOut''   <- sequence (serializeDataOut <$> dOut')
+    ctrlOut' <- (maybe [] toList) <$> intoChan ctrlOut
+    sizeOut' <- (maybe [] toList) <$> intoChan sizeOut
+    return $ SMap $ Ops.smapFun input dOut'' ctrlOut' sizeOut'
     where
-      wrap b = SChan $ unwrapABnd b
+      intoChan :: CompM m => Maybe (OutData a) -> m (Maybe (NonEmpty (Com 'Channel ty)))
+      intoChan o = do
+        o' <- sequence $ (serializeOut <$> o)
+        let o'' = (map SChan) <$> o'
+        return o''
+
+      serializeDataOut :: CompM m => NonEmpty (Com 'Channel ty) -> m (Com 'Channel ty)
+      serializeDataOut [a] = pure a
+      serializeDataOut _ = throwError $ "We currently do not support destructuring and dispatch for loop data."
+
+      serializeOut :: CompM m => OutData a -> m (NonEmpty Binding)
+      serializeOut Destruct{} = throwError $ "We currently do not support destructuring on loop data: " <> show e
+      serializeOut o = pure $ outBnds o
 
 generateNodeCode e@(PureDFFun out (FunRef fun _ _) inp) | fun == collect = do
     (sizeIn, dataIn) <-
