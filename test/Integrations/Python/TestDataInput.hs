@@ -58,6 +58,7 @@ assignBinOp = [pythonModule|
 from testLib import hello_world
 
 def algo():
+    y = y + 2
     x = 42 + 23
 |]
 
@@ -69,27 +70,61 @@ def algo():
 |]
 
 noReturn = [pythonModule|
-from testLib import hello_world
+from testLib import *
 
 def algo():
-    x = f()
+    x = funInt()
 |]
 
 emptyReturn = [pythonModule|
+from testLib import *
+
+def algo():
+    x = funInt()
+    return
+|]
+
+noneReturn = [pythonModule|
+from testLib import *
+
+def algo():
+    x = funInt()
+    return None
+|]
+
+exprNoReturn = [pythonModule|
+from testLib import *
+
+def algo():
+    funInt()
+|]
+
+multiAssignment = [pythonModule|
 from testLib import hello_world
 
 def algo():
     x = f()
-    return
+    y = g()
+    z = h()
 |]
+
+
 
 varReturn = [pythonModule|
 from testLib import hello_world
 
 def algo():
-    x = f()
+    x = oneArg(7)
     return x
 |]
+
+onlyReturnFunCall  = [pythonModule|
+from testLib import hello_world
+    
+def algo():
+    return f()
+|]
+
 
 otherVarReturn = [pythonModule|
 from testLib import hello_world

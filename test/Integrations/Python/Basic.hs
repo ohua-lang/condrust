@@ -13,7 +13,7 @@ spec =
     describe "Basics" $ do
         it "placeholder test" $ 
           1 `shouldBe` 1
-        it "Simple function call" $
+        {-it "Simple function call" $
             (showCode "Compiled: " =<< compileCode Input.callAFunction) >>=
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.callAFunction
@@ -23,13 +23,13 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.assignNumLit
                 compiled `shouldBe` expected)
-
+        
         it "Assignment binary Operation" $
             (showCode "Compiled: " =<< compileCode Input.assignBinOp) >>=
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.assignBinOp
                 compiled `shouldBe` expected)
-
+    
         it "Assignment augmented" $
             (showCode "Compiled: " =<< compileCode Input.assignAugmented) >>=
             (\compiled -> do
@@ -41,17 +41,42 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.noReturn
                 compiled `shouldBe` expected)
-        {-
-        it "Assignment and return None" $
+        
+        it "Assignment and return" $
             (showCode "Compiled: " =<< compileCode Input.emptyReturn) >>=
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.emptyReturn
                 compiled `shouldBe` expected)
+        -}
         it "Assignment and return a variable" $
             (showCode "Compiled: " =<< compileCode Input.varReturn) >>=
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.varReturn
                 compiled `shouldBe` expected)
+        it "return function call" $
+            (showCode "Compiled: " =<< compileCode Input.onlyReturnFunCall) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" Expect.onlyReturnFunCall
+                compiled `shouldBe` expected)
+        {-
+        it "Assignment and return None" $
+            (showCode "Compiled: " =<< compileCode Input.noneReturn) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" Expect.noneReturn
+                compiled `shouldBe` expected)
+        it "Expression no Return" $
+            (showCode "Compiled: " =<< compileCode Input.exprNoReturn) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" Expect.exprNoReturn
+                compiled `shouldBe` expected)
+
+        it "Multiassignment no Return" $
+            (showCode "Compiled: " =<< compileCode Input.multiAssignment) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" Expect.multiAssignment
+                compiled `shouldBe` expected)
+
+        
         it "Assign many vars, return one" $
             (showCode "Compiled: " =<< compileCode Input.otherVarReturn) >>=
             (\compiled -> do
