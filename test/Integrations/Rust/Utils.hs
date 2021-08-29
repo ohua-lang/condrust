@@ -32,7 +32,10 @@ import qualified Data.ByteString.Lazy.Char8 as L
 
 -- TODO turn this into a parameter for a particular test
 debug :: Bool
-debug = True
+debug = False
+
+showCodeDiff :: Bool
+showCodeDiff = False
 
 renderRustCode :: SourceFile Span -> L.ByteString
 renderRustCode =
@@ -74,8 +77,8 @@ compileCode :: SourceFile Span -> IO (SourceFile Span)
 compileCode inCode = compileCode' inCode def
 
 compileCode' :: SourceFile Span -> Options -> IO (SourceFile Span)
-compileCode' inCode opts = 
-    withSystemTempDirectory "testDir" 
+compileCode' inCode opts =
+    withSystemTempDirectory "testDir"
         $ \testDir -> do
             setCurrentDirectory testDir
             writeFile (testDir </> "funs.rs") funs
@@ -99,7 +102,7 @@ showCode msg code =
     let
         c = renderStrict $ layoutSmart defaultLayoutOptions $ pretty' code
     in do
-        when debug $ printCode c
+        when showCodeDiff $ printCode c
         return c
     where
         printCode c = putStr $ boundary <> header <> c <> boundary
