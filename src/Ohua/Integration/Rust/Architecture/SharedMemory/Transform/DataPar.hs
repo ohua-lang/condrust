@@ -83,12 +83,29 @@ amorphous :: Block -> Block
 amorphous = transformExprInBlock go
   where
     go (Call (CallRef f _) [v, n])
-      | f == takeN = MethodCall v (CallRef (mkFunRefUnqual "split_at") Nothing) [n] -- assumes Vec
+      | f == takeN =
+        BlockExpr $
+          RustBlock
+            [ Local
+                (IdentP $ IdentPat Immutable "sp")
+                ( If
+                    (Binary Lt (MethodCall v (CallRef (mkFunRefUnqual "len") Nothing) []) n)
+                    (RustBlock [NoSemi $ MethodCall v (CallRef (mkFunRefUnqual "len") Nothing) []] Normal)
+                    $ Just n
+                ),
+              Local (IdentP $ IdentPat Immutable "chunk") (MethodCall v (CallRef (mkFunRefUnqual "split_off") Nothing) [Var "sp"]),
+              NoSemi (Tuple [v, Var "chunk"])
+            ]
+            Normal
     go (Call (CallRef f _) [results, rest])
       | f == concat =
         BlockExpr $
           RustBlock
-            [ Semi $ MethodCall results (CallRef (mkFunRefUnqual "append") Nothing) [rest], -- assumes Vec
+            [ Semi $
+                MethodCall
+                  results
+                  (CallRef (mkFunRefUnqual "extend") Nothing)
+                  [MethodCall rest (CallRef (mkFunRefUnqual "into_iter") Nothing) []], -- assumes Vec
               NoSemi results
             ]
             Normal

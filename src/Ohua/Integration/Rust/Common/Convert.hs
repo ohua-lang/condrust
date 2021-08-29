@@ -69,6 +69,11 @@ convertBinary Sub.Add = Rust.AddOp
 convertBinary Sub.Sub = Rust.SubOp
 convertBinary Sub.Mul = Rust.MulOp
 convertBinary Sub.Div = Rust.DivOp
+convertBinary Sub.Lt  = Rust.LtOp
+convertBinary Sub.Lte = Rust.LeOp
+convertBinary Sub.Gt  = Rust.GtOp
+convertBinary Sub.Gte = Rust.GeOp
+convertBinary Sub.EqOp = Rust.EqOp
 
 convertUnary :: Sub.UnOp -> Rust.UnOp
 convertUnary Sub.Not = Rust.Not

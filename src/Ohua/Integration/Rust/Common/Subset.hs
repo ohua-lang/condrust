@@ -26,7 +26,7 @@ data Block e = RustBlock [Stmt e] Unsafety deriving (Eq, Generic, Functor, Folda
 
 data Unsafety = Normal deriving (Eq, Generic)
 
-data BinOp = Add | Sub | Mul | Div deriving (Eq, Generic)
+data BinOp = Add | Sub | Mul | Div | Lt | Lte | Gt | Gte | EqOp | Neq deriving (Eq, Generic)
 data UnOp = Not | Neg | Deref deriving (Eq, Generic)
 data CallRef = CallRef QualifiedBinding (Maybe GenericArgs) deriving (Eq, Generic)
 
