@@ -8,7 +8,7 @@ import Ohua.Prelude
 
 
 -- TODO configuration flag
-enableDataPar = True
+enableDataPar =False
 
 passes = StateDFL.load $ case enableDataPar of
   True -> dataPar
@@ -38,12 +38,12 @@ propagateMut block =
     go (While e block) = While e <$> goBlock block
     go e = pure e
 
-    goBlock (Block stmts) =
+    goBlock (RustBlock stmts unsafety) =
       let (stmts', states) =
             runState (reverse <$> mapM goStmt (reverse stmts)) HS.empty
       in do
         modify $ HS.union states
-        return $ Block stmts'
+        return $ RustBlock stmts' unsafety
 
     goStmt (Local p e) = do
       e' <- transformM go e

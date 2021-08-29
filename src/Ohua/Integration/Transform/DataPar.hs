@@ -184,7 +184,7 @@ rewrite (SMap smapF body collectF) = do
   where
     rewriteBody :: NormalizedDFExpr ty -> OhuaM (NormalizedDFExpr ty)
     rewriteBody (DFL.Let fun@PureDFFun {} cont)
-      | not (isIgnorable $ fnDFApp fun) =
+      | not (isIgnorable $ funRef fun) =
         liftFunction fun cont
     rewriteBody e = pure e
 
@@ -397,7 +397,6 @@ amorphous targetExpr = do
             args' -> HS.union args $ findDerivations (HS.fromList args') expr
 
     findWorked body inp result recArgs = do
-      traceM $ show recArgs
       (b, smapBody) <-
         case [ (b, smapBody)
                | AL.Let
@@ -421,8 +420,8 @@ amorphous targetExpr = do
         _ ->
           -- imperative case
           let fv = findFreeBindings smapBody
-              fv' = filter (`isUsedState` smapBody) $ traceShowId fv
-              fv'' = filter (`HS.member` recArgs) $ traceShowId fv'
+              fv' = filter (`isUsedState` smapBody) fv
+              fv'' = filter (`HS.member` recArgs) fv'
               fv''' = filter (/= result) fv''
            in case fv''' of
                 [b'] -> return $ Just b'

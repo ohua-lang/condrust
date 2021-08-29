@@ -18,10 +18,11 @@ import Ohua.Integration.Rust.Backend.Convert
     convertQualBnd,
     convertStmt,
     noSpan,
+    convertGenericArgs
   )
 import qualified Ohua.Integration.Rust.Backend.Subset as Sub
-import Ohua.Integration.Rust.Types as RT
 import qualified Ohua.Integration.Rust.TypeExtraction as TE
+import Ohua.Integration.Rust.Types as RT
 import Ohua.Prelude
 
 instance Architecture (Architectures 'SharedMemory) where
@@ -31,28 +32,23 @@ instance Architecture (Architectures 'SharedMemory) where
 
   convertChannel SSharedMemory (SRecv argTy (SChan bnd)) =
     -- help out the type inference of Rust a little here
-    let chanTy = traceShow ("Channel for arc: " <> bnd <> " type: " <> show argTy) $ case argTy of
-          TupleTy ts ->
-            Just $
-              Rust.AngleBracketed
-                [ Rust.TypeArg $
-                    Rust.TupTy (map (const (Rust.Infer noSpan)) $ toList ts) noSpan
-                ]
-                []
-                noSpan
-          Type (TE.Normal ti) ->
-            Just $
-                 Rust.AngleBracketed
-                 [ Rust.TypeArg (noSpan <$ ti) ]
-                 []
-                 noSpan
-          Type (TE.Self ti _ _) ->
-            Just $
-                 Rust.AngleBracketed
-                 [ Rust.TypeArg (noSpan <$ ti) ]
-                 []
-                 noSpan
-          _ -> Nothing
+    let chanTy =
+          case argTy of
+            TupleTy ts ->
+              Just $
+                Sub.AngleBracketed
+                  [ Sub.TypeArg $ Sub.RustType $
+                      Rust.TupTy (map (const (Rust.Infer noSpan)) $ toList ts) noSpan
+                  ]
+            Type (TE.Normal ti) ->
+              Just $
+                Sub.AngleBracketed
+                  [Sub.TypeArg $ Sub.RustType (noSpan <$ ti)]
+            Type (TE.Self ti _ _) ->
+              Just $
+                Sub.AngleBracketed
+                  [Sub.TypeArg $ Sub.RustType (noSpan <$ ti)]
+            _ -> Nothing
      in Sub.Local
           ( Sub.TupP
               [ Sub.IdentPat Sub.Immutable $ bnd <> "_tx",
@@ -179,11 +175,9 @@ replaceFinalStatement e@(Rust.Closure oatt cb ia mv fun (Rust.BlockExpr att (Rus
     (Rust.NoSemi lst _) -> case lst of
       Rust.Loop {} -> e
       _ ->
-        let
-          newStmt = Rust.Call [] (Rust.PathExpr [] Nothing (Rust.Path False [Rust.PathSegment "Ok" Nothing noSpan] noSpan) noSpan) [lst] noSpan
-          blck' = changeLast blck (Rust.NoSemi newStmt noSpan)
-        in
-          Rust.Closure oatt cb ia mv fun (Rust.BlockExpr att (Rust.Block blck' safety noSpan) labels noSpan) noSpan
+        let newStmt = Rust.Call [] (Rust.PathExpr [] Nothing (Rust.Path False [Rust.PathSegment "Ok" Nothing noSpan] noSpan) noSpan) [lst] noSpan
+            blck' = changeLast blck (Rust.NoSemi newStmt noSpan)
+         in Rust.Closure oatt cb ia mv fun (Rust.BlockExpr att (Rust.Block blck' safety noSpan) labels noSpan) noSpan
     _ -> e
   where
     changeLast :: [a] -> a -> [a]

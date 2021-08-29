@@ -15,7 +15,7 @@ runtime = "rt"
 
 spawnWork :: Block -> Block
 spawnWork block =
-  let (Block blockExpr', par) = runState (transformExprInBlockM go block) False
+  let (RustBlock blockExpr' unsafety, par) = runState (transformExprInBlockM go block) False
    in case par of
         True ->
           let rt =
@@ -39,14 +39,14 @@ spawnWork block =
                         (CallRef (mkFunRefUnqual "unwrap") Nothing)
                         []
                     ]
-           in Block (rt : blockExpr')
-        False -> Block blockExpr'
+           in RustBlock (rt : blockExpr') unsafety
+        False -> RustBlock blockExpr' unsafety
   where
     -- (fun:rt:args') -> -- would be cleaner
     go (Call (CallRef f _) (Lit (FunRefLit (FunRef qb _ _)) : args))
       | f == spawnFuture = do
         modify $ const True
-        return $ BlockExpr $ Block $ spawnComp $ Call (CallRef qb Nothing) args
+        return $ BlockExpr $ RustBlock (spawnComp $ Call (CallRef qb Nothing) args) Normal
     go (Call (CallRef f _) [future])
       | f == joinFuture =
         pure $
@@ -67,13 +67,14 @@ spawnWork block =
           Call (CallRef "std.sync.mpsc/channel" Nothing) [],
         Local (IdentP $ IdentPat Immutable "work") $
           Async $
-            Block
+            RustBlock
               [ NoSemi $
                   MethodCall
                     (MethodCall (Var "tx") (CallRef (mkFunRefUnqual "send") Nothing) [comp])
                     (CallRef (mkFunRefUnqual "unwrap") Nothing)
                     []
-              ],
+              ]
+              Normal,
         Semi $ MethodCall (Var runtime) (CallRef (mkFunRefUnqual "spawn") Nothing) [Var "work"],
         NoSemi $ Var "rx"
       ]
@@ -86,8 +87,9 @@ amorphous = transformExprInBlock go
     go (Call (CallRef f _) [results, rest])
       | f == concat =
         BlockExpr $
-          Block
+          RustBlock
             [ Semi $ MethodCall results (CallRef (mkFunRefUnqual "append") Nothing) [rest], -- assumes Vec
               NoSemi results
             ]
+            Normal
     go e = e

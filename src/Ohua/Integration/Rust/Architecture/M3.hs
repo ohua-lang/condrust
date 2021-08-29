@@ -59,7 +59,7 @@ instance Architecture (Architectures 'M3) where
         send =
           MethodCall
             (Var $ channel <> "_rx")
-            (CallRef "/recv_msg" $ Just $ Rust.AngleBracketed [Rust.TypeArg ty'] [] noSpan)
+            (CallRef "/recv_msg" $ Just $ AngleBracketed [TypeArg $ RustType ty'])
             []
      in MethodCall send (CallRef "/unwrap" Nothing) []
 
