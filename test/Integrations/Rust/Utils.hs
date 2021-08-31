@@ -190,6 +190,14 @@ benchs =
   \ \
   \ fn fill1(m: Maze, p:Vec<(Point,Point)>, ma:u32) -> Maze \
   \ { unimplemented!() } \
+  \ \
+  \ \
+  \ \
+  \ // Blackscholes \
+  \ struct OptionData{} \
+  \ impl OptionData { \
+  \   pub fn calculate_black_scholes(&self) -> f32 { unimplemented!() } \
+  \ } \
   \ "
 
 std :: Text

@@ -6,7 +6,7 @@ import Integrations.Rust.Utils
 
 spec :: Spec
 spec =
-    describe "Benchmark" $
+    describe "Benchmark" $ do
     describe "labyrinth" $ do
         it "with conditionals" $
             -- the function below is closely resembling the naive sequential implementation: 
@@ -135,3 +135,24 @@ spec =
                         }
                     |]
                 compiled `shouldBe` expected)
+    it "blackscholes" $
+        (showCode "Compiled: " =<< compileCode [sourceFile|
+            use benchs::*;
+            use std::*;
+
+            fn calculate(options: Vec<OptionData>) -> Vec<f32> {
+                for op in options {
+                    op.calculate_black_scholes()
+                }
+            }
+            |]) >>=
+        (\compiled -> do
+            expected <- showCode "Expected:"
+                [sourceFile|
+                    use funs::*;
+
+                    fn test(i: i32) -> i32 {
+                        TODO
+                    }
+                |]
+            compiled `shouldBe` expected)
