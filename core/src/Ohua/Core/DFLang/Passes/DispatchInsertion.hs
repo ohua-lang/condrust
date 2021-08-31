@@ -31,7 +31,7 @@ foldMapOutData ::
 foldMapOutData expr (Direct bnd@(DataBinding _)) = do
   (cont', bnds') <- renameChannels (expr, []) (unwrapABnd bnd)
   case bnds' of
-    [] -> throwError $ "Internal compiler error: Renaming a channel named " <> show bnd <> " yielded no channel name from " <> show expr
+    [] -> return (cont', Direct bnd) -- The output is never used in the continuation. This will be catched by the dead code elimination
     [x] -> return (cont', Direct x)
     _ -> return (cont', Dispatch $ NE.fromList bnds')
 foldMapOutData expr ob@(Direct (StateBinding _)) = return (expr, ob)
