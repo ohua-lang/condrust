@@ -13,7 +13,7 @@ import Ohua.Integration.Rust.Architecture.Common as C
 import Ohua.Integration.Rust.Backend
 import Ohua.Integration.Rust.Backend.Convert
   ( convertCallRef,
-    convertExpr,
+    convertExp,
     convertPat,
     convertStmt,
     noSpan,
@@ -79,7 +79,7 @@ instance Architecture (Architectures 'M3) where
         let initVPE = createVPE : delegateCom task
             taskE' =
               createTask $
-                convertExpr $
+                convertExp $
                   prependToBlock (activateCom task) $
                     BlockExpr taskE
             all = map convertStmt initVPE ++ [Rust.NoSemi taskE' noSpan]
@@ -147,7 +147,7 @@ instance Architecture (Architectures 'M3) where
             run =
               Rust.MethodCall
                 []
-                (convertExpr $ Var "vpe")
+                (convertExp $ Var "vpe")
                 (Rust.PathSegment (mkIdent "run") Nothing noSpan)
                 [box]
                 noSpan
@@ -163,6 +163,6 @@ instance Architecture (Architectures 'M3) where
       createProgram (Program chans (Try resultExpr) tasks) =
         let taskStmts = map (flip Rust.Semi noSpan . taskExpression) tasks
             program = toList chans ++ taskStmts
-         in Rust.Block (program ++ [Rust.NoSemi (convertExpr resultExpr) noSpan]) Rust.Normal noSpan
+         in Rust.Block (program ++ [Rust.NoSemi (convertExp resultExpr) noSpan]) Rust.Normal noSpan
 
 instance Transform (Architectures 'M3)

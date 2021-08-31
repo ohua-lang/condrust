@@ -1,7 +1,10 @@
 {-# LANGUAGE DeriveLift, TemplateHaskell #-}
-module Ohua.Integration.Rust.Frontend.Subset where
+module Ohua.Integration.Rust.Frontend.Subset(
+  module Ohua.Integration.Rust.Frontend.Subset,
+  module Ohua.Integration.Rust.Common.Subset
+                                            ) where
 
-import Ohua.Prelude
+import Ohua.Prelude hiding (Lit)
 import Ohua.Integration.Rust.Common.Subset hiding (Block, Stmt)
 import qualified Ohua.Integration.Rust.Common.Subset as CS (Block(..), Stmt(..))
 
@@ -26,15 +29,21 @@ data Expr
   | If Expr Block (Maybe Expr)
   | While Expr Block
   | ForLoop Pat Expr Block
-  | Closure CaptureBy IsAsync Movability [Arg] Expr
+  | Closure CaptureBy IsAsync Movability [Arg] (Maybe RustType) Expr
   | BlockExpr Block
---  | PathExpr Path
+  -- | the below two are just captured by a Path in Rust.
+  | PathExpr CallRef
+  | Var VarRef
+  | Lit Lit
   deriving (Eq, Generic)
 
+
+data Lit = Int Integer | Bool Bool deriving (Eq, Generic)
+type VarRef = Binding
 data Arg = Arg Pat RustType deriving (Eq, Generic)
 
 data CaptureBy = Value deriving (Eq, Generic)
-data IsAsync = IsAsync deriving (Eq, Generic)
+data IsAsync = NotAsync deriving (Eq, Generic)
 data Movability = Movable deriving (Eq, Generic)
 
 -- data PathExpr ty = Path [PathSegment] (Maybe ty) deriving (Eq, Generic)

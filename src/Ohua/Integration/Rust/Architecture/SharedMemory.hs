@@ -14,7 +14,7 @@ import Ohua.Integration.Rust.Architecture.Common as C
 import Ohua.Integration.Rust.Backend
 import Ohua.Integration.Rust.Backend.Convert
   ( convertBlock,
-    convertExpr,
+    convertExp,
     convertQualBnd,
     convertStmt,
     noSpan,
@@ -132,7 +132,7 @@ instance Architecture (Architectures 'SharedMemory) where
             push t =
               Rust.MethodCall
                 []
-                (convertExpr $ Sub.Var "tasks")
+                (convertExp $ Sub.Var "tasks")
                 (Rust.PathSegment (mkIdent "push") Nothing noSpan)
                 [t]
                 noSpan
@@ -161,7 +161,7 @@ instance Architecture (Architectures 'SharedMemory) where
             resultHandling =
               Rust.Match
                 []
-                (convertExpr resultExpr)
+                (convertExp resultExpr)
                 [ Rust.Arm [] (noSpan <$ [pat| Ok(res) |]) Nothing (noSpan <$ [expr| res |]) noSpan,
                   Rust.Arm [] (noSpan <$ [pat| Err(e) |]) Nothing (noSpan <$ [expr| panic!("[Ohua Runtime Internal Exception] {}", e) |]) noSpan
                 ]

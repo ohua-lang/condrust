@@ -12,7 +12,7 @@ import Control.Lens.Plated
 
 newtype RustType = RustType (Ty ()) deriving (Eq, Generic)
 
-data Pat = IdentP IdentPat | TupP [IdentPat] deriving (Eq, Generic)
+data Pat = IdentP IdentPat | TupP [IdentPat] | WildP deriving (Eq, Generic)
 data IdentPat = IdentPat BindingMode Binding deriving (Eq, Generic)
 data BindingMode = Mutable | Immutable deriving (Eq, Generic)
 
@@ -22,11 +22,12 @@ data Stmt e
   | Local Pat e
   deriving (Eq, Generic, Functor, Foldable, Traversable)
 
-data Block e = RustBlock [Stmt e] Unsafety deriving (Eq, Generic, Functor, Foldable, Traversable)
+data Block e = RustBlock [Stmt e] Unsafety
+  deriving (Eq, Generic, Functor, Foldable, Traversable)
 
 data Unsafety = Normal deriving (Eq, Generic)
 
-data BinOp = Add | Sub | Mul | Div | Lt | Lte | Gt | Gte | EqOp | Neq deriving (Eq, Generic)
+data BinOp = Add | Sub | Mul | Div | Lt | Lte | Gt | Gte | EqOp deriving (Eq, Generic)
 data UnOp = Not | Neg | Deref deriving (Eq, Generic)
 data CallRef = CallRef QualifiedBinding (Maybe GenericArgs) deriving (Eq, Generic)
 
