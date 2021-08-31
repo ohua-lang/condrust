@@ -30,9 +30,9 @@ instance Integration (Language 'Python) where
     type Type (Language 'Python) =  PythonArgType SrcSpan
     type AlgoSrc (Language 'Python) = Py.Statement SrcSpan
 
-
+-- TODO: Important -> Reassignments (x += 1, x = x + 1)
 -- Note: Produces namespace later refered to with/required as 'ohuaNS^.algos' and 'ohuaNS^.imports'
--- TOdo: 1. PythonSubset als data anlegen
+-- Todo: 1. PythonSubset als data anlegen
 -- Todo : 2. Python AST auf Subset Mappen 
 -- Todo : 3 Subset auf IR mappen 
 -- => loadNS sollte 3°2 = 3(2()) => 3 . 2 sein
@@ -134,8 +134,7 @@ instance Integration (Language 'Python) where
                     case args of
                         -- Note: In Rust this type assignment happens based on the function definitions, while the
                         -- Python integration does this based on function calls right now.
-                        -- Therefore contrary to the Rust way, args might be empty here (I can not add Unit() to the call
-                        -- as this will produce a 'None' parameter in the backend)
+                        -- Therefore contrary to the Rust way, args might be empty here.
                         -- TODO: When I return to type extraction from defintions, make non-empty args an invariant again
                         {- [] -> throwError "Empty call unfilled."
                         --[LitE UnitLit] -> return $ AppE (LitE $ FunRefLit $ FunRef qBinding funID $ FunType $ Left Unit) args-}
@@ -227,6 +226,7 @@ instance ConvertExpr (Py.Expr SrcSpan) where
         args' <- mapM convertExpr args
         return $ fun' `AppE` args'
     convertExpr (Py.Int val strRepr annot) = return $ LitE $ NumericLit val
+    convertExpr (Py.None annot) = return $ LitE UnitLit 
     convertExpr e = unsupError "the following expressions type" e
 
 instance  ConvertExpr (Py.Argument SrcSpan) where
@@ -239,6 +239,7 @@ instance  ConvertExpr (Py.Argument SrcSpan) where
 instance ConvertExpr (Py.Statement SrcSpan) where
     convertExpr Py.Import{import_items=items} = throwError "'import' should be handles elsewhere"
     convertExpr Py.FromImport{from_module= mod, from_items=items} = throwError "'from .. import' should be handles elsewhere"
+    --TODO: Fail on non-emmpty else-block 
     convertExpr whileE@(Py.While cond do_block else_block annE) = do
         cond' <- convertExpr cond
         block' <- convertExpr do_block
@@ -256,6 +257,7 @@ instance ConvertExpr (Py.Statement SrcSpan) where
                 (VarP loopLambdaRef)
                 (LamE [] $ StmtE block' recur)
                 recur
+    --TODO: Fail on non-emmpty else-block 
     convertExpr forE@(Py.For targets generator body elseBlock annot) = do
         patterns <- mapM convertPat targets
         generator' <- convertExpr generator
@@ -270,12 +272,18 @@ instance ConvertExpr (Py.Statement SrcSpan) where
     convertExpr classDef@(Py.Class cName cArgs cBody annot) = undefined
     -- TODO: At top level this can be if __name__ == '__main__' and needs to be translated to a
     -- function, otherwise we might not want to allow code that is executed upon importing
+    {-Note: there's 2 complications with if's in python 
+        1st: there's elIfs -> this probably not hard, it just means i have to nes translation
+        2nd: there'r blocks inside and again, I can not exclude 'return' statements in python 
+        -> I assume rust function execution continues, when an if-block return a value, this is not the case in python 
+    
+    -}
     convertExpr ifElifElse@(Py.Conditional condsAndBodys elseBlock annot) = undefined
     convertExpr assign@(Py.Assign targets exor annot) = unsupError "global assignments" assign
-    convertExpr augmAs@(Py.AugmentedAssign target operation expr annot) = undefined
-    convertExpr annotAs@(Py.AnnotatedAssign targetAnnot target expr stmtAnnot) = undefined
-    convertExpr dec@(Py.Decorated decorators funOrClass annot) = undefined
-    convertExpr ret@(Py.Return optReturn annot) = undefined
+    convertExpr augmAs@(Py.AugmentedAssign target operation expr annot) = unsupError "global augmented assignments" augmAs
+    convertExpr annotAs@(Py.AnnotatedAssign targetAnnot target expr stmtAnnot) = unsupError "global annotated assignments" annotAs
+    convertExpr dec@(Py.Decorated decorators funOrClass annot) = unsupError "decorators" dec
+    convertExpr ret@(Py.Return optReturn annot) = throwError $ "Please only return at the end of functions"<> show ret
     convertExpr try@(Py.Try block excepts elseBlock finallyBlock annot)= undefined
     convertExpr raise@(Py.Raise raiseExor annot) = undefined
     convertExpr with@(Py.With contextTuples block annot) = undefined
@@ -316,10 +324,34 @@ instance  ConvertExpr (Py.Suite SrcSpan) where
                      heads
                 where
                     convertStmt :: (CompM m) => Py.Statement SrcSpan -> m (FrLang.Expr ty -> FrLang.Expr ty)
+                    convertStmt assign@(Py.Assign [target] expr annot) = do
+                        pat' <- convertPat target
+                        expr' <- convertExpr expr
+                        return $ LetE pat' expr'
+                    -- TODO/Question: The Error produced by this translation of Py.Assign was
+                    -- [Error] Unsupported multiple outputs: Destruct (Direct (DataBinding (Binding "x_0_0")) :| [])
+                    -- The reason was that assigning to tuples is obviously a part of the language but functions are not intended to output 
+                    -- tuples i.e. no assignments to TupP 
+                    -- SO Question 1: Why, what's the prupose of it?
+                    -- Question 2: (Rather Todo) How to handle python's unpacking here?
+                    {-
                     convertStmt assign@(Py.Assign targets expr annot) = do
                         pat' <- mapM convertPat targets
                         expr' <- convertExpr expr
                         return $ LetE (TupP pat') expr'
+                    -}    
+                    {-convertStmt augAssign@(Py.AugmentedAssign target operation expr annot) = do
+                        -- TODO: I need an outer let here ..
+                        -- x += 1
+                        Let tmp = x 
+                            in let x = tmp + 1
+                               in x
+                       
+                        pat' <- convertPat target
+                        let binOp = Py.BinaryOp (toBinOp operation) target expr noSpan
+                        expr' <- convertExpr binOp
+                        return $ LetE pat' expr'
+                     -}
                     -- Question: I understand return statements are not supported in Rust, 
                     -- as they are optional there and might exit functions at different points, right?
                     -- So I'd assume that I should only support them as the last statement in a block right?                 
@@ -327,9 +359,11 @@ instance  ConvertExpr (Py.Suite SrcSpan) where
 
                     -- Cases for last statement 
                         -- -> either it's a return statement with an expression 
-                            -- than return the converted expression 
+                            -- this should be equivalent to NoSemi in Rust 
+                            -- > return the converted expression 
                         -- or it's an empty return statement
-                            -- this should be equivalent to having a Semi Statement in Rust 
+                            -- this should be equivalent to having a Semi Statement last in Rust
+                            -- except that ther's no statement to translate before -> 
                             -- return LitE UnitLit
                         -- or it's just any statement
                             -- convert the statement and append LitE UnitLit
@@ -351,7 +385,6 @@ instance ConvertExpr (Py.Op SrcSpan) where
     convertExpr Py.Exponent{} = toExpr "**"
     convertExpr Py.MatrixMult{} = toExpr "@"
 
-    --Question: Do I need spacing for word-formed Epxrs ?
     convertExpr Py.And{} = toExpr "and"
     convertExpr Py.Or{}  = toExpr "or"
     convertExpr Py.Not{}  = toExpr "not"
@@ -376,6 +409,21 @@ instance ConvertExpr (Py.Op SrcSpan) where
 
     convertExpr e@Py.NotEqualsV2{} = py2Error e
 
+toBinOp :: Py.AssignOp SrcSpan -> Py.Op SrcSpan
+toBinOp Py.PlusAssign{} = Py.Plus noSpan
+toBinOp Py.MinusAssign{} = Py.Minus noSpan
+toBinOp Py.MultAssign{} = Py.Multiply noSpan
+toBinOp Py.DivAssign{} = Py.Divide noSpan
+toBinOp Py.ModAssign{} = Py.Modulo noSpan
+toBinOp Py.PowAssign{} = Py.Exponent noSpan
+toBinOp Py.BinAndAssign{} = Py.BinaryAnd noSpan
+toBinOp Py.BinOrAssign{} = Py.BinaryOr noSpan
+toBinOp Py.BinXorAssign{} = Py.Xor noSpan
+toBinOp Py.LeftShiftAssign{} = Py.ShiftLeft noSpan
+toBinOp Py.RightShiftAssign{} = Py.ShiftRight noSpan
+toBinOp Py.FloorDivAssign{} = Py.FloorDivide noSpan
+toBinOp Py.MatrixMultAssign{} = Py.MatrixMult noSpan
+
 
 toExpr :: Monad m => Binding -> m (FrLang.Expr ty)
 {-- Note: Turns given string representation into literal expression representig an untyped, 
@@ -391,3 +439,4 @@ unsupError text expr = throwError $ "Currently we do not support "<> text <>" us
 --TODO: can this be my responsibility in any way or redirect to bjpop@csse.unimelb.edu.au here ?
 py2Error expr = throwError $ "For whatever reason you managed to get the exclusively version 2 expression "
                                 <> show expr <> " through the python3 parser of language-python."
+
