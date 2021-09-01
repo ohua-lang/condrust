@@ -91,12 +91,14 @@ convertUnsafety Sub.Normal = Rust.Normal
 convertStmt :: Sub.Stmt -> Rust.Stmt ()
 convertStmt (Sub.Semi e) = Rust.Semi (convertExp e) noSpan
 convertStmt (Sub.NoSemi e) = Rust.NoSemi (convertExp e) noSpan
-convertStmt (Sub.Local p e) =
+convertStmt (Sub.Local p ty e) =
   Local (convertPat p) Nothing (Just $ convertExp e) [] noSpan
+convertStmt Sub.StandaloneSemi = Rust.StandaloneSemi noSpan
 
 convertPat :: Sub.Pat -> Rust.Pat ()
 convertPat (Sub.IdentP p) = convertIdentPat p
 convertPat (Sub.TupP ps) = Rust.TupleP (map convertIdentPat ps) noSpan
+convertPat Sub.WildP = Rust.WildP noSpan
 
 convertIdentPat :: Sub.IdentPat -> Rust.Pat ()
 convertIdentPat (Sub.IdentPat b bnd) =

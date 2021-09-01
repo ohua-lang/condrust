@@ -25,7 +25,6 @@ data Expr
   | Tuple [Expr]
   | Binary BinOp Expr Expr
   | Unary UnOp Expr
---  | Lit (Lit (RustArgType Span))
   | If Expr Block (Maybe Expr)
   | While Expr Block
   | ForLoop Pat Expr Block
@@ -35,23 +34,18 @@ data Expr
   | PathExpr CallRef
   | Var VarRef
   | Lit Lit
-  deriving (Eq, Generic)
+  deriving (Show, Eq, Generic)
 
-
-data Lit = Int Integer | Bool Bool deriving (Eq, Generic)
+data Lit = Int Integer | Bool Bool deriving (Show, Eq, Generic)
 type VarRef = Binding
-data Arg = Arg Pat RustType deriving (Eq, Generic)
+data Arg = Arg Pat RustType deriving (Show, Eq, Generic)
 
-data CaptureBy = Value deriving (Eq, Generic)
-data IsAsync = NotAsync deriving (Eq, Generic)
-data Movability = Movable deriving (Eq, Generic)
-
--- data PathExpr ty = Path [PathSegment] (Maybe ty) deriving (Eq, Generic)
--- newtype PathSegment = PathSegment Ident deriving (Eq, Generic)
--- newtype Ident = Text deriving (Eq, Generic)
+data CaptureBy = Value deriving (Show, Eq, Generic)
+data IsAsync = NotAsync deriving (Show, Eq, Generic)
+data Movability = Movable deriving (Show, Eq, Generic)
 
 -------------------- Recursion schemes support --------------------
 
 makeBaseFunctor ''Expr
 
-instance Plated Expr   where plate = gplate
+instance Plated Expr where plate = gplate

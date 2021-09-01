@@ -43,7 +43,7 @@ instance Integration (Language 'Rust) where
       convertTasks (Fn _ _ _ (FnDecl args typ _ span) _ _ block _) (Program chans (SRecv _ c) tasks) =
         Program
           chans
-          (SRecv (Type $ TE.Normal $ fromMaybe (TupTy [] span) typ) c)
+          (SRecv (Type $ TE.Normal $ maybe (TupTy [] ()) void typ) c)
           $ map (convertIntoBlock arch . convertEnvs <$>) tasks
 
       convertEnvs :: TCLang.TaskExpr RustTypeAnno -> TCLang.TaskExpr RustTypeAnno
@@ -63,6 +63,7 @@ instance Integration (Language 'Rust) where
     let stmtExpr =
           Sub.Local
             (Sub.IdentP $ Sub.IdentPat Sub.Immutable bnd)
+            Nothing
             (convertExpr arch stmt)
         contExpr = convertExpr arch cont
      in prependToBlock [stmtExpr] contExpr

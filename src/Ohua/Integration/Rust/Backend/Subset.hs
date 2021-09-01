@@ -25,7 +25,7 @@ type Block = CSTypes.Block Expr
 type Stmt = CSTypes.Stmt Expr
 
 data Expr
-  = Lit (Lit (RustArgType Span))
+  = Lit (Lit RustArgType)
   | Var Binding
   | MethodCall Expr CallRef [Expr]
   | Call CallRef [Expr]
@@ -69,6 +69,7 @@ transformExprInBlockM f = goBlock
       stmts' <- reverse <$> mapM goStmt (reverse stmts)
       return $ RustBlock stmts' unsafety
 
-    goStmt (Local p e) = Local p <$> transformM (f <=< go) e
+    goStmt (Local p ty e) = Local p ty <$> transformM (f <=< go) e
     goStmt (Semi e) = Semi <$> transformM (f <=< go) e
     goStmt (NoSemi e) = NoSemi <$> transformM (f <=< go) e
+    goStmt StandaloneSemi = return StandaloneSemi

@@ -113,10 +113,11 @@ convertBlock b@(Block _ Unsafe _) = throwError $ "Currently, we do not support u
 convertBlock (Block stmts Rust.Normal _) = (`Sub.RustBlock` Sub.Normal) <$> mapM convertStmt stmts
 
 convertStmt :: (Monad m, MonadError Error m) => Stmt Span -> m Sub.Stmt
-convertStmt (Local pat _ (Just e) [] _) = do
+convertStmt (Local pat ty (Just e) [] _) = do
   pat' <- convertPat pat
+  let ty' = Sub.RustType . void <$> ty
   e' <- convertExpr e
-  return $ Sub.Local pat' e'
+  return $ Sub.Local pat' ty' e'
 convertStmt s@(Local pat _ Nothing _ _) =
   throwError $ "Variables bind values and as such they need to be initialized. \n" <> show s
 convertStmt s@Local {} =
@@ -127,7 +128,7 @@ convertStmt (NoSemi e _) = Sub.NoSemi <$> convertExpr e
 convertStmt (Semi e _) = Sub.Semi <$> convertExpr e
 convertStmt s@MacStmt {} =
   throwError $ "Currently, we do not support macro calls.\n" <> show s
-convertStmt StandaloneSemi{} = return $ Sub.StandaloneSemi
+convertStmt StandaloneSemi{} = return Sub.StandaloneSemi
 
 convertPath ::
   (Monad m, MonadError Error m) =>
@@ -180,18 +181,21 @@ convertPat p@(IdentP _ _ (Just _) _) = throwError $ "Currently, we do not suppor
 convertPat p@(IdentP (ByRef _) _ _ _) = throwError $ seqParProgNote <> "\n" <> show p
 convertPat p@StructP {} = throwError $ "Currently, we do not support struct patterns: " <> show p <> ". Please use a function."
 convertPat p@TupleStructP {} = throwError $ "Currently, we do not support tuple struct patterns: " <> show p <> ". Please use a function."
-convertPat p@PathP {} = throwError $ "Currently, we do not support path patterns: " <> show p <> ". Please use a function."
+convertPat p@PathP {} = throwError $ "Currently, we do not support path patterns: " <> show p
 convertPat pat@(TupleP patterns _) =
   let unwrapIdentPat p =
         case p of
           Sub.IdentP p -> return p
           _ -> throwError $ "Currently, we do not support nested tuple patterns: " <> show pat
    in Sub.TupP <$> mapM (unwrapIdentPat <=< convertPat) patterns
+convertPat p@OrP {} = throwError $ "Currently, we do not support or patterns: " <> show p <> "."
 convertPat p@BoxP {} = throwError $ "Currently, we do not support box patterns: " <> show p <> ". Please use a function."
 convertPat p@RefP {} = throwError $ seqParProgNote <> "\n" <> show p
 convertPat p@LitP {} = throwError $ "Currently, we do not support literal patterns: " <> show p <> ". Please use a function."
 convertPat p@RangeP {} = throwError $ "Currently, we do not support range patterns: " <> show p <> ". Please use a function."
 convertPat p@SliceP {} = throwError $ "Currently, we do not support slice patterns: " <> show p <> ". Please use a function."
+convertPat p@RestP {} = throwError $ "Currently, we do not support rest patterns: " <> show p <> "."
+convertPat p@ParenP {} = throwError $ "Currently, we do not support paren patterns: " <> show p <> "."
 convertPat p@MacP {} = throwError $ "Currently, we do not support patterns resulting from macro expansion: " <> show p <> ". Please use a function."
 
 

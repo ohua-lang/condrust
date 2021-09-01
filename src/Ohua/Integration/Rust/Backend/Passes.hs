@@ -45,12 +45,13 @@ propagateMut block =
         modify $ HS.union states
         return $ RustBlock stmts' unsafety
 
-    goStmt (Local p e) = do
+    goStmt (Local p ty e) = do
       e' <- transformM go e
       p' <- transformM goPat p
-      return $ Local p' e'
+      return $ Local p' ty e'
     goStmt (Semi e) = Semi <$> transformM go e
     goStmt (NoSemi e) = NoSemi <$> transformM go e
+    goStmt StandaloneSemi = return StandaloneSemi
 
     goPat (IdentP (IdentPat mode bnd)) = do
       s <- get

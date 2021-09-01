@@ -87,7 +87,7 @@ instance Architecture (Architectures 'M3) where
 
       createVPE :: Stmt
       createVPE =
-        Local (IdentP $ IdentPat Mutable "vpe") $
+        Local (IdentP $ IdentPat Mutable "vpe") Nothing $
           MethodCall
             (Call (CallRef "VPE/new_child_vpe" Nothing) []) -- TODO would normally take some argument
             (CallRef "/unwrap" Nothing)

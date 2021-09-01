@@ -19,7 +19,7 @@ spawnWork block =
    in case par of
         True ->
           let rt =
-                Local (IdentP $ IdentPat Immutable runtime) $
+                Local (IdentP $ IdentPat Immutable runtime) Nothing $
                   Call
                     (CallRef "std.sync.Arc/new" Nothing)
                     [ MethodCall
@@ -63,9 +63,9 @@ spawnWork block =
     --  rx
     -- }
     spawnComp comp =
-      [ Local (TupP [IdentPat Immutable "tx", IdentPat Immutable "rx"]) $
+      [ Local (TupP [IdentPat Immutable "tx", IdentPat Immutable "rx"]) Nothing $
           Call (CallRef "std.sync.mpsc/channel" Nothing) [],
-        Local (IdentP $ IdentPat Immutable "work") $
+        Local (IdentP $ IdentPat Immutable "work") Nothing $
           Async $
             RustBlock
               [ NoSemi $
@@ -88,12 +88,16 @@ amorphous = transformExprInBlock go
           RustBlock
             [ Local
                 (IdentP $ IdentPat Immutable "sp")
+                Nothing
                 ( If
                     (Binary Lt (MethodCall v (CallRef (mkFunRefUnqual "len") Nothing) []) n)
                     (RustBlock [NoSemi $ MethodCall v (CallRef (mkFunRefUnqual "len") Nothing) []] Normal)
                     $ Just n
                 ),
-              Local (IdentP $ IdentPat Immutable "chunk") (MethodCall v (CallRef (mkFunRefUnqual "split_off") Nothing) [Var "sp"]),
+              Local
+                (IdentP $ IdentPat Immutable "chunk")
+                Nothing
+                (MethodCall v (CallRef (mkFunRefUnqual "split_off") Nothing) [Var "sp"]),
               NoSemi (Tuple [v, Var "chunk"])
             ]
             Normal

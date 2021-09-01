@@ -55,6 +55,7 @@ instance Architecture (Architectures 'SharedMemory) where
                 Sub.IdentPat Sub.Immutable $ bnd <> "_rx"
               ]
           )
+          Nothing
           $ Sub.Call
             ( Sub.CallRef
                 (QualifiedBinding (makeThrow ["std", "sync", "mpsc"]) "channel")
