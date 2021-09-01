@@ -154,7 +154,7 @@ spec =
                 use funs::*;
 
                 fn test() -> String {
-                    let x = f();
+                    let x:i32 = f();
                     let x1 = std::sync::Arc::new(x);
                     let x2 = x1.clone();
                     let y = h(x1);
@@ -184,7 +184,7 @@ spec =
                           }
                           let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel();
                           let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel::<i32>();
-                          let (x1_0_0_1_tx, x1_0_0_1_rx) = std::sync::mpsc::channel();
+                          let (x1_0_0_1_tx, x1_0_0_1_rx) = std::sync::mpsc::channel::<S>();
                           let (x1_0_0_0_0_tx, x1_0_0_0_0_rx) = std::sync::mpsc::channel::<i32>();
                           let (y_0_0_0_tx, y_0_0_0_rx) = std::sync::mpsc::channel::<i32>();
                           let (x2_0_0_0_tx, x2_0_0_0_rx) = std::sync::mpsc::channel::<i32>();
@@ -221,7 +221,7 @@ spec =
                           }));
                           tasks.push(Box::new(move || -> _ {
                               loop {
-                                  let var_0 = x1_0_0_1_rx.recv()?;
+                                  let mut var_0 = x1_0_0_1_rx.recv()?;
                                   let x2_0_0_0 = var_0.clone();
                                   x2_0_0_0_tx.send(x2_0_0_0)?;
                                   x1_0_0_0_0_tx.send(var_0)?
