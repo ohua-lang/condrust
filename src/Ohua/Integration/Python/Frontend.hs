@@ -15,7 +15,7 @@ import Ohua.Integration.Python.Util
 import Ohua.Integration.Python.TypeExtraction
 
 import qualified Language.Python.Common.AST as Py
-import Language.Python.Common (SrcSpan (SpanEmpty), startCol)
+import Language.Python.Common (SrcSpan (SpanEmpty))
 
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
@@ -212,22 +212,66 @@ instance ConvertPat (Py.Expr SrcSpan) where
 
 instance ConvertExpr (Py.Expr SrcSpan) where
     convertExpr Py.Var{var_ident= ident} = return $ VarE $ toBinding ident
-    convertExpr (Py.UnaryOp operation arg annot) = do
-        op' <- convertExpr operation
-        arg' <- convertExpr arg
-        return $ op' `AppE` [arg']
+    convertExpr (Py.Int val strRepr annot) = return $ LitE $ NumericLit val
+    convertExpr lL@(Py.LongInt val strRepr annot) = unsupError "LongInts" lL
+    convertExpr fL@(Py.Float valDbl strRepr annot) = unsupError "Floats" fL
+    convertExpr imL@(Py.Imaginary valDbl strRepr annot) = unsupError "Imaginaries" imL
+    convertExpr bL@(Py.Bool bool annot) = unsupError "Boolean Literals" bL    
+    convertExpr (Py.None annot) = return $ LitE UnitLit 
+    convertExpr ellL@(Py.Ellipsis annot) = unsupError "Ellipsis Literals" ellL
+    convertExpr bsL@(Py.ByteStrings bStrings annot) = unsupError "ByteString Literals" bsL
+    convertExpr strsL@(Py.Strings strings annot) = unsupError "Strings Literals" strsL
+    convertExpr ustrL@(Py.UnicodeStrings strings annot) = unsupError "UnicodeStrings Literals" ustrL
+    convertExpr (Py.Call fun args annot)= do
+        fun' <- convertExpr fun
+        args' <- mapM convertExpr args
+        return $ fun' `AppE` args'
+    convertExpr subSc@(Py.Subscript subscripted subscript annot) = unsupError "Subscript Expressions" subSc
+    convertExpr slice@(Py.SlicedExpr sliced slices annot) = unsupError "Slicing Expressions" slice
+    convertExpr condExpr@(Py.CondExpr ifBranch ifExpr elseBranch annot) = unsupError "Conditional Expressions" condExpr
     convertExpr (Py.BinaryOp operator left right annot) = do
         op' <- convertExpr operator
         left' <- convertExpr left
         right' <- convertExpr right
         return $ op' `AppE` [left', right']
-    convertExpr (Py.Call fun args annot)= do
-        fun' <- convertExpr fun
-        args' <- mapM convertExpr args
-        return $ fun' `AppE` args'
-    convertExpr (Py.Int val strRepr annot) = return $ LitE $ NumericLit val
-    convertExpr (Py.None annot) = return $ LitE UnitLit 
-    convertExpr e = unsupError "the following expressions type" e
+    convertExpr (Py.UnaryOp operation arg annot) = do
+        op' <- convertExpr operation
+        arg' <- convertExpr arg
+        return $ op' `AppE` [arg']
+    convertExpr dot@(Py.Dot object attribute annot) = unsupError "Dot Expressions" dot
+    convertExpr lam@(Py.Lambda params expr annot) = unsupError "Lambda Expressions" lam
+    
+    convertExpr yield@(Py.Yield mayBeArg annot) = unsupError "Yield Expressions" yield
+    convertExpr gen@(Py.Generator comprehension annot) = undefined 
+    convertExpr await@(Py.Await expr annot) = undefined 
+    
+    -- TODO/Note: It would at first glance be possible to translate lists, sets and dictioniries to tuples
+    -- In a way, this enforces 'functional' usage of them i.e. recreating insted of mutating
+    --But: Problems in Frontend/for Transormations
+        -- Slicing with nth would not work for dicts (I could build a workarround maybe for slice expressions in the frontend)
+        -- Appending works differently for sets (no duplicates)
+    -- Problems in Backend: 
+        -- I can not distiguish Tuples from 'Tupled-Containers' and calls
+        --  like l.pop(), l.items(), l.values(), l.intersect() will fail  
+    convertExpr tpl@(Py.Tuple items annot) = do
+        exprs <- mapM convertExpr items
+        return $ TupE exprs
+
+    convertExpr list@(Py.List items annot) = undefined
+    convertExpr listComp@(Py.ListComp comprehension annot) = undefined 
+    -- TODO: Could be converted to a list of tuples
+    -- ...but how could we distiguish real lists of tuples from dicts in the backend :-(
+    convertExpr dict@(Py.Dictionary keysAndValues annot) = undefined 
+    convertExpr dictComp@(Py.DictComp compehension annot) = undefined 
+    -- TODO: Could be a list, but we'd loose distinction in the backend as with dicts :-(
+    convertExpr set@(Py.Set items annot) = undefined 
+    convertExpr setComp@(Py.SetComp comprehension annot) = undefined 
+    -- I think supporting this could get complicated if we want to have any controle over types
+    convertExpr starred@(Py.Starred expr annot) = unsupError "Starred Expressions" starred
+    -- TODO/Question: I need to know all possible occurences of parenthesized expressionss and 
+    -- in how far there can be precedence or other semantic issues arrising from just using the inner expression
+    convertExpr paren@(Py.Paren expr annot) = convertExpr expr
+    convertExpr strConv@(Py.StringConversion expr annot) = py2Error strConv
 
 instance  ConvertExpr (Py.Argument SrcSpan) where
     convertExpr Py.ArgExpr{arg_expr=expr} = convertExpr expr
@@ -235,15 +279,15 @@ instance  ConvertExpr (Py.Argument SrcSpan) where
     convertExpr a@Py.ArgVarArgsKeyword {arg_expr=_arg_expr} = unsupError "**kwargs in class construction" a
     convertExpr a@Py.ArgKeyword{arg_keyword= varN, arg_expr= expr} = unsupError "keyword arguments in class constructors" a
 
-
+-- TODO: Actually I think, no statemtement should be toplevel and handled here ...
+-- Either it's 1) an import 2) a function defnition 3) a class definition and therefore handled in 
 instance ConvertExpr (Py.Statement SrcSpan) where
     convertExpr Py.Import{import_items=items} = throwError "'import' should be handles elsewhere"
     convertExpr Py.FromImport{from_module= mod, from_items=items} = throwError "'from .. import' should be handles elsewhere"
     --TODO: Fail on non-emmpty else-block 
-    convertExpr whileE@(Py.While cond do_block else_block annE) = do
+    convertExpr whileE@(Py.While cond do_block [] annE) = do
         cond' <- convertExpr cond
         block' <- convertExpr do_block
-        else_block' <- convertExpr else_block
         --Question: Can we/should we be sure, that annotation is always a ScrSpan at this point 
         -- and so use location in the file as reference name?
         let loopRef = makeLoopRef "while_loop_body" annE
@@ -257,8 +301,9 @@ instance ConvertExpr (Py.Statement SrcSpan) where
                 (VarP loopLambdaRef)
                 (LamE [] $ StmtE block' recur)
                 recur
+    convertExpr whileE@(Py.While cond do_block elseBlock annE) = unsupError "else blocks in while expressions" whileE
     --TODO: Fail on non-emmpty else-block 
-    convertExpr forE@(Py.For targets generator body elseBlock annot) = do
+    convertExpr forE@(Py.For targets generator body [] annot) = do
         patterns <- mapM convertPat targets
         generator' <- convertExpr generator
         body' <- convertExpr body
@@ -266,6 +311,7 @@ instance ConvertExpr (Py.Statement SrcSpan) where
             MapE
                 (LamE patterns body')
                 generator'
+    convertExpr forE@(Py.For targets generator body elseBlock annot) = unsupError "else blocks in for expressions" forE
     convertExpr asyncFor@(Py.AsyncFor stmt annot) = undefined
     convertExpr funDef@(Py.Fun name params mResultAnnot body annot) = throwError $ "No function definitions expected here" <> show funDef
     convertExpr asyncFun@Py.AsyncFun{} = unsupError "async function definitions" asyncFun
@@ -334,6 +380,13 @@ instance  ConvertExpr (Py.Suite SrcSpan) where
                     -- tuples i.e. no assignments to TupP 
                     -- SO Question 1: Why, what's the prupose of it?
                     -- Question 2: (Rather Todo) How to handle python's unpacking here?
+                    -- Note: I can try the following:
+                    {-Input:  x,y,z = f()
+                     -Output: Let tpl = f() in
+                                let x = tpl[0] in
+                                    let y = tpl[1] in 
+                                        let z = tpl[2] in
+                                            .. do stuff ... -}
                     {-
                     convertStmt assign@(Py.Assign targets expr annot) = do
                         pat' <- mapM convertPat targets

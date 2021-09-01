@@ -19,6 +19,7 @@ import Data.List ((!!))
 import Data.Functor.Foldable (cata, embed)
 
 import Data.Maybe
+import Language.Python.Common.SrcLocation (SrcSpan)
 
 
 convertToSuite::(Architecture arch, Lang arch ~ Language 'Python)
@@ -143,9 +144,22 @@ instance Integration (Language 'Python) where
         in Py.Conditional ifElifs elseBranch noSpan
 
     --- specific functions
-    convertExpr arch (TCLang.HasSize bnd) = error "Todo: I need a HasSize conversion"
-    convertExpr arch (TCLang.Size bnd) = error "Todo: I need a Size conversion"
-    convertExpr arch (TCLang.ListOp listTask) = error "Todo: I need a ListOp conversion"
+    -- TODO: hasSize = True if hasattr(bnd, '__len__') 
+        -- Current solution has some pros and cons... check and change if required
+    convertExpr arch (TCLang.HasSize bnd) = 
+        let args = hasAttrArgs bnd
+        in wrapExpr $
+            Py.CondExpr
+                (Py.Bool True noSpan)
+                (Py.Call (toPyVar. mkIdent $ "hasattr") args noSpan )
+                (Py.Bool False noSpan)
+                noSpan
+
+    convertExpr arch (TCLang.Size bnd) = 
+        convertExpr arch $ Apply $ Stateful (Var bnd) (mkFunRefUnqual "len") []
+
+    convertExpr arch (TCLang.ListOp Create) = error "Todo: I need a ListOp conversion"
+    convertExpr arch (TCLang.ListOp (Append bnd expr)) = error "Todo: I need a ListOp conversion"
     -- Todo: Actually we have nothing matching tuple in python as the backend tuple just has two components
     -- and list are homogenous :-/ 
     convertExpr arch (TCLang.Tuple one two) =
@@ -278,5 +292,7 @@ asUntypedFunctionLiteral qBinding = TCLang.Lit $ FunRefLit $ FunRef qBinding Not
 mkFunRefUnqual :: Binding -> QualifiedBinding
 mkFunRefUnqual = QualifiedBinding (makeThrow [])
 
+hasAttrArgs :: Binding -> [Py.Argument SrcSpan]
+hasAttrArgs bnd = [Py.ArgExpr (toPyVar. fromBinding $ bnd) noSpan, Py.ArgExpr (Py.Strings ["'__len__'"] noSpan) noSpan]
 
 

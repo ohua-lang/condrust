@@ -144,9 +144,9 @@ instance Architecture (Architectures 'MultiProcessing) where
         where
             -- For reasons I'll have to understand later, every algo seems to carry all tasks
             ((bnd, graph):_ ) = map (\(Algo name expr _) -> (name, expr)) $ ns^.algos
-            (Program channelInits reslt nodeFuns) = graph
+            (Program channelInits resStmt nodeFuns) = graph
             taskList = zipWith (\ task i -> "task_" ++ show i) nodeFuns [1..]
-            ifNameIsMain = entryFunction taskList
+            ifNameIsMain = entryFunction taskList resStmt
             newModule = makeModule srcModule channelInits nodeFuns ifNameIsMain
 
 makeModule ::
@@ -171,12 +171,14 @@ makeModule srcModule channelInits nodeFuns ifNameIsMain = Module path combinedMo
                              ++ [ifNameIsMain]
         combinedModule = Py.Module combinedStatements 
 
-entryFunction:: [String] -> Py.Statement SrcSpan
-entryFunction taskNames =  Py.Conditional [(ifMain, mainBlock)] [] noSpan
+-- TODO: refactor to a normal main() function for each 'algo-module'
+-- TODO: make the resStmt a Py.Return
+entryFunction:: [String] -> Py.Statement SrcSpan -> Py.Statement SrcSpan
+entryFunction taskNames resStmt =  Py.Conditional [(ifMain, mainBlock)] [] noSpan
         where
             taskList = Py.List (map (toPyVar . mkIdent) taskNames) noSpan
             initTasksStmt = Py.Assign [(toPyVar .mkIdent) "tasks"] taskList noSpan
-            mainBlock = [initPoolStmt, initTasksStmt, poolMapStmt, poolCloseStmt, poolJoinStmt]
+            mainBlock = [initPoolStmt, initTasksStmt, poolMapStmt, poolCloseStmt, poolJoinStmt, resStmt]
 
 
 outPut ::CompM m => Module -> m (NonEmpty (FilePath, L.ByteString))
