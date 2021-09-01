@@ -109,7 +109,25 @@ convertExpr e@Try {} = throwError $ "Currently, we do not support error handling
 convertExpr e@Yield {} = throwError $ "Currently, we do not support generator/yield expressions. Please use a function.\n" <> show e
 
 convertBlock :: (Monad m, MonadError Error m) => Rust.Block Span -> m Sub.Block
-convertBlock = undefined
+convertBlock b@(Block _ Unsafe _) = throwError $ "Currently, we do not support unsafe blocks.\n" <> show b
+convertBlock (Block stmts Rust.Normal _) = (`Sub.RustBlock` Sub.Normal) <$> mapM convertStmt stmts
+
+convertStmt :: (Monad m, MonadError Error m) => Stmt Span -> m Sub.Stmt
+convertStmt (Local pat _ (Just e) [] _) = do
+  pat' <- convertPat pat
+  e' <- convertExpr e
+  return $ Sub.Local pat' e'
+convertStmt s@(Local pat _ Nothing _ _) =
+  throwError $ "Variables bind values and as such they need to be initialized. \n" <> show s
+convertStmt s@Local {} =
+  throwError $ "Currently, we do not support attributes on local bindings.\n" <> show s
+convertStmt s@ItemStmt {} =
+  throwError $ "Currently, we do not support item statements.\n" <> show s
+convertStmt (NoSemi e _) = Sub.NoSemi <$> convertExpr e
+convertStmt (Semi e _) = Sub.Semi <$> convertExpr e
+convertStmt s@MacStmt {} =
+  throwError $ "Currently, we do not support macro calls.\n" <> show s
+convertStmt StandaloneSemi{} = return $ Sub.StandaloneSemi
 
 convertPath ::
   (Monad m, MonadError Error m) =>

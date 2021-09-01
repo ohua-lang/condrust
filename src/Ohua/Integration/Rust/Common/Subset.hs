@@ -20,6 +20,7 @@ data Stmt e
   = Semi e
   | NoSemi e
   | Local Pat e
+  | StandaloneSemi
   deriving (Eq, Generic, Functor, Foldable, Traversable)
 
 data Block e = RustBlock [Stmt e] Unsafety
