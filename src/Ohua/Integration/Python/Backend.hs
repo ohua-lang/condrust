@@ -123,6 +123,7 @@ instance Integration (Language 'Python) where
             condition = Py.Bool True noSpan
         in Py.While condition suite elseClause noSpan
 
+    -- Todo: Maybe rather make this a comprehension
     convertExpr arch (TCLang.ForEach itemBnd itemsBnd expr) =
         let suite = convertToSuite arch expr
             targets = [toPyVar .fromBinding $ itemBnd]
@@ -130,7 +131,19 @@ instance Integration (Language 'Python) where
             elseSuite = []
         in Py.For targets generator suite elseSuite noSpan
 
-    convertExpr arch (TCLang.Repeat bndOrNum expr) = error "Todo: I need a Repeat conversion"
+    convertExpr arch (TCLang.Repeat bndOrNum expr) = 
+        let target = toPyVar . mkIdent $ "_"
+            endVal = case bndOrNum of
+                Left bnd -> toPyVar . fromBinding $ bnd 
+                Right num -> pyInt (fromIntegral num)
+            generator = Py.Call 
+                    (toPyVar . mkIdent $ "range") 
+                    [Py.ArgExpr (pyInt 0) noSpan, Py.ArgExpr endVal noSpan] 
+                    noSpan
+            suite = convertToSuite arch expr
+            elseSuite = []
+        in Py.For [target] generator suite elseSuite noSpan
+
 
     convertExpr arch (TCLang.While cond expr) =
         let suite = convertToSuite arch expr
@@ -158,8 +171,11 @@ instance Integration (Language 'Python) where
     convertExpr arch (TCLang.Size bnd) = 
         convertExpr arch $ Apply $ Stateful (Var bnd) (mkFunRefUnqual "len") []
 
-    convertExpr arch (TCLang.ListOp Create) = error "Todo: I need a ListOp conversion"
-    convertExpr arch (TCLang.ListOp (Append bnd expr)) = error "Todo: I need a ListOp conversion"
+    convertExpr arch (TCLang.ListOp Create) = 
+        convertExpr arch $ Apply $ Stateless (mkFunRefUnqual "list") []
+
+    convertExpr arch (TCLang.ListOp (Append bnd expr)) = 
+        convertExpr arch $ Apply $ Stateful (Var bnd) (mkFunRefUnqual "append") [expr]
     -- Todo: Actually we have nothing matching tuple in python as the backend tuple just has two components
     -- and list are homogenous :-/ 
     convertExpr arch (TCLang.Tuple one two) =
@@ -169,13 +185,13 @@ instance Integration (Language 'Python) where
     convertExpr arch (TCLang.First bnd) =  wrapExpr $
         Py.Subscript{
             Py.subscriptee = toPyVar $ fromBinding bnd,
-            Py.subscript_expr = Py.Int 0 "0" noSpan,
+            Py.subscript_expr = pyInt 0,
             Py.expr_annot = noSpan
         }
     convertExpr arch (TCLang.Second bnd) = wrapExpr $
         Py.Subscript{
             Py.subscriptee = toPyVar $ fromBinding bnd,
-            Py.subscript_expr = Py.Int 1 "1" noSpan,
+            Py.subscript_expr = pyInt 1,
             Py.expr_annot = noSpan
         }
 
@@ -183,14 +199,14 @@ instance Integration (Language 'Python) where
         Py.AugmentedAssign
             (toPyVar $ fromBinding bnd)
             (Py.PlusAssign noSpan)
-            (Py.Int 1 "1" noSpan)
+            (pyInt 1)
             noSpan
 
     convertExpr arch (TCLang.Decrement bnd) =
         Py.AugmentedAssign
             (toPyVar $ fromBinding bnd)
             (Py.MinusAssign noSpan)
-            (Py.Int 1 "1" noSpan)
+            (pyInt 1) 
             noSpan
 
     convertExpr arch (TCLang.Not expr) =  wrapExpr $
@@ -295,4 +311,5 @@ mkFunRefUnqual = QualifiedBinding (makeThrow [])
 hasAttrArgs :: Binding -> [Py.Argument SrcSpan]
 hasAttrArgs bnd = [Py.ArgExpr (toPyVar. fromBinding $ bnd) noSpan, Py.ArgExpr (Py.Strings ["'__len__'"] noSpan) noSpan]
 
-
+pyInt::Integer -> Py.Expr SrcSpan
+pyInt num = Py.Int num (show num) noSpan
