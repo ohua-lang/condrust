@@ -39,7 +39,7 @@ def mutateType(intList:List[int]):
     intList = tuple(intList)
 |]
 
--- Test cases for Basic.hs
+-- Test cases for Basic.hs ------------------------------
 callAFunction = [pythonModule|
 from testLib import hello_world
 
@@ -108,8 +108,6 @@ def algo():
     z = h()
 |]
 
-
-
 varReturn = [pythonModule|
 from testLib import hello_world
 
@@ -160,12 +158,32 @@ def algo():
     return x
 |]
 
-compTimetypeError = [pythonModule|
-x = 2
-y = "Not addable to ints"
-z  = x+y
+--Test cases for Loops.hs ---------------------------------------------
+loopIterator= [pythonModule|
+
+def algo(a):
+    g = some_invented_iter_function()
+    for i in g:
+        f(i)
 |]
 
---Test cases for 
+loopList= [pythonModule|
+
+def algo(a):
+    for i in [1,2,3]:
+        f(i)
+|]
+
+
+--Test cases for IfElse.hs --------------------------------------------
+ifThenAssign = [pythonModule|
+
+def algo(a):
+    if a:
+        x = g()
+    else:
+        x = f()
+    return x
+|]
 
 

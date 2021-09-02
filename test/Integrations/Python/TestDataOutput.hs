@@ -126,9 +126,21 @@ def algo():
     return x
 |]
 
-compTimetypeError = [pythonModule|
-x = 2
-y = "Not addable to ints"
-z  = x+y
+
+--Test cases for Loops.hs ---------------------------------------------
+loopIterator= [pythonModule|
+
+def algo(a):
+    g = some_invented_iter_function()
+    for i in g:
+        f(i)
 |]
+
+loopList= [pythonModule|
+
+def algo(a):
+    for i in [1,2,3]:
+        f(i)
+|]
+
 
