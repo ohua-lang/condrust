@@ -141,9 +141,56 @@ spec =
             use std::*;
 
             fn calculate(options: Vec<OptionData>) -> Vec<f32> {
+                // TODO: this loop is not correct -> the items must be collected in a vec separately
+                let results = Vec::new();
+
                 for op in options {
-                    op.calculate_black_scholes()
+                    let i = op.calculate_black_scholes();
+                    results.push(i);
                 }
+
+                results
+            }
+            |]) >>=
+        (\compiled -> do
+            expected <- showCode "Expected:"
+                [sourceFile|
+                    use funs::*;
+
+                    fn test(i: i32) -> i32 {
+                        TODO
+                    }
+                |]
+            compiled `shouldBe` expected)
+    it "kmeans" $
+        (showCode "Compiled: " =<< compileCode [sourceFile|
+            use benchs::*;
+            use std::*;
+
+            fn run(values: Vec<Value>, centroids: Arc<Vec<Centroid>>, threshold: f32, iterations: u32) -> usize {
+                let new_values = Vec::default();
+
+                for v in values {
+                    let i = v.reassign_value(centroids.clone()); // -> (Value, f32 or u32)
+                    new_values.push(i);
+                }
+
+                // now calculate the new centroids and the delta
+                let (vals, delta) = evaluate_results(new_values);
+
+                let cont = should_continue(delta, threshold.clone(), iterations.clone());
+                let (new_vals, new_centroids) = create_centroids(new_values, centroids);
+                let inc_iter = inc(iterations);
+
+                if cont {
+                    calculate(new_vals, new_centroids, threshold, inc_iter)
+                } else {
+                    iterations
+                }
+            }
+
+            fn calculate(values: Vec<Value>, centroids: Arc<Vec<Centroid>>, threshold: f32, iterations: u32) -> usize {
+                run(values, centroids, threshold, iterations)
             }
             |]) >>=
         (\compiled -> do

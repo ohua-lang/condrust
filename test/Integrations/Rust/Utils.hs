@@ -193,11 +193,28 @@ benchs =
   \ \
   \ \
   \ \
-  \ // Blackscholes \
   \ struct OptionData{} \
   \ impl OptionData { \
   \   pub fn calculate_black_scholes(&self) -> f32 { unimplemented!() } \
   \ } \
+  \ \
+  \ \
+  \ \
+  \ struct Value {} \
+  \ \
+  \ impl Value { \
+  \     pub fn reassign_value(self, centroids: Arc<Vec<Centroid>>) -> (Value, u32) \
+  \     { unimplemented!() } \
+  \ } \
+  \ \
+  \ pub fn create_centroids(values: Vec<Value>, centroids: Arc<Vec<Centroid>>) -> (Vec<Value>, Arc<Vec<Centroid>>) \
+  \ { unimplemented!() } \
+  \ pub fn evaluate_results(new_results: Vec<(Value, u32)>) -> (Vec<Value>, f32) \
+  \ { unimplemented!() } \
+  \ pub fn should_continue(delta: f32, threshold: f32, iterations: u32) -> bool \
+  \ { unimplemented!() } \
+  \ pub fn inc(it: u32) -> u32 \
+  \ { unimplemented!() } \
   \ "
 
 std :: Text
