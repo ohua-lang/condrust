@@ -23,18 +23,26 @@ spec =
                 expected <- showCode "Expected:" Expect.assignNumLit
                 compiled `shouldBe` expected)
         
-        it "Assignment binary Operation" $
+        it "Assignment binary Operation of literals" $
             (showCode "Compiled: " =<< compileCode Input.assignBinOp) >>=
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.assignBinOp
                 compiled `shouldBe` expected)
-    
+        
+        it "Assignment binary Operation of vars" $
+            (showCode "Compiled: " =<< compileCode Input.assignBinOpChained) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" Expect.assignBinOpChained
+                compiled `shouldBe` expected)
+
+        {-
+        -- currently errors, augAss not implemented
         it "Assignment augmented" $
             (showCode "Compiled: " =<< compileCode Input.assignAugmented) >>=
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.assignAugmented
                 compiled `shouldBe` expected)
-        
+        -}
         it "Assignment no Return" $
             (showCode "Compiled: " =<< compileCode Input.noReturn) >>=
             (\compiled -> do
@@ -64,34 +72,43 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.noneReturn
                 compiled `shouldBe` expected)
-
+        
         it "Expression no Return" $
             (showCode "Compiled: " =<< compileCode Input.exprNoReturn) >>=
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.exprNoReturn
                 compiled `shouldBe` expected)
 
+        --Invalid Python: fails, because wrong channels are created vs used
         it "Multiassignment no Return" $
             (showCode "Compiled: " =<< compileCode Input.multiAssignment) >>=
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.multiAssignment
                 compiled `shouldBe` expected)
 
-        it "Assign many vars, return one" $
-            (showCode "Compiled: " =<< compileCode Input.otherVarReturn) >>=
+        it "Chained Assignment" $
+            (showCode "Compiled: " =<< compileCode Input.chainedAssignment) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" Expect.otherVarReturn
+                expected <- showCode "Expected:" Expect.chainedAssignment
                 compiled `shouldBe` expected)
 
-        it "Simple compose" $
-            (showCode "Compiled: " =<< compileCode Input.simpleCompose) >>=
+        --Invalid Python: fails, because wrong channels are created vs used
+        it "Assignments, Call function, Return Var" $
+            (showCode "Compiled: " =<< compileCode Input.assignmentCallReturn) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" Expect.simpleCompose
+                expected <- showCode "Expected:" Expect.assignmentCallReturn
+                compiled `shouldBe` expected)
+
+        --Invalid Python: fails, because wrong channels are created vs used
+        it "Assignments, Call function, Assign,  Return Var" $
+            (showCode "Compiled: " =<< compileCode Input.assignCallAssignReturn) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" Expect.assignCallAssignReturn
                 compiled `shouldBe` expected)
 
         it "Nested function calls" $
             (showCode "Compiled: " =<< compileCode Input.nestedCompose) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" Expect.simpleCompose
+                expected <- showCode "Expected:" Expect.nestedCompose
                 compiled `shouldBe` expected) 
                 

@@ -17,6 +17,14 @@ from typing import List
 def hello_world():
     return "Hello World"
 
+def f(arg = None):
+    if arg:
+        return arg
+    return 7
+
+def g(arg = None):
+    return 4
+
 def funInt():
     return 42
 
@@ -41,33 +49,45 @@ def mutateType(intList:List[int]):
 
 -- Test cases for Basic.hs ------------------------------
 callAFunction = [pythonModule|
-from testLib import hello_world
+from testLib import *
 
 def algo():
     hello_world()
 |]
 
 assignNumLit = [pythonModule|
-from testLib import hello_world
+from testLib import *
 
 def algo():
     x = 5
+    # return x
 |]
 
 assignBinOp = [pythonModule|
-from testLib import hello_world
+from testLib import *
 
 def algo():
-    y = y + 2
     x = 42 + 23
+    return x
+|]
+
+assignBinOpChained = [pythonModule|
+from testLib import *
+
+def algo():
+    x = f()
+    z = g()
+    y = x + z
+    return y
 |]
 
 assignAugmented = [pythonModule|
-from testLib import hello_world
+from testLib import *
 
 def algo():
     x += 42
 |]
+
 
 noReturn = [pythonModule|
 from testLib import *
@@ -100,7 +120,7 @@ def algo():
 |]
 
 multiAssignment = [pythonModule|
-from testLib import hello_world
+from testLib import *
 
 def algo():
     x = f()
@@ -109,7 +129,7 @@ def algo():
 |]
 
 varReturn = [pythonModule|
-from testLib import hello_world
+from testLib import *
 
 def algo():
     x = oneArg(7)
@@ -117,41 +137,47 @@ def algo():
 |]
 
 onlyReturnFunCall  = [pythonModule|
-from testLib import hello_world
+from testLib import *
     
 def algo():
     return f()
 |]
 
 
-otherVarReturn = [pythonModule|
-from testLib import hello_world
+chainedAssignment = [pythonModule|
+from testLib import *
 
 def algo():
     a = f(42)
-    x = f()
-    z = g()
+    x = f(a)
+    z = g(x)
+    return z
+|]
+
+assignmentCallReturn = [pythonModule|
+from testLib import *
+
+def algo():
+    a = f(42)
+    x = f(a)
+    g(x)
     return x
 |]
 
-returnFunCall = [pythonModule|
-from testLib import hello_world
+assignCallAssignReturn = [pythonModule|
+from testLib import *
 
 def algo():
-    x = g()
-    return oneArg(42)
+    a = f(42)
+    x = f(a)
+    g(x)
+    z = f(x)
+    return z
 |]
 
-simpleCompose = [pythonModule|
-import testLib
-
-def algo():
-    x= funInt()
-    return oneArg(x)
-|]
 
 nestedCompose = [pythonModule|
-import testLib
+from testLib import *
 
 def algo():
     x = moreArgs(funInt(), oneArg(funInt()), 42)
@@ -160,30 +186,68 @@ def algo():
 
 --Test cases for Loops.hs ---------------------------------------------
 loopIterator= [pythonModule|
-
+from testLib import *
 def algo(a):
     g = some_invented_iter_function()
     for i in g:
         f(i)
 |]
 
-loopList= [pythonModule|
+whileLoop = [pythonModule|
+from testLib import *
 
 def algo(a):
-    for i in [1,2,3]:
-        f(i)
+    i = something()
+    while testfun(i):
+        i = manipulate(i)
+    return i
 |]
 
 
 --Test cases for IfElse.hs --------------------------------------------
 ifThenAssign = [pythonModule|
+from testLib import *
 
-def algo(a):
-    if a:
-        x = g()
+def algo(a): 
+    b = a
+    if b:
+        x = f(13)
     else:
-        x = f()
+        x = g(14)
     return x
 |]
 
+branchReturn = [pythonModule|
+from testLib import *
+
+def algo(i):
+    if a:
+        d = g0(b)
+    else:
+        return
+    return h(d) 
+|] 
+
+ifThenMultiVar = [pythonModule|
+from testLib import *
+
+def algo(i):
+    a = f(i)
+    b = f1(i)
+    c = f2(i)
+    if a:
+        d = g0(b)
+    else:
+        d = g1(c)
+    return h(d) 
+|]
+
+condExpr = [pythonModule|
+from testLib import *
+
+def algo(i):
+    c = f2(i)
+    b = id(i)
+    x = f(b) if c else g(42)
+|]
 
