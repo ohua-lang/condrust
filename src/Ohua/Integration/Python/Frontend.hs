@@ -59,7 +59,7 @@ instance Integration (Language 'Python) where
                                         Just . (\e -> Algo (toBinding$ Py.fun_name fun) e fun) <$> extractAlgo fun
                                     --TODO:functions inside classes
                                     --classFun@Py.Class{}
-                                    -- Classes just contain Suites inside which memeber functions are just Py.Fun{} i.e.
+                                    -- Classes just contain Suites inside which member functions are just Py.Fun{} i.e.
                                     -- 'self' must be extracted from the arguments by ident_string
                                     _ -> return Nothing)
                                 statements
@@ -127,8 +127,6 @@ instance Integration (Language 'Python) where
             verifyAndRegister fun_types ( _ , qB@(QualifiedBinding _ qBName)) = undefined
 
             assignTypes :: CompM m => FunTypes -> FrLang.Expr (PythonArgType SrcSpan) -> m (FrLang.Expr (PythonArgType SrcSpan))
-            -- Todo: I don't get types right here :-/. How to get ArgType(PythonArgType SrcSpan)
-            --  instead of  Expr (PythonArgType SrcSpan)
             assignTypes funTypes function = case function of
                 (AppE (LitE (FunRefLit (FunRef qBinding funID _))) args) ->
                     case args of
@@ -228,7 +226,11 @@ instance ConvertExpr (Py.Expr SrcSpan) where
         return $ fun' `AppE` args'
     convertExpr subSc@(Py.Subscript subscripted subscript annot) = unsupError "Subscript Expressions" subSc
     convertExpr slice@(Py.SlicedExpr sliced slices annot) = unsupError "Slicing Expressions" slice
-    convertExpr condExpr@(Py.CondExpr ifBranch ifExpr elseBranch annot) = unsupError "Conditional Expressions" condExpr
+    convertExpr condExpr@(Py.CondExpr branch ifExpr elseBranch annot) = do
+        condE <- convertExpr ifExpr
+        trueBranch <- convertExpr branch 
+        falseBranch <- convertExpr elseBranch
+        return $ IfE condE trueBranch falseBranch
     convertExpr (Py.BinaryOp operator left right annot) = do
         op' <- convertExpr operator
         left' <- convertExpr left
@@ -288,8 +290,6 @@ instance ConvertExpr (Py.Statement SrcSpan) where
     convertExpr whileE@(Py.While cond do_block [] annE) = do
         cond' <- convertExpr cond
         block' <- convertExpr do_block
-        --Question: Can we/should we be sure, that annotation is always a ScrSpan at this point 
-        -- and so use location in the file as reference name?
         let loopRef = makeLoopRef "while_loop_body" annE
         let loopLambdaRef = "while_loop_body"
         let recur = IfE
@@ -315,7 +315,7 @@ instance ConvertExpr (Py.Statement SrcSpan) where
     convertExpr asyncFor@(Py.AsyncFor stmt annot) = undefined
     convertExpr funDef@(Py.Fun name params mResultAnnot body annot) = throwError $ "No function definitions expected here" <> show funDef
     convertExpr asyncFun@Py.AsyncFun{} = unsupError "async function definitions" asyncFun
-    convertExpr classDef@(Py.Class cName cArgs cBody annot) = undefined
+    convertExpr classDef@(Py.Class cName cArgs cBody annot) = unsupError "class defintions inside functions" classDef
     -- TODO: At top level this can be if __name__ == '__main__' and needs to be translated to a
     -- function, otherwise we might not want to allow code that is executed upon importing
     {-Note: there's 2 complications with if's in python 
@@ -324,17 +324,47 @@ instance ConvertExpr (Py.Statement SrcSpan) where
         -> I assume rust function execution continues, when an if-block return a value, this is not the case in python 
     
     -}
-    convertExpr ifElifElse@(Py.Conditional condsAndBodys elseBlock annot) = undefined
-    convertExpr assign@(Py.Assign targets exor annot) = unsupError "global assignments" assign
-    convertExpr augmAs@(Py.AugmentedAssign target operation expr annot) = unsupError "global augmented assignments" augmAs
-    convertExpr annotAs@(Py.AnnotatedAssign targetAnnot target expr stmtAnnot) = unsupError "global annotated assignments" annotAs
+    convertExpr ifElifElse@(Py.Conditional [(cond, branch)] elseBranch annot) = do 
+        condE <- convertExpr cond
+        trueBranch <- convertExpr branch 
+        falseBranch <- convertExpr elseBranch
+        return $ IfE condE trueBranch falseBranch
+
+    convertExpr ifElifElse@(Py.Conditional condsAndBodys elseBranch annot) = do
+        let ((ifE, suite):elifs) = condsAndBodys
+        condE <- convertExpr ifE 
+        trueBranch <-  convertExpr suite 
+        falseBranch <-  convertExpr (Py.Conditional elifs elseBranch annot)
+        return $ IfE condE trueBranch falseBranch
+        {--do 
+        case condsAndBodys of 
+            [(cond, branch)] 
+            
+        (cond, branch) <- head condsAndBodys
+        condE <- convertExpr cond
+        trueBranch <- convertExpr branch 
+        falseBranch <- convertExpr elseBranch
+        return $ IfE condE trueBranch falseBranch--}
+
+    convertExpr assign@(Py.Assign targets exor annot) = throwError $ "assignments should be handled in blocks" <> show assign
+    convertExpr augmAs@(Py.AugmentedAssign target operation expr annot) = unsupError "augmented assignments" augmAs
+    convertExpr annotAs@(Py.AnnotatedAssign targetAnnot target expr stmtAnnot) = unsupError "annotated assignments" annotAs
     convertExpr dec@(Py.Decorated decorators funOrClass annot) = unsupError "decorators" dec
     convertExpr ret@(Py.Return optReturn annot) = throwError $ "Please only return at the end of functions"<> show ret
     convertExpr try@(Py.Try block excepts elseBlock finallyBlock annot)= undefined
     convertExpr raise@(Py.Raise raiseExor annot) = undefined
     convertExpr with@(Py.With contextTuples block annot) = undefined
     convertExpr asyncWith@(Py.AsyncWith stmt annot) = undefined
-    convertExpr (Py.Pass annot) = undefined
+    -- Todo: is it valid to translate 'pass' to 'UnitLit'?
+    {- 'pass' as a function body -> equiv. to 'return None' -> works
+       'pass' TL -> not relevant, we only look inside algos
+       'pass' in a class defintion -> we don't touch those either, so that should be ok
+       'pass' in a branch -> in the backend, the only point where 'UnitLit' is translated to
+         'return None' or just 'return' is the end of a function block and even there we 
+         could just write 'None'
+    - > Seems legit
+    -}
+    convertExpr (Py.Pass annot) = return $ LitE UnitLit 
     convertExpr (Py.Break annot) = undefined
     convertExpr (Py.Continue annot) = undefined
     convertExpr (Py.Delete deleteExprs annot) = undefined
