@@ -146,8 +146,8 @@ instance Architecture (Architectures 'MultiProcessing) where
             ((bnd, graph):_ ) = map (\(Algo name expr _) -> (name, expr)) $ ns^.algos
             (Program channelInits resStmt nodeFuns) = graph
             taskList = zipWith (\ task i -> "task_" ++ show i) nodeFuns [1..]
-            ifNameIsMain = entryFunction taskList resStmt
-            newModule = makeModule srcModule channelInits nodeFuns ifNameIsMain
+            multiMain = entryFunction taskList resStmt
+            newModule = makeModule srcModule channelInits nodeFuns multiMain
 
 makeModule ::
     Module
@@ -155,7 +155,7 @@ makeModule ::
     -> [FullTask (PythonArgType SrcSpan) (Py.Statement SrcSpan)]
     -> Py.Statement SrcSpan
     -> Module
-makeModule srcModule channelInits nodeFuns ifNameIsMain = Module path combinedModule
+makeModule srcModule channelInits nodeFuns multiMain = Module path combinedModule
     where
         (Module path (Py.Module originalStmts)) = srcModule
         taskFunDefs = map taskExpression nodeFuns
@@ -165,20 +165,21 @@ makeModule srcModule channelInits nodeFuns ifNameIsMain = Module path combinedMo
                              -- ToDo: I should separate import statements from the rest 
                              -- insert them before the other 'originalStmts'
                              ++ originalStmts
-                             ++ [callFunStmt] 
                              -- TODO: actually I have to make sure, that there is no other 
                              -- entry point in the module 
-                             ++ [ifNameIsMain]
+                             ++ [multiMain]
         combinedModule = Py.Module combinedStatements 
 
 -- TODO: refactor to a normal main() function for each 'algo-module'
 -- TODO: make the resStmt a Py.Return
 entryFunction:: [String] -> Py.Statement SrcSpan -> Py.Statement SrcSpan
-entryFunction taskNames resStmt =  Py.Conditional [(ifMain, mainBlock)] [] noSpan
+entryFunction taskNames resStmt =  Py.Fun (mkIdent "main") [] resAnno mainBlock noSpan
         where
             taskList = Py.List (map (toPyVar . mkIdent) taskNames) noSpan
             initTasksStmt = Py.Assign [(toPyVar .mkIdent) "tasks"] taskList noSpan
-            mainBlock = [initPoolStmt, initTasksStmt, poolMapStmt, poolCloseStmt, poolJoinStmt, resStmt]
+            assignRes = Py.Assign [toPyVar . mkIdent $ "result"] (unwrapStmt resStmt) noSpan 
+            mainBlock = [initTasksStmt, initProcs, assignTasks, startProcs, assignRes, terminateProcs, joinProcs, returnResult]
+            resAnno = Nothing 
 
 
 outPut ::CompM m => Module -> m (NonEmpty (FilePath, L.ByteString))
