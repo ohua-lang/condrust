@@ -143,8 +143,9 @@ spec =
             fn calculate(options: Vec<OptionData>) -> Vec<f32> {
                 // TODO: this loop is not correct -> the items must be collected in a vec separately
                 let results = Vec::new();
+                let ops = id(options);
 
-                for op in options {
+                for op in ops {
                     let i = op.calculate_black_scholes();
                     results.push(i);
                 }
@@ -163,7 +164,7 @@ spec =
                 |]
             compiled `shouldBe` expected)
     it "kmeans" $
-        (showCode "Compiled: " =<< compileCode [sourceFile|
+        (showCode "Compiled: " =<< compileCodeWithRec [sourceFile|
             use benchs::*;
             use std::*;
 
@@ -182,15 +183,13 @@ spec =
                 let (new_vals, new_centroids) = create_centroids(new_values, centroids);
                 let inc_iter = inc(iterations);
 
-                if cont {
-                    calculate(new_vals, new_centroids, threshold, inc_iter)
-                } else {
-                    iterations
-                }
+                if cont { calculate(new_vals, new_centroids, threshold, inc_iter) }
+                else { iterations }
             }
 
             fn calculate(values: Vec<Value>, centroids: Arc<Vec<Centroid>>, threshold: f32, iterations: u32) -> usize {
-                run(values, centroids, threshold, iterations)
+                let t = id(threshold);
+                run(values, centroids, t, iterations)
             }
             |]) >>=
         (\compiled -> do

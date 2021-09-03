@@ -215,6 +215,8 @@ benchs =
   \ { unimplemented!() } \
   \ pub fn inc(it: u32) -> u32 \
   \ { unimplemented!() } \
+  \ \
+  \ pub fn id<T>(item: T) -> T { unimplemented!() } \
   \ "
 
 std :: Text
