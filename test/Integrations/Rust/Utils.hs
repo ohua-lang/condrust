@@ -194,18 +194,14 @@ benchs =
   \ \
   \ \
   \ struct OptionData{} \
-  \ impl OptionData { \
-  \   pub fn calculate_black_scholes(&self) -> f32 { unimplemented!() } \
-  \ } \
+  \ pub fn calculate_black_scholes(op: OptionData) -> f32 { unimplemented!() } \
   \ \
   \ \
   \ \
   \ struct Value {} \
   \ \
-  \ impl Value { \
-  \     pub fn reassign_value(self, centroids: Arc<Vec<Centroid>>) -> (Value, u32) \
-  \     { unimplemented!() } \
-  \ } \
+  \ pub fn reassign_value(v: Value, centroids: Arc<Vec<Centroid>>) -> (Value, u32) \
+  \ { unimplemented!() } \
   \ \
   \ pub fn create_centroids(values: Vec<Value>, centroids: Arc<Vec<Centroid>>) -> (Vec<Value>, Arc<Vec<Centroid>>) \
   \ { unimplemented!() } \

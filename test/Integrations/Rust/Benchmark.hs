@@ -140,13 +140,13 @@ spec =
             use benchs::*;
             use std::*;
 
-            fn calculate(options: Vec<OptionData>) -> Vec<f32> {
+            pub fn calculate(options: Vec<OptionData>) -> Vec<f32> {
                 // TODO: this loop is not correct -> the items must be collected in a vec separately
                 let results = Vec::new();
                 let ops = id(options);
 
                 for op in ops {
-                    let i = op.calculate_black_scholes();
+                    let i = calculate_black_scholes(op);
                     results.push(i);
                 }
 
@@ -172,7 +172,7 @@ spec =
                 let new_values = Vec::default();
 
                 for v in values {
-                    let i = v.reassign_value(centroids.clone()); // -> (Value, f32 or u32)
+                    let i = reassign_value(v, centroids.clone()); // -> (Value, f32 or u32)
                     new_values.push(i);
                 }
 
@@ -180,16 +180,15 @@ spec =
                 let (vals, delta) = evaluate_results(new_values);
 
                 let cont = should_continue(delta, threshold.clone(), iterations.clone());
-                let (new_vals, new_centroids) = create_centroids(new_values, centroids);
+                let (new_vals, new_centroids) = create_centroids(vals, centroids);
                 let inc_iter = inc(iterations);
 
                 if cont { calculate(new_vals, new_centroids, threshold, inc_iter) }
                 else { iterations }
             }
 
-            fn calculate(values: Vec<Value>, centroids: Arc<Vec<Centroid>>, threshold: f32, iterations: u32) -> usize {
-                let t = id(threshold);
-                run(values, centroids, t, iterations)
+            pub fn calculate(values: Vec<Value>, centroids: Arc<Vec<Centroid>>, threshold: f32, iterations: u32) -> usize {
+                run(values, centroids, threshold, iterations)
             }
             |]) >>=
         (\compiled -> do
