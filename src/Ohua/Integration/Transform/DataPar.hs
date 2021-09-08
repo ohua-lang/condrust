@@ -142,8 +142,7 @@ liftPureFunctions = rewriteSMap
     rewriteSMap :: NormalizedDFExpr ty -> OhuaM (NormalizedDFExpr ty)
     rewriteSMap (DFL.Let app cont) =
       case app of
-        (PureDFFun _ (FunRef fn _ _) _)
-          | fn == DFRef.smapFun ->
+        SMapFun{} ->
             let rewriteIt smap@(SMap _ smapBody _) = do
                   smap'@(SMap app' smapBody' coll') <- rewrite smap
                   case DFL.length smapBody of
@@ -170,8 +169,7 @@ liftPureFunctions = rewriteSMap
         (PureDFFun _ (FunRef fn _ _) (_ :| [DFVar _ result]))
           | fn == DFRef.collect ->
             pure (DFL.Var $ unwrapABnd result, app, cont)
-        (PureDFFun _ (FunRef fn _ _) _)
-          | fn == DFRef.smapFun ->
+        SMapFun{} ->
             unsupported "Nested smap expressions"
         _ -> do
           (contBody, coll, cont') <- collectSMap cont
