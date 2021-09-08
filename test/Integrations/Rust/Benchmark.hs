@@ -183,7 +183,7 @@ spec =
                 let (new_vals, new_centroids) = create_centroids(vals, centroids);
                 let inc_iter = inc(iterations);
 
-                if cont { calculate(new_vals, new_centroids, threshold, inc_iter) }
+                if cont { run(new_vals, new_centroids, threshold, inc_iter) }
                 else { iterations }
             }
 
