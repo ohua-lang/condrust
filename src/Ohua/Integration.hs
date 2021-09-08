@@ -9,7 +9,9 @@ import qualified Ohua.Backend.Types as B
 import qualified Ohua.Core.Compile.Configuration as CConfig
 import Ohua.Integration.Lang
 import Ohua.Integration.Architecture
+import Ohua.Integration.Rust.Backend.Passes (passes)
 import Ohua.Integration.Rust.Architecture.SharedMemory ()
+import Ohua.Integration.Rust.Architecture.SharedMemory.Transform ()
 import Ohua.Integration.Rust.Architecture.M3 ()
 import Ohua.Integration.Rust.Frontend ()
 import Ohua.Integration.Rust.Backend ()
@@ -26,7 +28,8 @@ type FullIntegration lang arch =
   , F.Type (Language lang) ~ B.Type (Language lang)
   , F.AlgoSrc (Language lang) ~ B.AlgoSrc (Language lang)
   , B.Architecture (Architectures arch)
-  , B.Lang (Architectures arch) ~ (Language lang)
+  , B.Lang (Architectures arch) ~ Language lang
+  , B.Transform (Architectures arch)
   )
 
 type Compiler m a = (forall lang arch.
@@ -52,7 +55,9 @@ instance Apply Integration where
 
 definedIntegrations :: [(FileExtension, ArchId, Description, Integration)]
 definedIntegrations =
-    [ (".rs", "sm", "Rust integration", I SRust SSharedMemory Nothing)
+    [ (".rs", "sm", "Rust integration"
+      , I SRust SSharedMemory $ Just passes
+      )
     , (".rs", "m3", "Rust integration", I SRust SM3 Nothing)]
 
 runIntegration :: CompM m
