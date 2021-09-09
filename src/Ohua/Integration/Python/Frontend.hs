@@ -57,10 +57,6 @@ instance Integration (Language 'Python) where
                                 (\case
                                     fun@Py.Fun{} ->
                                         Just . (\e -> Algo (toBinding$ Py.fun_name fun) e fun) <$> extractAlgo fun
-                                    --TODO:functions inside classes
-                                    --classFun@Py.Class{}
-                                    -- Classes just contain Suites inside which member functions are just Py.Fun{} i.e.
-                                    -- 'self' must be extracted from the arguments by ident_string
                                     _ -> return Nothing)
                                 statements
                     return $ Namespace (filePathToNsRef srcFile) imports algos

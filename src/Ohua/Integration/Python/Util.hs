@@ -52,7 +52,8 @@ load srcFile =  do
 -- Todo: Remove whe QQ is available
 --import multiprocessing as mp
 importMPStmt = Import {import_items = [ImportItem {import_item_name = [Ident {ident_string = "multiprocessing", ident_annot = noSpan}], import_as_name = Just (Ident {ident_string = "mp", ident_annot = noSpan}), import_item_annot = noSpan}], stmt_annot = noSpan}
-
+-- tasks = []
+initTasksStmt = Assign {assign_to = [Var {var_ident = Ident {ident_string = "tasks", ident_annot = noSpan}, expr_annot = noSpan}], assign_expr = List {list_exprs = [], expr_annot = noSpan}, stmt_annot = noSpan}
 -- processes = []
 initProcs = Assign {assign_to = [Var {var_ident = Ident {ident_string = "processes", ident_annot = SpanEmpty}, expr_annot = SpanEmpty}], assign_expr = List {list_exprs = [], expr_annot = SpanEmpty}, stmt_annot = SpanEmpty}
 {- for task in tasks:
@@ -69,39 +70,3 @@ joinProcs = StmtExpr {stmt_expr = Call {call_fun = Var {var_ident = Ident {ident
 -- return result
 returnResult= Return {return_expr = Just (Var {var_ident = Ident {ident_string = "result", ident_annot = SpanEmpty}, expr_annot = SpanEmpty}), stmt_annot = SpanEmpty}
 
-
--- pool = mp.Pool(mp.cpu_count())
-initPoolStmt = Assign {assign_to = [Var {var_ident = Ident {ident_string = "pool", ident_annot = noSpan}, expr_annot = noSpan}], assign_expr = Call {call_fun = Dot {dot_expr = Var {var_ident = Ident {ident_string = "mp", ident_annot = noSpan}, expr_annot = noSpan}, dot_attribute = Ident {ident_string = "Pool", ident_annot = noSpan}, expr_annot = noSpan}, call_args = [ArgExpr {arg_expr = Call {call_fun = Dot {dot_expr = Var {var_ident = Ident {ident_string = "mp", ident_annot = noSpan}, expr_annot = noSpan}, dot_attribute = Ident {ident_string = "cpu_count", ident_annot = noSpan}, expr_annot = noSpan}, call_args = [], expr_annot = noSpan}, arg_annot = noSpan}], expr_annot = noSpan}, stmt_annot = noSpan}
--- tasks = []
-initTasksStmt = Assign {assign_to = [Var {var_ident = Ident {ident_string = "tasks", ident_annot = noSpan}, expr_annot = noSpan}], assign_expr = List {list_exprs = [], expr_annot = noSpan}, stmt_annot = noSpan}
---def call(f):
---     f()
-callFunStmt = Fun {fun_name = Ident {ident_string = "call", ident_annot = noSpan}, fun_args = [Param {param_name = Ident {ident_string = "f", ident_annot = noSpan}, param_py_annotation = Nothing, param_default = Nothing, param_annot = noSpan}], fun_result_annotation = Nothing, fun_body = [StmtExpr {stmt_expr = Call {call_fun = Var {var_ident = Ident {ident_string = "f", ident_annot = noSpan}, expr_annot = noSpan}, call_args = [], expr_annot = noSpan}, stmt_annot = noSpan}], stmt_annot = noSpan}
-
--- pool.map(call, tasks)
-poolMapStmt = StmtExpr {stmt_expr = Call {call_fun = Dot {dot_expr = Var {var_ident = Ident {ident_string = "pool", ident_annot = noSpan}, expr_annot = noSpan}, dot_attribute = Ident {ident_string = "map", ident_annot = noSpan}, expr_annot = noSpan}, call_args = [ArgExpr {arg_expr = Var {var_ident = Ident {ident_string = "call", ident_annot = noSpan}, expr_annot = noSpan}, arg_annot = noSpan},ArgExpr {arg_expr = Var {var_ident = Ident {ident_string = "tasks", ident_annot = noSpan}, expr_annot = noSpan}, arg_annot = noSpan}], expr_annot = noSpan}, stmt_annot = noSpan}
-
--- pool.close()
-poolCloseStmt = StmtExpr {stmt_expr = Call {call_fun = Dot {dot_expr = Var {var_ident = Ident {ident_string = "pool", ident_annot = noSpan}, expr_annot = noSpan}, dot_attribute = Ident {ident_string = "close", ident_annot = noSpan}, expr_annot = noSpan}, call_args = [], expr_annot = noSpan}, stmt_annot = noSpan}
-
--- pool.join()
-poolJoinStmt = StmtExpr {stmt_expr = Call {call_fun = Dot {dot_expr = Var {var_ident = Ident {ident_string = "pool", ident_annot = noSpan}, expr_annot = noSpan}, dot_attribute = Ident {ident_string = "join", ident_annot = noSpan}, expr_annot = noSpan}, call_args = [], expr_annot = noSpan}, stmt_annot = noSpan}
-
-ifMain = BinaryOp {operator = Equality {op_annot = noSpan}, left_op_arg = Var {var_ident = Ident {ident_string = "__name__", ident_annot = noSpan}, expr_annot = noSpan}, right_op_arg = Strings {strings_strings = ["'__main__'"], expr_annot = noSpan}, expr_annot = noSpan}
-
-
-{-
-Comment out when Bernie (hopefully soon) merged
-importMPStmt = [pyStmt|import multiprocessing as mp|]
-initPoolStmt = [pyStmt|pool = mp.Pool(mp.cpu_count())|]
-initListStmt = [pyStmt|tasks = []|]
-callFunStmt = [pyStmt|
-def call(f):
-    f()
-|]
-runTasksStmt = [pyStmt|pool.map(call, tasks)|]
-tearDownStmt = [pyStmt|
-    pool.close()
-    pool.join()
-|]
--}

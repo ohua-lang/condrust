@@ -5,8 +5,8 @@ import qualified Language.Python.Common.AST as Py
 
 import Data.Data
 
-newtype PyModule ty = PyModule [AnyStatement ty] 
-data AnyStatement ty = TopLevelStatement ty | AnyLevelStatement ty
+newtype PyModule  = PyModule [AnyStatement] 
+data AnyStatement = TopLevelStatement | AnyLevelStatement
 
 data TopLevelStatement ty 
     = Import [ImportItem ty]

@@ -103,7 +103,7 @@ instance Integration (Language 'Python) where
     convertExpr _ (TCLang.Stmt expr1 expr2) = error "Todo: Stmt conversion should be handled elsewhere. Please file a bug"
     convertExpr arch (TCLang.Assign bnd expr) =
         -- Question: An equivalent to 'prependToBlock' would be pointless as long as I don't wrap function blocks into e.g. 
-        -- a StmtExpr...which itself is pointless beonde the point of type compat 
+        -- a StmtExpr...which itself is pointless beyonde the point of type compat 
         -- But what's the purpose of the TCLang.Lit UnitLit? Is it the 'return None' at the end of the produced block?
         -- In rust integration: 
             {--[Semi (Rust.Assign [] (convertExpr arch $ Var bnd) (convertExpr arch expr) noSpan) noSpan]
@@ -169,7 +169,7 @@ instance Integration (Language 'Python) where
                 noSpan
 
     convertExpr arch (TCLang.Size bnd) = 
-        convertExpr arch $ Apply $ Stateful (Var bnd) (mkFunRefUnqual "len") []
+        convertExpr arch $ Apply $ Stateless (mkFunRefUnqual "len") [Var bnd]
 
     convertExpr arch (TCLang.ListOp Create) = 
         convertExpr arch $ Apply $ Stateless (mkFunRefUnqual "list") []

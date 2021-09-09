@@ -26,34 +26,10 @@ instance Architecture (Architectures 'MultiProcessing) where
     type Chan (Architectures 'MultiProcessing) = Py.Statement SrcSpan
     type ATask (Architectures 'MultiProcessing) = Py.Statement SrcSpan
 
--- Question: In the backend definition a task is a block/suite, while in the architecture it's just an Expression. 
--- I assume this is because Backend constructs a BlockExpr to wrap a task
 
-{-- Note: How to produce a 'task' in Python
-        Observations: 1. a task will contain Statements, no exception
-                      2. I can not wrap Statements in Expressions, contrary to Rust where there is a BlockExpr to wrap 
-                         lists of Statements
-                      3. Lambdas in Python realy only take one Expression, some nifty thing are possible though:
-                         >>> stack = []
-                         >>> g = lambda *_: (stack.append(y_0_out.recv()),
-                                             stack.append(x_0_out.recv()),
-                                             stack.append(fun3(stack.pop(), stack.pop())),
-                                             z_0_in.send(stack.pop()))[0]
-                        Everything inside the tuple will be evaluated, return value will be None as this 
-                        is what statements return 
-                        Further Staments are possible as defaults for variables: lambda x= x_0_out.recv():...
-                        However I think neither of those is an option.
-
-        Conclusion: I need SuitsSrcSpan ie. [Staments] only possible
-                    1.  in named functions, so I need names
-                    - > I could have a State to enumerate fun0 - funN but using a hash of the 
-                        task to be translated would probably be easier 
-                    2. tbc
-
---}
 --  convertChannel :: arch -> Channel (Type (Lang arch)) -> Chan arch
 -- convert a backend channel i.e. an arc in the DFG to an expression of the target architecture
--- instantiating an accoridng process communication channel
+-- instantiating the according process communication channel
     convertChannel SMultiProc (SChan bnd)=
         let stmt = Apply $
                     Stateless
@@ -96,7 +72,6 @@ instance Architecture (Architectures 'MultiProcessing) where
             --Questions: Pattern matching to the max is probably not the most elegant solution but
             -- I got stuck with type inference using the applicative way :-()
             createTasksAndChannels (Program chans retChan tasks) =
-                --Program chans retChan (map (createTask <$> [1..] <*>) tasks)
                 Program chans retChan (zipWith (curry taskFromSuite) [1..] tasks)
 
             taskFromSuite:: (Int, FullTask ty (Py.Suite SrcSpan))
@@ -170,8 +145,6 @@ makeModule srcModule channelInits nodeFuns multiMain = Module path combinedModul
                              ++ [multiMain]
         combinedModule = Py.Module combinedStatements 
 
--- TODO: refactor to a normal main() function for each 'algo-module'
--- TODO: make the resStmt a Py.Return
 entryFunction:: [String] -> Py.Statement SrcSpan -> Py.Statement SrcSpan
 entryFunction taskNames resStmt =  Py.Fun (mkIdent "main") [] resAnno mainBlock noSpan
         where
