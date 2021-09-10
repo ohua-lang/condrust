@@ -42,14 +42,21 @@ def algo():
     x = 5
 |]
 
+assignNumLitReturn = [pythonModule|
+from testLib import *
+
+def algo():
+    x = 5
+    return x
+|]
+
 assignBinOp = [pythonModule|
 import multiprocessing as mp
-x_0_0_sender, x_0_0_receiver = mp.Pipe()
+x_0_0_0_sender, x_0_0_0_receiver = mp.Pipe()
 def task_1():
-    var_0 = 42
-    var_1 = 23
-    x_0_0 = var_0 + var_1
-    x_0_0_sender.send(x_0_0)
+    x_0_0_0 = 42 + 23
+    x_0_0_0_sender.send(x_0_0_0)
+    None
 from testLib import *
 def algo():
     x = 42 + 23
@@ -61,7 +68,7 @@ def main():
         process = mp.Process(target=task)
         processes.append(process)
     list(map(mp.Process.start, processes))
-    result = x_0_0_receiver.recv()
+    result = x_0_0_0_receiver.recv()
     list(map(mp.Process.terminate, processes))
     list(map(mp.Process.join, processes))
     return result
@@ -70,21 +77,24 @@ def main():
 
 assignBinOpChained = [pythonModule|
 import multiprocessing as mp
-y_0_0_sender, y_0_0_receiver = mp.Pipe()
-z_0_0_sender, z_0_0_receiver = mp.Pipe()
-x_0_0_sender, x_0_0_receiver = mp.Pipe()
+y_0_0_0_sender, y_0_0_0_receiver = mp.Pipe()
+z_0_0_0_sender, z_0_0_0_receiver = mp.Pipe()
+x_0_0_0_sender, x_0_0_0_receiver = mp.Pipe()
 def task_1():
-    while True:
-        var_0 = x_0_0_receiver.recv()
-        var_1 = z_0_0_receiver.recv()
-        y_0_0 = var_0 + var_1
-        y_0_0_sender.send(y_0_0)
+    x_0_0_0 = f()
+    x_0_0_0_sender.send(x_0_0_0)
+    None
 def task_2():
-    x_0_0 = f()
-    x_0_0_sender.send(x_0_0)
+    while True:
+        var_0 = x_0_0_0_receiver.recv()
+        var_1 = z_0_0_0_receiver.recv()
+        y_0_0_0 = var_0 + var_1
+        y_0_0_0_sender.send(y_0_0_0)
+        None
 def task_3():
-    z_0_0 = g()
-    z_0_0_sender.send(z_0_0)
+    z_0_0_0 = g()
+    z_0_0_0_sender.send(z_0_0_0)
+    None
 from testLib import *
 def algo():
     x = f()
@@ -98,7 +108,7 @@ def main():
         process = mp.Process(target=task)
         processes.append(process)
     list(map(mp.Process.start, processes))
-    result = y_0_0_receiver.recv()
+    result = y_0_0_0_receiver.recv()
     list(map(mp.Process.terminate, processes))
     list(map(mp.Process.join, processes))
     return result
@@ -112,10 +122,30 @@ def algo():
 |]
 
 noReturn = [pythonModule|
+import multiprocessing as mp
+a_0_sender, a_0_receiver = mp.Pipe()
+x_0_0_sender, x_0_0_receiver = mp.Pipe()
+def task_1():
+    x_0_0_receiver.recv()
+    x = None
+    a_0_sender.send(x)
+def task_2():
+    x_0_0 = funInt()
+    x_0_0_sender.send(x_0_0)
 from testLib import *
-
 def algo():
-    x = f()
+    x = funInt()
+def main():
+    tasks = [task_1, task_2]
+    processes = []
+    for task in tasks:
+        process = mp.Process(target=task)
+        processes.append(process)
+    list(map(mp.Process.start, processes))
+    result = a_0_receiver.recv()
+    list(map(mp.Process.terminate, processes))
+    list(map(mp.Process.join, processes))
+    return result
 |]
 
 multiAssignment = [pythonModule|
@@ -128,11 +158,31 @@ def algo():
 |]
 
 emptyReturn = [pythonModule|
+import multiprocessing as mp
+a_0_sender, a_0_receiver = mp.Pipe()
+x_0_0_sender, x_0_0_receiver = mp.Pipe()
+def task_1():
+    x_0_0_receiver.recv()
+    x = None
+    a_0_sender.send(x)
+def task_2():
+    x_0_0 = funInt()
+    x_0_0_sender.send(x_0_0)
 from testLib import *
-
 def algo():
-    x = f()
+    x = funInt()
     return
+def main():
+    tasks = [task_1, task_2]
+    processes = []
+    for task in tasks:
+        process = mp.Process(target=task)
+        processes.append(process)
+    list(map(mp.Process.start, processes))
+    result = a_0_receiver.recv()
+    list(map(mp.Process.terminate, processes))
+    list(map(mp.Process.join, processes))
+    return result
 |]
 
 noneReturn = [pythonModule|
@@ -192,11 +242,11 @@ def main():
 
 varReturn = [pythonModule|
 import multiprocessing as mp
-x_0_0_sender, x_0_0_receiver = mp.Pipe()
+x_0_0_0_sender, x_0_0_0_receiver = mp.Pipe()
 def task_1():
-    var_0 = 7
-    x_0_0 = oneArg(var_0)
-    x_0_0_sender.send(x_0_0)
+    x_0_0_0 = oneArg(7)
+    x_0_0_0_sender.send(x_0_0_0)
+    None
 from testLib import *
 def algo():
     x = oneArg(7)
@@ -208,7 +258,7 @@ def main():
         process = mp.Process(target=task)
         processes.append(process)
     list(map(mp.Process.start, processes))
-    result = x_0_0_receiver.recv()
+    result = x_0_0_0_receiver.recv()
     list(map(mp.Process.terminate, processes))
     list(map(mp.Process.join, processes))
     return result
@@ -226,10 +276,11 @@ def algo():
 
 onlyReturnFunCall  = [pythonModule|
 import multiprocessing as mp
-a_0_sender, a_0_receiver = mp.Pipe()
+a_0_0_sender, a_0_0_receiver = mp.Pipe()
 def task_1():
-    a_0 = f()
-    a_0_sender.send(a_0)
+    a_0_0 = f()
+    a_0_0_sender.send(a_0_0)
+    None
 from testLib import *
 def algo():
     return f()
@@ -240,7 +291,7 @@ def main():
         process = mp.Process(target=task)
         processes.append(process)
     list(map(mp.Process.start, processes))
-    result = a_0_receiver.recv()
+    result = a_0_0_receiver.recv()
     list(map(mp.Process.terminate, processes))
     list(map(mp.Process.join, processes))
     return result
@@ -249,23 +300,25 @@ def main():
 
 chainedAssignment = [pythonModule|
 import multiprocessing as mp
-z_0_0_sender, z_0_0_receiver = mp.Pipe()
-a_0_0_sender, a_0_0_receiver = mp.Pipe()
-x_0_0_sender, x_0_0_receiver = mp.Pipe()
+z_0_0_0_sender, z_0_0_0_receiver = mp.Pipe()
+a_0_0_0_sender, a_0_0_0_receiver = mp.Pipe()
+x_0_0_0_sender, x_0_0_0_receiver = mp.Pipe()
 def task_1():
     while True:
-        var_0 = a_0_0_receiver.recv()
-        x_0_0 = f(var_0)
-        x_0_0_sender.send(x_0_0)
+        var_0 = x_0_0_0_receiver.recv()
+        z_0_0_0 = g(var_0)
+        z_0_0_0_sender.send(z_0_0_0)
+        None
 def task_2():
-    var_0 = 42
-    a_0_0 = f(var_0)
-    a_0_0_sender.send(a_0_0)
-def task_3():
     while True:
-        var_0 = x_0_0_receiver.recv()
-        z_0_0 = g(var_0)
-        z_0_0_sender.send(z_0_0)
+        var_0 = a_0_0_0_receiver.recv()
+        x_0_0_0 = f(var_0)
+        x_0_0_0_sender.send(x_0_0_0)
+        None
+def task_3():
+    a_0_0_0 = f(42)
+    a_0_0_0_sender.send(a_0_0_0)
+    None
 from testLib import *
 def algo():
     a = f(42)
@@ -279,58 +332,114 @@ def main():
         process = mp.Process(target=task)
         processes.append(process)
     list(map(mp.Process.start, processes))
-    result = z_0_0_receiver.recv()
+    result = z_0_0_0_receiver.recv()
     list(map(mp.Process.terminate, processes))
     list(map(mp.Process.join, processes))
     return result
 |]
 
 assignmentCallReturn = [pythonModule|
+import multiprocessing as mp
+x_0_0_0_sender, x_0_0_0_receiver = mp.Pipe()
+a_0_0_0_sender, a_0_0_0_receiver = mp.Pipe()
+def task_1():
+    while True:
+        var_0 = a_0_0_0_receiver.recv()
+        x_0_0_0 = f(var_0)
+        x_0_0_0_sender.send(x_0_0_0)
+        None
+def task_2():
+    a_0_0_0 = f(42)
+    a_0_0_0_sender.send(a_0_0_0)
+    None
 from testLib import *
-
 def algo():
     a = f(42)
     x = f(a)
     g(x)
     return x
+def main():
+    tasks = [task_1, task_2]
+    processes = []
+    for task in tasks:
+        process = mp.Process(target=task)
+        processes.append(process)
+    list(map(mp.Process.start, processes))
+    result = x_0_0_0_receiver.recv()
+    list(map(mp.Process.terminate, processes))
+    list(map(mp.Process.join, processes))
+    return result
 |]
 
 assignCallAssignReturn = [pythonModule|
+import multiprocessing as mp
+z_0_0_0_sender, z_0_0_0_receiver = mp.Pipe()
+a_0_0_0_sender, a_0_0_0_receiver = mp.Pipe()
+x_0_0_0_sender, x_0_0_0_receiver = mp.Pipe()
+def task_1():
+    while True:
+        var_0 = x_0_0_0_receiver.recv()
+        z_0_0_0 = f(var_0)
+        z_0_0_0_sender.send(z_0_0_0)
+        None
+def task_2():
+    while True:
+        var_0 = a_0_0_0_receiver.recv()
+        x_0_0_0 = f(var_0)
+        x_0_0_0_sender.send(x_0_0_0)
+        None
+def task_3():
+    a_0_0_0 = f(42)
+    a_0_0_0_sender.send(a_0_0_0)
+    None
 from testLib import *
-
 def algo():
     a = f(42)
     x = f(a)
     g(x)
     z = f(x)
     return z
+def main():
+    tasks = [task_1, task_2, task_3]
+    processes = []
+    for task in tasks:
+        process = mp.Process(target=task)
+        processes.append(process)
+    list(map(mp.Process.start, processes))
+    result = z_0_0_0_receiver.recv()
+    list(map(mp.Process.terminate, processes))
+    list(map(mp.Process.join, processes))
+    return result
 |]
 
 
 nestedCompose = [pythonModule|
 import multiprocessing as mp
-x_0_0_sender, x_0_0_receiver = mp.Pipe()
-b_0_sender, b_0_receiver = mp.Pipe()
-a_0_sender, a_0_receiver = mp.Pipe()
-c_0_sender, c_0_receiver = mp.Pipe()
+x_0_0_0_sender, x_0_0_0_receiver = mp.Pipe()
+b_0_0_sender, b_0_0_receiver = mp.Pipe()
+a_0_0_sender, a_0_0_receiver = mp.Pipe()
+c_0_0_sender, c_0_0_receiver = mp.Pipe()
 def task_1():
-    c_0 = funInt()
-    c_0_sender.send(c_0)
+    while True:
+        var_0 = c_0_0_receiver.recv()
+        var_1 = a_0_0_receiver.recv()
+        x_0_0_0 = moreArgs(var_0, var_1, 42)
+        x_0_0_0_sender.send(x_0_0_0)
+        None
 def task_2():
-    while True:
-        var_0 = c_0_receiver.recv()
-        var_1 = a_0_receiver.recv()
-        var_2 = 42
-        x_0_0 = moreArgs(var_0, var_1, var_2)
-        x_0_0_sender.send(x_0_0)
+    b_0_0 = funInt()
+    b_0_0_sender.send(b_0_0)
+    None
 def task_3():
-    b_0 = funInt()
-    b_0_sender.send(b_0)
-def task_4():
     while True:
-        var_0 = b_0_receiver.recv()
-        a_0 = oneArg(var_0)
-        a_0_sender.send(a_0)
+        var_0 = b_0_0_receiver.recv()
+        a_0_0 = oneArg(var_0)
+        a_0_0_sender.send(a_0_0)
+        None
+def task_4():
+    c_0_0 = funInt()
+    c_0_0_sender.send(c_0_0)
+    None
 from testLib import *
 def algo():
     x = moreArgs(funInt(), oneArg(funInt()), 42)
@@ -342,12 +451,21 @@ def main():
         process = mp.Process(target=task)
         processes.append(process)
     list(map(mp.Process.start, processes))
-    result = x_0_0_receiver.recv()
+    result = x_0_0_0_receiver.recv()
     list(map(mp.Process.terminate, processes))
     list(map(mp.Process.join, processes))
     return result
 |]
 
+
+algoWithParams = [pythonModule|
+from testLib import *
+
+def algo(a, b):
+    x = f(a)
+    y = g1(b)
+    return x+y 
+|]
 
 --Test cases for Loops.hs ---------------------------------------------
 loopIterator= [pythonModule|
@@ -369,16 +487,30 @@ def algo(a):
     return i
 |]
 --Test cases for IfElse.hs --------------------------------------------
-ifThenAssign = [pythonModule|
+iteLiteralArgs = [pythonModule|
 from testLib import *
 
-def algo(a):
-    if a:
-        x = g()
+def algo(a): 
+    b = a
+    if b:
+        x = f(13)
     else:
-        x = f()
+        x = g(14)
     return x
 |]
+
+iteParamArgs = [pythonModule|
+from testLib import *
+
+def algo(a , b): 
+    c = a
+    if b:
+        x = f(a)
+    else:
+        x = g(b)
+    return x
+|]
+
 
 branchReturn = [pythonModule|
 from testLib import *
@@ -388,10 +520,24 @@ def algo(i):
         d = g0(b)
     else:
         return
-    return h(d) 
+    return oneArg(d) 
 |] 
 
-ifThenMultiVar = [pythonModule|
+iteNoParams = [pythonModule|
+from testLib import *
+
+def algo():
+    a = f()
+    b = f1(a)
+    c = f2(a)
+    if a:
+        d = g0(b)
+    else:
+        d = g1(c)
+    return oneArg(d) 
+|]
+
+iteRustExample = [pythonModule|
 from testLib import *
 
 def algo(i):
@@ -402,7 +548,7 @@ def algo(i):
         d = g0(b)
     else:
         d = g1(c)
-    return h(d) 
+    return oneArg(d) 
 |]
 
 condExpr = [pythonModule|
@@ -415,3 +561,31 @@ def algo(i):
 |]
 
 
+condExpr2 = [pythonModule|
+from testLib import *
+
+def algo(i):
+    a = f()
+    b = f1(a)
+    c = f2(a)
+    d = g0(b) if a else g1(c)
+    return oneArg(d) 
+|]
+
+--Test cases for TailRec.hs --------------------------------------------
+tailRec= [pythonModule|
+from testLib import *
+
+# TODO
+|]
+
+tailRecMultiArg= [pythonModule|
+from testLib import *
+# TODO
+|]
+
+tailRecContext= [pythonModule|
+from testLib import *
+
+# TODO
+|]
