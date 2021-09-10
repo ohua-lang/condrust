@@ -1,5 +1,5 @@
 module Integrations.Python.Utils (
-    renderPython, showCode, compileCode,
+    renderPython, showCode, compileCode, compileCodeWithRec,
     module Test.Hspec,
 ) where
 
@@ -17,7 +17,7 @@ import qualified Data.HashMap.Lazy as HM
 
 import Language.Python.Common.AST
 import Language.Python.Version3 as V3
-import Language.Python.Common (Module, SrcSpan, prettyText, Token)
+import Language.Python.Common (prettyText, Token)
 import Language.Python.Common.ParserMonad (ParseError)
 import qualified Language.Python.Common.Pretty as PyPretty
 
@@ -32,6 +32,7 @@ import Data.Text.Prettyprint.Doc as PP
 import Data.Text.Prettyprint.Doc.Render.Text as PP
 import Data.Text as T (concat, Text, span, pack, unpack)
 import qualified Data.ByteString.Lazy.Char8 as L
+import Language.Python.Common.SrcLocation (SrcSpan)
 
 
 type ParseResult = Either ParseError (ModuleSpan, [Token])
@@ -64,6 +65,9 @@ debugStageHandling =
 
 renderPython:: (PyPretty.Pretty a)=> a -> Text
 renderPython = T.pack . prettyText
+
+compileCodeWithRec :: Module SrcSpan -> IO (Module SrcSpan)
+compileCodeWithRec inCode = compileCode' inCode $ withRec def
 
 compileCode ::  Module SrcSpan -> IO (Module SrcSpan)
 compileCode inCode = compileCode' inCode def
