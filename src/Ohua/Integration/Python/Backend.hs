@@ -15,7 +15,6 @@ import qualified Language.Python.Common.AST as Py
 import Language.Python.Common (SrcSpan)
 
 import Data.Text (unpack)
-import Data.List ((!!))
 import Data.Functor.Foldable (cata, embed)
 
 import Data.Maybe
@@ -55,12 +54,12 @@ instance Integration (Language 'Python) where
                 Program
                     chans
                     (SRecv (Type $ PythonObject noSpan) channel)
-                    $ map (convertToSuite arch . convertEnvs params <$>) tasks
+                    $ map (convertToSuite arch . convertEnvs <$>) tasks
             convertTasks statement _ = error $ "Trying to convert something, that is not a function but "<> show statement
 
-            convertEnvs :: [Py.Parameter a] -> TCLang.TaskExpr PythonTypeAnno -> TCLang.TaskExpr PythonTypeAnno
-            convertEnvs args = cata $ \case
-                LitF (EnvRefLit h) -> argToVar (args !! unwrap h)
+            convertEnvs :: TCLang.TaskExpr PythonTypeAnno -> TCLang.TaskExpr PythonTypeAnno
+            convertEnvs = cata $ \case
+                LitF (EnvRefLit arg) -> Var arg
                 e -> embed e
 
             argToVar :: Py.Parameter a -> TCLang.TaskExpr PythonTypeAnno

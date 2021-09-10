@@ -30,11 +30,9 @@ instance Architecture (Architectures 'MultiProcessing) where
 --  convertChannel :: arch -> Channel (Type (Lang arch)) -> Chan arch
 -- convert a backend channel i.e. an arc in the DFG to an expression of the target architecture
 -- instantiating the according process communication channel
-    convertChannel SMultiProc (SChan bnd)=
+    convertChannel SMultiProc (SRecv argTy( SChan bnd))=
         let stmt = Apply $
                     Stateless
-                        -- Todo: replace with real QB as soon as I got ns extraction from 
-                        -- imports right
                         (QualifiedBinding (makeThrow []) "mp.Pipe")
                         []
             send = unwrapStmt $ convertExpr SMultiProc $ TCLang.Var $ bnd <> "_sender"
@@ -123,6 +121,7 @@ instance Architecture (Architectures 'MultiProcessing) where
             taskList = zipWith (\ task i -> "task_" ++ show i) nodeFuns [1..]
             multiMain = entryFunction taskList resStmt
             newModule = makeModule srcModule channelInits nodeFuns multiMain
+instance Transform (Architectures 'MultiProcessing) 
 
 makeModule ::
     Module
