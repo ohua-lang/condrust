@@ -140,17 +140,19 @@ spec =
             use benchs::*;
             use std::*;
 
-            pub fn calculate(options: Vec<OptionData>) -> Vec<f32> {
+            // NOTE(feliix42): Kind of a hack here: we're pre-partitioning the work list
+            pub fn calculate(options: Vec<Vec<OptionData>>) -> Vec<f32> {
                 // TODO: this loop is not correct -> the items must be collected in a vec separately
                 let results = Vec::new();
+                // FIXME(feliix42): can be removed with the closure of https://github.com/sertel/ohuac/issues/29
                 let ops = id(options);
 
                 for op in ops {
-                    let i = calculate_black_scholes(op);
+                    let i = batch_calculate_black_scholes(op);
                     results.push(i);
                 }
 
-                results
+                unpack(results)
             }
             |]) >>=
         (\compiled -> do

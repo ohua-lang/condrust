@@ -195,6 +195,8 @@ benchs =
   \ \
   \ struct OptionData{} \
   \ pub fn calculate_black_scholes(op: OptionData) -> f32 { unimplemented!() } \
+  \ pub fn batch_calculate_black_scholes(op: Vec<OptionData>) -> Vec<f32> { unimplemented!() } \
+  \ pub fn unpack(v: Vec<Vec<f32>>) -> Vec<f32> { unimplemented!() } \
   \ \
   \ \
   \ \
