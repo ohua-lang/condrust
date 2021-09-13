@@ -202,17 +202,55 @@ benchs =
   \ \
   \ struct Value {} \
   \ \
+  \ pub fn reassign_values(v: Vec<Value>, centroids: Arc<Vec<Centroid>>) -> (Vec<Value>, u32) \
+  \ { unimplemented!() } \
   \ pub fn reassign_value(v: Value, centroids: Arc<Vec<Centroid>>) -> (Value, u32) \
   \ { unimplemented!() } \
   \ \
-  \ pub fn create_centroids(values: Vec<Value>, centroids: Arc<Vec<Centroid>>) -> (Vec<Value>, Arc<Vec<Centroid>>) \
+  \ pub fn create_centroids(values: Vec<Vec<Value>>, centroids: Arc<Vec<Centroid>>) -> (Vec<Vec<Value>>, Arc<Vec<Centroid>>) \
   \ { unimplemented!() } \
-  \ pub fn evaluate_results(new_results: Vec<(Value, u32)>) -> (Vec<Value>, f32) \
+  \ pub fn evaluate_results(new_results: Vec<(Vec<Value>, u32)>) -> (Vec<Value>, f32) \
   \ { unimplemented!() } \
   \ pub fn should_continue(delta: f32, threshold: f32, iterations: u32) -> bool \
   \ { unimplemented!() } \
   \ pub fn inc(it: u32) -> u32 \
   \ { unimplemented!() } \
+  \ \
+  \ \
+  \ \
+  \ struct Netlist {} \
+  \ enum MoveDecision { Good, Bad, Rejected } \
+  \ impl Netlist { \
+  \     pub fn update(&mut self, switch_info: (MoveDecision, (usize, usize))) -> Option<(usize, usize)> \
+  \     { unimplemented!() } \
+  \ } \
+  \ \
+  \ struct Location {} \
+  \ struct ChaCha12Rng {} \
+  \ impl ChaCha12Rng { \
+  \     pub fn seed_from_u64(s: u64) -> Self { unimplemented!() } \
+  \ } \
+  \ \
+  \ pub fn increment(completed_steps: i32) -> i32 { \
+  \     completed_steps + 1 \
+  \ } \
+  \  \
+  \ pub fn reduce_temp(temperature: f64) -> f64 { \
+  \     temperature / 1.5 \
+  \ } \
+  \  \
+  \ pub fn process_move(item: (usize, usize), netlist: Arc<Netlist>) -> (MoveDecision, (usize, usize)) { \
+  \     unimplemented!() \
+  \ } \
+  \  \
+  \ pub fn assess_updates(updates: Vec<Option<(usize, usize)>>, dimensions: Location, temp: f64, completed_steps: i32, max_steps: Option<i32>, swaps_per_temp: usize, mut rng: ChaCha12Rng) -> (bool, Vec<(usize, usize)>, ChaCha12Rng) { \
+  \     unimplemented!() \
+  \ } \
+  \  \
+  \ pub fn generate_worklist(swaps_per_temp: usize, dimensions: Location, mut rng: ChaCha12Rng) -> (Vec<(usize, usize)>, ChaCha12Rng) { \
+  \     unimplemented!() \
+  \ } \
+  \ \
   \ \
   \ pub fn id<T>(item: T) -> T { unimplemented!() } \
   \ "

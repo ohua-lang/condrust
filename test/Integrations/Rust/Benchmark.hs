@@ -170,11 +170,11 @@ spec =
             use benchs::*;
             use std::*;
 
-            fn run(values: Vec<Value>, centroids: Arc<Vec<Centroid>>, threshold: f32, iterations: u32) -> usize {
+            fn run(values: Vec<Vec<Value>>, centroids: Arc<Vec<Centroid>>, threshold: f32, iterations: u32) -> u32 {
                 let new_values = Vec::default();
 
                 for v in values {
-                    let i = reassign_value(v, centroids.clone()); // -> (Value, f32 or u32)
+                    let i = reassign_values(v, centroids.clone()); // -> (Value, f32 or u32)
                     new_values.push(i);
                 }
 
@@ -186,11 +186,57 @@ spec =
                 let inc_iter = inc(iterations);
 
                 if cont { run(new_vals, new_centroids, threshold, inc_iter) }
-                else { iterations }
+                else { inc_iter }
             }
 
-            pub fn calculate(values: Vec<Value>, centroids: Arc<Vec<Centroid>>, threshold: f32, iterations: u32) -> usize {
+            pub fn calculate(values: Vec<Vec<Value>>, centroids: Arc<Vec<Centroid>>, threshold: f32, iterations: u32) -> u32 {
                 run(values, centroids, threshold, iterations)
+            }
+            |]) >>=
+        (\compiled -> do
+            expected <- showCode "Expected:"
+                [sourceFile|
+                    use funs::*;
+
+                    fn test(i: i32) -> i32 {
+                        TODO
+                    }
+                |]
+            compiled `shouldBe` expected)
+    it "canneal" $
+        (showCode "Compiled: " =<< compileCodeWithRec [sourceFile|
+            use benchs::*;
+            use std::*;
+
+            pub fn run(mut netlist: Netlist, dimensions: Location, worklist: Vec<(usize, usize)>, rng: ChaCha12Rng, temperature: f64, completed_steps: i32, max_steps: Option<i32>, swaps_per_temp: usize) -> i32 { 
+                let mut rs = Vec::default();
+
+                let new_temp = reduce_temp(temperature);
+
+                let nro = Arc::new(netlist.clone());
+                for item in worklist {
+                    let switch_info = process_move(item, nro.clone()); // gives a Good/Bad/Reject plus tuple
+                    let res = netlist.update(switch_info); // produces a Option<(_, _)> with the update info (success/fail)
+                    // TODO: How to track overrides??
+                    rs.push(res);
+                }
+
+                let dim2 = dimensions.clone();
+                let (keep_going, rest, new_rng) = assess_updates(rs, dimensions, new_temp.clone(), completed_steps.clone(), max_steps.clone(), swaps_per_temp.clone(), rng);
+
+                let new_temp_steps = increment(completed_steps);
+                if keep_going {
+                    run(netlist, dim2, rest, new_rng, new_temp, new_temp_steps, max_steps, swaps_per_temp)
+                } else {
+                    new_temp_steps
+                }
+            }
+
+            pub fn annealer(netlist: Netlist, dimensions: Location, temperature: f64, max_steps: Option<i32>, swaps_per_temp: usize) -> i32 {
+                let rng = ChaCha12Rng::seed_from_u64(0);
+
+                let (worklist, new_rng) = generate_worklist(swaps_per_temp, dimensions.clone(), rng);
+                run(netlist, dimensions, worklist, new_rng, temperature, 0, max_steps, swaps_per_temp)
             }
             |]) >>=
         (\compiled -> do
