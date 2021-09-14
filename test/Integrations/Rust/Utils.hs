@@ -226,9 +226,7 @@ benchs =
   \ } \
   \ \
   \ struct Location {} \
-  \ struct ChaCha12Rng {} \
   \ impl ChaCha12Rng { \
-  \     pub fn seed_from_u64(s: u64) -> Self { unimplemented!() } \
   \ } \
   \ \
   \ pub fn increment(completed_steps: i32) -> i32 { \
@@ -239,20 +237,24 @@ benchs =
   \     temperature / 1.5 \
   \ } \
   \  \
-  \ pub fn process_move(item: (usize, usize), netlist: Arc<Netlist>) -> (MoveDecision, (usize, usize)) { \
+  \ pub fn process_move(item: (usize, usize), netlist: Arc<Netlist>, temperature: f64) -> (MoveDecision, (usize, usize)) { \
   \     unimplemented!() \
   \ } \
-  \  \
-  \ pub fn assess_updates(updates: Vec<Option<(usize, usize)>>, dimensions: Location, temp: f64, completed_steps: i32, max_steps: Option<i32>, swaps_per_temp: usize, mut rng: ChaCha12Rng) -> (bool, Vec<(usize, usize)>, ChaCha12Rng) { \
-  \     unimplemented!() \
-  \ } \
-  \  \
-  \ pub fn generate_worklist(swaps_per_temp: usize, dimensions: Location, mut rng: ChaCha12Rng) -> (Vec<(usize, usize)>, ChaCha12Rng) { \
-  \     unimplemented!() \
+  \ \
+  \ struct InternalRNG {} \
+  \ impl InternalRNG { \
+  \     pub fn seed_from_u64(s: u64) -> Self { unimplemented!() } \
+  \     pub fn assess_updates(&mut self, updates: Vec<Option<(usize, usize)>>, dimensions: Location, temp: f64, completed_steps: i32, max_steps: Option<i32>, swaps_per_temp: usize) -> (bool, Vec<(usize, usize)>) { \
+  \         unimplemented!() \
+  \     } \
+  \     pub fn generate_worklist(&mut self, swaps_per_temp: usize, dimensions: Location) -> Vec<(usize, usize)> { \
+  \         unimplemented!() \
+  \     } \
   \ } \
   \ \
   \ \
   \ pub fn id<T>(item: T) -> T { unimplemented!() } \
+  \ pub fn dup<T>(item: T) -> (T, T) { unimplemented!() } \
   \ "
 
 std :: Text

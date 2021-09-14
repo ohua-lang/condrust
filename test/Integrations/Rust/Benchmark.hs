@@ -208,35 +208,37 @@ spec =
             use benchs::*;
             use std::*;
 
-            pub fn run(mut netlist: Netlist, dimensions: Location, worklist: Vec<(usize, usize)>, rng: ChaCha12Rng, temperature: f64, completed_steps: i32, max_steps: Option<i32>, swaps_per_temp: usize) -> i32 { 
+            pub fn run(mut netlist: Netlist, dimensions: Location, worklist: Vec<(usize, usize)>, rng: InternalRNG, temperature: f64, completed_steps: i32, max_steps: Option<i32>, swaps_per_temp: usize) -> i32 { 
                 let mut rs = Vec::default();
 
                 let new_temp = reduce_temp(temperature);
+                let new_temp2 = new_temp.clone();
 
                 let nro = Arc::new(netlist.clone());
                 for item in worklist {
-                    let switch_info = process_move(item, nro.clone()); // gives a Good/Bad/Reject plus tuple
+                    let switch_info = process_move(item, nro.clone(), new_temp2); // gives a Good/Bad/Reject plus tuple
                     let res = netlist.update(switch_info); // produces a Option<(_, _)> with the update info (success/fail)
                     // TODO: How to track overrides??
                     rs.push(res);
                 }
 
                 let dim2 = dimensions.clone();
-                let (keep_going, rest, new_rng) = assess_updates(rs, dimensions, new_temp.clone(), completed_steps.clone(), max_steps.clone(), swaps_per_temp.clone(), rng);
+                let (keep_going, rest) = rng.assess_updates(rs, dimensions, new_temp.clone(), completed_steps.clone(), max_steps.clone(), swaps_per_temp.clone());
 
                 let new_temp_steps = increment(completed_steps);
                 if keep_going {
-                    run(netlist, dim2, rest, new_rng, new_temp, new_temp_steps, max_steps, swaps_per_temp)
+                    run(netlist, dim2, rest, rng, new_temp, new_temp_steps, max_steps, swaps_per_temp)
                 } else {
                     new_temp_steps
                 }
             }
 
-            pub fn annealer(netlist: Netlist, dimensions: Location, temperature: f64, max_steps: Option<i32>, swaps_per_temp: usize) -> i32 {
-                let rng = ChaCha12Rng::seed_from_u64(0);
+            pub fn annealer(netlist: Netlist, dimensions: Location, temperature: f64, completed_steps: i32, max_steps: Option<i32>, swaps_per_temp: usize) -> i32 {
+                let rng = InternalRNG::seed_from_u64(0);
 
-                let (worklist, new_rng) = generate_worklist(swaps_per_temp, dimensions.clone(), rng);
-                run(netlist, dimensions, worklist, new_rng, temperature, 0, max_steps, swaps_per_temp)
+                let (d1, d2) = dup(dimensions);
+                let worklist = rng.generate_worklist(swaps_per_temp, d1);
+                run(netlist, d2, worklist, rng, temperature, completed_steps, max_steps, swaps_per_temp)
             }
             |]) >>=
         (\compiled -> do
