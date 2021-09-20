@@ -5,19 +5,22 @@ import Ohua.Prelude
 import qualified Data.Text as T
 
 import System.FilePath
-import Language.Python.Common
+import Language.Python.Common hiding ((<>))
 import qualified Language.Python.Version3 as V3
 import Language.Python.Common.AST (Ident(..))
 
 
-noSpan :: SrcSpan 
-noSpan = SpanEmpty 
+noSpan :: SrcSpan
+noSpan = SpanEmpty
 
 toBinding :: Ident a -> Binding
 toBinding Ident{ident_string=n, ident_annot=annot} = fromString n
 
-fromBinding :: Binding -> Ident SrcSpan 
+fromBinding :: Binding -> Ident SrcSpan
 fromBinding bnd = Ident{ident_string= T.unpack $ unwrap bnd, ident_annot= noSpan}
+
+toQualBinding:: String -> QualifiedBinding
+toQualBinding = QualifiedBinding (makeThrow []) .fromString
 
 mkIdent::String -> Ident SrcSpan
 mkIdent name = Ident{ident_string=name, ident_annot=SpanEmpty}
@@ -36,12 +39,12 @@ wrappedParsing pyCode filename = do
         Right (mod_span, _comments) -> mod_span
 
 
-wrapExpr :: Expr SrcSpan -> Statement SrcSpan 
+wrapExpr :: Expr SrcSpan -> Statement SrcSpan
 wrapExpr expr = StmtExpr expr noSpan
 
-unwrapStmt :: Statement SrcSpan  -> Expr SrcSpan 
+unwrapStmt :: Statement SrcSpan  -> Expr SrcSpan
 unwrapStmt StmtExpr{stmt_expr=expr, stmt_annot=annot}= expr
-unwrapStmt s = error $ "unwrapping is not supposed to be used on " Ohua.Prelude.<> show s
+unwrapStmt s = error $ "unwrapStmt is not supposed to be used on " <> show s
 
 load :: FilePath -> IO (Module SrcSpan)
 load srcFile =  do

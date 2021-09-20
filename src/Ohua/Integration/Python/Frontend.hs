@@ -1,4 +1,7 @@
-{-# LANGUAGE InstanceSigs, ScopedTypeVariables #-}
+{-# LANGUAGE InstanceSigs#-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ConstraintKinds #-}
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 
 module Ohua.Integration.Python.Frontend where
 
@@ -10,9 +13,12 @@ import Ohua.Frontend.Convert
 import Ohua.Frontend.PPrint ()
 
 import Ohua.Integration.Lang
+import Ohua.Integration.Python.NewFrontend
 import Ohua.Integration.Python.Types
 import Ohua.Integration.Python.Util
 import Ohua.Integration.Python.TypeExtraction
+import Ohua.Integration.Python.Frontend.Convert (exprToSub)
+import qualified Ohua.Integration.Python.Frontend.Subset as Sub
 
 import qualified Language.Python.Common.AST as Py
 import Language.Python.Common (SrcSpan (SpanEmpty))
@@ -20,8 +26,6 @@ import Language.Python.Common (SrcSpan (SpanEmpty))
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.List.NonEmpty as NE
-
-
 
 type PythonNamespace = Namespace (FrLang.Expr (PythonArgType SrcSpan)) (Py.Statement SrcSpan)
 
@@ -74,7 +78,7 @@ instance Integration (Language 'Python) where
                 extractImports imports  = return $ map globOrAlias imports
 
                 extractRelativeImports::CompM m => Py.ImportRelative SrcSpan -> Py.FromItems SrcSpan -> m [Import]
-                extractRelativeImports imp@(Py.ImportRelative numDots mDottedName annot) fromItems = 
+                extractRelativeImports imp@(Py.ImportRelative numDots mDottedName annot) fromItems =
                     case mDottedName of
                         Just names -> case fromItems of
                             Py.ImportEverything annot -> return [Glob . makeThrow $ toBindings names]
@@ -141,23 +145,20 @@ instance Integration (Language 'Python) where
             listofPyType :: [FrLang.Expr (PythonArgType SrcSpan)] -> FunType (PythonArgType SrcSpan)
             listofPyType [] = error "Empty call unfilled."
             listofPyType (a:args') = FunType $ Right $ map (const $ Type $ PythonObject noSpan) (a:|args')
-            
+
 
             globs :: [NSRef]
             globs = mapMaybe (\case (Glob n) -> Just n; _ -> Nothing) (ohuaNS^.imports)
 
 fullByNameOrAlias :: Py.DottedName SrcSpan -> Py.FromItem SrcSpan -> Import
-fullByNameOrAlias dotted (Py.FromItem  ident Nothing annot) = flip Full (toBinding ident) . makeThrow $ toBindings dotted 
+fullByNameOrAlias dotted (Py.FromItem  ident Nothing annot) = flip Full (toBinding ident) . makeThrow $ toBindings dotted
 -- TODO: What about aliasing fully qualified imports??
-fullByNameOrAlias dotted (Py.FromItem  ident (Just alias) annot) = undefined 
+fullByNameOrAlias dotted (Py.FromItem  ident (Just alias) annot) = undefined
 
 globOrAlias :: Py.ImportItem SrcSpan -> Import
 globOrAlias  (Py.ImportItem dotted Nothing  annot) = Glob . makeThrow $ toBindings dotted
 globOrAlias  (Py.ImportItem dotted (Just alias) annot) = flip Alias (toBinding alias) . makeThrow $ toBindings dotted
 
-toBindings = map toBinding 
-
-    {-instance ConvertPat ...Turns out, pattern matching is under way \o/ (PEP 634)-}
 
 instance ConvertPat (Py.Parameter SrcSpan) where
     -- Question: There's a FIXME in Rusts argument conversion to attach (type) info 
@@ -205,26 +206,23 @@ instance ConvertPat (Py.Expr SrcSpan) where
     convertPat any = throwError $ "Encountered " <> show any <> " while trying to convert patterns. This is a bug"
 
 instance ConvertExpr (Py.Expr SrcSpan) where
-    convertExpr Py.Var{var_ident= ident} = return $ VarE $ toBinding ident
-    convertExpr (Py.Int val strRepr annot) = return $ LitE $ NumericLit val
-    convertExpr lL@(Py.LongInt val strRepr annot) = unsupError "LongInts" lL
+    convertExpr var@Py.Var{} = viaSubToIR var
+    convertExpr int@Py.Int{} = viaSubToIR int
+    convertExpr lL@Py.LongInt{} = unsupError "LongInts" lL
     convertExpr fL@(Py.Float valDbl strRepr annot) = unsupError "Floats" fL
     convertExpr imL@(Py.Imaginary valDbl strRepr annot) = unsupError "Imaginaries" imL
-    convertExpr bL@(Py.Bool bool annot) = unsupError "Boolean Literals" bL    
-    convertExpr (Py.None annot) = return $ LitE UnitLit 
+    convertExpr bL@Py.Bool{}= viaSubToIR bL
+    convertExpr no@(Py.None annot) = viaSubToIR no
     convertExpr ellL@(Py.Ellipsis annot) = unsupError "Ellipsis Literals" ellL
     convertExpr bsL@(Py.ByteStrings bStrings annot) = unsupError "ByteString Literals" bsL
     convertExpr strsL@(Py.Strings strings annot) = unsupError "Strings Literals" strsL
     convertExpr ustrL@(Py.UnicodeStrings strings annot) = unsupError "UnicodeStrings Literals" ustrL
-    convertExpr (Py.Call fun args annot)= do
-        fun' <- convertExpr fun
-        args' <- mapM convertExpr args
-        return $ fun' `AppE` args'
+    convertExpr call@(Py.Call fun args annot)= viaSubToIR call
     convertExpr subSc@(Py.Subscript subscripted subscript annot) = unsupError "Subscript Expressions" subSc
     convertExpr slice@(Py.SlicedExpr sliced slices annot) = unsupError "Slicing Expressions" slice
     convertExpr condExpr@(Py.CondExpr branch ifExpr elseBranch annot) = do
         condE <- convertExpr ifExpr
-        trueBranch <- convertExpr branch 
+        trueBranch <- convertExpr branch
         falseBranch <- convertExpr elseBranch
         return $ IfE condE trueBranch falseBranch
     convertExpr (Py.BinaryOp operator left right annot) = do
@@ -236,13 +234,14 @@ instance ConvertExpr (Py.Expr SrcSpan) where
         op' <- convertExpr operation
         arg' <- convertExpr arg
         return $ op' `AppE` [arg']
-    convertExpr dot@(Py.Dot object attribute annot) = unsupError "Dot Expressions" dot
+    -- TODO: I need dot expression for statefull calls
+    convertExpr dot@(Py.Dot object attribute annot) = viaSubToIR dot
     convertExpr lam@(Py.Lambda params expr annot) = unsupError "Lambda Expressions" lam
-    
+
     convertExpr yield@(Py.Yield mayBeArg annot) = unsupError "Yield Expressions" yield
-    convertExpr gen@(Py.Generator comprehension annot) = undefined 
-    convertExpr await@(Py.Await expr annot) = undefined 
-    
+    convertExpr gen@(Py.Generator comprehension annot) = unsupError "generator expression " gen
+    convertExpr await@(Py.Await expr annot) = unsupError "await expression" await
+
     -- TODO/Note: It would at first glance be possible to translate lists, sets and dictioniries to tuples
     -- In a way, this enforces 'functional' usage of them i.e. recreating insted of mutating
     --But: Problems in Frontend/for Transormations
@@ -256,14 +255,14 @@ instance ConvertExpr (Py.Expr SrcSpan) where
         return $ TupE exprs
 
     convertExpr list@(Py.List items annot) = undefined
-    convertExpr listComp@(Py.ListComp comprehension annot) = undefined 
+    convertExpr listComp@(Py.ListComp comprehension annot) = undefined
     -- TODO: Could be converted to a list of tuples
     -- ...but how could we distiguish real lists of tuples from dicts in the backend :-(
-    convertExpr dict@(Py.Dictionary keysAndValues annot) = undefined 
-    convertExpr dictComp@(Py.DictComp compehension annot) = undefined 
+    convertExpr dict@(Py.Dictionary keysAndValues annot) = undefined
+    convertExpr dictComp@(Py.DictComp compehension annot) = undefined
     -- TODO: Could be a list, but we'd loose distinction in the backend as with dicts :-(
-    convertExpr set@(Py.Set items annot) = undefined 
-    convertExpr setComp@(Py.SetComp comprehension annot) = undefined 
+    convertExpr set@(Py.Set items annot) = undefined
+    convertExpr setComp@(Py.SetComp comprehension annot) = undefined
     -- I think supporting this could get complicated if we want to have any controle over types
     convertExpr starred@(Py.Starred expr annot) = unsupError "Starred Expressions" starred
     -- TODO/Question: I need to know all possible occurences of parenthesized expressionss and 
@@ -272,13 +271,12 @@ instance ConvertExpr (Py.Expr SrcSpan) where
     convertExpr strConv@(Py.StringConversion expr annot) = py2Error strConv
 
 instance  ConvertExpr (Py.Argument SrcSpan) where
+    -- TODO: Support agrs n kwrags
     convertExpr Py.ArgExpr{arg_expr=expr} = convertExpr expr
-    convertExpr a@Py.ArgVarArgsPos{arg_expr=expr} = unsupError "*args in class construction" a
-    convertExpr a@Py.ArgVarArgsKeyword {arg_expr=_arg_expr} = unsupError "**kwargs in class construction" a
-    convertExpr a@Py.ArgKeyword{arg_keyword= varN, arg_expr= expr} = unsupError "keyword arguments in class constructors" a
+    convertExpr a@Py.ArgVarArgsPos{arg_expr=expr} = unsupError "*args" a
+    convertExpr a@Py.ArgVarArgsKeyword {arg_expr=_arg_expr} = unsupError "**kwargs" a
+    convertExpr a@Py.ArgKeyword{arg_keyword= varN, arg_expr= expr} = unsupError "keyword arguments" a
 
--- TODO: Actually I think, no statemtement should be toplevel and handled here ...
--- Either it's 1) an import 2) a function defnition 3) a class definition and therefore handled in 
 instance ConvertExpr (Py.Statement SrcSpan) where
     convertExpr Py.Import{import_items=items} = throwError "'import' should be handles elsewhere"
     convertExpr Py.FromImport{from_module= mod, from_items=items} = throwError "'from .. import' should be handles elsewhere"
@@ -298,7 +296,6 @@ instance ConvertExpr (Py.Statement SrcSpan) where
                 (LamE [] $ StmtE block' recur)
                 recur
     convertExpr whileE@(Py.While cond do_block elseBlock annE) = unsupError "else blocks in while expressions" whileE
-    --TODO: Fail on non-emmpty else-block 
     convertExpr forE@(Py.For targets generator body [] annot) = do
         patterns <- mapM convertPat targets
         generator' <- convertExpr generator
@@ -312,24 +309,23 @@ instance ConvertExpr (Py.Statement SrcSpan) where
     convertExpr funDef@(Py.Fun name params mResultAnnot body annot) = throwError $ "No function definitions expected here" <> show funDef
     convertExpr asyncFun@Py.AsyncFun{} = unsupError "async function definitions" asyncFun
     convertExpr classDef@(Py.Class cName cArgs cBody annot) = unsupError "class defintions inside functions" classDef
-    -- TODO: At top level this can be if __name__ == '__main__' and needs to be translated to a
-    -- function, otherwise we might not want to allow code that is executed upon importing
+
     {-Note: there's 2 complications with if's in python 
         1st: there's elIfs -> this probably not hard, it just means i have to nes translation
         2nd: there'r blocks inside and again, I can not exclude 'return' statements in python 
         -> I assume rust function execution continues, when an if-block return a value, this is not the case in python 
     
     -}
-    convertExpr ifElifElse@(Py.Conditional [(cond, branch)] elseBranch annot) = do 
+    convertExpr ifElifElse@(Py.Conditional [(cond, branch)] elseBranch annot) = do
         condE <- convertExpr cond
-        trueBranch <- convertExpr branch 
+        trueBranch <- convertExpr branch
         falseBranch <- convertExpr elseBranch
         return $ IfE condE trueBranch falseBranch
 
     convertExpr ifElifElse@(Py.Conditional condsAndBodys elseBranch annot) = do
         let ((ifE, suite):elifs) = condsAndBodys
-        condE <- convertExpr ifE 
-        trueBranch <-  convertExpr suite 
+        condE <- convertExpr ifE
+        trueBranch <-  convertExpr suite
         falseBranch <-  convertExpr (Py.Conditional elifs elseBranch annot)
         return $ IfE condE trueBranch falseBranch
         {--do 
@@ -360,7 +356,7 @@ instance ConvertExpr (Py.Statement SrcSpan) where
          could just write 'None'
     - > Seems legit
     -}
-    convertExpr (Py.Pass annot) = return $ LitE UnitLit 
+    convertExpr (Py.Pass annot) = return $ LitE UnitLit
     convertExpr (Py.Break annot) = undefined
     convertExpr (Py.Continue annot) = undefined
     convertExpr (Py.Delete deleteExprs annot) = undefined
@@ -396,10 +392,13 @@ instance  ConvertExpr (Py.Suite SrcSpan) where
                      heads
                 where
                     convertStmt :: (CompM m) => Py.Statement SrcSpan -> m (FrLang.Expr ty -> FrLang.Expr ty)
+                    
+                    -- TODO: Assignments can also got to Dot/lists/Tuples/Starred instead of Var !!
                     convertStmt assign@(Py.Assign [target] expr annot) = do
                         pat' <- convertPat target
                         expr' <- convertExpr expr
                         return $ LetE pat' expr'
+                    -- Question: Are assignments to TupP now valid. If not ...se following question.
                     -- TODO/Question: The Error produced by this translation of Py.Assign was
                     -- [Error] Unsupported multiple outputs: Destruct (Direct (DataBinding (Binding "x_0_0")) :| [])
                     -- The reason was that assigning to tuples is obviously a part of the language but functions are not intended to output 
@@ -418,7 +417,7 @@ instance  ConvertExpr (Py.Suite SrcSpan) where
                         pat' <- mapM convertPat targets
                         expr' <- convertExpr expr
                         return $ LetE (TupP pat') expr'
-                    -}    
+                    -}
                     {-convertStmt augAssign@(Py.AugmentedAssign target operation expr annot) = do
                         -- TODO: I need an outer let here ..
                         -- x += 1
@@ -446,7 +445,7 @@ instance  ConvertExpr (Py.Suite SrcSpan) where
                             -- return LitE UnitLit
                         -- or it's just any statement
                             -- convert the statement and append LitE UnitLit
-                    
+
                     convertLastStmt :: (CompM m) => Py.Statement SrcSpan -> m (FrLang.Expr ty)
                     convertLastStmt ret@(Py.Return maybeExpr annot) =
                         case maybeExpr of
@@ -454,37 +453,69 @@ instance  ConvertExpr (Py.Suite SrcSpan) where
                              Nothing -> return $ LitE UnitLit
                     convertLastStmt stmt = (\e -> e $ LitE UnitLit) <$> convertStmt stmt
 
+{-
+instance  ConvertExpr (Py.Suite SrcSpan) where
+    convertExpr statements =
+       convertStmts statements
+        where
+            convertStmts [] = return $ LitE UnitLit
+            convertStmts (x:xs) = 
+                let last = NE.head $ NE.reverse $ x:|xs
+                    heads = NE.tail $ NE.reverse $ x:|xs
+                in do
+                    convertedLast <- convertLastStmt last
+                    convertedHeads <- mapM convertStmt heads
+                    return $
+                        foldr
+                            (\stmt cont -> stmt cont)
+                            convertedLast
+                            convertedHeads
+
+            convertStmt :: (CompM m) => Py.Statement SrcSpan -> m (FrLang.Expr ty -> FrLang.Expr ty)
+            convertStmt assign@(Py.Assign [target] expr annot) = do
+                pat' <- convertPat target
+                expr' <- convertExpr expr
+                return $ LetE pat' expr'
+            convertStmt stmt = StmtE <$> convertExpr stmt
+
+            convertLastStmt :: (CompM m) => Py.Statement SrcSpan -> m (FrLang.Expr ty)
+            convertLastStmt ret@(Py.Return maybeExpr annot) =
+                case maybeExpr of
+                        Just expr -> convertExpr expr
+                        Nothing -> return $ LitE UnitLit
+            convertLastStmt stmt = (\e -> e $ LitE UnitLit) <$> convertStmt stmt
+-}
 instance ConvertExpr (Py.Op SrcSpan) where
-    convertExpr Py.Plus{} = toExpr "+"
-    convertExpr Py.Minus{} = toExpr "-"
-    convertExpr Py.Multiply{} = toExpr "*"
-    convertExpr Py.Divide{} = toExpr "/"
-    convertExpr Py.FloorDivide{} = toExpr "//"
-    convertExpr Py.Modulo{} = toExpr "%"
-    convertExpr Py.Exponent{} = toExpr "**"
-    convertExpr Py.MatrixMult{} = toExpr "@"
+    convertExpr Py.Plus{} = asUntypedFunRefLit "+"
+    convertExpr Py.Minus{} = asUntypedFunRefLit "-"
+    convertExpr Py.Multiply{} = asUntypedFunRefLit "*"
+    convertExpr Py.Divide{} = asUntypedFunRefLit "/"
+    convertExpr Py.FloorDivide{} = asUntypedFunRefLit "//"
+    convertExpr Py.Modulo{} = asUntypedFunRefLit "%"
+    convertExpr Py.Exponent{} = asUntypedFunRefLit "**"
+    convertExpr Py.MatrixMult{} = asUntypedFunRefLit "@"
 
-    convertExpr Py.And{} = toExpr "and"
-    convertExpr Py.Or{}  = toExpr "or"
-    convertExpr Py.Not{}  = toExpr "not"
-    convertExpr Py.In{} = toExpr "in"
-    convertExpr Py.Is{} = toExpr "is"
-    convertExpr Py.IsNot{} = toExpr "is not"
-    convertExpr Py.NotIn{} = toExpr "not in"
+    convertExpr Py.And{} = asUntypedFunRefLit "and"
+    convertExpr Py.Or{}  = asUntypedFunRefLit "or"
+    convertExpr Py.Not{}  = asUntypedFunRefLit "not"
+    convertExpr Py.In{} = asUntypedFunRefLit "in"
+    convertExpr Py.Is{} = asUntypedFunRefLit "is"
+    convertExpr Py.IsNot{} = asUntypedFunRefLit "is not"
+    convertExpr Py.NotIn{} = asUntypedFunRefLit "not in"
 
-    convertExpr Py.LessThan{} = toExpr "<"
-    convertExpr Py.GreaterThan{} = toExpr ">"
-    convertExpr Py.Equality{}  = toExpr "=="
-    convertExpr Py.GreaterThanEquals{} = toExpr ">="
-    convertExpr Py.LessThanEquals{} = toExpr "<="
-    convertExpr Py.NotEquals{} = toExpr "!="
+    convertExpr Py.LessThan{} = asUntypedFunRefLit "<"
+    convertExpr Py.GreaterThan{} = asUntypedFunRefLit ">"
+    convertExpr Py.Equality{}  = asUntypedFunRefLit "=="
+    convertExpr Py.GreaterThanEquals{} = asUntypedFunRefLit ">="
+    convertExpr Py.LessThanEquals{} = asUntypedFunRefLit "<="
+    convertExpr Py.NotEquals{} = asUntypedFunRefLit "!="
 
-    convertExpr Py.BinaryAnd{} = toExpr "&"
-    convertExpr Py.BinaryOr{} = toExpr "|"
-    convertExpr Py.Xor{} = toExpr "^"
-    convertExpr Py.ShiftLeft{} = toExpr "<<"
-    convertExpr Py.ShiftRight{} = toExpr ">>"
-    convertExpr Py.Invert{} = toExpr "~"
+    convertExpr Py.BinaryAnd{} = asUntypedFunRefLit "&"
+    convertExpr Py.BinaryOr{} = asUntypedFunRefLit "|"
+    convertExpr Py.Xor{} = asUntypedFunRefLit "^"
+    convertExpr Py.ShiftLeft{} = asUntypedFunRefLit "<<"
+    convertExpr Py.ShiftRight{} = asUntypedFunRefLit ">>"
+    convertExpr Py.Invert{} = asUntypedFunRefLit "~"
 
     convertExpr e@Py.NotEqualsV2{} = py2Error e
 
@@ -504,11 +535,11 @@ toBinOp Py.FloorDivAssign{} = Py.FloorDivide noSpan
 toBinOp Py.MatrixMultAssign{} = Py.MatrixMult noSpan
 
 
-toExpr :: Monad m => Binding -> m (FrLang.Expr ty)
+asUntypedFunRefLit :: Monad m => Binding -> m (FrLang.Expr ty)
 {-- Note: Turns given string representation into literal expression representig an untyped, 
 'unscoped' (the empty list in as Binding argument) function reference 
 -- Question: why untyped ? --}
-toExpr string_repr = return $
+asUntypedFunRefLit string_repr = return $
                         LitE $ FunRefLit $
                         FunRef (QualifiedBinding (makeThrow []) string_repr) Nothing Untyped
 
@@ -518,4 +549,7 @@ unsupError text expr = throwError $ "Currently we do not support "<> text <>" us
 --TODO: can this be my responsibility in any way or redirect to bjpop@csse.unimelb.edu.au here ?
 py2Error expr = throwError $ "For whatever reason you managed to get the exclusively version 2 expression "
                                 <> show expr <> " through the python3 parser of language-python."
+
+
+toBindings = map toBinding
 
