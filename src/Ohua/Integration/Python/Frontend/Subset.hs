@@ -71,7 +71,8 @@ data UnOp =  Not | Invert  deriving (Show, Eq, Generic)
 
 data Argument = Arg Expr deriving (Eq, Show) -- StarArg Expr | StarKwArg Expr | KwArg Expr Ident  
 
-data Param = Param {-- ArgsParam | KwargsParam-}
+{-TODO first Maybe is an optional type annotation, second Maybe is the default-}
+data Param = Param Binding {-- (Maybe Expr) (Maybe Expr)| ArgsParam Binding | KwargsParam Binding -}
 
 data Pat = 
     VarP Binding

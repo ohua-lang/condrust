@@ -31,7 +31,7 @@ convertToSuite arch taskExpr =  [convertExpr arch taskExpr]
 
 instance Integration (Language 'Python) where
     type NS (Language 'Python) = Module
-    type Type (Language 'Python) = PythonArgType SrcSpan
+    type Type (Language 'Python) = PythonArgType
     type AlgoSrc (Language 'Python) = Py.Statement SrcSpan
 
     type Expr (Language 'Python) = Py.Statement SrcSpan
@@ -53,7 +53,7 @@ instance Integration (Language 'Python) where
             convertTasks (Py.Fun id params opt_anno body anno) (Program chans (SRecv argType channel) tasks) =
                 Program
                     chans
-                    (SRecv (Type $ PythonObject noSpan) channel)
+                    (SRecv (Type PythonObject) channel)
                     $ map (convertToSuite arch . convertEnvs <$>) tasks
             convertTasks statement _ = error $ "Trying to convert something, that is not a function but "<> show statement
 

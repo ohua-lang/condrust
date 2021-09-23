@@ -17,8 +17,8 @@ import Data.List.NonEmpty
 --      in Rust
 -- TODO: Fun.Parameters in AST are just Expr's. Define of Expr's eg. Immutables | Structures | Callables | Self??
 -- Note: For whatever reason there is a separate Type Argument that is not used to define Fun :-/
-newtype PythonArgType a = PythonObject a
-type PythonTypeAnno  = PythonArgType SrcSpan   
+data PythonArgType = PythonObject
+type PythonTypeAnno  = PythonArgType   
 type FunTypes = HM.HashMap QualifiedBinding (FunType PythonTypeAnno)
 
 
@@ -30,10 +30,10 @@ extractFromFile srcFile = extract srcFile =<< liftIO (load srcFile)
 -- Note: in Rust 'self' funtions are separate items (Impl) -> in Python identify via context (in a Suite of Class items)
 -- and expl. parse first arg as self is not a type in the parser 
 
-extract :: forall m a. (CompM m, Show a) => FilePath -> Module a -> m (HM.HashMap QualifiedBinding (FunType (PythonArgType a)))
+extract :: forall m a. (CompM m, Show a) => FilePath -> Module a -> m (HM.HashMap QualifiedBinding (FunType PythonArgType))
 extract srcFile (Module statements) = HM.fromList <$> extractTypes statements
     where
-        extractTypes:: (CompM m, Show a) => [Statement a] -> m [(QualifiedBinding, FunType (PythonArgType a))]
+        extractTypes:: (CompM m, Show a) => [Statement a] -> m [(QualifiedBinding, FunType PythonArgType)]
         extractTypes statements = 
             catMaybes . concat <$>
             mapM
@@ -49,16 +49,16 @@ extract srcFile (Module statements) = HM.fromList <$> extractTypes statements
             QualifiedBinding (filePathToNsRef srcFile) . toBinding
 
         extractFunType :: (CompM m, Show a) => 
-            (Parameter a -> [ArgType (PythonArgType a)] -> m (FunType (PythonArgType a))) -> 
+            (Parameter a -> [ArgType PythonArgType] -> m (FunType PythonArgType)) -> 
             [Parameter a] -> 
-            m (FunType (PythonArgType a))
+            m (FunType PythonArgType)
         extractFunType convert params =  case params of
                 [] -> return $ FunType $ Left Unit
                 (x:xs) -> convert x  =<< mapM convertArg xs
 
         -- TODO: Instead of just ignoring anything ... parse types of parameters 
 
-        convertArg :: (CompM m, Show a) => Parameter a -> m (ArgType (PythonArgType a))
+        convertArg :: (CompM m, Show a) => Parameter a -> m (ArgType PythonArgType)
         convertArg param@Param{} = return $ Type $ annotation_or_error param
         convertArg argsP@VarArgsPos{}= throwError "Currently we can't type varargs"
         convertArg kargsP@VarArgsKeyword{}= throwError "Currently we can't type kwargs" 
@@ -67,10 +67,10 @@ extract srcFile (Module statements) = HM.fromList <$> extractTypes statements
         convertArg UnPackTuple{} = throwError "Found an 'UnPackTuple' token. This is a python 2 feature and not supposed to pass the python 3 parser used. Please contanct the author of language-python."
         
 
-        annotation_or_error:: Parameter a -> PythonArgType a
+        annotation_or_error:: Parameter a -> PythonArgType
         -- Note: Let's pretend for a while there's only annotaded parameters in the world
         -- Note: Expr's could be anything but Expr's resulting from param_py_annotation can only be Var
         -- TODO: this should extract the string from var_ident, not the Span -> refactor that Span-type problem
         annotation_or_error param = case param_py_annotation param of
-            Just Var{var_ident=typestring, expr_annot = a} -> PythonObject a
+            Just Var{var_ident=typestring, expr_annot = a} -> PythonObject
             Nothing -> error $ "Some argment wasn't typed: " <> show (param_name param)

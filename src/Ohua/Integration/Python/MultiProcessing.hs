@@ -126,7 +126,7 @@ instance Transform (Architectures 'MultiProcessing)
 makeModule ::
     Module
     -> NonEmpty (Py.Statement SrcSpan)
-    -> [FullTask (PythonArgType SrcSpan) (Py.Statement SrcSpan)]
+    -> [FullTask (PythonArgType) (Py.Statement SrcSpan)]
     -> Py.Statement SrcSpan
     -> Module
 makeModule srcModule channelInits nodeFuns multiMain = Module path combinedModule

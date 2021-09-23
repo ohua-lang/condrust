@@ -9,8 +9,8 @@ import Ohua.Prelude
 
 import Ohua.Frontend.Lang as FrLang
 import Ohua.Frontend.Types
-import Ohua.Frontend.Convert
 import Ohua.Frontend.PPrint ()
+import Ohua.Frontend.Convert
 
 import Ohua.Integration.Lang
 import Ohua.Integration.Python.NewFrontend
@@ -27,11 +27,11 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.List.NonEmpty as NE
 
-type PythonNamespace = Namespace (FrLang.Expr (PythonArgType SrcSpan)) (Py.Statement SrcSpan)
+type PythonNamespace = Namespace (FrLang.Expr PythonArgType) (Py.Statement SrcSpan)
 
 instance Integration (Language 'Python) where
     type NS (Language 'Python) = Module
-    type Type (Language 'Python) =  PythonArgType SrcSpan
+    type Type (Language 'Python) =  PythonArgType
     type AlgoSrc (Language 'Python) = Py.Statement SrcSpan
 
 -- TODO: Important -> Reassignments (x += 1, x = x + 1)
@@ -65,7 +65,7 @@ instance Integration (Language 'Python) where
                                 statements
                     return $ Namespace (filePathToNsRef srcFile) imports algos
 
-                extractAlgo :: CompM m => Py.Statement SrcSpan -> m (FrLang.Expr (PythonArgType SrcSpan))
+                extractAlgo :: CompM m => Py.Statement SrcSpan -> m (FrLang.Expr PythonArgType )
                 extractAlgo function = do
                     args' <- mapM convertPat (Py.fun_args function)
                     block' <- convertExpr (Py.fun_body function)
@@ -105,7 +105,7 @@ instance Integration (Language 'Python) where
         types' <- HM.fromList <$> mapM (verifyAndRegister fun_types) filesAndPaths'
         updateExprs ohuaNS (transformM (assignTypes types'))
         where
-            funsForAlgo :: CompM m => Algo (FrLang.Expr (PythonArgType SrcSpan)) (Py.Statement SrcSpan)
+            funsForAlgo :: CompM m => Algo (FrLang.Expr PythonArgType) (Py.Statement SrcSpan)
                     -> m [([NSRef], QualifiedBinding)]
             -- extracts function literals from code and extracts for each the function
             -- type ()
@@ -121,12 +121,12 @@ instance Integration (Language 'Python) where
             typesFromNS nsRefs = HM.unions <$> mapM (extractFromFile . toFilePath . (,".py") ) nsRefs
 
             verifyAndRegister :: CompM m => FunTypes -> ([NSRef], QualifiedBinding)
-                        -> m (QualifiedBinding, FunType (PythonArgType SrcSpan))
+                        -> m (QualifiedBinding, FunType PythonArgType)
             verifyAndRegister fun_types ([candidate], qB@(QualifiedBinding _ qBName)) = undefined
             -- TODO: Can this happen and what to do then?
             verifyAndRegister fun_types ( _ , qB@(QualifiedBinding _ qBName)) = undefined
 
-            assignTypes :: CompM m => FunTypes -> FrLang.Expr (PythonArgType SrcSpan) -> m (FrLang.Expr (PythonArgType SrcSpan))
+            assignTypes :: CompM m => FunTypes -> FrLang.Expr PythonArgType -> m (FrLang.Expr PythonArgType)
             assignTypes funTypes function = case function of
                 (AppE (LitE (FunRefLit (FunRef qBinding funID _))) args) ->
                     case args of
@@ -142,9 +142,9 @@ instance Integration (Language 'Python) where
                         _ -> return $ AppE (LitE $ FunRefLit $ FunRef qBinding funID $ FunType $ Left Unit) args
                 e ->  return e
 
-            listofPyType :: [FrLang.Expr (PythonArgType SrcSpan)] -> FunType (PythonArgType SrcSpan)
+            listofPyType :: [FrLang.Expr PythonArgType] -> FunType PythonArgType
             listofPyType [] = error "Empty call unfilled."
-            listofPyType (a:args') = FunType $ Right $ map (const $ Type $ PythonObject noSpan) (a:|args')
+            listofPyType (a:args') = FunType $ Right $ map (const $ Type PythonObject) (a:|args')
 
 
             globs :: [NSRef]
@@ -175,7 +175,7 @@ instance ConvertPat (Py.Parameter SrcSpan) where
     convertPat params@Py.EndPositional{} = unsupError "keyword-only markers as arguments" params
     convertPat tplParam@Py.UnPackTuple{} = unsupError " python 2 tuple unpacking parameters (consult PEP 3113)" tplParam
 
---Todo: What else can be pattern in python?
+--Todo: What can be a pattern in python?
 {- From the py grammar:
 target          ::=  identifier
                      | "(" target_list ")"
@@ -187,7 +187,7 @@ target          ::=  identifier
 -}
 instance ConvertPat (Py.Expr SrcSpan) where
     -- Question: why are wilcards not different from normal vars i.e. also a VarP ... Could I deref them anywhere ?
-    convertPat Py.Var {var_ident=ident, expr_annot=_expr_annot} = return $ VarP $ toBinding ident
+    convertPat Py.Var {var_ident=ident} = return $ VarP $ toBinding ident
     convertPat lst@(Py.List [expr] annot) = convertPat expr
     convertPat lst@(Py.List exprs annot) = do
         patterns <- mapM convertPat exprs
@@ -206,69 +206,7 @@ instance ConvertPat (Py.Expr SrcSpan) where
     convertPat any = throwError $ "Encountered " <> show any <> " while trying to convert patterns. This is a bug"
 
 instance ConvertExpr (Py.Expr SrcSpan) where
-    convertExpr var@Py.Var{} = viaSubToIR var
-    convertExpr int@Py.Int{} = viaSubToIR int
-    convertExpr lL@Py.LongInt{} = unsupError "LongInts" lL
-    convertExpr fL@(Py.Float valDbl strRepr annot) = unsupError "Floats" fL
-    convertExpr imL@(Py.Imaginary valDbl strRepr annot) = unsupError "Imaginaries" imL
-    convertExpr bL@Py.Bool{}= viaSubToIR bL
-    convertExpr no@(Py.None annot) = viaSubToIR no
-    convertExpr ellL@(Py.Ellipsis annot) = unsupError "Ellipsis Literals" ellL
-    convertExpr bsL@(Py.ByteStrings bStrings annot) = unsupError "ByteString Literals" bsL
-    convertExpr strsL@(Py.Strings strings annot) = unsupError "Strings Literals" strsL
-    convertExpr ustrL@(Py.UnicodeStrings strings annot) = unsupError "UnicodeStrings Literals" ustrL
-    convertExpr call@(Py.Call fun args annot)= viaSubToIR call
-    convertExpr subSc@(Py.Subscript subscripted subscript annot) = unsupError "Subscript Expressions" subSc
-    convertExpr slice@(Py.SlicedExpr sliced slices annot) = unsupError "Slicing Expressions" slice
-    convertExpr condExpr@(Py.CondExpr branch ifExpr elseBranch annot) = do
-        condE <- convertExpr ifExpr
-        trueBranch <- convertExpr branch
-        falseBranch <- convertExpr elseBranch
-        return $ IfE condE trueBranch falseBranch
-    convertExpr (Py.BinaryOp operator left right annot) = do
-        op' <- convertExpr operator
-        left' <- convertExpr left
-        right' <- convertExpr right
-        return $ op' `AppE` [left', right']
-    convertExpr (Py.UnaryOp operation arg annot) = do
-        op' <- convertExpr operation
-        arg' <- convertExpr arg
-        return $ op' `AppE` [arg']
-    -- TODO: I need dot expression for statefull calls
-    convertExpr dot@(Py.Dot object attribute annot) = viaSubToIR dot
-    convertExpr lam@(Py.Lambda params expr annot) = unsupError "Lambda Expressions" lam
-
-    convertExpr yield@(Py.Yield mayBeArg annot) = unsupError "Yield Expressions" yield
-    convertExpr gen@(Py.Generator comprehension annot) = unsupError "generator expression " gen
-    convertExpr await@(Py.Await expr annot) = unsupError "await expression" await
-
-    -- TODO/Note: It would at first glance be possible to translate lists, sets and dictioniries to tuples
-    -- In a way, this enforces 'functional' usage of them i.e. recreating insted of mutating
-    --But: Problems in Frontend/for Transormations
-        -- Slicing with nth would not work for dicts (I could build a workarround maybe for slice expressions in the frontend)
-        -- Appending works differently for sets (no duplicates)
-    -- Problems in Backend: 
-        -- I can not distiguish Tuples from 'Tupled-Containers' and calls
-        --  like l.pop(), l.items(), l.values(), l.intersect() will fail  
-    convertExpr tpl@(Py.Tuple items annot) = do
-        exprs <- mapM convertExpr items
-        return $ TupE exprs
-
-    convertExpr list@(Py.List items annot) = undefined
-    convertExpr listComp@(Py.ListComp comprehension annot) = undefined
-    -- TODO: Could be converted to a list of tuples
-    -- ...but how could we distiguish real lists of tuples from dicts in the backend :-(
-    convertExpr dict@(Py.Dictionary keysAndValues annot) = undefined
-    convertExpr dictComp@(Py.DictComp compehension annot) = undefined
-    -- TODO: Could be a list, but we'd loose distinction in the backend as with dicts :-(
-    convertExpr set@(Py.Set items annot) = undefined
-    convertExpr setComp@(Py.SetComp comprehension annot) = undefined
-    -- I think supporting this could get complicated if we want to have any controle over types
-    convertExpr starred@(Py.Starred expr annot) = unsupError "Starred Expressions" starred
-    -- TODO/Question: I need to know all possible occurences of parenthesized expressionss and 
-    -- in how far there can be precedence or other semantic issues arrising from just using the inner expression
-    convertExpr paren@(Py.Paren expr annot) = convertExpr expr
-    convertExpr strConv@(Py.StringConversion expr annot) = py2Error strConv
+    convertExpr = viaSubToIR 
 
 instance  ConvertExpr (Py.Argument SrcSpan) where
     -- TODO: Support agrs n kwrags
@@ -452,96 +390,6 @@ instance  ConvertExpr (Py.Suite SrcSpan) where
                              Just expr -> convertExpr expr
                              Nothing -> return $ LitE UnitLit
                     convertLastStmt stmt = (\e -> e $ LitE UnitLit) <$> convertStmt stmt
-
-{-
-instance  ConvertExpr (Py.Suite SrcSpan) where
-    convertExpr statements =
-       convertStmts statements
-        where
-            convertStmts [] = return $ LitE UnitLit
-            convertStmts (x:xs) = 
-                let last = NE.head $ NE.reverse $ x:|xs
-                    heads = NE.tail $ NE.reverse $ x:|xs
-                in do
-                    convertedLast <- convertLastStmt last
-                    convertedHeads <- mapM convertStmt heads
-                    return $
-                        foldr
-                            (\stmt cont -> stmt cont)
-                            convertedLast
-                            convertedHeads
-
-            convertStmt :: (CompM m) => Py.Statement SrcSpan -> m (FrLang.Expr ty -> FrLang.Expr ty)
-            convertStmt assign@(Py.Assign [target] expr annot) = do
-                pat' <- convertPat target
-                expr' <- convertExpr expr
-                return $ LetE pat' expr'
-            convertStmt stmt = StmtE <$> convertExpr stmt
-
-            convertLastStmt :: (CompM m) => Py.Statement SrcSpan -> m (FrLang.Expr ty)
-            convertLastStmt ret@(Py.Return maybeExpr annot) =
-                case maybeExpr of
-                        Just expr -> convertExpr expr
-                        Nothing -> return $ LitE UnitLit
-            convertLastStmt stmt = (\e -> e $ LitE UnitLit) <$> convertStmt stmt
--}
-instance ConvertExpr (Py.Op SrcSpan) where
-    convertExpr Py.Plus{} = asUntypedFunRefLit "+"
-    convertExpr Py.Minus{} = asUntypedFunRefLit "-"
-    convertExpr Py.Multiply{} = asUntypedFunRefLit "*"
-    convertExpr Py.Divide{} = asUntypedFunRefLit "/"
-    convertExpr Py.FloorDivide{} = asUntypedFunRefLit "//"
-    convertExpr Py.Modulo{} = asUntypedFunRefLit "%"
-    convertExpr Py.Exponent{} = asUntypedFunRefLit "**"
-    convertExpr Py.MatrixMult{} = asUntypedFunRefLit "@"
-
-    convertExpr Py.And{} = asUntypedFunRefLit "and"
-    convertExpr Py.Or{}  = asUntypedFunRefLit "or"
-    convertExpr Py.Not{}  = asUntypedFunRefLit "not"
-    convertExpr Py.In{} = asUntypedFunRefLit "in"
-    convertExpr Py.Is{} = asUntypedFunRefLit "is"
-    convertExpr Py.IsNot{} = asUntypedFunRefLit "is not"
-    convertExpr Py.NotIn{} = asUntypedFunRefLit "not in"
-
-    convertExpr Py.LessThan{} = asUntypedFunRefLit "<"
-    convertExpr Py.GreaterThan{} = asUntypedFunRefLit ">"
-    convertExpr Py.Equality{}  = asUntypedFunRefLit "=="
-    convertExpr Py.GreaterThanEquals{} = asUntypedFunRefLit ">="
-    convertExpr Py.LessThanEquals{} = asUntypedFunRefLit "<="
-    convertExpr Py.NotEquals{} = asUntypedFunRefLit "!="
-
-    convertExpr Py.BinaryAnd{} = asUntypedFunRefLit "&"
-    convertExpr Py.BinaryOr{} = asUntypedFunRefLit "|"
-    convertExpr Py.Xor{} = asUntypedFunRefLit "^"
-    convertExpr Py.ShiftLeft{} = asUntypedFunRefLit "<<"
-    convertExpr Py.ShiftRight{} = asUntypedFunRefLit ">>"
-    convertExpr Py.Invert{} = asUntypedFunRefLit "~"
-
-    convertExpr e@Py.NotEqualsV2{} = py2Error e
-
-toBinOp :: Py.AssignOp SrcSpan -> Py.Op SrcSpan
-toBinOp Py.PlusAssign{} = Py.Plus noSpan
-toBinOp Py.MinusAssign{} = Py.Minus noSpan
-toBinOp Py.MultAssign{} = Py.Multiply noSpan
-toBinOp Py.DivAssign{} = Py.Divide noSpan
-toBinOp Py.ModAssign{} = Py.Modulo noSpan
-toBinOp Py.PowAssign{} = Py.Exponent noSpan
-toBinOp Py.BinAndAssign{} = Py.BinaryAnd noSpan
-toBinOp Py.BinOrAssign{} = Py.BinaryOr noSpan
-toBinOp Py.BinXorAssign{} = Py.Xor noSpan
-toBinOp Py.LeftShiftAssign{} = Py.ShiftLeft noSpan
-toBinOp Py.RightShiftAssign{} = Py.ShiftRight noSpan
-toBinOp Py.FloorDivAssign{} = Py.FloorDivide noSpan
-toBinOp Py.MatrixMultAssign{} = Py.MatrixMult noSpan
-
-
-asUntypedFunRefLit :: Monad m => Binding -> m (FrLang.Expr ty)
-{-- Note: Turns given string representation into literal expression representig an untyped, 
-'unscoped' (the empty list in as Binding argument) function reference 
--- Question: why untyped ? --}
-asUntypedFunRefLit string_repr = return $
-                        LitE $ FunRefLit $
-                        FunRef (QualifiedBinding (makeThrow []) string_repr) Nothing Untyped
 
 
 unsupError text expr = throwError $ "Currently we do not support "<> text <>" used in: "<> show expr
