@@ -17,7 +17,7 @@ import Ohua.Integration.Python.NewFrontend
 import Ohua.Integration.Python.Types
 import Ohua.Integration.Python.Util
 import Ohua.Integration.Python.TypeExtraction
-import Ohua.Integration.Python.Frontend.Convert (exprToSub)
+import Ohua.Integration.Python.Frontend.Convert (exprToSubExpr)
 import qualified Ohua.Integration.Python.Frontend.Subset as Sub
 
 import qualified Language.Python.Common.AST as Py

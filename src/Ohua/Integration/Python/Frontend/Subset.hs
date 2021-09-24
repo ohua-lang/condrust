@@ -8,7 +8,8 @@ import Language.Haskell.TH.Syntax (Lift)
 import Control.Lens.Plated
 
 -- | This is the supported frontend subset of the python 
--- integration
+-- integration, as the AST generated from language-python is underspecified at some points, this 
+-- subset refers to the grammer definition of python 3.1 which underlies the ASt
 
 -- I currently don't type anything but for a) the possibility to use at least annotated
 -- types and b) consistency with other integration I'll thread this dummmy trough the logic
@@ -24,10 +25,10 @@ data Stmt  =
     -- Question: Do i express the fact, that we do not support 
     -- else-branches for While/For by leaving out the according part
     -- of the original constructor ? 
-    | ForStmt [Expr] Expr Suite 
+    | ForStmt [Target] Expr Suite 
     | CondStmt [(Expr, Suite )] Suite 
     -- TODO: Rework when/if assignments and returns of lists of targets are supported
-    | Assign [Expr] Expr 
+    | Assign [Target] Expr 
     | Pass 
     | StmtExpr Expr     
     -- TODO: Add AugmAssign when possible
@@ -50,6 +51,7 @@ data Expr =
     | CondExpr Expr Expr Expr 
     | BinaryOp BinOp Expr Expr
     | UnaryOp UnOp Expr
+    | Lambda [Param] Expr
     -- TODO: in Dot =>  Expr = Var Ident | Dot DotExpr Ident 
     -- Question: Appart from method calls, Dot's also represent attribute access. 
     -- This is equivalent to FieldAccess in Rust, so we do not generally support it.
@@ -72,10 +74,9 @@ data UnOp =  Not | Invert  deriving (Show, Eq, Generic)
 data Argument = Arg Expr deriving (Eq, Show) -- StarArg Expr | StarKwArg Expr | KwArg Expr Ident  
 
 {-TODO first Maybe is an optional type annotation, second Maybe is the default-}
-data Param = Param Binding {-- (Maybe Expr) (Maybe Expr)| ArgsParam Binding | KwargsParam Binding -}
+data Param = Param Binding deriving (Eq, Show) {-- (Maybe Expr) (Maybe Expr)| ArgsParam Binding | KwargsParam Binding -}
 
-data Pat = 
-    VarP Binding
+  
     -- Todo: Call that TupP, ListP or have both?
     -- Reason: On the python side patterns can be lists or
     -- tuples 
@@ -83,13 +84,12 @@ data Pat =
     --- 1,2,3 = fun()
     -- > How is this different in the AST
     -- > Do I loos meaning when I map both to the IR TupP ?
-    | TupP [Binding]
     -- TODO: Check if Rust now supports subscriptions to attributes or slices
     -- TODO: Should I introduce a separate symbol for '_' Bindings?
 
     -- TODO: Dots can also be patterns but we currently do not support attribute access
     -- DotP QualifiedBinding
-    deriving (Show, Eq, Generic)
+data Target = Single Binding | Tpl [Binding]   deriving (Show, Eq, Generic)
 
 -- TODO: Comment in when I have augmented assignments
 {-data AssignOps = 
@@ -113,11 +113,9 @@ data Pat =
 
 -- Question: What happens here ?!
 
-makeBaseFunctor ''Pat
 makeBaseFunctor ''Stmt
 makeBaseFunctor ''Suite
 
-instance Plated Pat where plate = gplate
 instance Plated Stmt  where plate = gplate
 instance Plated Suite where plate = gplate
 
