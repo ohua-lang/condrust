@@ -14,10 +14,10 @@ import Ohua.Frontend.Convert
 
 import Ohua.Integration.Lang
 import Ohua.Integration.Python.NewFrontend
+    ( viaSubToIR, viaSubToIRStmt, viaSubToIRSuite)
 import Ohua.Integration.Python.Types
 import Ohua.Integration.Python.Util
 import Ohua.Integration.Python.TypeExtraction
-import Ohua.Integration.Python.Frontend.Convert (exprToSubExpr)
 import qualified Ohua.Integration.Python.Frontend.Subset as Sub
 
 import qualified Language.Python.Common.AST as Py
@@ -215,108 +215,10 @@ instance  ConvertExpr (Py.Argument SrcSpan) where
     convertExpr a@Py.ArgVarArgsKeyword {arg_expr=_arg_expr} = unsupError "**kwargs" a
     convertExpr a@Py.ArgKeyword{arg_keyword= varN, arg_expr= expr} = unsupError "keyword arguments" a
 
-instance ConvertExpr (Py.Statement SrcSpan) where
-    convertExpr Py.Import{import_items=items} = throwError "'import' should be handles elsewhere"
-    convertExpr Py.FromImport{from_module= mod, from_items=items} = throwError "'from .. import' should be handles elsewhere"
-    --TODO: Fail on non-emmpty else-block 
-    convertExpr whileE@(Py.While cond do_block [] annE) = do
-        cond' <- convertExpr cond
-        block' <- convertExpr do_block
-        let loopRef = makeLoopRef "while_loop_body" annE
-        let loopLambdaRef = "while_loop_body"
-        let recur = IfE
-                        cond'
-                        (VarE loopLambdaRef `AppE` [])
-                        $ LitE UnitLit
-        return $
-            LetE
-                (VarP loopLambdaRef)
-                (LamE [] $ StmtE block' recur)
-                recur
-    convertExpr whileE@(Py.While cond do_block elseBlock annE) = unsupError "else blocks in while expressions" whileE
-    convertExpr forE@(Py.For targets generator body [] annot) = do
-        patterns <- mapM convertPat targets
-        generator' <- convertExpr generator
-        body' <- convertExpr body
-        return $
-            MapE
-                (LamE patterns body')
-                generator'
-    convertExpr forE@(Py.For targets generator body elseBlock annot) = unsupError "else blocks in for expressions" forE
-    convertExpr asyncFor@(Py.AsyncFor stmt annot) = undefined
-    convertExpr funDef@(Py.Fun name params mResultAnnot body annot) = throwError $ "No function definitions expected here" <> show funDef
-    convertExpr asyncFun@Py.AsyncFun{} = unsupError "async function definitions" asyncFun
-    convertExpr classDef@(Py.Class cName cArgs cBody annot) = unsupError "class defintions inside functions" classDef
-
-    {-Note: there's 2 complications with if's in python 
-        1st: there's elIfs -> this probably not hard, it just means i have to nes translation
-        2nd: there'r blocks inside and again, I can not exclude 'return' statements in python 
-        -> I assume rust function execution continues, when an if-block return a value, this is not the case in python 
-    
-    -}
-    convertExpr ifElifElse@(Py.Conditional [(cond, branch)] elseBranch annot) = do
-        condE <- convertExpr cond
-        trueBranch <- convertExpr branch
-        falseBranch <- convertExpr elseBranch
-        return $ IfE condE trueBranch falseBranch
-
-    convertExpr ifElifElse@(Py.Conditional condsAndBodys elseBranch annot) = do
-        let ((ifE, suite):elifs) = condsAndBodys
-        condE <- convertExpr ifE
-        trueBranch <-  convertExpr suite
-        falseBranch <-  convertExpr (Py.Conditional elifs elseBranch annot)
-        return $ IfE condE trueBranch falseBranch
-        {--do 
-        case condsAndBodys of 
-            [(cond, branch)] 
-            
-        (cond, branch) <- head condsAndBodys
-        condE <- convertExpr cond
-        trueBranch <- convertExpr branch 
-        falseBranch <- convertExpr elseBranch
-        return $ IfE condE trueBranch falseBranch--}
-
-    convertExpr assign@(Py.Assign targets exor annot) = throwError $ "assignments should be handled in blocks" <> show assign
-    convertExpr augmAs@(Py.AugmentedAssign target operation expr annot) = unsupError "augmented assignments" augmAs
-    convertExpr annotAs@(Py.AnnotatedAssign targetAnnot target expr stmtAnnot) = unsupError "annotated assignments" annotAs
-    convertExpr dec@(Py.Decorated decorators funOrClass annot) = unsupError "decorators" dec
-    convertExpr ret@(Py.Return optReturn annot) = throwError $ "Please only return at the end of functions"<> show ret
-    convertExpr try@(Py.Try block excepts elseBlock finallyBlock annot)= undefined
-    convertExpr raise@(Py.Raise raiseExor annot) = undefined
-    convertExpr with@(Py.With contextTuples block annot) = undefined
-    convertExpr asyncWith@(Py.AsyncWith stmt annot) = undefined
-    -- Todo: is it valid to translate 'pass' to 'UnitLit'?
-    {- 'pass' as a function body -> equiv. to 'return None' -> works
-       'pass' TL -> not relevant, we only look inside algos
-       'pass' in a class defintion -> we don't touch those either, so that should be ok
-       'pass' in a branch -> in the backend, the only point where 'UnitLit' is translated to
-         'return None' or just 'return' is the end of a function block and even there we 
-         could just write 'None'
-    - > Seems legit
-    -}
-    convertExpr (Py.Pass annot) = return $ LitE UnitLit
-    convertExpr (Py.Break annot) = undefined
-    convertExpr (Py.Continue annot) = undefined
-    convertExpr (Py.Delete deleteExprs annot) = undefined
-    convertExpr e@(Py.StmtExpr expr annot) = convertExpr expr
-    -- TODO: We will probably never support this
-    convertExpr e@(Py.Global globalVars annot) = unsupError "global keyword" e
-    convertExpr e@(Py.NonLocal nonlocalVars annot) = unsupError "nonlocal keyword" e
-    convertExpr e@(Py.Assert assertions annot) = unsupError "assertions" e
-    convertExpr e@(Py.Print hasChevron args isCOmmaTrailed annot) = py2Error e
-    convertExpr e@(Py.Exec expr optionalGlobalsLocals annot) = unsupError "exec statements" e
-
-
-makeLoopRef :: String -> SrcSpan -> String
--- TODO: Case we like the idea, propagate ScrSpan => a throug all fknts and
--- produce name based on coords here. 
--- Alternative make case distinction here if we may want to change the annotations
-makeLoopRef loopKind loc = loopKind ++ "_"
-
-
 
 instance  ConvertExpr (Py.Suite SrcSpan) where
-    convertExpr statements =
+    convertExpr = viaSubToIRSuite
+    {-
          case statements of
             [] -> throwError "Empty function body. Actually that shouldn't have passed the parser"
             (x:xs) ->
@@ -330,8 +232,6 @@ instance  ConvertExpr (Py.Suite SrcSpan) where
                      heads
                 where
                     convertStmt :: (CompM m) => Py.Statement SrcSpan -> m (FrLang.Expr ty -> FrLang.Expr ty)
-                    
-                    -- TODO: Assignments can also got to Dot/lists/Tuples/Starred instead of Var !!
                     convertStmt assign@(Py.Assign [target] expr annot) = do
                         pat' <- convertPat target
                         expr' <- convertExpr expr
@@ -390,7 +290,7 @@ instance  ConvertExpr (Py.Suite SrcSpan) where
                              Just expr -> convertExpr expr
                              Nothing -> return $ LitE UnitLit
                     convertLastStmt stmt = (\e -> e $ LitE UnitLit) <$> convertStmt stmt
-
+-}
 
 unsupError text expr = throwError $ "Currently we do not support "<> text <>" used in: "<> show expr
 

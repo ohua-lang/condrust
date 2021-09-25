@@ -19,7 +19,6 @@ import Language.Python.Common (SrcSpan (SpanEmpty))
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.List.NonEmpty as NE
-import Control.Monad (Monad(return))
 
 
 
@@ -40,11 +39,37 @@ viaSubToIRStmt  pyStmt =  do
     subExpr <- stmtToSub pyStmt
     subStmtToIR subExpr
 
+viaSubToIRSuite ::(CompM m) => Py.Suite SrcSpan -> m (FrLang.Expr ty)
+viaSubToIRSuite  pySuite =  do
+    subSuite <- suiteToSub pySuite
+    subSuiteToIR subSuite
+
 subSuiteToIR::(CompM m) => Sub.Suite -> m (FrLang.Expr ty)
-subSuiteToIR any = undefined
+subSuiteToIR (Sub.PySuite stmts) = convertStmts stmts 
+    where 
+        convertStmts [] = throwError "Empty function body. Actually that shouldn't have passed the parser"
+        convertStmts (sm:sms) = 
+            let last = NE.last (sm:|sms)
+                heads = NE.init  (sm:|sms)
+            in do 
+                irHeads <- mapM stmtToIR heads 
+                irLast <- lastStmtToIR last
+                return $
+                    foldr (\stmt suite -> stmt suite) irLast irHeads
+        stmtToIR:: (CompM m) => Sub.Stmt -> m (FrLang.Expr ty -> FrLang.Expr ty)
+        stmtToIR assign@(Sub.Assign [target] expr) = do
+                pat' <- subTargetToIR target
+                expr' <- subExprToIR expr
+                return $ LetE pat' expr'
+        stmtToIR stmt = StmtE <$> subStmtToIR stmt
+        lastStmtToIR :: (CompM m) => Sub.Stmt -> m (FrLang.Expr ty)
+        lastStmtToIR ret@(Sub.Return maybeExpr) =
+            case maybeExpr of
+                    Just expr -> subExprToIR expr
+                    Nothing -> return $ LitE UnitLit
+        lastStmtToIR stmt = (\e -> e $ LitE UnitLit) <$> stmtToIR stmt
 
 subStmtToIR :: CompM m => Sub.Stmt -> m (FrLang.Expr ty)
-
 subStmtToIR (Sub.WhileStmt expr suite) = do
     cond <- subExprToIR expr
     suite' <- subSuiteToIR suite
@@ -53,7 +78,7 @@ subStmtToIR (Sub.WhileStmt expr suite) = do
     return $ LetE (VarP loopRef) (LamE [] $ StmtE suite' recursivePart) recursivePart
 
 subStmtToIR (Sub.ForStmt targets generator suite) = do
-    targets' <- mapM subTargetsToIR targets 
+    targets' <- mapM subTargetToIR targets 
     generator' <- subExprToIR generator 
     suite <- subSuiteToIR suite
     return $ MapE (LamE targets' suite) generator'
@@ -120,9 +145,9 @@ subExprToIR any =  convError any
 subArgToIR :: CompM m => Sub.Argument -> m ( FrLang.Expr ty)
 subArgToIR (Sub.Arg expr) = subExprToIR expr
 
-subTargetsToIR :: CompM m => Sub.Target -> m FrLang.Pat
-subTargetsToIR (Sub.Single bnd) = return $ VarP bnd 
-subTargetsToIR (Sub.Tpl bnds) = 
+subTargetToIR :: CompM m => Sub.Target -> m FrLang.Pat
+subTargetToIR (Sub.Single bnd) = return $ VarP bnd 
+subTargetToIR (Sub.Tpl bnds) = 
     let vars = map VarP bnds
     in return $ TupP vars
 
