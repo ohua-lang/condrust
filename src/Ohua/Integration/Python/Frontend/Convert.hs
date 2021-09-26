@@ -1,7 +1,6 @@
-
 {-|
 Module      : Python.Frontend.Convert
-Description : Convert AST to supported subsetf
+Description : Convert AST to supported python subset
 
 This module defines the mapping from the python AST to the 
 subset of python the frontend currently supports

@@ -2,30 +2,36 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
-
+{-|Slowly move frontend covnersion to this file withou messing up the 
+old frontend to much
+|-}
 module Ohua.Integration.Python.Frontend where
 
 import Ohua.Prelude
-
-import Ohua.Frontend.Lang as FrLang
 import Ohua.Frontend.Types
-import Ohua.Frontend.PPrint ()
-import Ohua.Frontend.Convert
+import Ohua.Frontend.Lang as FrLang
 
 import Ohua.Integration.Lang
-import Ohua.Integration.Python.NewFrontend
-    ( viaSubToIR, viaSubToIRStmt, viaSubToIRSuite)
-import Ohua.Integration.Python.Types
+
 import Ohua.Integration.Python.Util
+import Ohua.Integration.Python.Types
 import Ohua.Integration.Python.TypeExtraction
+import Ohua.Integration.Python.Frontend.Convert (suiteToSub, stmtToSub, exprToSubExpr, exprToTarget,  paramToSub, argToSub, binOpToSub, )
 import qualified Ohua.Integration.Python.Frontend.Subset as Sub
 
-import qualified Language.Python.Common.AST as Py
 import Language.Python.Common (SrcSpan (SpanEmpty))
+import qualified Language.Python.Common.AST as Py
 
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.List.NonEmpty as NE
+
+
+-- Keep track of names and types 
+-- > will be useful when/if annotated types are passed through
+type Context = HM.HashMap Binding Sub.PythonType
+type ConvertM m = (Monad m, MonadState Context m)
+
 
 type PythonNamespace = Namespace (FrLang.Expr PythonArgType) (Py.Statement SrcSpan)
 
@@ -67,14 +73,14 @@ instance Integration (Language 'Python) where
 
                 extractAlgo :: CompM m => Py.Statement SrcSpan -> m (FrLang.Expr PythonArgType )
                 extractAlgo function = do
-                    args' <- mapM convertPat (Py.fun_args function)
-                    block' <- convertExpr (Py.fun_body function)
+                    args' <- mapM (subParamToIR <=< paramToSub) (Py.fun_args function)
+                    block' <- (subSuiteToIR <=< suiteToSub) (Py.fun_body function)
                     return $ LamE args' block'
 
                 extractImports::CompM m => [Py.ImportItem SrcSpan] -> m [Import]
                 -- TODO: Normal imports are Glos, imports with an 'as' are Alias
                 -- > Full imports are allways Py.RelativeImport
-                extractImports [] = throwError "Invalid: Empty import should not have passed the pytho parser"
+                extractImports [] = throwError "Invalid: Empty import should not have passed the python parser"
                 extractImports imports  = return $ map globOrAlias imports
 
                 extractRelativeImports::CompM m => Py.ImportRelative SrcSpan -> Py.FromItems SrcSpan -> m [Import]
@@ -159,145 +165,187 @@ globOrAlias :: Py.ImportItem SrcSpan -> Import
 globOrAlias  (Py.ImportItem dotted Nothing  annot) = Glob . makeThrow $ toBindings dotted
 globOrAlias  (Py.ImportItem dotted (Just alias) annot) = flip Alias (toBinding alias) . makeThrow $ toBindings dotted
 
+{-
 
-instance ConvertPat (Py.Parameter SrcSpan) where
-    -- Question: There's a FIXME in Rusts argument conversion to attach (type) info 
-    -- > why can't we make VarP have an additional Maybe ?  
-    convertPat params@Py.Param{param_name=ident} = return $ VarP $ toBinding ident
-    -- Question: Variables can be anything anyway. 
-    -- We'll have to tread them like objects as they'r only 'frozen at the surface'. 
-    -- So just prepend '*'/'**' to their names (to transfer unpacking to backend)? 
-    convertPat params@Py.VarArgsPos{param_name=ident} = return $ VarP $ fromString $ "*"++Py.ident_string ident
-    convertPat params@Py.VarArgsKeyword{param_name=ident} = return $ VarP $ fromString $ "**"++Py.ident_string ident
-    -- Question: I found out what EndPositional acutally is. It might be there and it needs to be mapped to nothing
-    -- i.e. not a fail, but realy nothing. How to do this? 
-    -- Meanwhile I will just not support it
-    convertPat params@Py.EndPositional{} = unsupError "keyword-only markers as arguments" params
-    convertPat tplParam@Py.UnPackTuple{} = unsupError " python 2 tuple unpacking parameters (consult PEP 3113)" tplParam
+-- viaSubToIR::(ConvertM m, MonadError Error m, CompM m) => Py.Expr SrcSpan -> m (FrLang.Expr ty)
+viaSubToIR::(CompM m) => Py.Expr SrcSpan -> m (FrLang.Expr ty)
+viaSubToIR  pyExpr =  do
+    subExpr <- exprToSubExpr pyExpr
+    subExprToIR subExpr
 
---Todo: What can be a pattern in python?
-{- From the py grammar:
-target          ::=  identifier
-                     | "(" target_list ")"
-                     | "[" target_list "]"
-                     | attributeref
-                     | subscription
-                     | slicing
-                     | "*" target
+vstir:: (CompM m) => Py.Expr SrcSpan -> m (FrLang.Expr ty)
+vstir  = subExprToIR <=< exprToSubExpr
+
+viaSubToIRStmt::(CompM m) => Py.Statement SrcSpan -> m (FrLang.Expr ty)
+viaSubToIRStmt  pyStmt =  do
+    subExpr <- stmtToSub pyStmt
+    subStmtToIR subExpr
+
+viaSubToIRSuite ::(CompM m) => Py.Suite SrcSpan -> m (FrLang.Expr ty)
+viaSubToIRSuite  pySuite =  do
+    subSuite <- suiteToSub pySuite
+    subSuiteToIR subSuite
+
+viaSubToIRPat :: (CompM m) => Py.Expr SrcSpan -> m FrLang.Pat
+viaSubToIRPat  pyExpr =  do
+    subExpr <- exprToTarget pyExpr
+    subTargetToIR subExpr
+
 -}
-instance ConvertPat (Py.Expr SrcSpan) where
-    -- Question: why are wilcards not different from normal vars i.e. also a VarP ... Could I deref them anywhere ?
-    convertPat Py.Var {var_ident=ident} = return $ VarP $ toBinding ident
-    convertPat lst@(Py.List [expr] annot) = convertPat expr
-    convertPat lst@(Py.List exprs annot) = do
-        patterns <- mapM convertPat exprs
-        return $ TupP patterns
-    convertPat lst@(Py.Tuple exprs annot) = do
-        patterns <- mapM convertPat exprs
-        return $ TupP patterns
-    -- Question: Rust implementation doesn't support PathP, which I assume to be attribute
-    -- assingment (i.e. ~ Py.Dot). Why?
-    convertPat dot@(Py.Dot exprs termVar annot) = unsupError "attribute assignment" dot
-    -- Question: I assume it's troublesome for some reason to translate this (probably because in haskell 
-    -- we do not modify things but return new ones)...Why exactly?
-    convertPat subScr@(Py.Subscript subscriptee indexExpr annot) = unsupError "indexed patterns" subScr
-    convertPat slice@(Py.SlicedExpr subscriptee slices annot) = unsupError "slice patterns" slice
-    convertPat starred@(Py.Starred expr annot) = unsupError "starred expression patterns" starred
-    convertPat any = throwError $ "Encountered " <> show any <> " while trying to convert patterns. This is a bug"
+subSuiteToIR::(CompM m) => Sub.Suite -> m (FrLang.Expr ty)
+subSuiteToIR (Sub.PySuite stmts) = convertStmts stmts
+    where
+        convertStmts [] = throwError "Empty function body. Actually that shouldn't have passed the parser"
+        convertStmts (sm:sms) =
+            let last = NE.last (sm:|sms)
+                heads = NE.init  (sm:|sms)
+            in do
+                irHeads <- mapM stmtToIR heads
+                irLast <- lastStmtToIR last
+                return $
+                    foldr (\stmt suite -> stmt suite) irLast irHeads
+        stmtToIR:: (CompM m) => Sub.Stmt -> m (FrLang.Expr ty -> FrLang.Expr ty)
+        stmtToIR assign@(Sub.Assign [target] expr) = do
+                pat' <- subTargetToIR target
+                expr' <- subExprToIR expr
+                return $ LetE pat' expr'
+        stmtToIR stmt = StmtE <$> subStmtToIR stmt
+        lastStmtToIR :: (CompM m) => Sub.Stmt -> m (FrLang.Expr ty)
+        lastStmtToIR ret@(Sub.Return maybeExpr) =
+            case maybeExpr of
+                    Just expr -> subExprToIR expr
+                    Nothing -> return $ LitE UnitLit
+        lastStmtToIR stmt = (\e -> e $ LitE UnitLit) <$> stmtToIR stmt
 
-instance ConvertExpr (Py.Expr SrcSpan) where
-    convertExpr = viaSubToIR 
+subStmtToIR :: CompM m => Sub.Stmt -> m (FrLang.Expr ty)
+subStmtToIR (Sub.WhileStmt expr suite) = do
+    cond <- subExprToIR expr
+    suite' <- subSuiteToIR suite
+    let loopRef = "while_loop_body"
+    let recursivePart= IfE cond (AppE (VarE loopRef) [])  (LitE UnitLit)
+    return $ LetE (VarP loopRef) (LamE [] $ StmtE suite' recursivePart) recursivePart
 
-instance  ConvertExpr (Py.Argument SrcSpan) where
-    -- TODO: Support agrs n kwrags
-    convertExpr Py.ArgExpr{arg_expr=expr} = convertExpr expr
-    convertExpr a@Py.ArgVarArgsPos{arg_expr=expr} = unsupError "*args" a
-    convertExpr a@Py.ArgVarArgsKeyword {arg_expr=_arg_expr} = unsupError "**kwargs" a
-    convertExpr a@Py.ArgKeyword{arg_keyword= varN, arg_expr= expr} = unsupError "keyword arguments" a
+subStmtToIR (Sub.ForStmt targets generator suite) = do
+    targets' <- mapM subTargetToIR targets
+    generator' <- subExprToIR generator
+    suite <- subSuiteToIR suite
+    return $ MapE (LamE targets' suite) generator'
+
+subStmtToIR (Sub.CondStmt [(cond, suite)] elseSuite) = do
+    cond' <- subExprToIR cond
+    suite' <- subSuiteToIR suite
+    elseSuite' <- subSuiteToIR elseSuite
+    return $ IfE cond' suite' elseSuite'
+
+subStmtToIR (Sub.CondStmt ifsAndSuits elseSuite) = do
+    let ((ifE, suite):elifs) = ifsAndSuits
+    condE <- subExprToIR ifE
+    trueBranch <-  subSuiteToIR suite
+    falseBranch <-  subStmtToIR (Sub.CondStmt elifs elseSuite)
+    return $ IfE condE trueBranch falseBranch
+
+subStmtToIR (Sub.StmtExpr expr) = subExprToIR expr
+subStmtToIR Sub.Pass = return $ LitE UnitLit
+subStmtToIR any = convError any
+
+-- subExprToIR ::ConvertM m => Sub.Expr -> m (FrLang.Expr ty)
+subExprToIR :: CompM m => Sub.Expr -> m (FrLang.Expr ty)
+subExprToIR (Sub.Var bnd) = return $ VarE bnd
+subExprToIR (Sub.Int int) = return $ LitE $ NumericLit int
+subExprToIR (Sub.Bool bool) = return $ LitE $ BoolLit bool
+subExprToIR Sub.None = return $  LitE  UnitLit
+subExprToIR (Sub.Call (Sub.Pure bnd) args) = do
+    args'<- mapM subArgToIR args
+    return $ AppE (VarE bnd) args'
+{-
+subExprToIR (Sub.Call (Sub.Dotted objBnd funBnd) args) = do
+    args' <- mapM subArgToIR args
+    let receiver = VarE objBnd
+        receiverTy = Type PythonObject
+        argTypes = 3
+        method = LitE (FunRefLit (FunRef funBnd Nothing $ STFunType receiverTy (Left Unit)))
+    return $ BindE receiver method `AppE` args'-}
+
+subExprToIR (Sub.CondExpr condE trueExpr falseExpr) = do
+    cond <- subExprToIR condE
+    true <- subExprToIR trueExpr
+    false <- subExprToIR falseExpr
+    return $ IfE cond true false
+
+subExprToIR (Sub.BinaryOp binOp expr1 expr2) = do
+    op' <- subBinOpToIR binOp
+    expr1' <- subExprToIR expr1
+    expr2' <- subExprToIR expr2
+    return $ op' `AppE` [expr1', expr2']
+
+subExprToIR (Sub.UnaryOp unOp expr1) = do
+    op' <- subUnOpToIR unOp
+    expr1' <- subExprToIR expr1
+    return $ op' `AppE` [expr1']
+
+subExprToIR (Sub.Tuple exprs) = do
+    exprs' <- mapM subExprToIR exprs
+    return $ TupE exprs'
+
+subExprToIR any =  convError any
+
+-- subArgToIR :: ConvertM m => Sub.Argument -> m ( FrLang.Expr ty)
+subArgToIR :: CompM m => Sub.Argument -> m ( FrLang.Expr ty)
+subArgToIR (Sub.Arg expr) = subExprToIR expr
+
+subParamToIR::CompM m => Sub.Param -> m FrLang.Pat
+subParamToIR (Sub.Param bnd) = return $ VarP bnd
+
+subTargetToIR :: CompM m => Sub.Target -> m FrLang.Pat
+subTargetToIR (Sub.Single bnd) = return $ VarP bnd
+subTargetToIR (Sub.Tpl bnds) =
+    let vars = map VarP bnds
+    in return $ TupP vars
+
+subBinOpToIR:: CompM m => Sub.BinOp -> m ( FrLang.Expr ty)
+subBinOpToIR Sub.Plus = toFunRefLit "+"
+subBinOpToIR Sub.Minus = toFunRefLit "-"
+subBinOpToIR Sub.Multiply = toFunRefLit "*"
+subBinOpToIR Sub.Divide = toFunRefLit "/"
+subBinOpToIR Sub.FloorDivide = toFunRefLit "//"
+subBinOpToIR Sub.Modulo = toFunRefLit "%"
+subBinOpToIR Sub.Exponent = toFunRefLit "**"
+subBinOpToIR Sub.MatrixMult = toFunRefLit "@"
+
+subBinOpToIR Sub.And = toFunRefLit "and"
+subBinOpToIR Sub.Or  = toFunRefLit "or"
+subBinOpToIR Sub.In = toFunRefLit "in"
+subBinOpToIR Sub.Is = toFunRefLit "is"
+subBinOpToIR Sub.IsNot = toFunRefLit "is not"
+subBinOpToIR Sub.NotIn = toFunRefLit "not in"
+
+subBinOpToIR Sub.LessThan = toFunRefLit "<"
+subBinOpToIR Sub.GreaterThan = toFunRefLit ">"
+subBinOpToIR Sub.Equality  = toFunRefLit "=="
+subBinOpToIR Sub.GreaterThanEquals = toFunRefLit ">="
+subBinOpToIR Sub.LessThanEquals = toFunRefLit "<="
+subBinOpToIR Sub.NotEquals = toFunRefLit "!="
+
+subBinOpToIR Sub.BinaryAnd = toFunRefLit "&"
+subBinOpToIR Sub.BinaryOr = toFunRefLit "|"
+subBinOpToIR Sub.Xor = toFunRefLit "^"
+subBinOpToIR Sub.ShiftLeft = toFunRefLit "<<"
+subBinOpToIR Sub.ShiftRight = toFunRefLit ">>"
 
 
-instance  ConvertExpr (Py.Suite SrcSpan) where
-    convertExpr = viaSubToIRSuite
-    {-
-         case statements of
-            [] -> throwError "Empty function body. Actually that shouldn't have passed the parser"
-            (x:xs) ->
-                let last = NE.head $ NE.reverse $ x:|xs
-                    heads = NE.tail $ NE.reverse $ x:|xs
-                in do
-                    convertedLast <- convertLastStmt last
-                    foldM
-                     (\cont stmt -> (\e -> e cont) <$> convertStmt stmt)
-                     convertedLast
-                     heads
-                where
-                    convertStmt :: (CompM m) => Py.Statement SrcSpan -> m (FrLang.Expr ty -> FrLang.Expr ty)
-                    convertStmt assign@(Py.Assign [target] expr annot) = do
-                        pat' <- convertPat target
-                        expr' <- convertExpr expr
-                        return $ LetE pat' expr'
-                    -- Question: Are assignments to TupP now valid. If not ...se following question.
-                    -- TODO/Question: The Error produced by this translation of Py.Assign was
-                    -- [Error] Unsupported multiple outputs: Destruct (Direct (DataBinding (Binding "x_0_0")) :| [])
-                    -- The reason was that assigning to tuples is obviously a part of the language but functions are not intended to output 
-                    -- tuples i.e. no assignments to TupP 
-                    -- SO Question 1: Why, what's the prupose of it?
-                    -- Question 2: (Rather Todo) How to handle python's unpacking here?
-                    -- Note: I can try the following:
-                    {-Input:  x,y,z = f()
-                     -Output: Let tpl = f() in
-                                let x = tpl[0] in
-                                    let y = tpl[1] in 
-                                        let z = tpl[2] in
-                                            .. do stuff ... -}
-                    {-
-                    convertStmt assign@(Py.Assign targets expr annot) = do
-                        pat' <- mapM convertPat targets
-                        expr' <- convertExpr expr
-                        return $ LetE (TupP pat') expr'
-                    -}
-                    {-convertStmt augAssign@(Py.AugmentedAssign target operation expr annot) = do
-                        -- TODO: I need an outer let here ..
-                        -- x += 1
-                        Let tmp = x 
-                            in let x = tmp + 1
-                               in x
-                       
-                        pat' <- convertPat target
-                        let binOp = Py.BinaryOp (toBinOp operation) target expr noSpan
-                        expr' <- convertExpr binOp
-                        return $ LetE pat' expr'
-                     -}
-                    -- Question: I understand return statements are not supported in Rust, 
-                    -- as they are optional there and might exit functions at different points, right?
-                    -- So I'd assume that I should only support them as the last statement in a block right?                 
-                    convertStmt stmt = StmtE <$> convertExpr stmt
+subUnOpToIR:: CompM m => Sub.UnOp -> m ( FrLang.Expr ty)
+subUnOpToIR Sub.Not  = toFunRefLit "not"
+subUnOpToIR Sub.Invert = toFunRefLit "~"
 
-                    -- Cases for last statement 
-                        -- -> either it's a return statement with an expression 
-                            -- this should be equivalent to NoSemi in Rust 
-                            -- > return the converted expression 
-                        -- or it's an empty return statement
-                            -- this should be equivalent to having a Semi Statement last in Rust
-                            -- except that ther's no statement to translate before -> 
-                            -- return LitE UnitLit
-                        -- or it's just any statement
-                            -- convert the statement and append LitE UnitLit
+toFunRefLit :: Monad m => Binding -> m (FrLang.Expr ty)
+{-- Note: Turns given string representation into literal expression representig an untyped, 
+'unscoped' (the empty list in as Binding argument) function reference 
+-- Question: why untyped ? --}
+toFunRefLit string_repr = return $
+                        LitE $ FunRefLit $
+                        FunRef (QualifiedBinding (makeThrow []) string_repr) Nothing Untyped
 
-                    convertLastStmt :: (CompM m) => Py.Statement SrcSpan -> m (FrLang.Expr ty)
-                    convertLastStmt ret@(Py.Return maybeExpr annot) =
-                        case maybeExpr of
-                             Just expr -> convertExpr expr
-                             Nothing -> return $ LitE UnitLit
-                    convertLastStmt stmt = (\e -> e $ LitE UnitLit) <$> convertStmt stmt
--}
-
-unsupError text expr = throwError $ "Currently we do not support "<> text <>" used in: "<> show expr
-
---TODO: can this be my responsibility in any way or redirect to bjpop@csse.unimelb.edu.au here ?
-py2Error expr = throwError $ "For whatever reason you managed to get the exclusively version 2 expression "
-                                <> show expr <> " through the python3 parser of language-python."
-
+convError any = throwError $ "This shouldn't happen. Please file a bug about"
+                <>" missing conversion for the subset expression: " <> show any
 
 toBindings = map toBinding
-
