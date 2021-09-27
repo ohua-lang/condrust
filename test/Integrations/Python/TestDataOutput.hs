@@ -75,6 +75,32 @@ def main():
 |]
 
 
+assignBools = [pythonModule|
+import multiprocessing as mp
+c_0_0_0_sender, c_0_0_0_receiver = mp.Pipe()
+def task_1():
+    c_0_0_0 = True and False
+    c_0_0_0_sender.send(c_0_0_0)
+    None
+from testLib import *
+def algo():
+    a = True
+    b = False
+    c = a and b
+    return c
+def main():
+    tasks = [task_1]
+    processes = []
+    for task in tasks:
+        process = mp.Process(target=task)
+        processes.append(process)
+    list(map(mp.Process.start, processes))
+    result = c_0_0_0_receiver.recv()
+    list(map(mp.Process.terminate, processes))
+    list(map(mp.Process.join, processes))
+    return result
+|]
+
 assignBinOpChained = [pythonModule|
 import multiprocessing as mp
 y_0_0_0_sender, y_0_0_0_receiver = mp.Pipe()
@@ -465,6 +491,39 @@ def algo(a, b):
     x = f(a)
     y = g1(b)
     return x+y 
+|]
+
+--Test cases for State.hs ---------------------------------------------
+callMethod = [pythonModule|
+import multiprocessing as mp
+x_0_0_0_sender, x_0_0_0_receiver = mp.Pipe()
+mob_0_0_1_sender, mob_0_0_1_receiver = mp.Pipe()
+def task_1():
+    mob_0_0_1 = MObs(22)
+    mob_0_0_1_sender.send(mob_0_0_1)
+    None
+def task_2():
+    while True:
+        var_0 = mob_0_0_1_receiver.recv()
+        x_0_0_0 = var_0.getNum()
+        x_0_0_0_sender.send(x_0_0_0)
+        None
+from testLib import *
+def algo():
+    mob = MObs(22)
+    x = mob.getNum()
+    return x
+def main():
+    tasks = [task_1, task_2]
+    processes = []
+    for task in tasks:
+        process = mp.Process(target=task)
+        processes.append(process)
+    list(map(mp.Process.start, processes))
+    result = x_0_0_0_receiver.recv()
+    list(map(mp.Process.terminate, processes))
+    list(map(mp.Process.join, processes))
+    return result
 |]
 
 --Test cases for Loops.hs ---------------------------------------------

@@ -46,6 +46,7 @@ def check(x):
 
 def oneArg(x):
     return x
+
 def twoArgs(x,y):
     return x + y
 
@@ -58,6 +59,7 @@ def changeRef(x:int):
 def changeRefType(x:int):
     x = "Not an int anymore"
 
+
 def mutateValues(intList:List[int]):
     intList = [i+1 for i in intList]
 
@@ -66,6 +68,14 @@ def mutateType(intList:List[int]):
 
 def some_invented_iter_function():
     return list(range(0, 11))
+
+class MObs(object):
+    def __init__(self, num):
+        self.num = num
+    def addNum(self, num):
+        self.num += num
+    def getNum(self):
+        return self.num
 |]
 
 -- Test cases for Basic.hs ------------------------------
@@ -97,6 +107,16 @@ from testLib import *
 def algo():
     x = 42 + 23
     return x
+|]
+
+assignBools = [pythonModule|
+from testLib import *
+
+def algo():
+    a = True
+    b = False
+    c = a and b
+    return c
 |]
 
 assignBinOpChained = [pythonModule|
@@ -221,6 +241,19 @@ def algo(a, b):
     return x+y 
 |]
 
+--Test cases for State.hs ---------------------------------------------
+callMethod = [pythonModule|
+from testLib import *
+
+def algo():
+    mob = MObs(22)
+    # mob.addNum(21)
+    x = mob.getNum()
+    return x
+|]
+
+
+
 --Test cases for Loops.hs ---------------------------------------------
 loopIterator= [pythonModule|
 from testLib import *
@@ -269,7 +302,7 @@ def algo(a , b):
 branchReturn = [pythonModule|
 from testLib import *
 
-def algo(i):
+def algo(a,b):
     if a:
         d = g0(b)
     else:
