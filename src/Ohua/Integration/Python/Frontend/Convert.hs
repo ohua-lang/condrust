@@ -25,10 +25,11 @@ suiteToSub stmts = Sub.PySuite  <$> mapM stmtToSub stmts
 stmtToSub::(Monad m, MonadError Error m) => Py.Statement SrcSpan -> m Sub.Stmt
 stmtToSub stmt@Py.Import{import_items=items} = unsupError "local imports" stmt
 stmtToSub stmt@Py.FromImport{from_module= mod, from_items=items} =  unsupError "local imports" stmt
-stmtToSub assign@(Py.Assign targets expr annot) = do
-    targets' <- mapM exprToTarget targets
+stmtToSub assign@(Py.Assign [target] expr annot) = do
+    targets' <- exprToTarget target
     expr' <- exprToSubExpr expr
-    return $ Sub.Assign targets' expr'     
+    return $ Sub.Assign targets' expr'
+stmtToSub assign@(Py.Assign targets expr annot) = unsupError "multiple variables in assignment" assign    
 stmtToSub whileE@(Py.While cond do_block [] annE) = do
     cond' <- exprToSubExpr cond
     block' <- suiteToSub do_block

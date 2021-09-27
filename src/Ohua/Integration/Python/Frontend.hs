@@ -16,7 +16,7 @@ import Ohua.Integration.Lang
 import Ohua.Integration.Python.Util
 import Ohua.Integration.Python.Types
 import Ohua.Integration.Python.TypeExtraction
-import Ohua.Integration.Python.Frontend.Convert (suiteToSub, stmtToSub, exprToSubExpr, exprToTarget,  paramToSub, argToSub, binOpToSub, )
+import Ohua.Integration.Python.Frontend.Convert (suiteToSub, paramToSub)
 import qualified Ohua.Integration.Python.Frontend.Subset as Sub
 
 import Language.Python.Common (SrcSpan (SpanEmpty))
@@ -40,12 +40,6 @@ instance Integration (Language 'Python) where
     type Type (Language 'Python) =  PythonArgType
     type AlgoSrc (Language 'Python) = Py.Statement SrcSpan
 
--- TODO: Important -> Reassignments (x += 1, x = x + 1)
--- Note: Produces namespace later refered to with/required as 'ohuaNS^.algos' and 'ohuaNS^.imports'
--- Todo: 1. PythonSubset als data anlegen
--- Todo : 2. Python AST auf Subset Mappen 
--- Todo : 3 Subset auf IR mappen 
--- => loadNS sollte 3°2 = 3(2()) => 3 . 2 sein
     loadNs :: CompM m => Language 'Python -> FilePath -> m (Module, PythonNamespace)
     loadNs _ srcFile = do
             mod <- liftIO $ load srcFile
@@ -73,12 +67,12 @@ instance Integration (Language 'Python) where
 
                 extractAlgo :: CompM m => Py.Statement SrcSpan -> m (FrLang.Expr PythonArgType )
                 extractAlgo function = do
-                    args' <- mapM (subParamToIR <=< paramToSub) (Py.fun_args function)
-                    block' <- (subSuiteToIR <=< suiteToSub) (Py.fun_body function)
+                    args' <- mapM ((`evalStateT` HM.empty) . subParamToIR <=< paramToSub) (Py.fun_args function)
+                    block' <- ((`evalStateT` HM.empty) . subSuiteToIR <=< suiteToSub) (Py.fun_body function)
                     return $ LamE args' block'
 
                 extractImports::CompM m => [Py.ImportItem SrcSpan] -> m [Import]
-                -- TODO: Normal imports are Glos, imports with an 'as' are Alias
+                -- TODO: Normal imports are Globs, imports with an 'as' are Alias
                 -- > Full imports are allways Py.RelativeImport
                 extractImports [] = throwError "Invalid: Empty import should not have passed the python parser"
                 extractImports imports  = return $ map globOrAlias imports
@@ -135,6 +129,9 @@ instance Integration (Language 'Python) where
             assignTypes :: CompM m => FunTypes -> FrLang.Expr PythonArgType -> m (FrLang.Expr PythonArgType)
             assignTypes funTypes function = case function of
                 (AppE (LitE (FunRefLit (FunRef qBinding funID _))) args) ->
+                    return $
+                         AppE (LitE $ FunRefLit $ FunRef qBinding funID $ FunType $ listofPyType args) args
+                    {- 
                     case args of
                         -- Note: In Rust this type assignment happens based on the function definitions, while the
                         -- Python integration does this based on function calls right now.
@@ -144,14 +141,10 @@ instance Integration (Language 'Python) where
                         --[LitE UnitLit] -> return $ AppE (LitE $ FunRefLit $ FunRef qBinding funID $ FunType $ Left Unit) args-}
                         (a:args') ->
                             return $
-                                AppE (LitE $ FunRefLit (FunRef qBinding funID (listofPyType args))) args
+                                AppE (LitE $ FunRefLit (FunRef qBinding funID FunType $ (listofPyType args))) args
                         _ -> return $ AppE (LitE $ FunRefLit $ FunRef qBinding funID $ FunType $ Left Unit) args
+                    -}
                 e ->  return e
-
-            listofPyType :: [FrLang.Expr PythonArgType] -> FunType PythonArgType
-            listofPyType [] = error "Empty call unfilled."
-            listofPyType (a:args') = FunType $ Right $ map (const $ Type PythonObject) (a:|args')
-
 
             globs :: [NSRef]
             globs = mapMaybe (\case (Glob n) -> Just n; _ -> Nothing) (ohuaNS^.imports)
@@ -165,37 +158,11 @@ globOrAlias :: Py.ImportItem SrcSpan -> Import
 globOrAlias  (Py.ImportItem dotted Nothing  annot) = Glob . makeThrow $ toBindings dotted
 globOrAlias  (Py.ImportItem dotted (Just alias) annot) = flip Alias (toBinding alias) . makeThrow $ toBindings dotted
 
-{-
-
--- viaSubToIR::(ConvertM m, MonadError Error m, CompM m) => Py.Expr SrcSpan -> m (FrLang.Expr ty)
-viaSubToIR::(CompM m) => Py.Expr SrcSpan -> m (FrLang.Expr ty)
-viaSubToIR  pyExpr =  do
-    subExpr <- exprToSubExpr pyExpr
-    subExprToIR subExpr
-
-vstir:: (CompM m) => Py.Expr SrcSpan -> m (FrLang.Expr ty)
-vstir  = subExprToIR <=< exprToSubExpr
-
-viaSubToIRStmt::(CompM m) => Py.Statement SrcSpan -> m (FrLang.Expr ty)
-viaSubToIRStmt  pyStmt =  do
-    subExpr <- stmtToSub pyStmt
-    subStmtToIR subExpr
-
-viaSubToIRSuite ::(CompM m) => Py.Suite SrcSpan -> m (FrLang.Expr ty)
-viaSubToIRSuite  pySuite =  do
-    subSuite <- suiteToSub pySuite
-    subSuiteToIR subSuite
-
-viaSubToIRPat :: (CompM m) => Py.Expr SrcSpan -> m FrLang.Pat
-viaSubToIRPat  pyExpr =  do
-    subExpr <- exprToTarget pyExpr
-    subTargetToIR subExpr
-
--}
-subSuiteToIR::(CompM m) => Sub.Suite -> m (FrLang.Expr ty)
-subSuiteToIR (Sub.PySuite stmts) = convertStmts stmts
+subSuiteToIR::ConvertM m => Sub.Suite -> m (FrLang.Expr PythonArgType)
+subSuiteToIR (Sub.PySuite stmts) =
+    evalStateT (convertStmts stmts) =<< get
     where
-        convertStmts [] = throwError "Empty function body. Actually that shouldn't have passed the parser"
+        convertStmts [] = return $ LitE UnitLit -- actually empty function blocks are not valid syntax and this should never be called
         convertStmts (sm:sms) =
             let last = NE.last (sm:|sms)
                 heads = NE.init  (sm:|sms)
@@ -203,21 +170,25 @@ subSuiteToIR (Sub.PySuite stmts) = convertStmts stmts
                 irHeads <- mapM stmtToIR heads
                 irLast <- lastStmtToIR last
                 return $
-                    foldr (\stmt suite -> stmt suite) irLast irHeads
-        stmtToIR:: (CompM m) => Sub.Stmt -> m (FrLang.Expr ty -> FrLang.Expr ty)
-        stmtToIR assign@(Sub.Assign [target] expr) = do
-                pat' <- subTargetToIR target
-                expr' <- subExprToIR expr
-                return $ LetE pat' expr'
+                    foldr
+                        (\stmt suite -> stmt suite) irLast irHeads
+        stmtToIR:: (ConvertM m) => Sub.Stmt -> m (FrLang.Expr PythonArgType -> FrLang.Expr PythonArgType)
+        stmtToIR assign@(Sub.Assign target expr) = do
+            case target of
+                (Sub.Single bnd) -> modify (HM.insert bnd Sub.PythonType)
+                _ ->return ()
+            pat' <- subTargetToIR target
+            expr' <- subExprToIR expr
+            return $ LetE pat' expr'
         stmtToIR stmt = StmtE <$> subStmtToIR stmt
-        lastStmtToIR :: (CompM m) => Sub.Stmt -> m (FrLang.Expr ty)
+        lastStmtToIR :: (ConvertM m) => Sub.Stmt -> m (FrLang.Expr PythonArgType)
         lastStmtToIR ret@(Sub.Return maybeExpr) =
             case maybeExpr of
                     Just expr -> subExprToIR expr
                     Nothing -> return $ LitE UnitLit
         lastStmtToIR stmt = (\e -> e $ LitE UnitLit) <$> stmtToIR stmt
 
-subStmtToIR :: CompM m => Sub.Stmt -> m (FrLang.Expr ty)
+subStmtToIR :: ConvertM m=> Sub.Stmt -> m (FrLang.Expr PythonArgType)
 subStmtToIR (Sub.WhileStmt expr suite) = do
     cond <- subExprToIR expr
     suite' <- subSuiteToIR suite
@@ -246,10 +217,10 @@ subStmtToIR (Sub.CondStmt ifsAndSuits elseSuite) = do
 
 subStmtToIR (Sub.StmtExpr expr) = subExprToIR expr
 subStmtToIR Sub.Pass = return $ LitE UnitLit
-subStmtToIR any = convError any
+-- subStmtToIR any = convError any
 
--- subExprToIR ::ConvertM m => Sub.Expr -> m (FrLang.Expr ty)
-subExprToIR :: CompM m => Sub.Expr -> m (FrLang.Expr ty)
+-- subExprToIR ::ConvertM m => Sub.Expr -> m (FrLang.Expr PythonArgType)
+subExprToIR :: ConvertM m => Sub.Expr -> m (FrLang.Expr PythonArgType)
 subExprToIR (Sub.Var bnd) = return $ VarE bnd
 subExprToIR (Sub.Int int) = return $ LitE $ NumericLit int
 subExprToIR (Sub.Bool bool) = return $ LitE $ BoolLit bool
@@ -257,14 +228,14 @@ subExprToIR Sub.None = return $  LitE  UnitLit
 subExprToIR (Sub.Call (Sub.Pure bnd) args) = do
     args'<- mapM subArgToIR args
     return $ AppE (VarE bnd) args'
-{-
+
 subExprToIR (Sub.Call (Sub.Dotted objBnd funBnd) args) = do
     args' <- mapM subArgToIR args
     let receiver = VarE objBnd
         receiverTy = Type PythonObject
-        argTypes = 3
-        method = LitE (FunRefLit (FunRef funBnd Nothing $ STFunType receiverTy (Left Unit)))
-    return $ BindE receiver method `AppE` args'-}
+        argTypes = listofPyType args
+        method = LitE (FunRefLit (FunRef funBnd Nothing $ STFunType receiverTy argTypes))
+    return $ BindE receiver method `AppE` args'
 
 subExprToIR (Sub.CondExpr condE trueExpr falseExpr) = do
     cond <- subExprToIR condE
@@ -287,22 +258,23 @@ subExprToIR (Sub.Tuple exprs) = do
     exprs' <- mapM subExprToIR exprs
     return $ TupE exprs'
 
-subExprToIR any =  convError any
+-- subExprToIR any =  convError any
 
--- subArgToIR :: ConvertM m => Sub.Argument -> m ( FrLang.Expr ty)
-subArgToIR :: CompM m => Sub.Argument -> m ( FrLang.Expr ty)
+subArgToIR :: ConvertM m => Sub.Argument -> m ( FrLang.Expr PythonArgType)
 subArgToIR (Sub.Arg expr) = subExprToIR expr
 
-subParamToIR::CompM m => Sub.Param -> m FrLang.Pat
-subParamToIR (Sub.Param bnd) = return $ VarP bnd
+subParamToIR::ConvertM m => Sub.Param -> m FrLang.Pat
+subParamToIR (Sub.Param bnd) = do
+    modify (HM.insert bnd Sub.PythonType)
+    return $ VarP bnd
 
-subTargetToIR :: CompM m => Sub.Target -> m FrLang.Pat
+subTargetToIR :: ConvertM m => Sub.Target -> m FrLang.Pat
 subTargetToIR (Sub.Single bnd) = return $ VarP bnd
 subTargetToIR (Sub.Tpl bnds) =
     let vars = map VarP bnds
     in return $ TupP vars
 
-subBinOpToIR:: CompM m => Sub.BinOp -> m ( FrLang.Expr ty)
+subBinOpToIR:: ConvertM m => Sub.BinOp -> m ( FrLang.Expr PythonArgType)
 subBinOpToIR Sub.Plus = toFunRefLit "+"
 subBinOpToIR Sub.Minus = toFunRefLit "-"
 subBinOpToIR Sub.Multiply = toFunRefLit "*"
@@ -333,11 +305,17 @@ subBinOpToIR Sub.ShiftLeft = toFunRefLit "<<"
 subBinOpToIR Sub.ShiftRight = toFunRefLit ">>"
 
 
-subUnOpToIR:: CompM m => Sub.UnOp -> m ( FrLang.Expr ty)
+subUnOpToIR:: ConvertM m => Sub.UnOp -> m ( FrLang.Expr PythonArgType)
 subUnOpToIR Sub.Not  = toFunRefLit "not"
 subUnOpToIR Sub.Invert = toFunRefLit "~"
 
-toFunRefLit :: Monad m => Binding -> m (FrLang.Expr ty)
+
+listofPyType :: [a] -> Either Unit (NonEmpty (ArgType PythonArgType))
+listofPyType [] = Left Unit
+listofPyType (a:args') = Right $ map (const $ Type PythonObject) (a:|args')
+
+
+toFunRefLit :: Monad m => Binding -> m (FrLang.Expr PythonArgType)
 {-- Note: Turns given string representation into literal expression representig an untyped, 
 'unscoped' (the empty list in as Binding argument) function reference 
 -- Question: why untyped ? --}
@@ -349,3 +327,4 @@ convError any = throwError $ "This shouldn't happen. Please file a bug about"
                 <>" missing conversion for the subset expression: " <> show any
 
 toBindings = map toBinding
+

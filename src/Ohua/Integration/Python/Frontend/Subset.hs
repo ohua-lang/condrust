@@ -13,7 +13,7 @@ import Control.Lens.Plated
 
 -- I currently don't type anything but for a) the possibility to use at least annotated
 -- types and b) consistency with other integration I'll thread this dummmy trough the logic
-data PythonType = PythonObject deriving (Show, Eq, Generic)
+data PythonType = PythonType deriving (Show, Eq, Generic)
 
 newtype Suite  =  PySuite [Stmt]
   deriving (Eq, Generic, Show)
@@ -28,7 +28,7 @@ data Stmt  =
     | ForStmt [Target] Expr Suite 
     | CondStmt [(Expr, Suite )] Suite 
     -- TODO: Rework when/if assignments and returns of lists of targets are supported
-    | Assign [Target] Expr 
+    | Assign Target Expr 
     | Pass 
     | StmtExpr Expr     
     -- TODO: Add AugmAssign when possible
