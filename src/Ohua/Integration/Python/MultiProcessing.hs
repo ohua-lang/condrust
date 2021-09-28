@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 module Ohua.Integration.Python.MultiProcessing where
 
 import Ohua.Prelude
@@ -65,11 +66,12 @@ instance Architecture (Architectures 'MultiProcessing) where
     -- Wraps the tasks i.e. codeblocks of host language function calls and 'wiring' to send and
     -- receive into actual independent tasks, in this case named closures because lambdas are to limited in python  
     build SMultiProc (Module fPath (Py.Module stmts)) ns =
-         return $ ns & algos %~ map (\algo -> algo & algoCode %~ createTasksAndChannels)
+        return $ ns & algos %~ map (\algo -> algo & algoCode %~ createTasksAndChannels)
+
         where
             --Questions: Pattern matching to the max is probably not the most elegant solution but
             -- I got stuck with type inference using the applicative way :-()
-            createTasksAndChannels (Program chans retChan tasks) =
+            createTasksAndChannels (Program chans retChan tasks)  =
                 Program chans retChan (zipWith (curry taskFromSuite) [1..] tasks)
 
             taskFromSuite:: (Int, FullTask ty (Py.Suite SrcSpan))
@@ -107,26 +109,32 @@ instance Architecture (Architectures 'MultiProcessing) where
         -- 1. import multiprocessing
         -- 2. tasks and channel inits NEED TO BE TL. Multiprocessing pickles, and 
         ---   pickling only works for TL definitions
-        -- 3. init pool and tasks list
-        -- 4. add tasks to list
-        -- 5. apply pool on tasks, close pool and return result
-        -- 6. close and join pool and channels
-        -- 7. make sure file ends with if __name__ = __main__:
-        -- and has otherwise no side effects upon importing from child processes 
+        -- 3. build a new main function 
+            -- has renamed parameters of original algorithm
+            -- declares variables named according to the original parameters of the algorithm global
+            -- assigns it' according parameters to those globals
+            -- inits tasks list and assign processes to each task
+            -- start processes and receive result
+            -- terminate and join processes
+            -- return result
+        -- Critical: receiving the result must happen before termination, but is blocking 
     serialize  SMultiProc srcModule ns = outPut newModule
         where
             -- For reasons I'll have to understand later, every algo seems to carry all tasks
-            ((bnd, graph):_ ) = map (\(Algo name expr _) -> (name, expr)) $ ns^.algos
+            ((bnd, graph, original):_ ) = map (\(Algo name expr src) -> (name, expr, src)) $ ns^.algos
             (Program channelInits resStmt nodeFuns) = graph
             taskList = zipWith (\ task i -> "task_" ++ show i) nodeFuns [1..]
-            multiMain = entryFunction taskList resStmt
+            original_params = Py.fun_args original
+            multiMain = makeMain taskList resStmt original_params
             newModule = makeModule srcModule channelInits nodeFuns multiMain
-instance Transform (Architectures 'MultiProcessing) 
+
+
+instance Transform (Architectures 'MultiProcessing)
 
 makeModule ::
     Module
     -> NonEmpty (Py.Statement SrcSpan)
-    -> [FullTask (PythonArgType) (Py.Statement SrcSpan)]
+    -> [FullTask PythonArgType (Py.Statement SrcSpan)]
     -> Py.Statement SrcSpan
     -> Module
 makeModule srcModule channelInits nodeFuns multiMain = Module path combinedModule
@@ -134,31 +142,54 @@ makeModule srcModule channelInits nodeFuns multiMain = Module path combinedModul
         (Module path (Py.Module originalStmts)) = srcModule
         taskFunDefs = map taskExpression nodeFuns
         combinedStatements = importMPStmt
-                             : toList channelInits 
-                             ++ taskFunDefs 
+                             : toList channelInits
+                             ++ taskFunDefs
                              -- ToDo: I should separate import statements from the rest 
                              -- insert them before the other 'originalStmts'
                              ++ originalStmts
                              -- TODO: actually I have to make sure, that there is no other 
                              -- entry point in the module 
                              ++ [multiMain]
-        combinedModule = Py.Module combinedStatements 
+        combinedModule = Py.Module combinedStatements
 
-entryFunction:: [String] -> Py.Statement SrcSpan -> Py.Statement SrcSpan
-entryFunction taskNames resStmt =  Py.Fun (mkIdent "main") [] resAnno mainBlock noSpan
+makeMain:: [String] -> Py.Statement SrcSpan -> [Py.Parameter SrcSpan]-> Py.Statement SrcSpan
+makeMain taskNames resStmt params =  Py.Fun (mkIdent "main") params' resAnno mainBlock noSpan
         where
             taskList = Py.List (map (toPyVar . mkIdent) taskNames) noSpan
             initTasksStmt = Py.Assign [(toPyVar .mkIdent) "tasks"] taskList noSpan
-            assignRes = Py.Assign [toPyVar . mkIdent $ "result"] (unwrapStmt resStmt) noSpan 
-            mainBlock = [initTasksStmt, initProcs, assignTasks, startProcs, assignRes, terminateProcs, joinProcs, returnResult]
-            resAnno = Nothing 
+            assignRes = Py.Assign [toPyVar . mkIdent $ "result"] (unwrapStmt resStmt) noSpan
+            mainBasic = [
+                initTasksStmt,
+                initProcs, assignTasks,
+                startProcs, assignRes,
+                terminateProcs, joinProcs,
+                returnResult]
+            (params', glob_decls) = paramsAndGlobals params
+            mainBlock = glob_decls ++ mainBasic
+            resAnno = Nothing
 
 
 outPut ::CompM m => Module -> m (NonEmpty (FilePath, L.ByteString))
-outPut (Module path pyModule) = 
+outPut (Module path pyModule) =
     let fileName = takeFileName path
         pyCode = encodeUtf8 $ prettyText pyModule
     -- Question: Why do we both do this NonEmpty fuzz here ?
     in return $  (fileName, pyCode) :| []
 
+paramsAndGlobals:: [Py.Parameter SrcSpan] ->  ([Py.Parameter SrcSpan], [Py.Statement SrcSpan])
+paramsAndGlobals [] = ([],[])
+paramsAndGlobals params = (renamed, [globalStmt, assign])
+    where
+        originalIDs = map Py.param_name params
+        helperIDs = map (`modName` "_1") params
+        globalStmt = Py.Global originalIDs noSpan
+        varTupleLeft = Py.Tuple (map (`Py.Var` noSpan) originalIDs) noSpan
+        varTupleRight = Py.Tuple (map (`Py.Var` noSpan) helperIDs) noSpan
+        assign = Py.Assign [varTupleLeft] varTupleRight noSpan
+        renamed = zipWith (curry replaceId) params helperIDs
 
+
+modName (Py.Param (Py.Ident name _) mTyp mDef anno) modV = Py.Ident (name++modV) noSpan
+
+replaceId:: (Py.ParameterSpan, Py.IdentSpan) -> Py.ParameterSpan
+replaceId (Py.Param id mTyp mDef anno, newId) = Py.Param newId mTyp mDef anno
