@@ -1,7 +1,6 @@
 {-# LANGUAGE InstanceSigs#-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ConstraintKinds #-}
-{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 {-|Slowly move frontend covnersion to this file withou messing up the 
 old frontend to much
 |-}
@@ -25,7 +24,6 @@ import qualified Language.Python.Common.AST as Py
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.List.NonEmpty as NE
-
 
 -- Keep track of names and types 
 -- > will be useful when/if annotated types are passed through
@@ -225,6 +223,7 @@ subExprToIR (Sub.Var bnd) = return $ VarE bnd
 subExprToIR (Sub.Int int) = return $ LitE $ NumericLit int
 subExprToIR (Sub.Bool bool) = return $ LitE $ BoolLit bool
 subExprToIR Sub.None = return $  LitE  UnitLit
+
 subExprToIR (Sub.Call (Sub.Pure bnd) args) = do
     args'<- mapM subArgToIR args
     return $ AppE (VarE bnd) args'
@@ -236,6 +235,11 @@ subExprToIR (Sub.Call (Sub.Dotted objBnd funBnd) args) = do
         argTypes = listofPyType args
         method = LitE (FunRefLit (FunRef funBnd Nothing $ STFunType receiverTy argTypes))
     return $ BindE receiver method `AppE` args'
+
+subExprToIR (Sub.Call (Sub.Direct lambdaExpr) args) = do
+    args' <- mapM subArgToIR args
+    fun <- subExprToIR lambdaExpr
+    return $ AppE fun args'
 
 subExprToIR (Sub.CondExpr condE trueExpr falseExpr) = do
     cond <- subExprToIR condE
@@ -253,6 +257,13 @@ subExprToIR (Sub.UnaryOp unOp expr1) = do
     op' <- subUnOpToIR unOp
     expr1' <- subExprToIR expr1
     return $ op' `AppE` [expr1']
+
+subExprToIR (Sub.Lambda params expr) = do
+    ctxt <- get 
+    params' <- mapM subParamToIR params 
+    expr' <- subExprToIR expr
+    put ctxt
+    return $ LamE params' expr'
 
 subExprToIR (Sub.Tuple exprs) = do
     exprs' <- mapM subExprToIR exprs

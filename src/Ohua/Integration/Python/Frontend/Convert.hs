@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 {-|
 Module      : Python.Frontend.Convert
 Description : Convert AST to supported python subset
@@ -128,6 +129,13 @@ exprToSubExpr (Py.Tuple exprs annot) = do
     exprs' <- mapM exprToSubExpr exprs
     return $ Sub.Tuple exprs'
 
+
+exprToSubExpr lam@(Py.Lambda params expr annot) = do
+    params' <- mapM paramToSub params
+    expr' <- exprToSubExpr expr 
+    return $ Sub.Lambda params' expr'
+
+
 exprToSubExpr lL@Py.LongInt{} = unsupError "LongInts" lL
 exprToSubExpr fL@(Py.Float valDbl strRepr annot) = unsupError "Floats" fL
 exprToSubExpr imL@(Py.Imaginary valDbl strRepr annot) = unsupError "Imaginaries" imL
@@ -140,7 +148,6 @@ exprToSubExpr slice@(Py.SlicedExpr sliced slices annot) = unsupError "Slicing Ex
 -- TODO: Dotted's can be function references (in statefull calls) or attribute references
 -- as the latter one is not supported we do not gerenally support Dot expressions
 exprToSubExpr dot@(Py.Dot object attribute annot) = unsupError "Attribute references" dot
-exprToSubExpr lam@(Py.Lambda params expr annot) = unsupError "Lambda Expressions" lam
 exprToSubExpr yield@(Py.Yield mayBeArg annot) = unsupError "Yield Expressions" yield
 exprToSubExpr gen@(Py.Generator comprehension annot) = unsupError "generator expression " gen
 exprToSubExpr await@(Py.Await expr annot) = unsupError "await expression" await
@@ -176,6 +183,10 @@ exprToFRef Py.Dot{dot_expr= dots,dot_attribute = ident}  = do
     let funBinding  = toQualBinding $ Py.ident_string ident
         objBinding = fromString $ chainBindings "" dots
     return $ Sub.Dotted objBinding funBinding
+exprToFRef (Py.Paren expr annot) = exprToFRef expr
+exprToFRef lE@Py.Lambda{} = do
+    lE' <- exprToSubExpr lE
+    return $ Sub.Direct lE'
 exprToFRef anyOther = unsupError "this kind of expression as function reference: " anyOther
 
 
