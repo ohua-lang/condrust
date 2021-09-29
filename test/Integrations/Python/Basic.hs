@@ -34,7 +34,7 @@ spec =
             (showCode "Compiled: " =<< compileCode Input.varReturn) >>=
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.varReturn
-                compiled `shouldBe` expected)
+                compiled `shouldBe` expected)     
 
         it "return function call" $
             (showCode "Compiled: " =<< compileCode Input.onlyReturnFunCall) >>=
@@ -59,6 +59,27 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.assignCallAssignReturn
                 compiled `shouldBe` expected)
+
+        it "Algo with params" $
+            (showCode "Compiled: " =<< compileCode Input.algoWithParams) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" Expect.algoWithParams
+                compiled `shouldBe` expected) 
+
+        it "Apply ĺambda expr" $
+            (showCode "Compiled: " =<< compileCode Input.applyLambdaExpr) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" Expect.applyLambdaExpr
+                compiled `shouldBe` expected) 
+        
+        it "Assign ĺambda expr" $
+            (showCode "Compiled: " =<< compileCode Input.assignLambdaExpr) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" Expect.assignLambdaExpr
+                compiled `shouldBe` expected) 
+
+        
+{-  TOFIX 
         {-
         uncaught exception: ErrorCall
        Internal Error: Tried running substitution on sending Binding "x" with not yet supported task expression: Lit UnitLit
@@ -69,8 +90,6 @@ spec =
                 expected <- showCode "Expected:" Expect.callAFunction
                 compiled `shouldBe` expected)
 
-{-  TOFIX 
-        
 
          {-
         uncaught exception: ErrorCall
@@ -96,14 +115,6 @@ spec =
                 expected <- showCode "Expected:" Expect.emptyReturn
                 compiled `shouldBe` expected)
 
-        {-
-        -- Fails until I introduces parameters for the new main
-        it "Algo with params" $
-            (showCode "Compiled: " =<< compileCode Input.algoWithParams) >>=
-            (\compiled -> do
-                expected <- showCode "Expected:" Expect.algoWithParams
-                compiled `shouldBe` expected) 
-        -}
         {-
         uncaught exception: ErrorCall
         Internal Error: Tried running substitution on sending Binding "x" with not yet supported task expression: Lit UnitLit
@@ -146,14 +157,7 @@ spec =
                 expected <- showCode "Expected:" Expect.assignNumLitReturn 
                 compiled `shouldBe` expected)     
         
-        --Same error as with all 'None Return tests'
-        it "Multiassignment no Return" $
-            (showCode "Compiled: " =<< compileCode Input.multiAssignment) >>=
-            (\compiled -> do
-                expected <- showCode "Expected:" Expect.multiAssignment
-                compiled `shouldBe` expected)
-
-       
+        
         -- Same Error as with all 'None Return tests'
         it "Assignments, Call function, Return Var" $
             (showCode "Compiled: " =<< compileCode Input.assignmentCallReturn) >>=

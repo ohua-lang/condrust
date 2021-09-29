@@ -59,6 +59,8 @@ def changeRef(x:int):
 def changeRefType(x:int):
     x = "Not an int anymore"
 
+def return3():
+    return 1,2,3
 
 def mutateValues(intList:List[int]):
     intList = [i+1 for i in intList]
@@ -171,9 +173,10 @@ multiAssignment = [pythonModule|
 from testLib import *
 
 def algo():
-    x = f()
-    y = g()
-    z = h()
+    (x,y,z) = return3()
+    a = twoArgs(x,y)
+    res = z == a
+    return res
 |]
 
 varReturn = [pythonModule|
@@ -241,6 +244,22 @@ def algo(a, b):
     return x+y 
 |]
 
+applyLambdaExpr = [pythonModule|
+from testLib import *
+
+def algo(a, b):
+    x = (lambda a : 2*a)(3)
+    return x
+|] 
+assignLambdaExpr = [pythonModule|
+from testLib import *
+
+def algo(a, b):
+    x = lambda a : 2*a
+    y = x(3)
+    return y
+|]
+
 --Test cases for State.hs ---------------------------------------------
 callMethod = [pythonModule|
 from testLib import *
@@ -260,7 +279,8 @@ from testLib import *
 def algo(a):
     g = some_invented_iter_function()
     for i in g:
-        f(i)
+        n = n + f(i)
+    return n
 |]
 
 whileLoop = [pythonModule|
