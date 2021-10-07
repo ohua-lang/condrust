@@ -1,27 +1,34 @@
 module Ohua.Integration.Python.Backend.Subset where
 
 import Ohua.Prelude 
-newtype Suite anno =  PySuite [Stmt anno]
 
-data Stmt anno = 
-    WhileStmt 
-    | ForStmt 
-    | CondStmt 
-    | StmtExpr 
-    | Assign 
-    | AugmentedAssign
-    deriving (Eq, Generic, Functor, Foldable, Traversable, Show)
+import Data.Functor.Foldable.TH (makeBaseFunctor)
+import Language.Haskell.TH.Syntax (Lift)
+import Control.Lens.Plated
+
+{-| In contrast to the frontend subset, the backend subset is restricted by the language of the Ohua backend. Hence I use (mostly) a subset
+ of the AST from language-python although it allows invalid python syntax-}
+type Suite = [Stmt]
+
+data Stmt = 
+    WhileStmt Expr Suite -- original: While Expr Suite Suite, we dont't have the 'else-suite'
+    | ForStmt [Expr] Expr Suite -- original: For [Expr] Suite Suite, we dont't have the 'else-suite'
+    | CondStmt (Expr, Suite) Suite -- original: Conditional [(Expr, Suite)] Suite, we dont't have a list of elifs but only if -suite- suite
+    | StmtExpr Expr
+    -- TODO: Check what kinds of target actually arrive here
+    | Assign [Expr] Expr 
+    | AugmentedAssign Expr AssignOp Expr
+    deriving (Eq, Generic, Show)
 
 data Expr = 
-    Int 
-    | Bool 
+    Int Integer
+    | Bool Bool
     | None 
-    | Var 
+    | Var Binding 
     -- There is no explicit MethodCall in Python
     -- A MethodCall in Python Syntax is a Call, whose call_fun attribute is a DotExpr
-    | Call 
-    | DotExpr  
-    | ArgExpr 
+    | Call Expr [Argument]
+    | DotExpr Expr QualifiedBinding
     | CondExpr 
     | Tuple
     -- TODO: Subscript in the python ASt does not 
@@ -29,10 +36,35 @@ data Expr =
     -- So actually I use the 'universal' subscript expr,
     -- but only for the first and second element of tuples falling out 
     -- of the compiler backend  
-    | TplSubscript
-    | AssignOp 
-    | Not 
-    | BinaryOp
-    | UnaryOp 
-    deriving (Eq, Generic)
+    | TplSubscript Binding Integer 
+    | BinaryOp BinOp Expr Expr
+    | UnaryOp UnOp Expr
+    deriving (Eq, Generic , Show)
 
+
+data BinOp =  
+    Plus | Minus | Multiply | Divide | FloorDivide | Modulo | Exponent | MatrixMult | 
+    And | Or | Is | IsNot | In | NotIn | 
+    LessThan | GreaterThan | Equality | GreaterThanEquals | LessThanEquals | NotEquals |
+    BinaryAnd | BinaryOr | Xor | ShiftLeft | ShiftRight deriving (Show, Eq, Generic)
+
+data UnOp =  Not | Invert  deriving (Show, Eq, Generic)
+data Target = Single Binding | Tpl [Binding]   deriving (Show, Eq, Generic)
+data Argument = Arg Expr deriving (Eq, Show) -- StarArg Expr | StarKwArg Expr | KwArg Expr Ident
+data AssignOp = 
+    PlusAssign
+    | MinusAssign 
+    {- -- currently not  used
+    | MultAssign 
+    | DivAssign 
+    | ModAssign 
+    | PowAssign
+    | BinAndAssign 
+    | BinOrAssign
+    | BinXorAssign 
+    | LeftShiftAssign
+    | RightShiftAssign
+    | FloorDivAssign
+    | MatrixMultAssign
+    -}
+    deriving (Eq, Show)
