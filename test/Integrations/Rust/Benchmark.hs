@@ -51,7 +51,7 @@ spec =
                 use std::*;
 
                 // FIXME: Add 2 muts here once supported
-                fn fill(maze: Maze, pairs: Vec<Option<(Point, Point)>>, its_left: u32) -> Maze {
+                fn fill(maze: Maze, pairs: Vec<Option<(Point, Point)>>, its: u32) -> Maze {
                     let rs = Vec::default();
                     // let rs = UnmappedPaths::default();
                     let m2 = maze.clone(); // the type check for state threads in Ohua forces me to put this here. this is good!
@@ -66,12 +66,12 @@ spec =
                     // rs.evict_mapped();
                     let rs1 = filter_mapped(rs);
                     let rs2 = rs1.clone();
-                    let (new_its_left, not_done) = calculate_done(rs1, its_left);
+                    let (new_its, not_done) = calculate_done(rs1, its);
                     // let new_its_left = decrement(its_left);
                     // let new_its_left1 = new_its_left.clone();
                     // // let not_done = rs.calculate_done1(new_its_left);
                     // let not_done = calculate_done(rs1, new_its_left);
-                    if not_done { fill(maze, rs2, new_its_left) }
+                    if not_done { fill(maze, rs2, new_its) }
                     else { maze }
                 }
 
@@ -208,37 +208,47 @@ spec =
             use benchs::*;
             use std::*;
 
-            pub fn run(mut netlist: Netlist, dimensions: Location, worklist: Vec<(usize, usize)>, rng: InternalRNG, temperature: f64, completed_steps: i32, max_steps: Option<i32>, swaps_per_temp: usize) -> i32 { 
-                let mut rs = Vec::default();
+            fn run(mut netlist: Netlist, worklist: Vec<(usize, usize)>, temperature: f64, mut internal_state: InternalState) -> Netlist {
+                let mut rs = Vec::new(); // the new worklist
 
                 let new_temp = reduce_temp(temperature);
-                let new_temp2 = new_temp.clone();
 
-                let nro = Arc::new(netlist.clone());
+                let n2 = netlist.clone();
+                let nro = Arc::new(n2);
                 for item in worklist {
-                    let switch_info = process_move(item, nro.clone(), new_temp2); // gives a Good/Bad/Reject plus tuple
-                    let res = netlist.update(switch_info); // produces a Option<(_, _)> with the update info (success/fail)
-                    // TODO: How to track overrides??
-                    rs.push(res);
+                    let switch_info = process_move(item, nro.clone(), new_temp.clone());
+                    // updates the netlist by performing the switch, returning an error when there's a collision
+                    let result = netlist.update(switch_info);
+                    rs.push(result);
                 }
 
-                let dim2 = dimensions.clone();
-                let (keep_going, rest) = rng.assess_updates(rs, dimensions, new_temp.clone(), completed_steps.clone(), max_steps.clone(), swaps_per_temp.clone());
+                netlist.clear_changes();
+                let rs2 = rs.clone();
+                let mut remaining_work = filter_work(rs);
+                let length = remaining_work.len();
 
-                let new_temp_steps = increment(completed_steps);
+                // This is super broken! I must have this here to explain to the amorphous pass that this is not the variable its looking for
+                //let new_temp2 = do_something_unneccessary(new_temp.clone(), new_temp);
+                let (new_temp2, new_temp3) = dup(new_temp);
+
+                // get new work if necessary
+                // get whether to continue
+                let (new_work, keep_going) = internal_state.assess_updates(rs2, length, new_temp2);
+                // add new work items
+                remaining_work.exp(new_work);
+
                 if keep_going {
-                    run(netlist, dim2, rest, rng, new_temp, new_temp_steps, max_steps, swaps_per_temp)
+                    run(netlist, remaining_work, new_temp3, internal_state)
                 } else {
-                    new_temp_steps
+                    netlist
                 }
             }
 
-            pub fn annealer(netlist: Netlist, dimensions: Location, temperature: f64, completed_steps: i32, max_steps: Option<i32>, swaps_per_temp: usize) -> i32 {
-                let rng = InternalRNG::seed_from_u64(0);
+            pub fn annealer(netlist: Netlist, elements: usize, temperature: f64, max_steps: Option<i32>, swaps_per_temp: usize) -> Netlist {
+                let st = InternalState::initialize(elements, max_steps, swaps_per_temp);
 
-                let (d1, d2) = dup(dimensions);
-                let worklist = rng.generate_worklist(swaps_per_temp, d1);
-                run(netlist, d2, worklist, rng, temperature, completed_steps, max_steps, swaps_per_temp)
+                let worklist = st.generate_worklist();
+                run(netlist, worklist, temperature, st)
             }
             |]) >>=
         (\compiled -> do

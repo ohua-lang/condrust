@@ -223,31 +223,39 @@ benchs =
   \ impl Netlist { \
   \     pub fn update(&mut self, switch_info: (MoveDecision, (usize, usize))) -> Option<(usize, usize)> \
   \     { unimplemented!() } \
+  \ \
+  \     pub fn clear_changes(&mut self) { unimplemented!() } \
   \ } \
   \ \
   \ struct Location {} \
   \ impl ChaCha12Rng { \
   \ } \
   \ \
-  \ pub fn increment(completed_steps: i32) -> i32 { \
+  \ pub fn increment(completed_steps: &i32) -> i32 { \
   \     completed_steps + 1 \
   \ } \
   \  \
   \ pub fn reduce_temp(temperature: f64) -> f64 { \
   \     temperature / 1.5 \
   \ } \
-  \  \
+  \ \
+  \ fn filter_work(work: Vec<Result<MoveDecision, (usize, usize)>>) -> Vec<(usize, usize)> { \
+  \     unimplemented!() \
+  \ } \
+  \ \
   \ pub fn process_move(item: (usize, usize), netlist: Arc<Netlist>, temperature: f64) -> (MoveDecision, (usize, usize)) { \
   \     unimplemented!() \
   \ } \
   \ \
-  \ struct InternalRNG {} \
-  \ impl InternalRNG { \
-  \     pub fn seed_from_u64(s: u64) -> Self { unimplemented!() } \
-  \     pub fn assess_updates(&mut self, updates: Vec<Option<(usize, usize)>>, dimensions: Location, temp: f64, completed_steps: i32, max_steps: Option<i32>, swaps_per_temp: usize) -> (bool, Vec<(usize, usize)>) { \
+  \ pub fn do_something_unneccessary(new_temp: f64, _: f64) -> f64 { new_temp } \
+  \ \
+  \ struct InternalState {} \
+  \ impl InternalState { \
+  \     pub fn initialize(total_elements: usize, max_steps: Option<i32>, swaps_per_temp: usize) -> Self { unimplemented!() } \
+  \     pub fn generate_worklist(&mut self) -> Vec<(usize, usize)> { \
   \         unimplemented!() \
   \     } \
-  \     pub fn generate_worklist(&mut self, swaps_per_temp: usize, dimensions: Location) -> Vec<(usize, usize)> { \
+  \     pub fn assess_updates(&mut self, results: Vec<MoveDecision>, length: usize, temperature: f64) -> (Vec<(usize, usize)>, bool) { \
   \         unimplemented!() \
   \     } \
   \ } \
@@ -266,6 +274,8 @@ std =
   \   pub fn push(&mut self, value: T) { unimplemented!() } \
   \   pub fn evict_mapped(&mut self) { unimplemented!() } \
   \   pub fn calculate_done1(&mut self, its_left: u32) -> bool { unimplemented!() } \
+  \   pub fn len(&self) -> usize { unimplemented!() } \
+  \   pub fn exp(&mut self, other: Self) { unimplemented!() } \
   \ } \
   \ \
   \ enum Option<T> {} \
