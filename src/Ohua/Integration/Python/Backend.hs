@@ -18,7 +18,7 @@ import Data.Text (unpack)
 import Data.Functor.Foldable (cata, embed)
 
 import Data.Maybe
-import Language.Python.Common.SrcLocation (SrcSpan)
+
 
 
 convertToSuite::(Architecture arch, Lang arch ~ Language 'Python)
@@ -77,7 +77,6 @@ instance Integration (Language 'Python) where
     convertExpr _ (TCLang.Lit (FunRefLit (FunRef qBnd mFunID _type))) = case qBnd of
         (QualifiedBinding [] bnd) -> wrapExpr Py.Var{var_ident= fromBinding bnd, expr_annot= noSpan}
         (QualifiedBinding refNames bnd)  -> wrapExpr $ toPyVar $ dotConcat refNames bnd
-
     convertExpr arch (Apply (Stateless bnd args)) = convertFunCall arch bnd args
     -- There are no different definitions for functions and methods
     convertExpr arch (Apply (Stateful stateExpr (QualifiedBinding _ bnd) args)) =
@@ -312,3 +311,4 @@ hasAttrArgs bnd = [Py.ArgExpr (toPyVar. fromBinding $ bnd) noSpan, Py.ArgExpr (P
 
 pyInt::Integer -> Py.Expr SrcSpan
 pyInt num = Py.Int num (show num) noSpan
+

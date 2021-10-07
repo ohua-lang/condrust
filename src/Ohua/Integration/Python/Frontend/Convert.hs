@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 {-|
 Module      : Python.Frontend.Convert
 Description : Convert AST to supported python subset
@@ -16,8 +15,6 @@ import Ohua.Integration.Python.Util
 
 import qualified Language.Python.Common.AST as Py
 import Language.Python.Common (SrcSpan (SpanEmpty))
-import Language.Python.Common.SrcLocation (SrcSpan)
-import Language.Python.Common.AST (Expr(var_ident))
 
 
 suiteToSub:: (Monad m, MonadError Error m) => Py.Suite SrcSpan -> m Sub.Suite
