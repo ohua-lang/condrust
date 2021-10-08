@@ -261,6 +261,7 @@ benchs =
   \ \
   \ pub fn id<T>(item: T) -> T { unimplemented!() } \
   \ pub fn dup<T>(item: T) -> (T, T) { unimplemented!() } \
+  \ pub fn extract(item: Arc<Netlist>) -> Netlist { unimplemented!() } \
   \ "
 
 std :: Text

@@ -211,21 +211,22 @@ spec =
             fn run(mut netlist: Netlist, worklist: Vec<Result<MoveDecision, (usize, usize)>>, temperature: f64, mut internal_state: InternalState) -> Netlist {
                 let mut rs = Vec::new(); // the new worklist
 
-                let new_temp = reduce_temp(temperature);
+                let new_temp: f64 = reduce_temp(temperature);
 
-                let n2 = netlist.clone();
-                let nro = Arc::new(n2);
+                let n2: Netlist = netlist.clone();
+                let nro: Arc<Netlist> = Arc::new(n2);
                 for item in worklist {
-                    let switch_info = process_move(item, nro.clone(), new_temp.clone());
+                    let switch_info: (MoveDecision, (usize, usize)) = process_move(item, nro.clone(), new_temp.clone());
                     // updates the netlist by performing the switch, returning an error when there's a collision
-                    let result = netlist.update(switch_info);
-                    rs.push(result);
+                    rs.push(switch_info);
                 }
 
-                netlist.clear_changes();
-                let rs2 = rs.clone();
-                let mut remaining_work = filter_work(rs);
-                let length = remaining_work.len();
+                // let new_netlist = extract(nro);
+                let foo: Vec<(MoveDecision, (usize, usize))> = netlist.update(rs);
+                // netlist.clear_changes();
+                let rs2: Vec<(MoveDecision, (usize, usize))> = foo.clone();
+                let mut remaining_work: Vec<(MoveDecision, (usize, usize))> = filter_work(foo);
+                let length: usize = remaining_work.len();
 
                 // FIXME: I need this to show the compiler that new_temp is *not* the amorphous variable
                 let (new_temp2, new_temp3) = dup(new_temp);
