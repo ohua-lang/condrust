@@ -203,52 +203,93 @@ spec =
                     }
                 |]
             compiled `shouldBe` expected)
-    it "canneal" $
+--    it "canneal" $
+--        (showCode "Compiled: " =<< compileCodeWithRec [sourceFile|
+--            use benchs::*;
+--            use std::*;
+--
+--            // FIXME collapse netlist and internal_state into one state
+--            fn run(mut netlist: Netlist, worklist: Vec<Result<MoveDecision, (usize, usize)>>, temperature: f64, mut internal_state: InternalState) -> Netlist {
+--                let mut rs = Vec::new(); // the new worklist
+--
+--                let new_temp: f64 = reduce_temp(temperature);
+--
+--                let n2: Netlist = netlist.clone();
+--                let nro: Arc<Netlist> = Arc::new(n2);
+--                for item in worklist {
+--                    let switch_info: (MoveDecision, (usize, usize)) = process_move(item, nro.clone(), new_temp.clone());
+--                    // updates the netlist by performing the switch, returning an error when there's a collision
+--                    rs.push(switch_info);
+--                }
+--
+--                // let new_netlist = extract(nro);
+--                let foo: Vec<(MoveDecision, (usize, usize))> = netlist.update(rs);
+--                // netlist.clear_changes();
+--                let rs2: Vec<(MoveDecision, (usize, usize))> = foo.clone();
+--                let mut remaining_work: Vec<(MoveDecision, (usize, usize))> = filter_work(foo);
+--                let length: usize = remaining_work.len();
+--
+--                // FIXME: I need this to show the compiler that new_temp is *not* the amorphous variable
+--                let (new_temp2, new_temp3) = dup(new_temp);
+--
+--                // get new work if necessary
+--                // get whether to continue
+--                let (new_work, keep_going) = internal_state.assess_updates(rs2, length);
+--                // add new work items
+--                remaining_work.exp(new_work);
+--
+--                if keep_going {
+--                    run(netlist, remaining_work, new_temp3, internal_state)
+--                } else {
+--                    netlist
+--                }
+--            }
+--
+--            pub fn annealer(netlist: Netlist, elements: usize, temperature: f64, max_steps: Option<i32>, swaps_per_temp: usize) -> Netlist {
+--                let st = InternalState::initialize(elements, max_steps, swaps_per_temp);
+--
+--                let worklist = st.generate_worklist();
+--                run(netlist, worklist, temperature, st)
+--            }
+--            |]) >>=
+--        (\compiled -> do
+--            expected <- showCode "Expected:"
+--                [sourceFile|
+--                    use funs::*;
+--
+--                    fn test(i: i32) -> i32 {
+--                        TODO
+--                    }
+--                |]
+--            compiled `shouldBe` expected)
+    it "canneal2" $
         (showCode "Compiled: " =<< compileCodeWithRec [sourceFile|
             use benchs::*;
             use std::*;
 
-            fn run(mut netlist: Netlist, worklist: Vec<Result<MoveDecision, (usize, usize)>>, temperature: f64, mut internal_state: InternalState) -> Netlist {
+            fn run(mut state: NetlistAndInternal, worklist: Vec<Result<MoveDecision, (usize, usize)>>, temperature: f64) -> NetlistAndInternal {
                 let mut rs = Vec::new(); // the new worklist
-
                 let new_temp: f64 = reduce_temp(temperature);
-
-                let n2: Netlist = netlist.clone();
-                let nro: Arc<Netlist> = Arc::new(n2);
+                let n2: NetlistAndInternal = state.clone();
+                let nro: Arc<NetlistAndInternal> = Arc::new(n2);
                 for item in worklist {
                     let switch_info: (MoveDecision, (usize, usize)) = process_move(item, nro.clone(), new_temp.clone());
                     // updates the netlist by performing the switch, returning an error when there's a collision
                     rs.push(switch_info);
                 }
 
-                // let new_netlist = extract(nro);
-                let foo: Vec<(MoveDecision, (usize, usize))> = netlist.update(rs);
-                // netlist.clear_changes();
-                let rs2: Vec<(MoveDecision, (usize, usize))> = foo.clone();
-                let mut remaining_work: Vec<(MoveDecision, (usize, usize))> = filter_work(foo);
-                let length: usize = remaining_work.len();
-
-                // FIXME: I need this to show the compiler that new_temp is *not* the amorphous variable
-                let (new_temp2, new_temp3) = dup(new_temp);
-
-                // get new work if necessary
-                // get whether to continue
-                let (new_work, keep_going) = internal_state.assess_updates(rs2, length);
-                // add new work items
-                remaining_work.exp(new_work);
+                let remaining_work: Vec<(MoveDecision, (usize, usize))> = state.update(rs);
+                let keep_going = state.get_keep_going();
 
                 if keep_going {
-                    run(netlist, remaining_work, new_temp3, internal_state)
+                    run(state, remaining_work, new_temp)
                 } else {
-                    netlist
+                    state
                 }
             }
 
-            pub fn annealer(netlist: Netlist, elements: usize, temperature: f64, max_steps: Option<i32>, swaps_per_temp: usize) -> Netlist {
-                let st = InternalState::initialize(elements, max_steps, swaps_per_temp);
-
-                let worklist = st.generate_worklist();
-                run(netlist, worklist, temperature, st)
+            pub fn annealer(netlist: NetlistAndInternal, worklist:Vec<Result<MoveDecision, (usize, usize)>>, temperature: f64) -> NetlistAndInternal {
+                run(netlist, worklist, temperature)
             }
             |]) >>=
         (\compiled -> do

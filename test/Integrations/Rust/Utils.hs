@@ -258,6 +258,14 @@ benchs =
   \     } \
   \ } \
   \ \
+  \ struct NetlistAndInternal {} \
+  \ impl NetlistAndInternal { \
+  \     pub fn update(&mut self, switch_info: (MoveDecision, (usize, usize))) -> Result<MoveDecision, (usize, usize)> \
+  \     { unimplemented!() } \
+  \\
+  \     pub fn get_keep_going(&self) -> bool { unimplemented!() } \
+  \\
+  \ } \
   \ \
   \ pub fn id<T>(item: T) -> T { unimplemented!() } \
   \ pub fn dup<T>(item: T) -> (T, T) { unimplemented!() } \
