@@ -341,13 +341,13 @@ amorphous targetExpr = do
                     [] -> pure lam
                     loops -> do
                       traceM $ "Detected loops: " <> show loops
-                      case filter ((`HS.member` ctxtHS) . (\(a, b, c) -> b)) loops of
+                      case filter ((`HS.member` ctxtHS) . snd) loops of
                         [] -> pure lam
                         loops' -> do
                           traceM $ "Result after filtering with ctxtHS: " <> show loops'
-                          case filter (\(smapBody, inp, cont) -> isUsedState result smapBody || isUsedState result cont) loops' of
+                          case filter (isUsedState result . fst) loops' of
                             [] -> pure lam
-                            [(_, inp, _)] -> do
+                            [(_, inp)] -> do
                               traceM $ "Detected State usage: " <> show inp
                               recArgs <- findRecursionArgs body
                               workResult <-
@@ -390,10 +390,7 @@ amorphous targetExpr = do
           args2 =
             [ b' | (AL.Let b (Apply (StatefulFunction _ _ (AL.Var b')) (Lit UnitLit)) _) <- universe expr, HS.member b args
             ]
-          args3 =
-            [ b' | (AL.Let b (Apply (StatefulFunction _ _ (AL.Var c')) (AL.Var b')) _) <- universe expr, HS.member b args
-            ]
-       in case args1 ++ args2 ++ args3 of
+       in case args1 ++ args2 of
             [] -> args
             args' -> HS.union args $ findDerivations (HS.fromList args') expr
 
@@ -437,8 +434,8 @@ amorphous targetExpr = do
           ]
 
     findLoops body =
-      [ (smapBody, inp, cont)
-        | (AL.Let _ (Apply (Apply (PureFunction smapF Nothing) smapBody) (AL.Var inp)) cont) <- universe body,
+      [ (smapBody, inp)
+        | (Apply (Apply (PureFunction smapF Nothing) smapBody) (AL.Var inp)) <- universe body,
           smapF == ALRefs.smap
       ]
 
