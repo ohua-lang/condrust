@@ -341,13 +341,33 @@ amorphous targetExpr = do
                     [] -> pure lam
                     loops -> do
                       traceM $ "Detected loops: " <> show loops
-                      case filter ((`HS.member` ctxtHS) . snd) loops of
+                      case filter ((`HS.member` ctxtHS) . snd3) loops of
                         [] -> pure lam
                         loops' -> do
                           traceM $ "Result after filtering with ctxtHS: " <> show loops'
-                          case filter (isUsedState result . fst) loops' of
-                            [] -> pure lam
-                            [(_, inp)] -> do
+                          case filter (isUsedState result . fst3) loops' of
+                            -- TODO this only checks for calls to the state but it should
+                            --      really also check that the result of the loop is input to the same call
+                            [] -> case filter (isUsedState result . third3) loops' of
+                                    [] -> pure lam
+                                    -- FIXME cleanup this code and merge it with the below version
+                                    [(_, inp,_)] -> do
+                                      recArgs <- findRecursionArgs body
+                                      workResult <-
+                                        findWorked body inp result recArgs
+                                      rest <- generateBindingWith "rest"
+                                      traceM $ "state: " <> show result
+                                      traceM $ "wl: " <> show workResult
+                                      case workResult of
+                                        Just workResult' -> do
+                                          lam' <- transformM (takeNRewrite' inp workResult' rest) lam
+                                          transformM (concatRewrite result workResult' rest) lam'
+                                        _ -> pure lam
+
+                                    --FIXME I don't think we should error here but just not perform the transfomation.
+                                    _ -> throwError $ "invariant broken: "
+                                         <> "more than a single loop over the worklist found."
+                            [(_, inp,_)] -> do
                               traceM $ "Detected State usage: " <> show inp
                               recArgs <- findRecursionArgs body
                               workResult <-
@@ -395,8 +415,8 @@ amorphous targetExpr = do
             args' -> HS.union args $ findDerivations (HS.fromList args') expr
 
     findWorked body inp result recArgs = do
-      (b, smapBody) <-
-        case [ (b, smapBody)
+      (b, smapBody,cont) <-
+        case [ (b, smapBody,cont)
                | AL.Let
                    b
                    ( Apply
@@ -406,7 +426,7 @@ amorphous targetExpr = do
                          )
                        (AL.Var inp')
                      )
-                   _ <-
+                   cont <-
                    universe body,
                  inp == inp'
              ] of
@@ -418,14 +438,30 @@ amorphous targetExpr = do
         _ ->
           -- imperative case
           let fv = findFreeBindings smapBody
-              fv' = filter (`isUsedState` smapBody) fv
-              fv'' = filter (`HS.member` recArgs) fv'
-              fv''' = filter (/= result) fv''
-           in case fv''' of
-                [b'] -> return $ Just b'
-                bs -> do
-                  throwError $ "I was unable to detect the work variable: " <> show bs
+              fv' = filter (`isUsedState'` smapBody) fv
+              fv'' = filter (/= result) fv'
+          in case filter (`HS.member` recArgs) fv'' of
+               [b'] -> return $ Just b'
+               _ -> case fv'' of
+                      [b'] -> case getWLPrime cont b' result of
+                                [b''] | HS.member b'' recArgs -> return $ Just b'
+                                _ -> return Nothing
+                      bs -> do
+                        throwError $ "I was unable to detect the work variable: " <> show bs
     --return Nothing
+
+    getWLPrime t wl result =
+      [ v | (AL.Let
+              v
+             (Apply (StatefulFunction _ _ (AL.Var s)) (AL.Var d))
+             cont) <- universe t
+      , result == s && wl == d]
+
+    isUsedState' bnd body =
+      not $
+        null
+          [ s | (Apply (StatefulFunction _ _ (AL.Var s)) (AL.Var _)) <- universe body, s == bnd
+          ]
 
     isUsedState bnd body =
       not $
@@ -434,8 +470,8 @@ amorphous targetExpr = do
           ]
 
     findLoops body =
-      [ (smapBody, inp)
-        | (Apply (Apply (PureFunction smapF Nothing) smapBody) (AL.Var inp)) <- universe body,
+      [ (smapBody, inp, cont)
+        | (AL.Let _ (Apply (Apply (PureFunction smapF Nothing) smapBody) (AL.Var inp)) cont) <- universe body,
           smapF == ALRefs.smap
       ]
 
@@ -470,3 +506,50 @@ amorphous targetExpr = do
                     (Apply (Apply concatLit $ AL.Var worked) $ AL.Var rest)
                     (substitute worked (AL.Var pendingWork) cont)
     doRewrite _ _ e = pure e
+
+    takeNRewrite'
+      inp
+      worked
+      rest
+      ( AL.Let
+          v
+          (Apply f@(Apply (PureFunction smapF Nothing) _) (AL.Var inp'))
+          cont
+        )
+        | smapF == ALRefs.smap && inp == inp' = do
+          taken <- generateBindingWith "n_taken"
+          takenInp <- generateBindingWith $ inp <> "_n"
+          nResults <- generateBindingWith "n_results"
+          return $
+            AL.Let
+              taken
+              ( Apply
+                  (Apply takeNLit $ AL.Var inp)
+                  $ Lit $ NumericLit 10
+              )
+              $ destructure (AL.Var taken) [takenInp, rest] $ -- TODO take the value from the specification of lang (maybe via a type class)
+                AL.Let v (Apply f $ AL.Var takenInp) cont
+    takeNRewrite' _ _ _ e = pure e
+
+    concatRewriteOn worked rest cont = do
+      pendingWork <- generateBindingWith worked
+      return $
+        AL.Let pendingWork
+        (Apply (Apply concatLit $ AL.Var worked) $ AL.Var rest)
+        (substitute worked (AL.Var pendingWork) cont)
+
+
+    concatRewrite state worked rest
+      (AL.Let
+          v
+          f@(Apply (StatefulFunction _ _ (AL.Var s)) (AL.Var d))
+          cont)
+      | state == s && worked == d
+      = do
+          cont' <- concatRewriteOn v rest cont
+          return $ AL.Let v f cont'
+    concatRewrite _ _ _ e = pure e
+
+fst3 (a,_,_) = a
+snd3 (_,b,_) = b
+third3 (_,_,c) = c
