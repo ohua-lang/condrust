@@ -221,7 +221,7 @@ benchs =
   \ struct Netlist {} \
   \ enum MoveDecision { Good, Bad, Rejected } \
   \ impl Netlist { \
-  \     pub fn update(&mut self, switch_info: (MoveDecision, (usize, usize))) -> Option<(usize, usize)> \
+  \     pub fn update(&mut self, switch_info: (MoveDecision, (usize, usize))) -> Result<MoveDecision, (usize, usize)> \
   \     { unimplemented!() } \
   \ \
   \     pub fn clear_changes(&mut self) { unimplemented!() } \
@@ -239,23 +239,21 @@ benchs =
   \     temperature / 1.5 \
   \ } \
   \ \
-  \ fn filter_work(work: Vec<Result<MoveDecision, (usize, usize)>>) -> Vec<(usize, usize)> { \
+  \ fn filter_work(work: Vec<Result<MoveDecision, (usize, usize)>>) -> Vec<Result<MoveDecision, (usize, usize)>> { \
   \     unimplemented!() \
   \ } \
   \ \
-  \ pub fn process_move(item: (usize, usize), netlist: Arc<Netlist>, temperature: f64) -> (MoveDecision, (usize, usize)) { \
+  \ pub fn process_move(item: Result<MoveDecision, (usize, usize)>, netlist: Arc<Netlist>, temperature: f64) -> (MoveDecision, (usize, usize)) { \
   \     unimplemented!() \
   \ } \
-  \ \
-  \ pub fn do_something_unneccessary(new_temp: f64, _: f64) -> f64 { new_temp } \
   \ \
   \ struct InternalState {} \
   \ impl InternalState { \
   \     pub fn initialize(total_elements: usize, max_steps: Option<i32>, swaps_per_temp: usize) -> Self { unimplemented!() } \
-  \     pub fn generate_worklist(&mut self) -> Vec<(usize, usize)> { \
+  \     pub fn generate_worklist(&mut self) -> Vec<Result<MoveDecision, (usize, usize)>> { \
   \         unimplemented!() \
   \     } \
-  \     pub fn assess_updates(&mut self, results: Vec<MoveDecision>, length: usize, temperature: f64) -> (Vec<(usize, usize)>, bool) { \
+  \     pub fn assess_updates(&mut self, results: Vec<MoveDecision>, length: usize) -> (Vec<Result<MoveDecision, (usize, usize)>>, bool) { \
   \         unimplemented!() \
   \     } \
   \ } \

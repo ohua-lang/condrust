@@ -208,7 +208,7 @@ spec =
             use benchs::*;
             use std::*;
 
-            fn run(mut netlist: Netlist, worklist: Vec<(usize, usize)>, temperature: f64, mut internal_state: InternalState) -> Netlist {
+            fn run(mut netlist: Netlist, worklist: Vec<Result<MoveDecision, (usize, usize)>>, temperature: f64, mut internal_state: InternalState) -> Netlist {
                 let mut rs = Vec::new(); // the new worklist
 
                 let new_temp = reduce_temp(temperature);
@@ -227,13 +227,12 @@ spec =
                 let mut remaining_work = filter_work(rs);
                 let length = remaining_work.len();
 
-                // This is super broken! I must have this here to explain to the amorphous pass that this is not the variable its looking for
-                //let new_temp2 = do_something_unneccessary(new_temp.clone(), new_temp);
+                // FIXME: I need this to show the compiler that new_temp is *not* the amorphous variable
                 let (new_temp2, new_temp3) = dup(new_temp);
 
                 // get new work if necessary
                 // get whether to continue
-                let (new_work, keep_going) = internal_state.assess_updates(rs2, length, new_temp2);
+                let (new_work, keep_going) = internal_state.assess_updates(rs2, length);
                 // add new work items
                 remaining_work.exp(new_work);
 
