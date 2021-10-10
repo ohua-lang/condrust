@@ -151,7 +151,7 @@ instance Integration (Language 'Python) where
         let ifElifs = ( unwrapSubStmt $ convertExpr arch cond, convertToSuite arch thenExp)
             elseBranch = convertToSuite arch elseExp
         in Sub.CondStmt ifElifs elseBranch
-{-
+
     --- specific functions
     -- TODO: hasSize = True if hasattr(bnd, '__len__') 
         -- Current solution has some pros and cons... check and change if required
@@ -159,16 +159,15 @@ instance Integration (Language 'Python) where
         let args = hasAttrArgs bnd
         in wrapSubExpr $
             Sub.CondExpr
-                (Sub.Bool True noSpan)
-                (Sub.Call (toSubVar. mkIdent $ "hasattr") args noSpan )
-                (Sub.Bool False noSpan)
-                noSpan
+                (Sub.Bool True)
+                (Sub.Call (Sub.Var "hasattr") args)
+                (Sub.Bool False)
 
     convertExpr arch (TCLang.Size bnd) =
-        convertExpr arch $ Apply $ Stateless (mkFunRefUnqual "len") [Var bnd]
+        convertFunCall arch (mkFunRefUnqual "len") [Var bnd]
 
     convertExpr arch (TCLang.ListOp Create) =
-        convertExpr arch $ Apply $ Stateless (mkFunRefUnqual "list") []
+        convertFunCall arch (mkFunRefUnqual "list") []
 
     convertExpr arch (TCLang.ListOp (Append bnd expr)) =
         convertExpr arch $ Apply $ Stateful (Var bnd) (mkFunRefUnqual "append") [expr]
@@ -176,7 +175,7 @@ instance Integration (Language 'Python) where
     -- and list are homogenous :-/ 
     convertExpr arch (TCLang.Tuple one two) =
         let conv =  unwrapSubStmt . convertExpr arch . either TCLang.Var TCLang.Lit
-        in  wrapSubExpr $ Sub.Tuple [conv one, conv two] noSpan
+        in  wrapSubExpr $ Sub.Tuple [conv one, conv two]
 
     convertExpr arch (TCLang.First bnd) =  wrapSubExpr $
         Sub.TplSubscript  bnd  0
@@ -184,21 +183,15 @@ instance Integration (Language 'Python) where
         Sub.TplSubscript bnd 1
 
     convertExpr arch (TCLang.Increment bnd) =
-        Sub.AugmentedAssign
-            (toSubVar $ fromBinding bnd)
-            (Sub.PlusAssign )
-            (pyInt 1)
+        Sub.AugmentedAssign (Sub.Var bnd) Sub.PlusAssign (Sub.Int 1)
 
-
+    
     convertExpr arch (TCLang.Decrement bnd) =
-        Sub.AugmentedAssign
-            (toSubVar $ fromBinding bnd)
-            (Sub.MinusAssign )
-            (pyInt 1)
+        Sub.AugmentedAssign (Sub.Var bnd) Sub.MinusAssign (Sub.Int 1)
 
     convertExpr arch (TCLang.Not expr) =  wrapSubExpr $
         Sub.UnaryOp  Sub.Not ( unwrapSubStmt $ convertExpr arch expr)
--}
+
 
 
 pattern FunRepresentationOf :: Binding -> QualifiedBinding
@@ -286,15 +279,18 @@ bToString = unpack . unwrap
 
 asUntypedFunctionLiteral qBinding = TCLang.Lit $ FunRefLit $ FunRef qBinding Nothing Untyped
 
--- Turn an unqualified binding (just a name) 
--- into a qualified binding (name with [import] context) with just no context
+-- | Turn an unqualified binding (just a name) 
+--  into a qualified binding (name with [import] context) with just no context
 -- TODO: The name is confusing...kept for consistency though
 mkFunRefUnqual :: Binding -> QualifiedBinding
 mkFunRefUnqual = QualifiedBinding (makeThrow [])
-{-
-hasAttrArgs :: Binding -> [Sub.Argument SrcSpan]
-hasAttrArgs bnd = [Sub.ArgExpr (toSubVar. fromBinding $ bnd) noSpan, Sub.ArgExpr (Sub.Strings ["'__len__'"] noSpan) noSpan]
--}
 
+hasAttrArgs :: Binding -> [Sub.Argument]
+hasAttrArgs bnd = [Sub.Arg (Sub.Var bnd) , Sub.Arg (Sub.Strings ["'__len__'"] )]
+
+
+-- | To be complient with the Integrtion class, 'convertExpr' has to return terms of type
+-- 'Expr (Language 'Python)'. As the function needs to translate Statements, as well as Expressions
+-- from the python AST, the later ones are wraped into and unwraped from Statements using this helpers
 wrapSubExpr = Sub.StmtExpr
 unwrapSubStmt (Sub.StmtExpr expr) = expr

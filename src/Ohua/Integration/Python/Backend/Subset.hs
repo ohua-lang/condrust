@@ -25,12 +25,13 @@ data Expr =
     | Bool Bool
     | None 
     | Var Binding 
+    | Strings [String]
     -- There is no explicit MethodCall in Python
     -- A MethodCall in Python Syntax is a Call, whose call_fun attribute is a DotExpr
     | Call Expr [Argument]
     | DotExpr Expr QualifiedBinding
-    | CondExpr 
-    | Tuple
+    | CondExpr Expr Expr Expr
+    | Tuple [Expr] -- actually there's only ever two elements
     -- TODO: Subscript in the python ASt does not 
     -- make a difference between tuples and lists
     -- So actually I use the 'universal' subscript expr,
@@ -49,7 +50,7 @@ data BinOp =
     BinaryAnd | BinaryOr | Xor | ShiftLeft | ShiftRight deriving (Show, Eq, Generic)
 
 data UnOp =  Not | Invert  deriving (Show, Eq, Generic)
-data Target = Single Binding | Tpl [Binding]   deriving (Show, Eq, Generic)
+
 data Argument = Arg Expr deriving (Eq, Show) -- StarArg Expr | StarKwArg Expr | KwArg Expr Ident
 data AssignOp = 
     PlusAssign
