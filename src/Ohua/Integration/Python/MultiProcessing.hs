@@ -7,7 +7,9 @@ import Ohua.Backend.Types
 import Ohua.Backend.Lang as TCLang
 import Ohua.Integration.Lang hiding (Lang)
 import Ohua.Integration.Architecture
-import Ohua.Integration.Python.Backend
+import Ohua.Integration.Python.NewBackend
+import Ohua.Integration.Python.Backend.Subset as Sub
+import Ohua.Integration.Python.Backend.Convert 
 import Ohua.Integration.Python.Util
 import Ohua.Integration.Python.Types
 import Ohua.Integration.Python.TypeExtraction
@@ -24,43 +26,35 @@ import System.FilePath (takeFileName)
 
 instance Architecture (Architectures 'MultiProcessing) where
     type Lang (Architectures 'MultiProcessing) = Language 'Python
-    type Chan (Architectures 'MultiProcessing) = Py.Statement SrcSpan
+    type Chan (Architectures 'MultiProcessing) = Sub.Stmt
     type ATask (Architectures 'MultiProcessing) = Py.Statement SrcSpan
 
-
---  convertChannel :: arch -> Channel (Type (Lang arch)) -> Chan arch
--- convert a backend channel i.e. an arc in the DFG to an expression of the target architecture
--- instantiating the according process communication channel
+    -- | convert a backend channel i.e. an arc in the DFG to an expression of the target architecture
+    --  instantiating the according process communication channel
     convertChannel SMultiProc (SRecv argTy( SChan bnd))=
-        let stmt = Apply $
-                    Stateless
-                        (QualifiedBinding (makeThrow []) "mp.Pipe")
-                        []
-            send = unwrapStmt $ convertExpr SMultiProc $ TCLang.Var $ bnd <> "_sender"
-            recv = unwrapStmt $ convertExpr SMultiProc $ TCLang.Var $ bnd <> "_receiver"
-        in Py.Assign {
-             assign_to = [Py.Tuple [send, recv] noSpan],
-             assign_expr = unwrapStmt $ convertExpr SMultiProc stmt,
-             stmt_annot = noSpan}
+        let expr = unwrapSubStmt $ convertExpr SMultiProc $ Apply $ Stateless (QualifiedBinding (makeThrow []) "mp.Pipe") []
+            send = unwrapSubStmt $ convertExpr SMultiProc $ TCLang.Var $ bnd <> "_sender"
+            recv = unwrapSubStmt $ convertExpr SMultiProc $ TCLang.Var $ bnd <> "_receiver"
+        in Sub.Assign [Sub.Tuple [send, recv]] expr
 
---  convertRecv :: arch -> Com 'Recv (Type (Lang arch)) -> Expr (Lang arch)
--- Convert an 'incomming edge' of a backend channel into an expression of the target architecture
---  to receive from a process communication channel 
+    -- | converts an 'incomming edge' of a backend channel into an expression of the target architecture
+    --  to receive from a process communication channel 
     -- Todo: Rust wraps that in a 'try'. Receiving is blocking 
     -- and raises EOFError if there's nothing left to receive and the sender is allready closed
         -- > Do I need to wrap this also?
     convertRecv SMultiProc  (SRecv _type (SChan channel)) =
     -- currently this will yield $channel_reciever.recv()           
-        convertExpr SMultiProc $ Apply $ Stateful (Var $ channel <> "_receiver") (mkFunRefUnqual "recv") []
+        convertExpr SMultiProc $ 
+            Apply $ Stateful (TCLang.Var $ channel <> "_receiver") (mkFunRefUnqual "recv") []
 
---  convertSend:: arch -> Com 'Send (Type (Lang arch)) -> Expr (Lang arch)
--- Convert the 'outcomming edge' of a backend channel into an expression of the target architecture
---  to send the result of the node computation to a process communication channel 
- -- Todo: Sending is only valid for picklable objects, i.e. basic Types, things def'd at TL of a module
-    -- and ADTs thereof. Restriction on the Frontend should actualy prohibit non-TL def's. Also objects 
-    -- must not exceed ~ 32MiB. I might need to catch PickleError's or ValueError's here
+    -- | Converts the 'outgoing edge' of a backend channel into an expression of the target architecture
+    --  to send the result of the node computation to a process communication channel 
+    -- Todo: Sending is only valid for picklable objects, i.e. basic Types, things def'd at TL of a module
+        -- and ADTs thereof. Restriction on the Frontend should actualy prohibit non-TL def's. Also objects 
+        -- must not exceed ~ 32MiB. I might need to catch PickleError's or ValueError's here
     convertSend SMultiProc  (SSend (SChan chnlName) toSend)=
-        convertExpr SMultiProc $ Apply $ Stateful (Var $ chnlName <> "_sender") (mkFunRefUnqual "send") [Var toSend]
+        convertExpr SMultiProc $
+            Apply $ Stateful (TCLang.Var $ chnlName <> "_sender") (mkFunRefUnqual "send") [TCLang.Var toSend]
 
 
     -- Wraps the tasks i.e. codeblocks of host language function calls and 'wiring' to send and
@@ -74,7 +68,7 @@ instance Architecture (Architectures 'MultiProcessing) where
             createTasksAndChannels (Program chans retChan tasks)  =
                 Program chans retChan (zipWith (curry taskFromSuite) [1..] tasks)
 
-            taskFromSuite:: (Int, FullTask ty (Py.Suite SrcSpan))
+            taskFromSuite:: (Int, FullTask ty Sub.Suite)
                  ->  FullTask ty (Py.Statement SrcSpan)
             taskFromSuite (num, FullTask ins out suite) = FullTask ins out fun
                 where fun=
@@ -82,7 +76,7 @@ instance Architecture (Architectures 'MultiProcessing) where
                             (Py.Ident ("task_"++show num) noSpan)
                             []
                             Nothing
-                            suite
+                            (subToSuite suite)
                             noSpan
 
 {-    serialize :: 
@@ -120,13 +114,14 @@ instance Architecture (Architectures 'MultiProcessing) where
         -- Critical: receiving the result must happen before termination, but is blocking 
     serialize  SMultiProc srcModule ns = outPut newModule
         where
-            -- For reasons I'll have to understand later, every algo seems to carry all tasks
-            ((bnd, graph, original):_ ) = map (\(Algo name expr src) -> (name, expr, src)) $ ns^.algos
-            (Program channelInits resStmt nodeFuns) = graph
+            ((bnd, pPrgm, original):_ ) = map (\(Algo name expr src) -> (name, expr, src)) $ ns^.algos
+            (Program chnlInits resultStmt nodeFuns) = pPrgm
+            pyChannelInits = map subToStmt chnlInits
+            pyResultExpr = subToExpr . unwrapSubStmt $ resultStmt
             taskList = zipWith (\ task i -> "task_" ++ show i) nodeFuns [1..]
             original_params = Py.fun_args original
-            multiMain = makeMain taskList resStmt original_params
-            newModule = makeModule srcModule channelInits nodeFuns multiMain
+            multiMain = makeMain taskList pyResultExpr original_params
+            newModule = makeModule srcModule pyChannelInits nodeFuns multiMain
 
 
 instance Transform (Architectures 'MultiProcessing)
@@ -152,12 +147,12 @@ makeModule srcModule channelInits nodeFuns multiMain = Module path combinedModul
                              ++ [multiMain]
         combinedModule = Py.Module combinedStatements
 
-makeMain:: [String] -> Py.Statement SrcSpan -> [Py.Parameter SrcSpan]-> Py.Statement SrcSpan
-makeMain taskNames resStmt params =  Py.Fun (mkIdent "main") params' resAnno mainBlock noSpan
+makeMain:: [String] -> Py.Expr SrcSpan -> [Py.Parameter SrcSpan]-> Py.Statement SrcSpan
+makeMain taskNames resExpr params =  Py.Fun (mkIdent "main") params' resAnno mainBlock noSpan
         where
             taskList = Py.List (map (toPyVar . mkIdent) taskNames) noSpan
             initTasksStmt = Py.Assign [(toPyVar .mkIdent) "tasks"] taskList noSpan
-            assignRes = Py.Assign [toPyVar . mkIdent $ "result"] (unwrapStmt resStmt) noSpan
+            assignRes = Py.Assign [toPyVar . mkIdent $ "result"] resExpr noSpan
             mainBasic = [
                 initTasksStmt,
                 initProcs, assignTasks,

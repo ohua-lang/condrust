@@ -99,6 +99,7 @@ subToBinOp Sub.Modulo = Py.Modulo noSpan
 subToBinOp Sub.Exponent = Py.Exponent noSpan
 subToBinOp Sub.MatrixMult = Py.MatrixMult noSpan
 
+subToBinOp Sub.And  = Py.And noSpan
 subToBinOp Sub.Or  = Py.Or noSpan
 subToBinOp Sub.In = Py.In noSpan
 subToBinOp Sub.Is = Py.Is noSpan
