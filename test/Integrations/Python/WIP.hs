@@ -17,3 +17,8 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.callMethod
                 compiled `shouldBe` expected)
+        it "Multiassignment comma separated" $
+            (showCode "Compiled: " =<< compileCode Input.multiAssignment) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" Expect.multiAssignment
+                compiled `shouldBe` expected)

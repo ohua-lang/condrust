@@ -31,9 +31,11 @@ spec =
             throwErrorDebugS, called at src/Ohua/Core/Monad.hs:39:12 in ohua-core-0.3.0-k6lwMxcZZw8E652k33pRb:Ohua.Core.Monad
             failWith, called at src/Ohua/Core/ALang/Passes.hs:352:28 in ohua-core-0.3.0-k6lwMxcZZw8E652k33pRb:Ohua.Core.ALang.Passes
         
-        -}        
+              
         it "While loop" $
             (showCode "Compiled: " =<< compileCodeWithRec Input.whileLoop) >>=
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.whileLoop
                 compiled `shouldBe` expected)
+
+--}

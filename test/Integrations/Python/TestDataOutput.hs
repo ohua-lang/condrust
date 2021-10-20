@@ -56,7 +56,7 @@ x_0_0_0_sender, x_0_0_0_receiver = mp.Pipe()
 def task_1():
     x_0_0_0 = 42 + 23
     x_0_0_0_sender.send(x_0_0_0)
-    None
+
 from testLib import *
 def algo():
     x = 42 + 23
@@ -81,7 +81,7 @@ c_0_0_0_sender, c_0_0_0_receiver = mp.Pipe()
 def task_1():
     c_0_0_0 = True and False
     c_0_0_0_sender.send(c_0_0_0)
-    None
+
 from testLib import *
 def algo():
     a = True
@@ -109,18 +109,18 @@ x_0_0_0_sender, x_0_0_0_receiver = mp.Pipe()
 def task_1():
     x_0_0_0 = f()
     x_0_0_0_sender.send(x_0_0_0)
-    None
+    
 def task_2():
     while True:
         var_0 = x_0_0_0_receiver.recv()
         var_1 = z_0_0_0_receiver.recv()
         y_0_0_0 = var_0 + var_1
         y_0_0_0_sender.send(y_0_0_0)
-        None
+        
 def task_3():
     z_0_0_0 = g()
     z_0_0_0_sender.send(z_0_0_0)
-    None
+    
 from testLib import *
 def algo():
     x = f()
@@ -272,7 +272,7 @@ x_0_0_0_sender, x_0_0_0_receiver = mp.Pipe()
 def task_1():
     x_0_0_0 = oneArg(7)
     x_0_0_0_sender.send(x_0_0_0)
-    None
+    
 from testLib import *
 def algo():
     x = oneArg(7)
@@ -306,7 +306,7 @@ a_0_0_sender, a_0_0_receiver = mp.Pipe()
 def task_1():
     a_0_0 = f()
     a_0_0_sender.send(a_0_0)
-    None
+    
 from testLib import *
 def algo():
     return f()
@@ -334,17 +334,17 @@ def task_1():
         var_0 = x_0_0_0_receiver.recv()
         z_0_0_0 = g(var_0)
         z_0_0_0_sender.send(z_0_0_0)
-        None
+        
 def task_2():
     while True:
         var_0 = a_0_0_0_receiver.recv()
         x_0_0_0 = f(var_0)
         x_0_0_0_sender.send(x_0_0_0)
-        None
+        
 def task_3():
     a_0_0_0 = f(42)
     a_0_0_0_sender.send(a_0_0_0)
-    None
+    
 from testLib import *
 def algo():
     a = f(42)
@@ -373,11 +373,11 @@ def task_1():
         var_0 = a_0_0_0_receiver.recv()
         x_0_0_0 = f(var_0)
         x_0_0_0_sender.send(x_0_0_0)
-        None
+        
 def task_2():
     a_0_0_0 = f(42)
     a_0_0_0_sender.send(a_0_0_0)
-    None
+    
 from testLib import *
 def algo():
     a = f(42)
@@ -407,17 +407,17 @@ def task_1():
         var_0 = x_0_0_0_receiver.recv()
         z_0_0_0 = f(var_0)
         z_0_0_0_sender.send(z_0_0_0)
-        None
+        
 def task_2():
     while True:
         var_0 = a_0_0_0_receiver.recv()
         x_0_0_0 = f(var_0)
         x_0_0_0_sender.send(x_0_0_0)
-        None
+        
 def task_3():
     a_0_0_0 = f(42)
     a_0_0_0_sender.send(a_0_0_0)
-    None
+    
 from testLib import *
 def algo():
     a = f(42)
@@ -451,21 +451,21 @@ def task_1():
         var_1 = a_0_0_receiver.recv()
         x_0_0_0 = moreArgs(var_0, var_1, 42)
         x_0_0_0_sender.send(x_0_0_0)
-        None
+        
 def task_2():
     b_0_0 = funInt()
     b_0_0_sender.send(b_0_0)
-    None
+    
 def task_3():
     while True:
         var_0 = b_0_0_receiver.recv()
         a_0_0 = oneArg(var_0)
         a_0_0_sender.send(a_0_0)
-        None
+        
 def task_4():
     c_0_0 = funInt()
     c_0_0_sender.send(c_0_0)
-    None
+    
 from testLib import *
 def algo():
     x = moreArgs(funInt(), oneArg(funInt()), 42)
@@ -492,18 +492,18 @@ x_0_0_0_sender, x_0_0_0_receiver = mp.Pipe()
 def task_1():
     y_0_0_0 = g1(b)
     y_0_0_0_sender.send(y_0_0_0)
-    None
+    
 def task_2():
     while True:
         var_0 = x_0_0_0_receiver.recv()
         var_1 = y_0_0_0_receiver.recv()
         c_0_0 = var_0 + var_1
         c_0_0_sender.send(c_0_0)
-        None
+        
 def task_3():
     x_0_0_0 = f(a)
     x_0_0_0_sender.send(x_0_0_0)
-    None
+    
 from testLib import *
 def algo(a, b):
     x = f(a)
@@ -530,7 +530,7 @@ x_0_0_0_sender, x_0_0_0_receiver = mp.Pipe()
 def task_1():
     x_0_0_0 = 2 * 3
     x_0_0_0_sender.send(x_0_0_0)
-    None
+    
 from testLib import *
 def algo(a, b):
     x = (lambda a: 2 * a)(3)
@@ -556,7 +556,7 @@ y_0_0_0_sender, y_0_0_0_receiver = mp.Pipe()
 def task_1():
     y_0_0_0 = 2 * 3
     y_0_0_0_sender.send(y_0_0_0)
-    None
+    
 from testLib import *
 def algo(a, b):
     x = lambda a: 2 * a
@@ -586,13 +586,13 @@ mob_0_0_1_sender, mob_0_0_1_receiver = mp.Pipe()
 def task_1():
     mob_0_0_1 = MObs(22)
     mob_0_0_1_sender.send(mob_0_0_1)
-    None
+    
 def task_2():
     while True:
         var_0 = mob_0_0_1_receiver.recv()
         x_0_0_0 = var_0.getNum()
         x_0_0_0_sender.send(x_0_0_0)
-        None
+        
 from testLib import *
 def algo():
     mob = MObs(22)

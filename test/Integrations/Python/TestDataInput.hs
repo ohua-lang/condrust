@@ -5,6 +5,7 @@ module Integrations.Python.TestDataInput where
 
 import Integrations.Python.SimpleQuoter
 import System.Directory.Internal.Prelude (Bool(True))
+import Data.ByteString.Lazy (append)
 
 {-Rust test include Arc<T> type, 
  according to Rust docs: ref counted thread-safe shared reference to non-mutable
@@ -14,6 +15,7 @@ import System.Directory.Internal.Prelude (Bool(True))
 
 testLib = [pythonModule|
 from typing import List
+import time
 
 def hello_world():
     return "Hello World"
@@ -70,6 +72,10 @@ def mutateType(intList:List[int]):
 
 def some_invented_iter_function():
     return list(range(0, 11))
+
+def takeAWhile(n):
+    time.sleep(5)
+    return n
 
 class MObs(object):
     def __init__(self, num):
@@ -278,9 +284,11 @@ loopIterator= [pythonModule|
 from testLib import *
 def algo(a):
     g = some_invented_iter_function()
+    mOb = MObs(42)
     for i in g:
-        n = n + f(i)
-    return n
+        n = f(i)
+        mOb.addNum(n)
+    return mOb
 |]
 
 whileLoop = [pythonModule|
@@ -439,4 +447,48 @@ def rec(one):
 
 def algo():
     rec(2)
+|]
+
+----------------
+primeSums= [pythonModule|
+import math
+
+def isprime(n):
+    """Returns True if n is prime and False otherwise"""
+    # if not isinstance(n, int):
+    #     raise TypeError("argument passed to is_prime is not of 'int' type")
+    if n < 2:
+        return False
+    if n == 2:
+        return True
+    max = int(math.ceil(math.sqrt(n)))
+    i = 2
+    while i <= max:
+        if n % i == 0:
+            return False
+        i += 1
+    return True
+
+def sum_primes(n):
+    xs = list()
+    for x in range (2,n):
+        if isprime(x):
+            xs.append(x)
+    return sum(xs)
+|]
+
+twoFuns= [pythonModule|
+from testLib import *
+
+def algo1(a):
+    x = takeAWhile(a)
+    y = x+2
+    return y
+
+def algo2(a):
+    xs = list()
+    for x in range(1, a):
+        y = algo1(x)
+        xs.append(y)
+    return xs
 |]
