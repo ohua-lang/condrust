@@ -9,7 +9,7 @@ import Ohua.Integration.Lang hiding (Lang)
 import Ohua.Integration.Architecture
 import Ohua.Integration.Python.NewBackend
 import Ohua.Integration.Python.Backend.Subset as Sub
-import Ohua.Integration.Python.Backend.Convert 
+import Ohua.Integration.Python.Backend.Convert
 import Ohua.Integration.Python.Util
 import Ohua.Integration.Python.Types
 import Ohua.Integration.Python.TypeExtraction
@@ -23,6 +23,8 @@ import qualified Data.ByteString.Lazy as L
 import qualified Data.HashMap.Lazy as HM
 
 import System.FilePath (takeFileName)
+
+type FullyPyProgram = Program (Py.Statement SrcSpan) (Py.Expr SrcSpan) (Py.Statement SrcSpan) PythonArgType
 
 instance Architecture (Architectures 'MultiProcessing) where
     type Lang (Architectures 'MultiProcessing) = Language 'Python
@@ -44,7 +46,7 @@ instance Architecture (Architectures 'MultiProcessing) where
         -- > Do I need to wrap this also?
     convertRecv SMultiProc  (SRecv _type (SChan channel)) =
     -- currently this will yield $channel_reciever.recv()           
-        convertExpr SMultiProc $ 
+        convertExpr SMultiProc $
             Apply $ Stateful (TCLang.Var $ channel <> "_receiver") (mkFunRefUnqual "recv") []
 
     -- | Converts the 'outgoing edge' of a backend channel into an expression of the target architecture
@@ -63,8 +65,7 @@ instance Architecture (Architectures 'MultiProcessing) where
         return $ ns & algos %~ map (\algo -> algo & algoCode %~ createTasksAndChannels)
 
         where
-            --Questions: Pattern matching to the max is probably not the most elegant solution but
-            -- I got stuck with type inference using the applicative way :-()
+            -- Tasks are enumerated to create named functions task_1, task_2 ...
             createTasksAndChannels (Program chans retChan tasks)  =
                 Program chans retChan (zipWith (curry taskFromSuite) [1..] tasks)
 
@@ -112,27 +113,34 @@ instance Architecture (Architectures 'MultiProcessing) where
             -- terminate and join processes
             -- return result
         -- Critical: receiving the result must happen before termination, but is blocking 
-    serialize  SMultiProc srcModule ns = outPut newModule
+    serialize  SMultiProc srcModule ns = outPut algoNames newModules
         where
-            ((bnd, pPrgm, original):_ ) = map (\(Algo name expr src) -> (name, expr, src)) $ ns^.algos
-            (Program chnlInits resultStmt nodeFuns) = pPrgm
-            pyChannelInits = map subToStmt chnlInits
-            pyResultExpr = subToExpr . unwrapSubStmt $ resultStmt
-            taskList = zipWith (\ task i -> "task_" ++ show i) nodeFuns [1..]
-            original_params = Py.fun_args original
-            multiMain = makeMain taskList pyResultExpr original_params
-            newModule = makeModule srcModule pyChannelInits nodeFuns multiMain
+            namesProgramsSources = map (\(Algo name expr src) -> (name, expr, src)) $ ns^.algos
+            algoNames = map (^. algoName) $ ns^.algos
+            originalFunctions = map  (^. algoAnno) $ ns^.algos
+            original_params = map Py.fun_args originalFunctions
+            programs = map  (^. algoCode) $ ns^.algos
+            converted = map subToPython programs
+            taskLists = map (\(Program _ _ tasks) -> enumeratedTasks tasks) programs
+            newMains = map buildMain $ zip3 taskLists converted original_params
+            newModules = zipWith (curry (makeModule srcModule)) converted newMains
+
+subToPython :: Program Stmt Stmt (Py.Statement SrcSpan) PythonArgType
+    -> FullyPyProgram
+subToPython (Program c r t ) =  Program (map subToStmt c) (subToExpr . unwrapSubStmt $ r) t
+
+enumeratedTasks :: [FullTask PythonArgType (Py.Statement SrcSpan)] -> [String]
+enumeratedTasks  tasks =  zipWith (\ task i -> "task_" ++ show i) tasks [1..]
 
 
 instance Transform (Architectures 'MultiProcessing)
 
+
 makeModule ::
     Module
-    -> NonEmpty (Py.Statement SrcSpan)
-    -> [FullTask PythonArgType (Py.Statement SrcSpan)]
-    -> Py.Statement SrcSpan
+    -> (FullyPyProgram , Py.Statement SrcSpan)
     -> Module
-makeModule srcModule channelInits nodeFuns multiMain = Module path combinedModule
+makeModule srcModule (Program channelInits _ nodeFuns, multiMain) = Module path combinedModule
     where
         (Module path (Py.Module originalStmts)) = srcModule
         taskFunDefs = map taskExpression nodeFuns
@@ -142,13 +150,11 @@ makeModule srcModule channelInits nodeFuns multiMain = Module path combinedModul
                              -- ToDo: I should separate import statements from the rest 
                              -- insert them before the other 'originalStmts'
                              ++ originalStmts
-                             -- TODO: actually I have to make sure, that there is no other 
-                             -- entry point in the module 
                              ++ [multiMain]
         combinedModule = Py.Module combinedStatements
 
-makeMain:: [String] -> Py.Expr SrcSpan -> [Py.Parameter SrcSpan]-> Py.Statement SrcSpan
-makeMain taskNames resExpr params =  Py.Fun (mkIdent "main") params' resAnno mainBlock noSpan
+buildMain:: ([String], FullyPyProgram, [Py.Parameter SrcSpan])-> Py.Statement SrcSpan
+buildMain (taskNames, Program chnls resExpr tasks, params) =  Py.Fun (mkIdent "main") params' resAnno mainBlock noSpan
         where
             taskList = Py.List (map (toPyVar . mkIdent) taskNames) noSpan
             initTasksStmt = Py.Assign [(toPyVar .mkIdent) "tasks"] taskList noSpan
@@ -164,12 +170,12 @@ makeMain taskNames resExpr params =  Py.Fun (mkIdent "main") params' resAnno mai
             resAnno = Nothing
 
 
-outPut ::CompM m => Module -> m (NonEmpty (FilePath, L.ByteString))
-outPut (Module path pyModule) =
+outPut ::CompM m => [Binding]-> [Module] -> m (NonEmpty (FilePath, L.ByteString))
+outPut originalFunNames ((Module path pyModule): modules) =
     let fileName = takeFileName path
         pyCode = encodeUtf8 $ prettyText pyModule
     -- Question: Why do we both do this NonEmpty fuzz here ?
-    in return $  (fileName, pyCode) :| []
+    in return $ (fileName, pyCode) :| []
 
 paramsAndGlobals:: [Py.Parameter SrcSpan] ->  ([Py.Parameter SrcSpan], [Py.Statement SrcSpan])
 paramsAndGlobals [] = ([],[])
