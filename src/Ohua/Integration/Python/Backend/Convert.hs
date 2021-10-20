@@ -41,12 +41,7 @@ subToStmt (Sub.CondStmt (cond, ifSuite) elseSuite) =
 subToStmt (Sub.StmtExpr expr) = Py.StmtExpr (subToExpr expr) noSpan
 subToStmt (Sub.Assign exprs expr) =
     Py.Assign (map subToExpr exprs) (subToExpr expr) noSpan
-subToStmt (Sub.AugmentedAssign assignee assignOp expr) =
-    Py.AugmentedAssign
-        (subToExpr assignee)
-        (subToAssignOp assignOp)
-        (subToExpr expr)
-        noSpan
+
 
 
 
@@ -123,10 +118,6 @@ subToBinOp Sub.ShiftRight = Py.ShiftRight noSpan
 subToUnOp:: Sub.UnOp ->  Py.Op SrcSpan
 subToUnOp Sub.Not  = Py.Not noSpan
 subToUnOp Sub.Invert = Py.Invert noSpan
-
-subToAssignOp :: Sub.AssignOp -> Py.AssignOp SrcSpan
-subToAssignOp Sub.PlusAssign  = Py.PlusAssign noSpan
-subToAssignOp Sub.MinusAssign  = Py.MinusAssign noSpan
 
 convertQBind :: QualifiedBinding -> Py.Ident SrcSpan
 convertQBind (QualifiedBinding [] bnd) = fromBinding bnd

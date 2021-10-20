@@ -17,7 +17,6 @@ data Stmt =
     | StmtExpr Expr
     -- TODO: Check what kinds of target actually arrive here
     | Assign [Expr] Expr 
-    | AugmentedAssign Expr AssignOp Expr
     deriving (Eq, Generic, Show)
 
 data Expr = 
@@ -32,7 +31,7 @@ data Expr =
     | DotExpr Expr QualifiedBinding
     | CondExpr Expr Expr Expr
     | Tuple [Expr] -- actually there's only ever two elements
-    -- TODO: Subscript in the python ASt does not 
+    -- TODO: Subscript in the python AST does not 
     -- make a difference between tuples and lists
     -- So actually I use the 'universal' subscript expr,
     -- but only for the first and second element of tuples falling out 
@@ -52,20 +51,3 @@ data BinOp =
 data UnOp =  Not | Invert  deriving (Show, Eq, Generic)
 
 data Argument = Arg Expr deriving (Eq, Show) -- StarArg Expr | StarKwArg Expr | KwArg Expr Ident
-data AssignOp = 
-    PlusAssign
-    | MinusAssign 
-    {- -- currently not  used
-    | MultAssign 
-    | DivAssign 
-    | ModAssign 
-    | PowAssign
-    | BinAndAssign 
-    | BinOrAssign
-    | BinXorAssign 
-    | LeftShiftAssign
-    | RightShiftAssign
-    | FloorDivAssign
-    | MatrixMultAssign
-    -}
-    deriving (Eq, Show)

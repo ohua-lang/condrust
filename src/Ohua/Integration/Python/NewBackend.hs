@@ -144,7 +144,7 @@ instance Integration (Language 'Python) where
 
     convertExpr arch (TCLang.While cond expr) =
         let suite = convertToSuite arch expr
-            condition =  unwrapSubStmt $ convertExpr arch cond
+            condition = unwrapSubStmt $ convertExpr arch cond
         in Sub.WhileStmt condition suite 
 
     convertExpr arch (TCLang.Cond cond thenExp elseExp) =
@@ -183,12 +183,13 @@ instance Integration (Language 'Python) where
         Sub.TplSubscript bnd 1
 
     convertExpr arch (TCLang.Increment bnd) =
-        Sub.AugmentedAssign (Sub.Var bnd) Sub.PlusAssign (Sub.Int 1)
-
-    
+        --Sub.AugmentedAssign (Sub.Var bnd) Sub.PlusAssign (Sub.Int 1)
+        convertExpr arch $
+            Apply $ Stateless (mkFunRefUnqual "+") [Var bnd, TCLang.Lit $ NumericLit 1]
     convertExpr arch (TCLang.Decrement bnd) =
-        Sub.AugmentedAssign (Sub.Var bnd) Sub.MinusAssign (Sub.Int 1)
-
+        -- Sub.AugmentedAssign (Sub.Var bnd) Sub.MinusAssign (Sub.Int 1)
+        convertExpr arch $
+            Apply $ Stateless (mkFunRefUnqual "-") [Var bnd, TCLang.Lit $ NumericLit 1]
     convertExpr arch (TCLang.Not expr) =  wrapSubExpr $
         Sub.UnaryOp  Sub.Not ( unwrapSubStmt $ convertExpr arch expr)
 
@@ -294,3 +295,4 @@ hasAttrArgs bnd = [Sub.Arg (Sub.Var bnd) , Sub.Arg (Sub.Strings ["'__len__'"] )]
 -- from the python AST, the later ones are wraped into and unwraped from Statements using this helpers
 wrapSubExpr = Sub.StmtExpr
 unwrapSubStmt (Sub.StmtExpr expr) = expr
+unwrapSubStmt any = error $ "Tried to unwrap a statment other than StmtExpr " <> show any
