@@ -26,7 +26,7 @@ import Data.Maybe
 convertToSuite::(Architecture arch, Lang arch ~ Language 'Python)
     => arch -> TaskExpr PythonTypeAnno -> Sub.Suite
 convertToSuite arch (TCLang.Let varName valExpr inExpr) =
-    -- In python there is no syntactical difference between assining and defining a variable and setting it to a v
+    -- In python there is no syntactical difference between assigning and defining a variable and setting it to a value
     convertExpr arch (TCLang.Assign varName valExpr) : convertToSuite arch inExpr
 convertToSuite arch (TCLang.Stmt stmt otherStmts) =
     convertExpr arch stmt : convertToSuite arch otherStmts

@@ -10,14 +10,16 @@ import qualified Ohua.Core.Compile.Configuration as CConfig
 import Ohua.Integration.Config (Config(..))
 import Ohua.Integration.Lang
 import Ohua.Integration.Architecture
-import Ohua.Integration.Rust.Backend.Passes (passes)
+import qualified Ohua.Integration.Rust.Backend.Passes as RustPasses
 import Ohua.Integration.Rust.Architecture.SharedMemory ()
 import Ohua.Integration.Rust.Architecture.SharedMemory.Transform ()
 import Ohua.Integration.Rust.Architecture.M3 ()
 import Ohua.Integration.Rust.Frontend ()
 import Ohua.Integration.Rust.Backend ()
 
+import qualified Ohua.Integration.Python.Backend.Passes as PyPasses
 import Ohua.Integration.Python.MultiProcessing ()
+-- import Ohua.Integration.Python.Transform ()
 import Ohua.Integration.Python.Frontend ()
 import Ohua.Integration.Python.NewBackend ()
 

@@ -17,7 +17,10 @@ toBinding :: Ident a -> Binding
 toBinding Ident{ident_string=n, ident_annot=annot} = fromString n
 
 fromBinding :: Binding -> Ident SrcSpan
-fromBinding bnd = Ident{ident_string= T.unpack $ unwrap bnd, ident_annot= noSpan}
+fromBinding bnd = Ident{ident_string= bndToStr bnd, ident_annot= noSpan}
+
+bndToStr :: Binding -> String 
+bndToStr = T.unpack . unwrap 
 
 toQualBinding:: String -> QualifiedBinding
 toQualBinding = QualifiedBinding (makeThrow []) .fromString

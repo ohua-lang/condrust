@@ -1,7 +1,8 @@
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 module Ohua.Integration.Python.MultiProcessing where
 
-import Ohua.Prelude
+import Ohua.Prelude 
+
 
 import Ohua.Backend.Types
 import Ohua.Backend.Lang as TCLang
@@ -21,11 +22,14 @@ import Language.Python.Common.Pretty (prettyText)
 
 import qualified Data.ByteString.Lazy as L
 import qualified Data.HashMap.Lazy as HM
+import qualified Data.List.NonEmpty as NE
 
 import System.FilePath (takeFileName)
 
 type FullyPyProgram = Program (Py.Statement SrcSpan) (Py.Expr SrcSpan) (Py.Statement SrcSpan) PythonArgType
 
+
+instance Transform (Architectures 'MultiProcessing)
 instance Architecture (Architectures 'MultiProcessing) where
     type Lang (Architectures 'MultiProcessing) = Language 'Python
     type Chan (Architectures 'MultiProcessing) = Sub.Stmt
@@ -125,16 +129,6 @@ instance Architecture (Architectures 'MultiProcessing) where
             newMains = map buildMain $ zip3 taskLists converted original_params
             newModules = zipWith (curry (makeModule srcModule)) converted newMains
 
-subToPython :: Program Stmt Stmt (Py.Statement SrcSpan) PythonArgType
-    -> FullyPyProgram
-subToPython (Program c r t ) =  Program (map subToStmt c) (subToExpr . unwrapSubStmt $ r) t
-
-enumeratedTasks :: [FullTask PythonArgType (Py.Statement SrcSpan)] -> [String]
-enumeratedTasks  tasks =  zipWith (\ task i -> "task_" ++ show i) tasks [1..]
-
-
-instance Transform (Architectures 'MultiProcessing)
-
 
 makeModule ::
     Module
@@ -177,6 +171,7 @@ outPut originalFunNames ((Module path pyModule): modules) =
     -- Question: Why do we both do this NonEmpty fuzz here ?
     in return $ (fileName, pyCode) :| []
 
+
 paramsAndGlobals:: [Py.Parameter SrcSpan] ->  ([Py.Parameter SrcSpan], [Py.Statement SrcSpan])
 paramsAndGlobals [] = ([],[])
 paramsAndGlobals params = (renamed, [globalStmt, assign])
@@ -194,3 +189,12 @@ modName (Py.Param (Py.Ident name _) mTyp mDef anno) modV = Py.Ident (name++modV)
 
 replaceId:: (Py.ParameterSpan, Py.IdentSpan) -> Py.ParameterSpan
 replaceId (Py.Param id mTyp mDef anno, newId) = Py.Param newId mTyp mDef anno
+
+
+subToPython :: Program Stmt Stmt (Py.Statement SrcSpan) PythonArgType
+    -> FullyPyProgram
+subToPython (Program c r t ) =  Program (map subToStmt c) (subToExpr . unwrapSubStmt $ r) t
+
+enumeratedTasks :: [FullTask PythonArgType (Py.Statement SrcSpan)] -> [String]
+enumeratedTasks  tasks =  zipWith (\ task i -> "task_" ++ show i) tasks [1..]
+

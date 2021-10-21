@@ -62,7 +62,7 @@ data Expr =
     -- \| ParenExpr
     deriving (Eq, Show)
 
--- In the AST of Rust as well as Python the first part of a Call expression is jujst an expression
+-- In the AST of Rust as well as Python the first part of a Call expression is just an expression
 -- this allows things like ' x = [a,b,c]()' i.e. Calls on any expressions 
 -- Specifying FRef doesn't fully solve this, but at least makes a distinction in the conversion
 -- of callable vs. non-callable expressions
