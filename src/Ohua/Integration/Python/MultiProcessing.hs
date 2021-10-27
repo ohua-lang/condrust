@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 module Ohua.Integration.Python.MultiProcessing where
 
-import Ohua.Prelude 
+import Ohua.Prelude
 
 
 import Ohua.Backend.Types
@@ -25,6 +25,7 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.List.NonEmpty as NE
 
 import System.FilePath (takeFileName)
+import Language.Python.Common (ImportRelative(import_relative_dots))
 
 type FullyPyProgram = Program (Py.Statement SrcSpan) (Py.Expr SrcSpan) (Py.Statement SrcSpan) PythonArgType
 
@@ -35,15 +36,15 @@ instance Architecture (Architectures 'MultiProcessing) where
     type Chan (Architectures 'MultiProcessing) = Sub.Stmt
     type ATask (Architectures 'MultiProcessing) = Py.Statement SrcSpan
 
-    -- | convert a backend channel i.e. an arc in the DFG to an expression of the target architecture
-    --  instantiating the according process communication channel
+    -- | Convert a backend channel i.e. an arc in the DFG to an expression of the target architecture
+    -- | that instantiates the according process communication channel
     convertChannel SMultiProc (SRecv argTy( SChan bnd))=
         let expr = unwrapSubStmt $ convertExpr SMultiProc $ Apply $ Stateless (QualifiedBinding (makeThrow []) "mp.Pipe") []
             send = unwrapSubStmt $ convertExpr SMultiProc $ TCLang.Var $ bnd <> "_sender"
             recv = unwrapSubStmt $ convertExpr SMultiProc $ TCLang.Var $ bnd <> "_receiver"
         in Sub.Assign [Sub.Tuple [send, recv]] expr
 
-    -- | converts an 'incomming edge' of a backend channel into an expression of the target architecture
+    -- | Converts an 'incomming edge' of a backend channel into an expression of the target architecture
     --  to receive from a process communication channel 
     -- Todo: Rust wraps that in a 'try'. Receiving is blocking 
     -- and raises EOFError if there's nothing left to receive and the sender is allready closed
@@ -54,7 +55,7 @@ instance Architecture (Architectures 'MultiProcessing) where
             Apply $ Stateful (TCLang.Var $ channel <> "_receiver") (mkFunRefUnqual "recv") []
 
     -- | Converts the 'outgoing edge' of a backend channel into an expression of the target architecture
-    --  to send the result of the node computation to a process communication channel 
+    -- | to send the result of the node computation to a process communication channel 
     -- Todo: Sending is only valid for picklable objects, i.e. basic Types, things def'd at TL of a module
         -- and ADTs thereof. Restriction on the Frontend should actualy prohibit non-TL def's. Also objects 
         -- must not exceed ~ 32MiB. I might need to catch PickleError's or ValueError's here
@@ -84,57 +85,76 @@ instance Architecture (Architectures 'MultiProcessing) where
                             (subToSuite suite)
                             noSpan
 
-{-    serialize :: 
-        ( CompM m
-        , Integration (Lang arch)
-        , lang ~ (Lang arch)
-        , ty ~ (Type (Lang arch))
-        , expr ~ (Expr (Lang arch))
-        )
-        => arch
-        -> NS lang
-        -> Namespace (Program (Chan arch) expr (ATask arch) ty) (AlgoSrc lang)
-        -> m (NonEmpty (FilePath, L.ByteString))
--}
-    -- Generiert Python Code aus dem neuen AST 
-    -- Alles was auf verteilten physischen Konten laufen soll, sollte auch in verschiedene Dateien.
-    -- Für Multiprocessing reicht erstmal eine Datei, aber zB bei CloudMicroservices währen Tasks deutlich unabhängiger 
-    -- (eigene Module, eigene Imports etc.)
-
-    -- in Rust-Integration serialzation just takes over the original module and replaces
-    -- the body of each function definition with the whole DFG code obviously
-    -- In Python, it can't be done this way because of point 2 in the todos 
-        --TODO:
-        -- 1. import multiprocessing
-        -- 2. tasks and channel inits NEED TO BE TL. Multiprocessing pickles, and 
-        ---   pickling only works for TL definitions
-        -- 3. build a new main function 
-            -- has renamed parameters of original algorithm
-            -- declares variables named according to the original parameters of the algorithm global
-            -- assigns it' according parameters to those globals
-            -- inits tasks list and assign processes to each task
-            -- start processes and receive result
-            -- terminate and join processes
-            -- return result
-        -- Critical: receiving the result must happen before termination, but is blocking 
-    serialize  SMultiProc srcModule ns = outPut algoNames newModules
+    -- Critical TODO: receiving the result must happen before termination, but is blocking 
+    serialize  SMultiProc srcModule ns = return $ callerModule :| algoModules
         where
-            namesProgramsSources = map (\(Algo name expr src) -> (name, expr, src)) $ ns^.algos
+
+            convertedAlgoInfos =
+                map (\(Algo name expr srcFun) ->
+                        (bndToStr name, subToPython expr, Py.fun_args srcFun)) $ ns ^. algos
+
             algoNames = map (^. algoName) $ ns^.algos
-            originalFunctions = map  (^. algoAnno) $ ns^.algos
-            original_params = map Py.fun_args originalFunctions
-            programs = map  (^. algoCode) $ ns^.algos
-            converted = map subToPython programs
-            taskLists = map (\(Program _ _ tasks) -> enumeratedTasks tasks) programs
-            newMains = map buildMain $ zip3 taskLists converted original_params
-            newModules = zipWith (curry (makeModule srcModule)) converted newMains
+            algoModules = map (makeAlgoModule srcModule) convertedAlgoInfos
+            callerModule = makeParallelLib srcModule algoNames
+
+-- | This function generates a new python module for every parallelized function from the input. Statements and imports from
+-- | the original code are included in the new file
+-- TODO : filter exisitng main functions
+makeAlgoModule :: Module -> (String, FullyPyProgram, [Py.Parameter SrcSpan]) -> (FilePath , L.ByteString)
+makeAlgoModule srcModule (algoName, prgrm@(Program _ _ tasks), params )=
+    let taskList = enumeratedTasks tasks
+        newMainFun = buildMain taskList prgrm params
+        combinedStmts = combineStatements srcModule (prgrm, newMainFun)
+        modName = algoName <> ".py"
+        printableCode = encodePretty combinedStmts
+    in (modName, printableCode)
 
 
-makeModule ::
+-- | This function produces a parallelized version of the input module that 
+-- |    a) imports the modules generated from each function declaration
+-- |    b) calls the respective main functions of those modules, instead of the original function code
+makeParallelLib :: Module -> [Binding] -> (FilePath , L.ByteString)
+makeParallelLib (Module path (Py.Module statements)) algoNames =
+    let newImports = map makeImport algoNames
+        replacedStmts = map replaceFunCode statements
+        path' = takeFileName path
+        printableCode = encodePretty (Py.Module (newImports ++ replacedStmts))
+    in ( path', printableCode)
+
+-- | Replaces the code of every declared function by a call to it's parallelized code in the repective imported module
+replaceFunCode:: Py.Statement SrcSpan -> Py.Statement SrcSpan
+replaceFunCode stmt = case stmt of
+    Py.Fun id params mRType code annot -> Py.Fun id params mRType (replaceCode id params) noSpan
+    anyOther -> anyOther
+    where
+        replaceCode :: Py.Ident SrcSpan -> [Py.Parameter SrcSpan] -> Py.Suite SrcSpan
+        replaceCode (Py.Ident name _) params =
+            let funId = name <> "_parallel.main"
+                calledFun =  Py.Var (mkIdent funId) noSpan
+                args = map paramToArg params
+            in [Py.StmtExpr
+                (Py.Call calledFun args noSpan )
+                noSpan]
+
+-- | Gererate an import statement for a given algo binding
+makeImport :: Binding -> Py.Statement SrcSpan
+makeImport algoBnd =
+    let modName = bndToStr algoBnd
+        alias = modName <> "_parallel"
+    -- from . import algo as algo_parallel
+    in Py.FromImport
+        (Py.ImportRelative 1 Nothing noSpan) 
+        (Py.FromItems [Py.FromItem  (mkIdent modName)  
+                                    (Just (mkIdent alias))
+                                    noSpan
+                      ] noSpan)
+        noSpan
+
+combineStatements ::
     Module
     -> (FullyPyProgram , Py.Statement SrcSpan)
-    -> Module
-makeModule srcModule (Program channelInits _ nodeFuns, multiMain) = Module path combinedModule
+    -> Py.Module SrcSpan
+combineStatements srcModule (Program channelInits _ nodeFuns, multiMain) = Py.Module combinedStatements
     where
         (Module path (Py.Module originalStmts)) = srcModule
         taskFunDefs = map taskExpression nodeFuns
@@ -145,10 +165,18 @@ makeModule srcModule (Program channelInits _ nodeFuns, multiMain) = Module path 
                              -- insert them before the other 'originalStmts'
                              ++ originalStmts
                              ++ [multiMain]
-        combinedModule = Py.Module combinedStatements
 
-buildMain:: ([String], FullyPyProgram, [Py.Parameter SrcSpan])-> Py.Statement SrcSpan
-buildMain (taskNames, Program chnls resExpr tasks, params) =  Py.Fun (mkIdent "main") params' resAnno mainBlock noSpan
+-- | Algo modules need a main functin oto be called by the replaced function. This main contains statements to
+-- | 0) declare the parameters of the replaced function global 
+-- | i) initialize a tasks and a process list
+-- | ii) assign a process to each task 
+-- | iii) start processes 
+-- | iv) receive the result
+-- | v) close and cleanup process ressources
+-- | vi) return the overall result
+
+buildMain:: [String] -> FullyPyProgram -> [Py.Parameter SrcSpan]-> Py.Statement SrcSpan
+buildMain taskNames (Program chnls resExpr tasks) params =  Py.Fun (mkIdent "main") params' resAnno mainBlock noSpan
         where
             taskList = Py.List (map (toPyVar . mkIdent) taskNames) noSpan
             initTasksStmt = Py.Assign [(toPyVar .mkIdent) "tasks"] taskList noSpan
@@ -163,15 +191,8 @@ buildMain (taskNames, Program chnls resExpr tasks, params) =  Py.Fun (mkIdent "m
             mainBlock = glob_decls ++ mainBasic
             resAnno = Nothing
 
-
-outPut ::CompM m => [Binding]-> [Module] -> m (NonEmpty (FilePath, L.ByteString))
-outPut originalFunNames ((Module path pyModule): modules) =
-    let fileName = takeFileName path
-        pyCode = encodeUtf8 $ prettyText pyModule
-    -- Question: Why do we both do this NonEmpty fuzz here ?
-    in return $ (fileName, pyCode) :| []
-
-
+-- | A call to the main of an algo module must contain the original parameters of the algo. In the main, those 
+-- | parameters must be declared global to be used by all generated  tasks. This function generates the according python statements.
 paramsAndGlobals:: [Py.Parameter SrcSpan] ->  ([Py.Parameter SrcSpan], [Py.Statement SrcSpan])
 paramsAndGlobals [] = ([],[])
 paramsAndGlobals params = (renamed, [globalStmt, assign])
@@ -185,10 +206,14 @@ paramsAndGlobals params = (renamed, [globalStmt, assign])
         renamed = zipWith (curry replaceId) params helperIDs
 
 
-modName (Py.Param (Py.Ident name _) mTyp mDef anno) modV = Py.Ident (name++modV) noSpan
+paramToArg:: Py.ParameterSpan -> Py.ArgumentSpan
+paramToArg (Py.Param id mTyp mDef anno) = Py.ArgExpr (Py.Var id noSpan) noSpan
+paramToArg _ = error "unsupported parameter type. this should have been caught in the frontend"
 
 replaceId:: (Py.ParameterSpan, Py.IdentSpan) -> Py.ParameterSpan
 replaceId (Py.Param id mTyp mDef anno, newId) = Py.Param newId mTyp mDef anno
+
+modName (Py.Param (Py.Ident name _) mTyp mDef anno) modV = Py.Ident (name++modV) noSpan
 
 
 subToPython :: Program Stmt Stmt (Py.Statement SrcSpan) PythonArgType
@@ -198,3 +223,5 @@ subToPython (Program c r t ) =  Program (map subToStmt c) (subToExpr . unwrapSub
 enumeratedTasks :: [FullTask PythonArgType (Py.Statement SrcSpan)] -> [String]
 enumeratedTasks  tasks =  zipWith (\ task i -> "task_" ++ show i) tasks [1..]
 
+encodePretty :: Py.Module SrcSpan -> L.ByteString
+encodePretty = encodeUtf8 . prettyText

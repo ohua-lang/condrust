@@ -74,5 +74,6 @@ terminateProcs = StmtExpr {stmt_expr = Call {call_fun = Var {var_ident = Ident {
 -- list(map(mp.Process.join, processes))
 joinProcs = StmtExpr {stmt_expr = Call {call_fun = Var {var_ident = Ident {ident_string = "list", ident_annot = SpanEmpty}, expr_annot = SpanEmpty}, call_args = [ArgExpr {arg_expr = Call {call_fun = Var {var_ident = Ident {ident_string = "map", ident_annot = SpanEmpty}, expr_annot = SpanEmpty}, call_args = [ArgExpr {arg_expr = Dot {dot_expr = Dot {dot_expr = Var {var_ident = Ident {ident_string = "mp", ident_annot = SpanEmpty}, expr_annot = SpanEmpty}, dot_attribute = Ident {ident_string = "Process", ident_annot = SpanEmpty}, expr_annot = SpanEmpty}, dot_attribute = Ident {ident_string = "join", ident_annot = SpanEmpty}, expr_annot = SpanEmpty}, arg_annot = SpanEmpty},ArgExpr {arg_expr = Var {var_ident = Ident {ident_string = "processes", ident_annot = SpanEmpty}, expr_annot = SpanEmpty}, arg_annot = SpanEmpty}], expr_annot = SpanEmpty}, arg_annot = SpanEmpty}], expr_annot = SpanEmpty}, stmt_annot = SpanEmpty}
 -- return result
+returnResult :: Statement SrcSpan
 returnResult= Return {return_expr = Just (Var {var_ident = Ident {ident_string = "result", ident_annot = SpanEmpty}, expr_annot = SpanEmpty}), stmt_annot = SpanEmpty}
 
