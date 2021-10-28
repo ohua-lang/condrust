@@ -20,8 +20,6 @@ def task_2():
     x = None
     a_0_sender.send(x)
 from testLib import *
-def algo():
-    hello_world()
 def main():
     tasks = [task_1, task_2]
     processes = []
@@ -58,9 +56,6 @@ def task_1():
     x_0_0_0_sender.send(x_0_0_0)
 
 from testLib import *
-def algo():
-    x = 42 + 23
-    return x
 def main():
     tasks = [task_1]
     processes = []
@@ -83,11 +78,6 @@ def task_1():
     c_0_0_0_sender.send(c_0_0_0)
 
 from testLib import *
-def algo():
-    a = True
-    b = False
-    c = a and b
-    return c
 def main():
     tasks = [task_1]
     processes = []
@@ -122,11 +112,6 @@ def task_3():
     z_0_0_0_sender.send(z_0_0_0)
     
 from testLib import *
-def algo():
-    x = f()
-    z = g()
-    y = x + z
-    return y
 def main():
     tasks = [task_1, task_2, task_3]
     processes = []
@@ -159,8 +144,6 @@ def task_2():
     x_0_0 = funInt()
     x_0_0_sender.send(x_0_0)
 from testLib import *
-def algo():
-    x = funInt()
 def main():
     tasks = [task_1, task_2]
     processes = []
@@ -195,9 +178,6 @@ def task_2():
     x_0_0 = funInt()
     x_0_0_sender.send(x_0_0)
 from testLib import *
-def algo():
-    x = funInt()
-    return
 def main():
     tasks = [task_1, task_2]
     processes = []
@@ -223,9 +203,6 @@ def task_2():
     x_0_0 = funInt()
     x_0_0_sender.send(x_0_0)
 from testLib import *
-def algo():
-    x = funInt()
-    return None
 def main():
     tasks = [task_1, task_2]
     processes = []
@@ -251,8 +228,6 @@ def task_2():
     x_0_0 = funInt()
     x_0_0_sender.send(x_0_0)
 from testLib import *
-def algo():
-    funInt()
 def main():
     tasks = [task_1, task_2]
     processes = []
@@ -274,9 +249,6 @@ def task_1():
     x_0_0_0_sender.send(x_0_0_0)
     
 from testLib import *
-def algo():
-    x = oneArg(7)
-    return x
 def main():
     tasks = [task_1]
     processes = []
@@ -308,8 +280,6 @@ def task_1():
     a_0_0_sender.send(a_0_0)
     
 from testLib import *
-def algo():
-    return f()
 def main():
     tasks = [task_1]
     processes = []
@@ -346,11 +316,6 @@ def task_3():
     a_0_0_0_sender.send(a_0_0_0)
     
 from testLib import *
-def algo():
-    a = f(42)
-    x = f(a)
-    z = g(x)
-    return z
 def main():
     tasks = [task_1, task_2, task_3]
     processes = []
@@ -379,11 +344,6 @@ def task_2():
     a_0_0_0_sender.send(a_0_0_0)
     
 from testLib import *
-def algo():
-    a = f(42)
-    x = f(a)
-    g(x)
-    return x
 def main():
     tasks = [task_1, task_2]
     processes = []
@@ -419,12 +379,6 @@ def task_3():
     a_0_0_0_sender.send(a_0_0_0)
     
 from testLib import *
-def algo():
-    a = f(42)
-    x = f(a)
-    g(x)
-    z = f(x)
-    return z
 def main():
     tasks = [task_1, task_2, task_3]
     processes = []
@@ -467,9 +421,6 @@ def task_4():
     c_0_0_sender.send(c_0_0)
     
 from testLib import *
-def algo():
-    x = moreArgs(funInt(), oneArg(funInt()), 42)
-    return x
 def main():
     tasks = [task_1, task_2, task_3, task_4]
     processes = []
@@ -505,10 +456,6 @@ def task_3():
     x_0_0_0_sender.send(x_0_0_0)
     
 from testLib import *
-def algo(a, b):
-    x = f(a)
-    y = g1(b)
-    return x + y
 def main(a_1, b_1):
     global a, b
     a, b = a_1, b_1
@@ -532,9 +479,6 @@ def task_1():
     x_0_0_0_sender.send(x_0_0_0)
     
 from testLib import *
-def algo(a, b):
-    x = (lambda a: 2 * a)(3)
-    return x
 def main(a_1, b_1):
     global a, b
     a, b = a_1, b_1
@@ -558,10 +502,6 @@ def task_1():
     y_0_0_0_sender.send(y_0_0_0)
     
 from testLib import *
-def algo(a, b):
-    x = lambda a: 2 * a
-    y = x(3)
-    return y
 def main(a_1, b_1):
     global a, b
     a, b = a_1, b_1
@@ -594,10 +534,6 @@ def task_2():
         x_0_0_0_sender.send(x_0_0_0)
         
 from testLib import *
-def algo():
-    mob = MObs(22)
-    x = mob.getNum()
-    return x
 def main():
     tasks = [task_1, task_2]
     processes = []
@@ -732,4 +668,21 @@ tailRecContext= [pythonModule|
 from testLib import *
 
 # TODO
+|]
+
+---------------------------
+
+twoAlgos = [pythonModule|
+from testLib import *
+
+def algo1():
+    mob = MObs(22)
+    # mob.addNum(21)
+    x = mob.getNum()
+    return x
+
+def algo2():
+    x = 5
+    y = algo1(x) 
+    return x
 |]

@@ -15,8 +15,8 @@ import qualified Integrations.Python.WIP as WIP
 
 spec :: Spec
 spec = 
-    -- Basic.spec  >> 
-    -- IfElse.spec -- >>
+    Basic.spec >> 
+    --IfElse.spec -- >>
     Loops.spec -- >>
     -- TailRec.spec
     -- WIP.spec

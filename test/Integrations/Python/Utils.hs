@@ -26,13 +26,14 @@ import qualified Integrations.Python.TestDataOutput as Output
 
 import System.FilePath
 import System.IO.Temp
-import System.Directory (setCurrentDirectory)
+import System.Directory (setCurrentDirectory, listDirectory, getCurrentDirectory)
 
 import Data.Text.Prettyprint.Doc as PP
 import Data.Text.Prettyprint.Doc.Render.Text as PP
 import Data.Text as T (concat, Text, span, pack, unpack)
 import qualified Data.ByteString.Lazy.Char8 as L
 import Language.Python.Common.SrcLocation (SrcSpan)
+import Test.Hspec.Discover (String)
 
 
 type ParseResult = Either ParseError (ModuleSpan, [Token])
@@ -40,7 +41,7 @@ type ParseResult = Either ParseError (ModuleSpan, [Token])
 -- TODO turn this into a parameter for a particular test
 -- TODO: remove redundancy among rust.utils and python.utils
 debug :: Bool
-debug = True
+debug = False
 
 withDebug :: Options -> Options
 withDebug d = d & stageHandling .~ debugStageHandling
@@ -53,14 +54,18 @@ debugStageHandling =
     intoStageHandling DumpStdOut
         $ Just
             [ Stage resolvedAlang True False
+            , Stage normalizedAlang True False
             , Stage coreDflang True False
             , Stage coreAlang True False
             , Stage initialDflang True False
             , Stage preControlSTCLangALang True False
             , Stage smapTransformationALang True False
+            , Stage conditionalsTransformationALang True False
+            , Stage seqTransformationALang True False
             , Stage postControlSTCLangALang True False
             , Stage normalizeAfterCorePasses True False
             , Stage customDflang True False
+            , Stage finalDflang True False
             ]
 
 renderPython:: (PyPretty.Pretty a)=> a -> Text
@@ -86,7 +91,7 @@ compileCode' inCode opts =
         $ \testDir -> do
             setCurrentDirectory testDir
             writeFile
-                (testDir </> "testLib.py")
+                (testDir </> "testLib.py") 
                 (renderPython Input.testLib)
             let inFile = testDir </> "test.py"
             writeFile
@@ -99,8 +104,15 @@ compileCode' inCode opts =
                     runCompM
                         LevelWarn
                         $ compile inFile compScope options outDir
-                    producedFile <-readFile (outDir </> takeFileName inFile)
-                    putStr producedFile
+                    (caller:modules) <- listDirectory outDir
+                    mapM_ putStr (caller:modules)
+                    files <- mapM (\name -> readFile (outDir </> name)) (caller:modules)
+                    producedFile <-readFile (outDir </> "algo.py")
+                    newMain <-readFile (outDir </> "test.py")
+                    putStr newMainStr
+                    putStr $ newMain  <> "\n"
+                    putStr algoModStr 
+                    putStr $ producedFile  <> "\n"
                     return $ wrappedParsing  (T.unpack producedFile) (takeFileName inFile)
                     {-- Dummy replacement for 'id compilation'
                     writeFile
@@ -120,3 +132,9 @@ showCode msg ast =
         printCode c = putStr $ boundary <> header <> c <> boundary
         boundary = "\n" <> T.concat (replicate 20 ("-"::T.Text)) <> "\n"
         header = msg <> "\n\n"
+
+newMainStr :: String
+newMainStr = "\nNew__MainModule_____________\n"
+
+algoModStr :: String
+algoModStr = "\nAlgo__Module_____________\n"

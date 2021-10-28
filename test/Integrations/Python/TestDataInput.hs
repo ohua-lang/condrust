@@ -492,3 +492,19 @@ def algo2(a):
         xs.append(y)
     return xs
 |]
+
+-----
+twoAlgos = [pythonModule|
+from testLib import *
+
+def algo():
+    mob = MObs(22)
+    # mob.addNum(21)
+    x = mob.getNum()
+    return x
+
+def algo2():
+    x = 5
+    y = algo1() 
+    return x + y
+|]
