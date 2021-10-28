@@ -101,10 +101,11 @@ instance Architecture (Architectures 'MultiProcessing) where
 -- | the original code are included in the new file
 -- TODO : filter exisitng main functions
 makeAlgoModule :: Module -> (String, FullyPyProgram, [Py.Parameter SrcSpan]) -> (FilePath , L.ByteString)
-makeAlgoModule srcModule (algoName, prgrm@(Program _ _ tasks), params )=
+makeAlgoModule (Module path (Py.Module inputCode)) (algoName, prgrm@(Program _ _ tasks), params )=
     let taskList = enumeratedTasks tasks
         newMainFun = buildMain taskList prgrm params
-        combinedStmts = combineStatements srcModule (prgrm, newMainFun)
+        funFreeStmts = filter (not. funOrMainCall) inputCode
+        combinedStmts = combineStatements funFreeStmts prgrm newMainFun
         modName = algoName <> ".py"
         printableCode = encodePretty combinedStmts
     in (modName, printableCode)
@@ -132,8 +133,8 @@ replaceFunCode stmt = case stmt of
             let funId = name <> "_parallel.main"
                 calledFun =  Py.Var (mkIdent funId) noSpan
                 args = map paramToArg params
-            in [Py.StmtExpr
-                (Py.Call calledFun args noSpan )
+            in [Py.Return 
+                (Just (Py.Call calledFun args noSpan ))
                 noSpan]
 
 -- | Gererate an import statement for a given algo binding
@@ -141,22 +142,29 @@ makeImport :: Binding -> Py.Statement SrcSpan
 makeImport algoBnd =
     let modName = bndToStr algoBnd
         alias = modName <> "_parallel"
+    in Py.Import [ 
+            Py.ImportItem [mkIdent modName]  -- import algo
+            (Just (mkIdent alias))              -- as algo_parallel
+            noSpan]
+        noSpan
+    -- TODO: Check best import option, trelative imports only work for defined packages
+    -- Question: Shall lib and algo modules form a package
     -- from . import algo as algo_parallel
-    in Py.FromImport
+    {-in Py.FromImport
         (Py.ImportRelative 1 Nothing noSpan) 
         (Py.FromItems [Py.FromItem  (mkIdent modName)  
                                     (Just (mkIdent alias))
                                     noSpan
                       ] noSpan)
-        noSpan
+        noSpan -} 
 
 combineStatements ::
-    Module
-    -> (FullyPyProgram , Py.Statement SrcSpan)
+    [Py.Statement SrcSpan]
+    -> FullyPyProgram 
+    -> Py.Statement SrcSpan
     -> Py.Module SrcSpan
-combineStatements srcModule (Program channelInits _ nodeFuns, multiMain) = Py.Module combinedStatements
+combineStatements originalStmts (Program channelInits _ nodeFuns) multiMain = Py.Module combinedStatements
     where
-        (Module path (Py.Module originalStmts)) = srcModule
         taskFunDefs = map taskExpression nodeFuns
         combinedStatements = importMPStmt
                              : toList channelInits
@@ -212,6 +220,13 @@ paramToArg _ = error "unsupported parameter type. this should have been caught i
 
 replaceId:: (Py.ParameterSpan, Py.IdentSpan) -> Py.ParameterSpan
 replaceId (Py.Param id mTyp mDef anno, newId) = Py.Param newId mTyp mDef anno
+
+funOrMainCall:: Py.Statement SrcSpan -> Bool
+funOrMainCall stmt = case stmt of 
+    Py.Fun{} -> True
+    Py.Conditional{cond_guards=[(ifNameIsMain, _)]} -> True 
+    _ -> False
+
 
 modName (Py.Param (Py.Ident name _) mTyp mDef anno) modV = Py.Ident (name++modV) noSpan
 
