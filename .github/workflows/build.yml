@@ -1,0 +1,97 @@
+on: 
+  push: 
+    branches: ["master", "main"]
+  pull_request:
+    branches: ["master", "main"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout ohuac
+        uses: actions/checkout@v2
+        with:
+          repository: 'sertel/ohuac'
+          token: ${{ secrets.PULL_TOKEN }}
+          fetch-depth: 0
+          path: 'ohuac'
+      - name: Checkout ohuac-commons
+        uses: actions/checkout@v2
+        with:
+          repository: 'sertel/ohuac-commons'
+          token: ${{ secrets.PULL_TOKEN }}
+          fetch-depth: 0
+          path: 'ohuac-commons'
+      - name: Checkout ohua-frontend
+        uses: actions/checkout@v2
+        with:
+          repository: 'sertel/ohua-frontend'
+          token: ${{ secrets.PULL_TOKEN }}
+          fetch-depth: 0
+          path: 'ohua-frontend'
+      - name: Checkout ohua-backend
+        uses: actions/checkout@v2
+        with:
+          repository: 'sertel/ohua-backend'
+          token: ${{ secrets.PULL_TOKEN }}
+          fetch-depth: 0
+          path: 'ohua-backend'
+      - name: Checkout ohua-core
+        uses: actions/checkout@v2
+        with:
+          repository: 'sertel/ohua-core'
+          token: ${{ secrets.PULL_TOKEN }}
+          fetch-depth: 0
+          path: 'ohua-core'
+      - name: Checkout ohuac-integrations
+        uses: actions/checkout@v2
+        with:
+          repository: 'sertel/ohuac-integrations'
+          token: ${{ secrets.PULL_TOKEN }}
+          fetch-depth: 0
+          path: 'ohuac-integrations'
+
+      - name: Get current branch
+        id: branch-name
+        uses: tj-actions/branch-names@v5
+      - name: Check out the branch in question
+        run: |
+          for dir in */
+          do
+            cd $dir
+            if git rev-parse --quiet --verify origin/${{ steps.branch-name.outputs.current_branch }} > /dev/null; then
+              git checkout ${{ steps.branch-name.outputs.current_branch }}
+              echo "$dir checked out ${{ steps.branch-name.outputs.current_branch }}"
+            else
+              echo "$dir has no branch ${{ steps.branch-name.outputs.current_branch }}"
+            fi
+            cd ..
+          done
+        shell: bash
+
+      - name: Setup Haskell
+        uses: haskell/actions/setup@v1
+      # set up nix
+      - name: Install nix
+        uses: cachix/install-nix-action@v13
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+        ## TODO: Actually pin nixpkgs??
+      
+      - name: Cache Haskell build artifacts for dependencies
+        uses: actions/cache@v2
+        with:
+          path: |
+            ohuac/.stack_work
+            ~/.stack
+          key: ohuac-${{ runner.os }}-${{ hashFiles('ohuac/stack.yaml') }}
+      - name: Build ohuac
+        run: |
+          cd ohuac
+          stack build
+      - name: Run tests
+        run: |
+          cd ohuac
+          stack test
+      # TODO: cache results???
