@@ -1,7 +1,6 @@
 # The standalone Ohua compiler: `ohuac`
 
-[![Build Status](https://travis-ci.org/ohua-dev/ohuac.svg?branch=master)](https://travis-ci.org/ohua-dev/ohuac)
-[![Latest Release](https://img.shields.io/github/release/ohua-dev/ohuac.svg)](https://github.com/ohua-dev/ohuac/releases/latest)
+<!-- [![Build Status](https://travis-ci.org/ohua-dev/ohuac.svg?branch=master)](https://travis-ci.org/ohua-dev/ohuac) -->
 
 For the complete documentation of the `ohuac` compiler see the [standalone
 compiler section of the ohua
