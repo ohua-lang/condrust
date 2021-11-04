@@ -549,107 +549,190 @@ def main():
 
 --Test cases for Loops.hs ---------------------------------------------
 loopIterator= [pythonModule|
+import multiprocessing as mp
+mOb_0_1_0_sender, mOb_0_1_0_receiver = mp.Pipe()
+mOb_0_0_1_sender, mOb_0_0_1_receiver = mp.Pipe()
+ctrl_0_0_sender, ctrl_0_0_receiver = mp.Pipe()
+d_0_0_sender, d_0_0_receiver = mp.Pipe()
+n_0_0_0_sender, n_0_0_0_receiver = mp.Pipe()
+def task_1():
+    mOb_0_0_1 = MObs(42)
+    mOb_0_0_1_sender.send(mOb_0_0_1)
+def task_2():
+    while True:
+        var_0 = d_0_0_receiver.recv()
+        n_0_0_0 = f(var_0)
+        n_0_0_0_sender.send(n_0_0_0)
+def task_3():
+    g_0_0_0 = some_invented_iter_function()
+    while True:
+        data = g_0_0_0
+        hasSize = True if hasattr(data, '__len__') else False
+        if hasSize:
+            size = len(data)
+            ctrl = True, size
+            ctrl_0_0_sender.send(ctrl)
+            for d in data:
+                d_0_0_sender.send(d)
+        else:
+            size = 0
+            for d in data:
+                d_0_0_sender.send(d)
+                ctrl = False, 1
+                ctrl_0_0_sender.send(ctrl)
+                size = size + 1
+            ctrl = True, 0
+            ctrl_0_0_sender.send(ctrl)
+def task_4():
+    while True:
+        renew = False
+        mOb_0_0_1_0 = mOb_0_0_1_receiver.recv()
+        while not renew:
+            sig = ctrl_0_0_receiver.recv()
+            count = sig[1]
+            for _ in range(0, count):
+                var_1 = n_0_0_0_receiver.recv()
+                mOb_0_0_1_0.addNum(var_1)
+            renew_next_time = sig[0]
+            renew = renew_next_time
+        mOb_0_1_0_sender.send(mOb_0_0_1_0)
 from testLib import *
+def main(a_1):
+    global a
+    a, = a_1,
+    tasks = [task_1, task_2, task_3, task_4]
+    processes = []
+    for task in tasks:
+        process = mp.Process(target=task)
+        processes.append(process)
+    list(map(mp.Process.start, processes))
+    result = mOb_0_1_0_receiver.recv()
+    list(map(mp.Process.terminate, processes))
+    list(map(mp.Process.join, processes))
+    return result
+|]
 
-def algo(a):
-    g = some_invented_iter_function()
-    for i in g:
-        f(i)
+
+loopIterObj= [pythonModule|
+import multiprocessing as mp
+mOb_0_1_0_sender, mOb_0_1_0_receiver = mp.Pipe()
+g_0_0_1_sender, g_0_0_1_receiver = mp.Pipe()
+mOb_0_0_1_sender, mOb_0_0_1_receiver = mp.Pipe()
+ctrl_0_0_sender, ctrl_0_0_receiver = mp.Pipe()
+d_1_0_sender, d_1_0_receiver = mp.Pipe()
+n_0_0_0_sender, n_0_0_0_receiver = mp.Pipe()
+def task_1():
+    g_0_0_1 = dict()
+    g_0_0_1_sender.send(g_0_0_1)
+def task_2():
+    while True:
+        var_0 = d_1_0_receiver.recv()
+        n_0_0_0 = f(var_0)
+        n_0_0_0_sender.send(n_0_0_0)
+def task_3():
+    mOb_0_0_1 = MObs(42)
+    mOb_0_0_1_sender.send(mOb_0_0_1)
+def task_4():
+    var_0 = g_0_0_1_receiver.recv()
+    a_1_0 = var_0.values()
+    None
+    data = a_1_0
+    hasSize = True if hasattr(data, '__len__') else False
+    if hasSize:
+        size = len(data)
+        ctrl = True, size
+        ctrl_0_0_sender.send(ctrl)
+        for d in data:
+            d_1_0_sender.send(d)
+    else:
+        size = 0
+        for d in data:
+            d_1_0_sender.send(d)
+            ctrl = False, 1
+            ctrl_0_0_sender.send(ctrl)
+            size = size + 1
+        ctrl = True, 0
+        ctrl_0_0_sender.send(ctrl)
+def task_5():
+    while True:
+        renew = False
+        mOb_0_0_1_0 = mOb_0_0_1_receiver.recv()
+        while not renew:
+            sig = ctrl_0_0_receiver.recv()
+            count = sig[1]
+            for _ in range(0, count):
+                var_1 = n_0_0_0_receiver.recv()
+                mOb_0_0_1_0.addNum(var_1)
+            renew_next_time = sig[0]
+            renew = renew_next_time
+        mOb_0_1_0_sender.send(mOb_0_0_1_0)
+from testLib import *
+def main(a_1):
+    global a
+    a, = a_1,
+    tasks = [task_1, task_2, task_3, task_4, task_5]
+    processes = []
+    for task in tasks:
+        process = mp.Process(target=task)
+        processes.append(process)
+    list(map(mp.Process.start, processes))
+    result = mOb_0_1_0_receiver.recv()
+    list(map(mp.Process.terminate, processes))
+    list(map(mp.Process.join, processes))
+    return result
+|]
+
+
+loopTuplePattern= [pythonModule|
+from testLib import *
+# Todo
+|]
+
+loopCommaPattern= [pythonModule|
+from testLib import *
+# Todo
 |]
 
 whileLoop = [pythonModule|
 from testLib import *
-
-def algo(a):
-    i = something()
-    while testfun(i):
-        i = manipulate(i)
-    return i
+# ToDo
 |]
 --Test cases for IfElse.hs --------------------------------------------
 iteLiteralArgs = [pythonModule|
 from testLib import *
-
-def algo(a): 
-    b = a
-    if b:
-        x = f(13)
-    else:
-        x = g(14)
-    return x
+# ToDO
 |]
 
 iteParamArgs = [pythonModule|
 from testLib import *
-
-def algo(a , b): 
-    c = a
-    if b:
-        x = f(a)
-    else:
-        x = g(b)
-    return x
+# ToDo
 |]
 
 
 branchReturn = [pythonModule|
 from testLib import *
-
-def algo(i):
-    if a:
-        d = g0(b)
-    else:
-        return
-    return oneArg(d) 
+# ToDo
 |] 
 
 iteNoParams = [pythonModule|
 from testLib import *
-
-def algo():
-    a = f()
-    b = f1(a)
-    c = f2(a)
-    if a:
-        d = g0(b)
-    else:
-        d = g1(c)
-    return oneArg(d) 
+# ToDo
 |]
 
 iteRustExample = [pythonModule|
 from testLib import *
-
-def algo(i):
-    a = f(i)
-    b = f1(i)
-    c = f2(i)
-    if a:
-        d = g0(b)
-    else:
-        d = g1(c)
-    return oneArg(d) 
+# TODO
 |]
 
 condExpr = [pythonModule|
 from testLib import *
-
-def algo(i):
-    return None
-    # c = someCheck(i)
-    # x = f(i) if c else g(i)
+# ToDo 
 |]
 
 
 condExpr2 = [pythonModule|
 from testLib import *
-
-def algo(i):
-    a = f()
-    b = f1(a)
-    c = f2(a)
-    d = g0(b) if a else g1(c)
-    return oneArg(d) 
+# ToDo
 |]
 
 --Test cases for TailRec.hs --------------------------------------------

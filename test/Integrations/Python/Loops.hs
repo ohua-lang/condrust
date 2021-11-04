@@ -24,6 +24,24 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.loopIterator
                 compiled `shouldBe` expected)
+
+        it "ForLoop over iterator on object" $
+            (showCode "Compiled: " =<< compileCode Input.loopIterObj) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" Expect.loopIterObj
+                compiled `shouldBe` expected)
+        
+        it "ForLoop with tuple pattern " $
+            (showCode "Compiled: " =<< compileCode Input.loopTuplePattern) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" Expect.loopTuplePattern
+                compiled `shouldBe` expected)
+
+        it "ForLoop with comma separated vars" $
+            (showCode "Compiled: " =<< compileCode Input.loopCommaPattern) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" Expect.loopCommaPattern
+                compiled `shouldBe` expected)
         {-
         [Error] Not in scope Binding "i_1"
             CallStack (from HasCallStack):

@@ -4,14 +4,6 @@
 module Integrations.Python.TestDataInput where
 
 import Integrations.Python.SimpleQuoter
-import System.Directory.Internal.Prelude (Bool(True))
-import Data.ByteString.Lazy (append)
-
-{-Rust test include Arc<T> type, 
- according to Rust docs: ref counted thread-safe shared reference to non-mutable
- objects on the heap...so basically every non-mutable type in python?
- Note: Type annotations are not checked by the parser/quoter so they are merely for 
- illustration, same holds for 'typing' import-}
 
 testLib = [pythonModule|
 from typing import List
@@ -290,6 +282,40 @@ def algo(a):
         mOb.addNum(n)
     return mOb
 |]
+
+loopIterObj= [pythonModule|
+from testLib import *
+def algo(a):
+    g = dict()
+    mOb = MObs(42)
+    for i in g.values():
+        n = f(i)
+        mOb.addNum(n)
+    return mOb
+|]
+
+loopTuplePattern= [pythonModule|
+from testLib import *
+def algo(a):
+    g = dict()
+    mOb = MObs(42)
+    for (i,j) in g.items():
+        n = f(i)
+        mOb.addNum(n)
+    return mOb
+|]
+
+loopCommaPattern= [pythonModule|
+from testLib import *
+def algo(a):
+    g = dict()
+    mOb = MObs(42)
+    for i,j in g.items():
+        n = f(i)
+        mOb.addNum(n)
+    return mOb
+|]
+
 
 whileLoop = [pythonModule|
 from testLib import *
