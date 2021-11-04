@@ -34,7 +34,7 @@ stmtToSub whileE@(Py.While cond do_block [] annE) = do
     return $ Sub.WhileStmt cond' block'
 stmtToSub whileE@(Py.While cond do_block elseBlock annE) = unsupError "else blocks in while expressions" whileE
 stmtToSub forE@(Py.For targets generator body [] annot) = do
-    targets' <- mapM exprToTarget targets
+    targets' <- targetsToSub targets
     generator' <- exprToSubExpr generator
     body' <- suiteToSub body
     return $ Sub.ForStmt targets' generator' body'
@@ -187,11 +187,11 @@ exprToFRef lE@Py.Lambda{} = do
 exprToFRef anyOther = unsupError "this kind of expression as function reference: " anyOther
 
 
-{-
+
 targetsToSub:: (Monad m, MonadError Error m) => [Py.Expr SrcSpan] -> m Sub.Target
 targetsToSub [expr] = exprToTarget expr
 targetsToSub (e:es) = Sub.Tpl <$> mapM (varOrFail <=< exprToTarget) (e:es)
--}
+
 
 
 {- What can be a pattern in python? From the py grammar:

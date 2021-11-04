@@ -1,6 +1,7 @@
 {-# LANGUAGE InstanceSigs#-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ConstraintKinds #-}
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 {-|Slowly move frontend covnersion to this file withou messing up the 
 old frontend to much
 |-}
@@ -194,11 +195,11 @@ subStmtToIR (Sub.WhileStmt expr suite) = do
     let recursivePart= IfE cond (AppE (VarE loopRef) [])  (LitE UnitLit)
     return $ LetE (VarP loopRef) (LamE [] $ StmtE suite' recursivePart) recursivePart
 
-subStmtToIR (Sub.ForStmt targets generator suite) = do
-    targets' <- mapM subTargetToIR targets
+subStmtToIR (Sub.ForStmt target generator suite) = do
+    targets' <- subTargetToIR target
     generator' <- subExprToIR generator
     suite <- subSuiteToIR suite
-    return $ MapE (LamE targets' suite) generator'
+    return $ MapE (LamE [targets'] suite) generator'
 
 subStmtToIR (Sub.CondStmt [(cond, suite)] elseSuite) = do
     cond' <- subExprToIR cond

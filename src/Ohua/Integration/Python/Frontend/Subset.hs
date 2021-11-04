@@ -25,7 +25,7 @@ data Stmt  =
     -- Question: Do i express the fact, that we do not support 
     -- else-branches for While/For by leaving out the according part
     -- of the original constructor ? 
-    | ForStmt [Target] Expr Suite 
+    | ForStmt Target Expr Suite 
     | CondStmt [(Expr, Suite )] Suite 
     -- TODO: Rework when/if assignments and returns of lists of targets are supported
     | Assign Target Expr 
