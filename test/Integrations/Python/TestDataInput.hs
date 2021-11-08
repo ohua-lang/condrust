@@ -233,6 +233,15 @@ def algo():
     return x
 |]
 
+tupleArgumentCall= [pythonModule|
+from testLib import *
+
+def algo(a,b):
+    tpl = (a,b)
+    x = oneArg(tpl)
+    return x
+|]
+
 algoWithParams = [pythonModule|
 from testLib import *
 
@@ -257,6 +266,40 @@ def algo(a, b):
     y = x(3)
     return y
 |]
+
+assignEmptyList = [pythonModule|
+from testLib import *
+
+def algo(a, b):
+    x = []
+    return x
+|]
+
+assignList = [pythonModule|
+from testLib import *
+
+def algo(a, b):
+    x = [a,b]
+    return x
+|]
+
+
+assignEmptyDict = [pythonModule|
+from testLib import *
+
+def algo(a, b):
+    x = {}
+    return x
+|]
+
+assignDict = [pythonModule|
+from testLib import *
+
+def algo(a, b):
+    x = {a:1, b:2}
+    return x
+|]
+
 
 --Test cases for State.hs ---------------------------------------------
 callMethod = [pythonModule|

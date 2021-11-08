@@ -78,6 +78,20 @@ spec =
                 expected <- showCode "Expected:" Expect.assignLambdaExpr
                 compiled `shouldBe` expected) 
 
+        it "Assign empty list" $
+            (showCode "Compiled: " =<< compileCode Input.assignEmptyList) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" Expect.assignEmptyList
+                compiled `shouldBe` expected) 
+
+        it "Assign empty dict" $
+            (showCode "Compiled: " =<< compileCode Input.assignEmptyDict) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" Expect.assignEmptyDict
+                compiled `shouldBe` expected) 
+
+        
+
         
 {-  TOFIX 
         {-
