@@ -69,12 +69,19 @@ instance Architecture (Architectures 'SharedMemory) where
         (Sub.Var $ channel <> "_rx")
         (Sub.CallRef (mkFunRefUnqual "recv") Nothing)
         []
-  convertSend SSharedMemory (SSend (SChan channel) d) =
-    Sub.Try $
-      Sub.MethodCall
-        (Sub.Var $ channel <> "_tx")
-        (Sub.CallRef (mkFunRefUnqual "send") Nothing)
-        [Sub.Var d]
+  convertSend SSharedMemory (SSend (SChan channel) d) = case d of
+    Left bnd -> trySend $ Sub.Var bnd
+    Right num@NumericLit{} -> trySend $ Sub.Lit num
+    Right b@BoolLit{} -> trySend $ Sub.Lit b
+    Right UnitLit -> trySend $ Sub.Lit UnitLit
+    Right (EnvRefLit bnd) -> trySend $ Sub.Var bnd
+    Right (FunRefLit _) -> error "Invariant broken: Got tasked to send a function reference via channel which should have been caught in the backend."
+  where
+    trySend bnd = Sub.Try $
+                  Sub.MethodCall
+                  (Sub.Var $ channel <> "_tx")
+                  (Sub.CallRef (mkFunRefUnqual "send") Nothing)
+                  [bnd]
 
   build SSharedMemory (Module _ (Rust.SourceFile _ _ _items)) ns =
     return $ ns & algos %~ map (\algo -> algo & algoCode %~ createTasksAndChannels)
