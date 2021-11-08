@@ -435,12 +435,31 @@ def main():
 |]
 
 tupleArgumentCall= [pythonModule|
+import multiprocessing as mp
+x_0_0_0_sender, x_0_0_0_receiver = mp.Pipe()
+tpl_0_0_0_sender, tpl_0_0_0_receiver = mp.Pipe()
+def task_1():
+    while True:
+        var_0 = tpl_0_0_0_receiver.recv()
+        x_0_0_0 = oneArg(var_0)
+        x_0_0_0_sender.send(x_0_0_0)
+def task_2():
+    tpl_0_0_0 = a, b
+    tpl_0_0_0_sender.send(tpl_0_0_0)
 from testLib import *
-
-def algo(a,b):
-    tpl = (a,b)
-    x = oneArg(tpl)
-    return x
+def main(a_1, b_1):
+    global a, b
+    a, b = a_1, b_1
+    tasks = [task_1, task_2]
+    processes = []
+    for task in tasks:
+        process = mp.Process(target=task)
+        processes.append(process)
+    list(map(mp.Process.start, processes))
+    result = x_0_0_0_receiver.recv()
+    list(map(mp.Process.terminate, processes))
+    list(map(mp.Process.join, processes))
+    return result
 |]
 
 algoWithParams = [pythonModule|
@@ -548,11 +567,25 @@ def main(a_1, b_1):
 |]
 
 assignList = [pythonModule|
+import multiprocessing as mp
+x_0_0_0_sender, x_0_0_0_receiver = mp.Pipe()
+def task_1():
+    x_0_0_0 = [a, b]
+    x_0_0_0_sender.send(x_0_0_0)
 from testLib import *
-
-def algo(a, b):
-    x = [a,b]
-    return x
+def main(a_1, b_1):
+    global a, b
+    a, b = a_1, b_1
+    tasks = [task_1]
+    processes = []
+    for task in tasks:
+        process = mp.Process(target=task)
+        processes.append(process)
+    list(map(mp.Process.start, processes))
+    result = x_0_0_0_receiver.recv()
+    list(map(mp.Process.terminate, processes))
+    list(map(mp.Process.join, processes))
+    return result
 |]
 
 assignEmptyDict = [pythonModule|
@@ -578,11 +611,36 @@ def main(a_1, b_1):
 |]
 
 assignDict = [pythonModule|
+import multiprocessing as mp
+x_0_0_0_sender, x_0_0_0_receiver = mp.Pipe()
+c_0_0_sender, c_0_0_receiver = mp.Pipe()
+d_0_0_sender, d_0_0_receiver = mp.Pipe()
+def task_1():
+    while True:
+        var_0 = d_0_0_receiver.recv()
+        var_1 = c_0_0_receiver.recv()
+        x_0_0_0 = {var_0[0]: var_0[1], var_1[0]: var_1[1]}
+        x_0_0_0_sender.send(x_0_0_0)
+def task_2():
+    d_0_0 = a, 1
+    d_0_0_sender.send(d_0_0)
+def task_3():
+    c_0_0 = b, 2
+    c_0_0_sender.send(c_0_0)
 from testLib import *
-
-def algo(a, b):
-    x = {a:1, b:2}
-    return x
+def main(a_1, b_1):
+    global a, b
+    a, b = a_1, b_1
+    tasks = [task_1, task_2, task_3]
+    processes = []
+    for task in tasks:
+        process = mp.Process(target=task)
+        processes.append(process)
+    list(map(mp.Process.start, processes))
+    result = x_0_0_0_receiver.recv()
+    list(map(mp.Process.terminate, processes))
+    list(map(mp.Process.join, processes))
+    return result
 |]
 
 
