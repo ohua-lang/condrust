@@ -1,7 +1,6 @@
 {-# LANGUAGE InstanceSigs#-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ConstraintKinds #-}
-{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 {-|Slowly move frontend covnersion to this file withou messing up the 
 old frontend to much
 |-}
@@ -260,8 +259,8 @@ subExprToIR (Sub.UnaryOp unOp expr1) = do
     return $ op' `AppE` [expr1']
 
 subExprToIR (Sub.Lambda params expr) = do
-    ctxt <- get 
-    params' <- mapM subParamToIR params 
+    ctxt <- get
+    params' <- mapM subParamToIR params
     expr' <- subExprToIR expr
     put ctxt
     return $ LamE params' expr'
@@ -270,7 +269,34 @@ subExprToIR (Sub.Tuple exprs) = do
     exprs' <- mapM subExprToIR exprs
     return $ TupE exprs'
 
+-- TODO: Remove special case when tuple-issue is fixed
+subExprToIR (Sub.List []) = do
+    listCall <- toFunRefLit "list"
+    return $ AppE listCall []
+
+subExprToIR (Sub.List exprs) = do
+    exprs' <- mapM subExprToIR exprs
+    listCall <- toFunRefLit "list"
+    return $ AppE listCall [TupE exprs']
+
+--TODO: Remove when tuple-issue is fixed
+subExprToIR (Sub.Dict []) = do
+    dictCall <- toFunRefLit "dict"
+    return $ AppE dictCall []
+
+-- | Mapping d = {1:2, 3:4} to d = dict(((1,2), (3,4)))
+subExprToIR (Sub.Dict mappings) = do
+    exprs' <- mapM mappingToTuple mappings
+    dictCall <- toFunRefLit "dict"
+    return $ AppE dictCall [TupE exprs']
+
 -- subExprToIR any =  convError any
+
+mappingToTuple ::ConvertM m => (Sub.Expr, Sub.Expr) -> m (FrLang.Expr PythonArgType)
+mappingToTuple (key, value) = do
+    key' <- subExprToIR key
+    val' <- subExprToIR value
+    return $ TupE [key', val']
 
 subArgToIR :: ConvertM m => Sub.Argument -> m ( FrLang.Expr PythonArgType)
 subArgToIR (Sub.Arg expr) = subExprToIR expr

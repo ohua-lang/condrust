@@ -58,6 +58,9 @@ data Expr =
     -- So is it a part of the subset or not? 
     -- | Dot QualifiedBinding 
     | Tuple [Expr]
+    -- TODO: Currentyl we only support the constructor for an empty list
+    | List [Expr]
+    | Dict [(Expr, Expr)]
     -- TODO: test this bevore it's included
     -- \| ParenExpr
     deriving (Eq, Show)

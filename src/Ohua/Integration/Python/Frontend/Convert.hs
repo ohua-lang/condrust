@@ -132,6 +132,13 @@ exprToSubExpr lam@(Py.Lambda params expr annot) = do
     expr' <- exprToSubExpr expr 
     return $ Sub.Lambda params' expr'
 
+exprToSubExpr (Py.List exprs annot) = do 
+    exprs' <- mapM exprToSubExpr exprs 
+    return $ Sub.List exprs'
+
+exprToSubExpr (Py.Dictionary dictMappings annot) = do 
+    exprs' <- mapM dictMapToSub dictMappings
+    return $ Sub.Dict exprs'
 
 exprToSubExpr lL@Py.LongInt{} = unsupError "LongInts" lL
 exprToSubExpr fL@(Py.Float valDbl strRepr annot) = unsupError "Floats" fL
@@ -157,11 +164,7 @@ exprToSubExpr await@(Py.Await expr annot) = unsupError "await expression" await
 -- Problems in Backend: 
     -- I can not distiguish Tuples from 'Tupled-Containers' and calls
     --  like l.pop(), l.items(), l.values(), l.intersect() will fail  
-exprToSubExpr list@(Py.List items annot) = unsupError "list expression" list
 exprToSubExpr listComp@(Py.ListComp comprehension annot) = unsupError "list comprehensions" listComp
--- TODO: Could be converted to a list of tuples
--- ...but how could we distiguish real lists of tuples from dicts in the backend :-(
-exprToSubExpr dict@(Py.Dictionary keysAndValues annot) = unsupError "dicts" dict
 exprToSubExpr dictComp@(Py.DictComp compehension annot) = unsupError "dict comprehensions" dictComp
 -- TODO: Could be a list, but we'd loose distinction in the backend as with dicts :-(
 exprToSubExpr set@(Py.Set items annot) = unsupError "set expressions" set
@@ -236,6 +239,16 @@ paramToSub ::  (Monad m, MonadError Error m) => Py.Parameter SrcSpan -> m Sub.Pa
 paramToSub (Py.Param ident typeAnno Nothing anno)  = return $ Sub.Param (toBinding ident)
 paramToSub dflt@(Py.Param ident typeAnno deflt anno) = unsupError "default values for paramters" dflt
 paramToSub prm = unsupError "args, kwargs or keyword only parameters" prm
+
+-- | Convert items of the iterable argument to dict creation. Those items can be (key, value) pairs or
+-- | *dict i.e. copies of other dicts. 
+dictMapToSub ::  (Monad m, MonadError Error m) => Py.DictKeyDatumList SrcSpan -> m (Sub.Expr, Sub.Expr)
+dictMapToSub (Py.DictMappingPair key value) = do
+    k' <- exprToSubExpr key
+    v' <- exprToSubExpr value
+    return (k', v')
+dictMapToSub dU@(Py.DictUnpacking dict) = unsupError "dict unpacking" dU
+
 
 binOpToSub :: (Monad m, MonadError Error m) => Py.Op SrcSpan -> m Sub.BinOp
 binOpToSub Py.Plus{} = return Sub.Plus
