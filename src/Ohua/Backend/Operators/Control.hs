@@ -116,11 +116,11 @@ fuseCtrl
                 . propagateTypeFromRecv vars)
                 vars
         stateOuts' = map g stateOuts
-        g (SSend ch d) =
+        g (SSend ch (Left d)) =
             let d' = case NE.filter (\(OutputChannel (SChan o),_r) -> o == d) vars of
                         [(OutputChannel (SChan o),_)] -> o
                         _ -> error "invariant broken"
-            in SSend ch d' -- the var that I assign the state to becomes the new data out for the state
+            in SSend ch $ Left d' -- the var that I assign the state to becomes the new data out for the state
         propagateTypeFromRecv = propagateType . toList . map snd
 
 -- | This takes a function and fuses a control into it.

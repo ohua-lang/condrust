@@ -78,9 +78,12 @@ substitute (bnd, e) = transform go
     go v@Var {} = updateVar v
     go (SendData (SSend chan sbnd)) | sbnd == bnd = case e of
       -- Also rename outbound variables _if_ we replace with a variable. If replacing with something else we'd need to think about another solution
-      (Var newBnd) -> SendData $ SSend chan newBnd
-      (Lit (EnvRefLit newBnd)) -> SendData $ SSend chan newBnd
-      _ -> error $ "Internal Error: Tried running substitution on sending " <> show sbnd <> " with not yet supported task expression: " <> show e
+      (Var newBnd) -> SendData $ SSend chan $ Left newBnd
+      -- TODO(feliix42): I'm not 100% positive on keeping that error here
+      (Lit (FunRefLit _)) -> error $ "Internal error: Cannot substitute " <> show bnd <> " with a function reference: " <> show e
+      (Lit l) -> SendData $ SSend chan $ Right l
+      -- (Lit (EnvRefLit newBnd)) -> SendData $ SSend chan newBnd
+      -- _ -> error $ "Internal Error: Tried running substitution on sending " <> show sbnd <> " with not yet supported task expression: " <> show e
     go (Apply (Stateless fn args)) = Apply $ Stateless fn $ map (transform go) args
     go (Apply (Stateful state fn args)) =
       Apply $ Stateful (transform go state) fn $ map (transform go) args

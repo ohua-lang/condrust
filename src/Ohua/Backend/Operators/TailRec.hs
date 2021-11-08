@@ -39,7 +39,7 @@ mkRecFun (RecFun resultOut ctrlOut recArgsOuts recInitArgsIns recArgsIns recCond
         [_] -> Stmt resultRecv innerBody
       finalRecv =
         Let finalResult resultRecv $
-          SendData $ SSend resultOut finalResult
+          SendData $ SSend resultOut $ Left finalResult
       epilog = case dedupChans recArgsIns [recResultIn] of
         [] -> finalRecv
         chans -> throwAwayLoopArgs chans finalRecv
@@ -71,7 +71,7 @@ mkRecFun (RecFun resultOut ctrlOut recArgsOuts recInitArgsIns recArgsIns recCond
         Just cOut ->
           Let "ctrlSig" sig $
             Stmt
-              (SendData $ SSend cOut "ctrlSig")
+              (SendData $ SSend cOut $ Left "ctrlSig")
               c
         _ -> c
     recvInits c =
@@ -89,7 +89,7 @@ mkRecFun (RecFun resultOut ctrlOut recArgsOuts recInitArgsIns recArgsIns recCond
         initArgsRecv
     sendInits c =
       foldr
-        (\(o, v) c' -> Stmt (SendData $ SSend o v) c')
+        (\(o, v) c' -> Stmt (SendData $ SSend o $ Left v) c')
         c
         $ zip recArgsOuts $
           map fst initArgsRecv
@@ -100,7 +100,7 @@ mkRecFun (RecFun resultOut ctrlOut recArgsOuts recInitArgsIns recArgsIns recCond
     recvLoopArgs c = foldr (\(v, r) c' -> Let v (ReceiveData r) c') c loopArgsRecv
     throwAwayLoopArgs c ex = foldr (Stmt . ReceiveData) ex c
     sendLoopArgs c =
-      foldr (\(o, v) c' -> Stmt (SendData $ SSend o v) c') c $
+      foldr (\(o, v) c' -> Stmt (SendData $ SSend o $ Left v) c') c $
         zip recArgsOuts $
           map fst loopArgsRecv
     dedupChans :: [Com 'Recv ty] -> [Com 'Recv ty] -> [Com 'Recv ty]

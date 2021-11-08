@@ -24,7 +24,7 @@ data ComType = Channel | Recv | Send deriving (Show, Eq, Generic)
 data Com (f::ComType) (t::Type) :: Type where
   SChan :: Binding -> Com 'Channel t
   SRecv :: ArgType t -> Com 'Channel t -> Com 'Recv t
-  SSend :: Com 'Channel t -> Binding -> Com 'Send t
+  SSend :: Com 'Channel t -> Either Binding (Lit t) -> Com 'Send t
 
 instance Eq (Com semTy ty) where
   SChan bnd0 == SChan bnd1 = bnd0 == bnd1
@@ -102,7 +102,9 @@ containsBinding (Let bnd expr cont) b = bnd == b || containsBinding expr b || co
 containsBinding (Stmt expr cont) b = containsBinding expr b || containsBinding cont b
 containsBinding (Assign bnd effect) b = bnd == b || containsBinding effect b
 containsBinding ReceiveData{} _ = False
-containsBinding (SendData (SSend _ bnd)) b = bnd == b
+containsBinding (SendData (SSend _ (Left bnd))) b = bnd == b
+containsBinding (SendData (SSend _ (Right (EnvRefLit bnd)))) b = bnd == b
+containsBinding (SendData (SSend _ _)) _ = False
 containsBinding (EndlessLoop expr) b = containsBinding expr b
 containsBinding (ForEach bnd1 bnd2 expr) b = bnd1 == b || bnd2 == b || containsBinding expr b
 containsBinding (Repeat cond expr) b = either (== b) (const False) cond || containsBinding expr b

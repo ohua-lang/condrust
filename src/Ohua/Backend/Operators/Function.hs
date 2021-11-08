@@ -87,7 +87,7 @@ genSend = \case
       dataOut :: [Result ty] -> TaskExpr ty -> TaskExpr ty
       dataOut [] ct = ct
       dataOut [DropResult] ct = ct
-      dataOut [SendResult (SChan b)] ct = Stmt (SendData $ SSend (SChan b) b) ct
+      dataOut [SendResult (SChan b)] ct = Stmt (SendData $ SSend (SChan b) (Left b)) ct
       dataOut [out1, out2] ct =
         getOut out1 First $
         getOut out2 Second $
@@ -98,7 +98,7 @@ genSend = \case
       getOut DropResult _ ct = ct
       getOut (SendResult (SChan b)) f ct =
         Let b (f resultTuple) $
-        Stmt (SendData $ SSend (SChan b) b) ct
+        Stmt (SendData $ SSend (SChan b) (Left b)) ct
 
 genFun'' :: FusableFunction ty -> TaskExpr ty
 genFun'' fun = (\f -> genFun' (genSend f) f) $ toFuseFun fun

@@ -17,15 +17,15 @@ ifFun condInput ctrlTrue ctrlFalse =
             Let "ctrlTrue" (Tuple (Right $ BoolLit True) (Right $ NumericLit 1)) $
             Let "ctrlFalse" (Tuple (Right $ BoolLit True) (Right $ NumericLit 0)) $
             Stmt 
-                (SendData $ SSend ctrlTrue "ctrlTrue")
-                (SendData $ SSend ctrlFalse "ctrlFalse")
+                (SendData $ SSend ctrlTrue $ Left "ctrlTrue")
+                (SendData $ SSend ctrlFalse $ Left "ctrlFalse")
         )
         (
             Let "ctrlTrue" (Tuple (Right $ BoolLit True) (Right $ NumericLit 0)) $
             Let "ctrlFalse" (Tuple (Right $ BoolLit True) (Right $ NumericLit 1)) $
             Stmt 
-                (SendData $ SSend ctrlTrue "ctrlTrue")
-                (SendData $ SSend ctrlFalse "ctrlFalse")
+                (SendData $ SSend ctrlTrue $ Left "ctrlTrue")
+                (SendData $ SSend ctrlFalse $ Left "ctrlFalse")
         )
 
 type TrueBranchInput = Com 'Recv
@@ -39,9 +39,9 @@ select condInput trueBranchInput falseBranchInput resultOut =
             (Var "branchSelection")
             (
                 Let "result" (ReceiveData trueBranchInput) $
-                    SendData $ SSend resultOut "result"
+                    SendData $ SSend resultOut $ Left "result"
             )
             (
                 Let "result" (ReceiveData falseBranchInput) $
-                    SendData $ SSend resultOut "result"
+                    SendData $ SSend resultOut $ Left "result"
             )
