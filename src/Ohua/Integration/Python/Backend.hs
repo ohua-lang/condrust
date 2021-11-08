@@ -79,6 +79,7 @@ instance Integration (Language 'Python) where
         (QualifiedBinding refNames bnd)  -> wrapExpr $ toPyVar $ dotConcat refNames bnd
     convertExpr arch (Apply (Stateless bnd args)) = convertFunCall arch bnd args
     -- There are no different definitions for functions and methods
+    
     convertExpr arch (Apply (Stateful stateExpr (QualifiedBinding _ bnd) args)) =
         wrapExpr $
         Py.Call
@@ -264,6 +265,7 @@ convertFunCall arch op [arg] | isJust $ unOp op =
             FunRepresentationOf "~" -> Just $ Py.Invert noSpan
             _ -> Nothing
 
+
 convertFunCall arch funRef args =
     -- TODO: I currently do not need to remove single Unit Literals from function calls: But if functions get assigned types 
         -- later (assignTypes in the frontend), there will be an added Unit Lit in empty function calls that need to be removed
@@ -286,7 +288,6 @@ convertArgument:: (Architecture arch, Lang arch ~ Language 'Python)=>
 -- 'stringly typed'
 -- TODO: Keyword Arguments... Would be nice not to loose this information. 
 convertArgument arch arg = Py.ArgExpr (unwrapStmt (convertExpr arch arg)) noSpan
-
 
 dotConcat :: NSRef -> Binding -> Py.Ident SrcSpan
 dotConcat (NSRef refs) bind =
@@ -311,4 +312,3 @@ hasAttrArgs bnd = [Py.ArgExpr (toPyVar. fromBinding $ bnd) noSpan, Py.ArgExpr (P
 
 pyInt::Integer -> Py.Expr SrcSpan
 pyInt num = Py.Int num (show num) noSpan
-

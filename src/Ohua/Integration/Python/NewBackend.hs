@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 module Ohua.Integration.Python.NewBackend where
 import Ohua.Prelude
 
@@ -239,6 +238,19 @@ convertFunCall arch op [arg1, arg2] | isJust $ binOp op =
             FunRepresentationOf ">>" -> Just Sub.ShiftRight
             _ -> Nothing
 
+
+convertFunCall arch ListConstructor args = 
+    wrapSubExpr $ Sub.List items
+    where items = map (unwrapSubStmt . convertExpr arch) args
+
+convertFunCall arch DictConstructor args = 
+    wrapSubExpr $ Sub.Dict items
+    where items = map (convertDictItem arch) args
+
+convertFunCall arch TupleConstructor args = 
+    wrapSubExpr $ Sub.Tuple items
+    where items = map (unwrapSubStmt . convertExpr arch) args
+
 convertFunCall arch op [arg] | isJust $ unOp op =
     wrapSubExpr $ Sub.UnaryOp (fromJust $ unOp op) arg'
     where
@@ -260,7 +272,7 @@ convertFunCall arch funRef args =
                     (map (convertArgument arch) args)
 
 
-convertArgument:: (Architecture arch, Lang arch ~ Language 'Python)=>
+convertArgument:: (Architecture arch, Lang arch ~ Language 'Python) =>
     arch -> TaskExpr PythonTypeAnno -> Sub.Argument
 -- TODO: Translating args and kwargs at the frontend I just prepend their names with '*'/'**'
 -- > Check if translating this back just using normal args yields same behaviour
@@ -269,6 +281,15 @@ convertArgument:: (Architecture arch, Lang arch ~ Language 'Python)=>
 -- 'stringly typed'
 -- TODO: Keyword Arguments... Would be nice not to loose this information. 
 convertArgument arch arg = Sub.Arg ( unwrapSubStmt (convertExpr arch arg))
+
+convertDictItem:: (Architecture arch, Lang arch ~ Language 'Python) =>
+    arch -> TaskExpr PythonTypeAnno -> (Sub.Expr, Sub.Expr)
+convertDictItem arch item = 
+    let item' = unwrapSubStmt $ convertExpr arch item 
+    in 
+        case item' of
+            Sub.Var bnd -> (Sub.TplSubscript  bnd  0, Sub.TplSubscript  bnd  1)
+            any -> error $ "dict item was not received variable but" <> show any
 
 
 dotConcat :: NSRef -> Binding -> Binding
@@ -299,3 +320,13 @@ hasAttrArgs bnd = [Sub.Arg (Sub.Var bnd) , Sub.Arg (Sub.Strings ["'__len__'"] )]
 wrapSubExpr = Sub.StmtExpr
 unwrapSubStmt (Sub.StmtExpr expr) = expr
 unwrapSubStmt any = error $ "Tried to unwrap a statment other than StmtExpr " <> show any
+
+
+pattern ListConstructor :: QualifiedBinding
+pattern ListConstructor <- QualifiedBinding [] "list"
+
+pattern DictConstructor :: QualifiedBinding
+pattern DictConstructor <- QualifiedBinding [] "dict"
+
+pattern TupleConstructor::QualifiedBinding
+pattern TupleConstructor <- QualifiedBinding [] "tuple"

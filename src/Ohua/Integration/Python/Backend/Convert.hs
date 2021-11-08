@@ -65,6 +65,8 @@ subToExpr (Sub.CondExpr condE thenE elseE) =
         noSpan
 
 subToExpr (Sub.Tuple exprs) = Py.Tuple (map subToExpr exprs) noSpan
+subToExpr (Sub.List exprs) = Py.List (map subToExpr exprs) noSpan 
+subToExpr (Sub.Dict tuples) = Py.Dictionary (map subToDictItem tuples) noSpan
 
 subToExpr (Sub.TplSubscript bnd pos) =
     Py.Subscript
@@ -81,6 +83,9 @@ subToExpr (Sub.UnaryOp op expr1) =
 
 subToArg :: Sub.Argument -> Py.Argument SrcSpan
 subToArg (Sub.Arg subExpr) = Py.ArgExpr (subToExpr subExpr) noSpan
+
+subToDictItem:: (Sub.Expr , Sub.Expr ) -> Py.DictKeyDatumList SrcSpan
+subToDictItem (e1, e2) = Py.DictMappingPair (subToExpr e1) (subToExpr e2)
 
 
 

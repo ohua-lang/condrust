@@ -174,7 +174,7 @@ combineStatements originalStmts (Program channelInits _ nodeFuns) multiMain = Py
                              ++ originalStmts
                              ++ [multiMain]
 
--- | Algo modules need a main functin oto be called by the replaced function. This main contains statements to
+-- | Algo modules need a main function to be called by the replaced function. This main contains statements to
 -- | 0) declare the parameters of the replaced function global 
 -- | i) initialize a tasks and a process list
 -- | ii) assign a process to each task 

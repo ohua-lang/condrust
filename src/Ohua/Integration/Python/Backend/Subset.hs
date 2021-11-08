@@ -30,7 +30,9 @@ data Expr =
     | Call Expr [Argument]
     | DotExpr Expr QualifiedBinding
     | CondExpr Expr Expr Expr
-    | Tuple [Expr] -- actually there's only ever two elements
+    | Tuple [Expr] 
+    | List [Expr]
+    | Dict [(Expr, Expr)]
     -- TODO: Subscript in the python AST does not 
     -- make a difference between tuples and lists
     -- So actually I use the 'universal' subscript expr,

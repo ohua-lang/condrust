@@ -1,6 +1,7 @@
 {-# LANGUAGE InstanceSigs#-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ConstraintKinds #-}
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 {-|Slowly move frontend covnersion to this file withou messing up the 
 old frontend to much
 |-}
@@ -243,8 +244,8 @@ subExprToIR (Sub.Call (Sub.Direct lambdaExpr) args) = do
 
 subExprToIR (Sub.CondExpr condE trueExpr falseExpr) = do
     cond <- subExprToIR condE
-    true <- subExprToIR trueExpr
-    false <- subExprToIR falseExpr
+    true <- subSuiteToIR $ Sub.PySuite [Sub.StmtExpr trueExpr]
+    false <- subSuiteToIR $ Sub.PySuite [Sub.StmtExpr falseExpr]
     return $ IfE cond true false
 
 subExprToIR (Sub.BinaryOp binOp expr1 expr2) = do
@@ -267,7 +268,8 @@ subExprToIR (Sub.Lambda params expr) = do
 
 subExprToIR (Sub.Tuple exprs) = do
     exprs' <- mapM subExprToIR exprs
-    return $ TupE exprs'
+    tupleCall <- toFunRefLit "tuple"
+    return $ AppE tupleCall exprs'
 
 -- TODO: Remove special case when tuple-issue is fixed
 subExprToIR (Sub.List []) = do
@@ -277,18 +279,18 @@ subExprToIR (Sub.List []) = do
 subExprToIR (Sub.List exprs) = do
     exprs' <- mapM subExprToIR exprs
     listCall <- toFunRefLit "list"
-    return $ AppE listCall [TupE exprs']
+    return $ AppE listCall exprs'
 
 --TODO: Remove when tuple-issue is fixed
-subExprToIR (Sub.Dict []) = do
+subExprToIR (Sub.Dict []) = do 
     dictCall <- toFunRefLit "dict"
     return $ AppE dictCall []
 
 -- | Mapping d = {1:2, 3:4} to d = dict(((1,2), (3,4)))
 subExprToIR (Sub.Dict mappings) = do
-    exprs' <- mapM mappingToTuple mappings
+    exprs' <- mapM (\(k,v) -> subExprToIR $ Sub.Tuple [k,v]) mappings
     dictCall <- toFunRefLit "dict"
-    return $ AppE dictCall [TupE exprs']
+    return $ AppE dictCall exprs'
 
 -- subExprToIR any =  convError any
 
@@ -296,7 +298,7 @@ mappingToTuple ::ConvertM m => (Sub.Expr, Sub.Expr) -> m (FrLang.Expr PythonArgT
 mappingToTuple (key, value) = do
     key' <- subExprToIR key
     val' <- subExprToIR value
-    return $ TupE [key', val']
+    return [key', val']
 
 subArgToIR :: ConvertM m => Sub.Argument -> m ( FrLang.Expr PythonArgType)
 subArgToIR (Sub.Arg expr) = subExprToIR expr
