@@ -220,7 +220,7 @@ fuseFun (FunCtrl ctrlInput vars) =
                  Nothing)
                 (maybe
                     []
-                    (\g -> [SSend g $ unwrapBnd $ fst $ stateVar stateArg])
+                    (\g -> [SSend g $ Left $ unwrapBnd $ fst $ stateVar stateArg])
                     stateRes)
         (F.IdFusable arg res) ->
             FusedFunCtrl
@@ -329,7 +329,7 @@ genCtrl (FunCtrl ctrlInput vars) =
         initVarsExpr' = initVarsExpr receiveVars []
         receiveVars = toList $ NE.map (first (("var_" <>) . show) . second snd) $ NE.zip [0..] vars
         sendCode =
-            foldr (\(bnd, OutputChannel ch) c -> Stmt (SendData $ SSend ch bnd) c) (Lit UnitLit) sendVars
+            foldr (\(bnd, OutputChannel ch) c -> Stmt (SendData $ SSend ch $ Left bnd) c) (Lit UnitLit) sendVars
         sendVars = NE.map (first (("var_" <>) . show) . second fst) $ NE.zip [0..] vars
 
 genLitCtrl :: FusedLitCtrl ty -> TaskExpr ty

@@ -81,7 +81,7 @@ genSend = \case
               NE.zipWith (curry generateReceiveCode) [0 ..] $ stateRecv :| receives
             stateArg = (\(_,v,_) -> v) $ NE.head varsAndReceives
         in dataOut sendRes $
-           maybe (Lit UnitLit) (SendData . (`SSend` stateArg)) sendState
+           maybe (Lit UnitLit) (SendData . (`SSend` (Left stateArg))) sendState
     (IdFusable _ o) -> dataOut (toList o) $ Lit UnitLit
     where
       dataOut :: [Result ty] -> TaskExpr ty -> TaskExpr ty
@@ -137,7 +137,7 @@ genFun' ct = \case
                    [SendResult (SChan b)] -> Let b call ct
                    cs -> Let resultTuple call ct
 
-generateReceiveCode :: (Semigroup b, IsString b, Show a) => (a, CallArg ty) -> (CallArg ty, b, TaskExpr ty)
+generateReceiveCode :: (Show a) => (a, CallArg ty) -> (CallArg ty, Binding, TaskExpr ty)
 generateReceiveCode (idx, a@(Arg r)) = (a, "var_" <> show idx, ReceiveData r)
 generateReceiveCode (idx, a@(Drop (Left r))) = (a, "_var_" <> show idx, ReceiveData r)
 generateReceiveCode (idx, a@(Drop (Right e))) = (a, "_var_" <> show idx, e)

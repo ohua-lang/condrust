@@ -76,7 +76,7 @@ substitute :: (Binding, TaskExpr ty) -> TaskExpr ty -> TaskExpr ty
 substitute (bnd, e) = transform go
   where
     go v@Var {} = updateVar v
-    go (SendData (SSend chan sbnd)) | sbnd == bnd = case e of
+    go (SendData (SSend chan (Left sbnd))) | sbnd == bnd = case e of
       -- Also rename outbound variables _if_ we replace with a variable. If replacing with something else we'd need to think about another solution
       (Var newBnd) -> SendData $ SSend chan $ Left newBnd
       -- TODO(feliix42): I'm not 100% positive on keeping that error here
