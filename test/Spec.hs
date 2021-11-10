@@ -15,5 +15,5 @@ spec :: Spec
 spec = do
   describe "LoweringSpec" Lowering.spec
   describe "ConfigSpec" Config.spec
-  --describe "Rust Integration" Rust.spec
-  describe "Python Integration" Python.spec
+  describe "Rust Integration" Rust.spec
+  --describe "Python Integration" Python.spec

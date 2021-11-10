@@ -10,7 +10,7 @@ import qualified Integrations.Python.TestDataOutput as Expect
 
 spec :: Spec
 spec =
-    describe "IfElse Statements" $ do
+    describe "IfElse Expressions/Statements" $ do
         -- This fails for two reasons:
             --1. This one is definitely on me -> I need to introduce parameters for the new main
             --2. Function returns 'oneArg(d)' and 'd' is only assigned inside the branches 
@@ -32,7 +32,6 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.iteNoParams
                 compiled `shouldBe` expected)
-        
     
         -- Here I get the 'None Return Problem again'
         it "Conditional Expression" $

@@ -42,7 +42,7 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.loopCommaPattern
                 compiled `shouldBe` expected)
-        {-
+        {-        
         [Error] Not in scope Binding "i_1"
             CallStack (from HasCallStack):
             throwErrorS, called at src/Ohua/Core/Util.hs:228:20 in ohua-core-0.3.0-k6lwMxcZZw8E652k33pRb:Ohua.Core.Util

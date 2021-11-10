@@ -851,6 +851,17 @@ from testLib import *
 # TODO
 |]
 
+
+condExprLit = [pythonModule|
+from testLib import *
+
+def algo(i):
+    c = f2(i)
+    b = id(i)
+    x = f(b) if c else g(42)
+    return x
+|]
+
 condExpr = [pythonModule|
 from testLib import *
 # ToDo 

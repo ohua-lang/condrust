@@ -449,6 +449,14 @@ def algo(i):
     return oneArg(d) 
 |]
 
+condExprLit = [pythonModule|
+from testLib import *
+
+def algo(i):
+    cond = f(i)
+    x = 0 if cond else 1
+    return x
+|]
 
 condExpr = [pythonModule|
 from testLib import *
@@ -457,6 +465,7 @@ def algo(i):
     c = f2(i)
     b = id(i)
     x = f(b) if c else g(42)
+    return x
 |]
 
 
@@ -477,15 +486,9 @@ def algo(i):
 --Test cases for TailRec.hs --------------------------------------------
 tailRec= [pythonModule|
 from testLib import *
-def rec(i):
+def algo(i):
     j = g0(i)
-    if check(j):
-        return rec(j)
-    else:
-        return j
-
-def algo():
-    rec(2)
+    return rec(j) if check(j) else j 
 |]
 
 tailRecMultiArg= [pythonModule|

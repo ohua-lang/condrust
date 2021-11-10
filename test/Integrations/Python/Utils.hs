@@ -39,7 +39,7 @@ type ParseResult = Either ParseError (ModuleSpan, [Token])
 -- TODO turn this into a parameter for a particular test
 -- TODO: remove redundancy among rust.utils and python.utils
 debug :: Bool
-debug = False --True
+debug = True -- False
 
 withDebug :: Options -> Options
 withDebug d = d & stageHandling .~ debugStageHandling

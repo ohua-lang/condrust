@@ -17,25 +17,24 @@ spec =
                 expected <- showCode "Expected:" Expect.callMethod
                 compiled `shouldBe` expected)
 
-        -}
-        it "Assign list with elements" $
-            (showCode "Compiled: " =<< compileCode Input.assignList) >>=
-            (\compiled -> do
-                expected <- showCode "Expected:" Expect.assignList
-                compiled `shouldBe` expected) 
-
-        it "Assign dict with elements" $
-            (showCode "Compiled: " =<< compileCode Input.assignDict) >>=
-            (\compiled -> do
-                expected <- showCode "Expected:" Expect.assignDict
-                compiled `shouldBe` expected) 
-
         
-        it "Tuple as argument" $
-            (showCode "Compiled: " =<< compileCode Input.tupleArgumentCall) >>=
+        it "Conditional Expression with literals" $
+            (showCode "Compiled: " =<< compileCode Input.condExprLit) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" Expect.tupleArgumentCall
+                expected <- showCode "Expected:" Expect.condExprLit
+                compiled `shouldBe` expected)  
+-}
+        it "Conditional Expression with functions" $
+            (showCode "Compiled: " =<< compileCode Input.condExpr) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" Expect.condExpr
                 compiled `shouldBe` expected) 
+
+        it "Tail Recursive with If-Stmt" $
+            (showCode "Compiled: " =<< compileCodeWithRec Input.tailRec) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" Expect.tailRec
+                compiled `shouldBe` expected)
 
         {-Todo: Error : unitFun must only have one output
         it "Multiassignment comma separated" $
