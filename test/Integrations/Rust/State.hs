@@ -184,7 +184,119 @@ spec =
                     [sourceFile|
                       use funs::*;
 
+                      // NOTE(feliix42): Best guess, mainly to outline the fix for ohua-lang/ohua-backend#23
                       fn test(i: i32) -> () {
+                          #[derive(Debug)]
+                          enum RunError {
+                              SendFailed,
+                              RecvFailed,
+                          }
+                          impl<T: Send> From<std::sync::mpsc::SendError<T>> for RunError {
+                              fn from(_err: std::sync::mpsc::SendError<T>) -> Self {
+                                  RunError::SendFailed
+                              }
+                          }
+                          impl From<std::sync::mpsc::RecvError> for RunError {
+                              fn from(_err: std::sync::mpsc::RecvError) -> Self {
+                                  RunError::RecvFailed
+                              }
+                          }
+                          let (b_0_0_tx, b_0_0_rx) = std::sync::mpsc::channel();
+                          let (ctrl_0_0_tx, ctrl_0_0_rx) = std::sync::mpsc::channel();
+                          let (d_0_tx, d_0_rx) = std::sync::mpsc::channel::<Foo>();
+                          let (c_0_0_tx, c_0_0_rx) = std::sync::mpsc::channel();
+                          let (size_0_0_tx, size_0_0_rx) = std::sync::mpsc::channel();
+                          let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel();
+                          let mut tasks: Vec<Box<dyn FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
+                          tasks.push(Box::new(move || -> _ {
+                              loop {
+                                  let mut var_0 = d_0_rx.recv()?;
+                                  var_0.gs(5);
+                                  ()
+                              }
+                          }));
+                          tasks.push(Box::new(move || -> _ {
+                              let mut stream_0_0_0 = iter();
+                              let hasSize = {
+                                  let tmp_has_size = stream_0_0_0.iter().size_hint();
+                                  tmp_has_size.1.is_some()
+                              };
+                              if hasSize {
+                                  let size = stream_0_0_0.len();
+                                  size_0_0_tx.send(size)?;
+                                  let ctrl = (true, size);
+                                  ctrl_0_0_tx.send(ctrl)?;
+                                  for d in stream_0_0_0 {
+                                      d_0_tx.send(d)?;
+                                      ()
+                                  }
+                              } else {
+                                  let mut size = 0;
+                                  for d in stream_0_0_0 {
+                                      d_0_tx.send(d)?;
+                                      let ctrl = (false, 1);
+                                      ctrl_0_0_tx.send(ctrl)?;
+                                      size = size + 1;
+                                      ()
+                                  }
+                                  size_0_0_tx.send(size)?;
+                                  let ctrl = (true, 0);
+                                  ctrl_0_0_tx.send(ctrl)?;
+                                  ()
+                              }
+                              Ok(())
+                          }));
+                          tasks.push(Box::new(move || -> _ {
+                              loop {
+                                  let mut renew = false;
+                                  while !renew {
+                                      let sig = ctrl_0_0_rx.recv()?;
+                                      let count = sig.1;
+                                      for _ in 0..count {
+                                          c_0_0_tx.send(())?;
+                                          ()
+                                      }
+                                      let renew_next_time = sig.0;
+                                      renew = renew_next_time;
+                                      ()
+                                  }
+                              }
+                          }));
+                          tasks.push(Box::new(move || -> _ {
+                              loop {
+                                  let num = size_0_0_rx.recv()?;
+                                  let mut collection = Vec::new();
+                                  for _ in 0..num {
+                                      let data = c_0_0_rx.recv()?;
+                                      collection.push(data)
+                                  }
+                                  x_0_0_0_tx.send(collection)?
+                              }
+                          }));
+                          tasks.push(Box::new(move || -> _ {
+                              x_0_0_0_rx.recv()?;
+                              Ok(b_0_0_tx.send(())?)
+                          }));
+                          let handles: Vec<std::thread::JoinHandle<_>> = tasks
+                              .into_iter()
+                              .map(|t| {
+                                  std::thread::spawn(move || {
+                                      let _ = t();
+                                  })
+                              })
+                              .collect();
+                          for h in handles {
+                              if let Err(_) = h.join() {
+                                  eprintln!("[Error] A worker thread of an Ohua algorithm has panicked!");
+                              }
+                          }
+                          match b_0_0_rx.recv() {
+                              Ok(res) => res,
+                              Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
+                          }
+
+
+
                         let (b_0_0_tx, b_0_0_rx) = std::sync::mpsc::channel();
                         let (ctrl_0_tx, ctrl_0_rx) = std::sync::mpsc::channel();
                         let (d_0_tx, d_0_rx) = std::sync::mpsc::channel();
