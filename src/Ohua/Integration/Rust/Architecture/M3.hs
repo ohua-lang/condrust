@@ -63,7 +63,8 @@ instance Architecture (Architectures 'M3) where
             []
      in MethodCall send (CallRef "/unwrap" Nothing) []
 
-  convertSend SM3 (SSend (SChan channel) d) =
+  convertSend SM3 (SSend (SChan channel) (Right _)) = undefined
+  convertSend SM3 (SSend (SChan channel) (Left d)) =
     MethodCall
       (MethodCall (Var $ channel <> "_tx") (CallRef "/send_msg" Nothing) [Var d])
       (CallRef "/unwrap" Nothing)
