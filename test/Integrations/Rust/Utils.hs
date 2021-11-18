@@ -12,6 +12,8 @@ import Ohua.Core.Types.Environment (stageHandling, Options, transformRecursiveFu
 import Ohua.Core.Types.Stage (DumpCode(..), StageHandling)
 import Ohua.Core.Stage
 
+import qualified Ohua.Integration.Config as IC
+import qualified Ohua.Integration.Architecture as Arch
 import Ohua.Compile.Compiler
 import Ohua.Compile.Config (intoStageHandling, Stage(..))
 import qualified Data.HashMap.Lazy as HM
@@ -70,6 +72,9 @@ debugStageHandling =
             , Stage finalDflang True False
             ]
 
+integrationOptions :: IC.Config
+integrationOptions = IC.Config Arch.SharedMemory $ IC.Options Nothing Nothing
+
 compileCodeWithRec :: SourceFile Span -> IO (SourceFile Span)
 compileCodeWithRec inCode = compileCode' inCode $ withRec def
 
@@ -92,7 +97,7 @@ compileCode' inCode opts =
                     let options = if debug then withDebug opts else opts
                     runCompM
                         LevelWarn
-                        $ compile inFile compScope options outDir
+                        $ compile inFile compScope options integrationOptions outDir
                     outCode :: SourceFile Span
                         <- parse' <$> readInputStream (outDir </> takeFileName inFile)
                     return outCode

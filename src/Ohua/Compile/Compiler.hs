@@ -16,7 +16,7 @@ import Ohua.Prelude
 
 import Ohua.Frontend as Fr (frontend)
 import Ohua.Frontend.Types (CompilationScope)
-import Ohua.Core.Types.Environment (Options)
+import Ohua.Core.Types.Environment as CoreEnv
 import Ohua.Core.Compile.Configuration as CoreConfig
 import Ohua.Core.Compile as Core (compile)
 import qualified Ohua.Core.Compile.Configuration as CConfig
@@ -25,6 +25,7 @@ import Ohua.Compile.Lower.FrLang (toAlang)
 import Ohua.Compile.Lower.DFLang (toTCLang)
 
 import Ohua.Integration
+import Ohua.Integration.Config as IConfig hiding (Options(..))
 import Ohua.Integration.Lang
 import Ohua.Integration.Architecture
 
@@ -32,11 +33,16 @@ import System.FilePath
 
 
 compile :: CompM m
-    => FilePath -> CompilationScope -> Options -> FilePath -> m ()
-compile inFile compScope coreOpts outDir =
+        => FilePath           -- ^ Input: path to the file to be compiled
+        -> CompilationScope   -- ^ Frontend config: scope of the current compilation
+        -> CoreEnv.Options    -- ^ Core config
+        -> IConfig.Config       -- ^ Integration configuration
+        -> FilePath           -- ^ Output: path to the file to be generated
+        -> m ()
+compile inFile compScope coreOpts integConf outDir =
     runIntegration
         (toText $ takeExtension inFile)
-        "sm" -- TODO integrate backend architecture option into config
+        integConf
         (compilation inFile compScope coreOpts outDir)
 
 compilation :: forall (lang::Lang) (arch::Arch) m.

@@ -72,7 +72,7 @@ intoLogLevel "error" = LevelError
 intoLogLevel  t      = LevelOther t
 
 defaultDebug :: DebugOptions
-defaultDebug = DebugOptions 
+defaultDebug = DebugOptions
     { logLevel = LevelWarn
     , stageHandlingOpt = defaultStageHandling
     }
@@ -92,7 +92,7 @@ data Stage = Stage
     } deriving (Eq, Show)
 
 instance FromJSON Stage where
-    parseJSON (Y.Object v) = 
+    parseJSON (Y.Object v) =
         Stage <$>
         v .:  "stage" <*>
         (v .:? "dump" .!= True) <*>
@@ -102,9 +102,9 @@ instance FromJSON Stage where
 intoStageHandling :: DumpCode -> Maybe [Stage] -> StageHandling
 intoStageHandling _ Nothing   = defaultStageHandling
 intoStageHandling _ (Just []) = defaultStageHandling
-intoStageHandling dc (Just stages)  = 
-    let registry = 
-            HM.fromList $ 
+intoStageHandling dc (Just stages)  =
+    let registry =
+            HM.fromList $
                 map
                     (\s -> ( stage s
                         , ( if dump s then dc else Don'tDump, abortAfter s)
@@ -113,20 +113,19 @@ intoStageHandling dc (Just stages)  =
     in \stage -> HM.lookupDefault passStage stage registry
 
 instance FromJSON DebugOptions where
-    parseJSON (Y.Object v) = 
+    parseJSON (Y.Object v) =
         DebugOptions <$>
         (intoLogLevel <$> v .:? "log-level" .!= "warn") <*>
         (intoStageHandling DumpPretty <$> v .:? "core-stages")
     parseJSON _ = fail "Expected Object for DebugOptions description"
 
 intoCompilationScope :: [Text] -> CompilationScope
-intoCompilationScope filePaths = 
-    HM.fromList 
-        $ map 
+intoCompilationScope filePaths =
+    HM.fromList
+        $ map
             (\t -> let (path, suffix) = splitExtension $ T.unpack t
                     in (convert path, T.pack suffix))
             filePaths
-            
     where
         convert :: FilePath -> NSRef
         convert = toNSRef . toBnds . splitDirectories
