@@ -45,7 +45,7 @@ genSTCLangSMap (STCLangSMap sizeInput stateReceive emit) =
             Lit UnitLit
     ) $
     Let "s" (ReceiveData stateReceive)
-        $ SendData $ SSend emit "s"
+        $ SendData $ SSend emit $ Left "s"
     where
         init :: TaskExpr ty -> TaskExpr ty
         init c =

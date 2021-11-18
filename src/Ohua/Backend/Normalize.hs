@@ -3,7 +3,7 @@ module Ohua.Backend.Normalize where
 import qualified Data.HashSet as HS
 import Ohua.Backend.Lang
 import Ohua.Backend.Types
-import Ohua.Prelude
+import Ohua.Prelude hiding (First, Second)
 
 normalize ::
   Namespace (TCProgram chan recv (TaskExpr ty)) anno ->
@@ -76,16 +76,38 @@ substitute :: (Binding, TaskExpr ty) -> TaskExpr ty -> TaskExpr ty
 substitute (bnd, e) = transform go
   where
     go v@Var {} = updateVar v
-    go (SendData (SSend chan sbnd)) | sbnd == bnd = case e of
-      -- Also rename outbound variables _if_ we replace with a variable. If replacing with something else we'd need to think about another solution
-      (Var newBnd) -> SendData $ SSend chan newBnd
-      (Lit (EnvRefLit newBnd)) -> SendData $ SSend chan newBnd
-      _ -> error $ "Internal Error: Tried running substitution on sending " <> show sbnd <> " with not yet supported task expression: " <> show e
+
     go (Apply (Stateless fn args)) = Apply $ Stateless fn $ map (transform go) args
     go (Apply (Stateful state fn args)) =
       Apply $ Stateful (transform go state) fn $ map (transform go) args
+
+    go (SendData (SSend chan (Left sbnd))) | sbnd == bnd = case e of
+      -- Also rename outbound variables _if_ we replace with a variable. If replacing with something else we'd need to think about another solution
+      (Var newBnd) -> SendData $ SSend chan $ Left newBnd
+      -- TODO(feliix42): I'm not 100% positive on keeping that error here
+      (Lit (FunRefLit _)) -> error $ "Internal error: Cannot substitute " <> show bnd <> " with a function reference: " <> show e
+      (Lit l) -> SendData $ SSend chan $ Right l
+
+    go (ForEach item iterator body) | iterator == bnd = ForEach item (replaceWhenVar iterator e) $ transform go body
+    go (HasSize sbnd) | sbnd == bnd = HasSize $ replaceWhenVar sbnd e
+    go (Size sbnd) | sbnd == bnd = Size $ replaceWhenVar sbnd e
     go (ListOp (Append b e)) = ListOp $ Append b $ transform go e
+    go (Tuple fst snd) = Tuple (replaceEither fst) (replaceEither snd)
+    go (First sbnd) | sbnd == bnd = First $ replaceWhenVar sbnd e
+    go (Second sbnd) | sbnd == bnd = Second $ replaceWhenVar sbnd e
+    go (Increment sbnd) | sbnd == bnd = Increment $ replaceWhenVar sbnd e
+    go (Decrement sbnd) | sbnd == bnd = Decrement $ replaceWhenVar sbnd e
     go e' = e'
+
+    replaceEither (Left b) | b == bnd = case e of
+                               (Var newBnd) -> Left newBnd
+                               -- NOTE(feliix42): Not sure if it makes sense to check for `FunRefLit` here
+                               (Lit l) -> Right l
+    replaceEither e' = e'
+
+    replaceWhenVar :: Binding -> TaskExpr ty -> Binding
+    replaceWhenVar b (Var newBnd) = newBnd
+    replaceWhenVar b _ = b
 
     updateVar (Var b) | b == bnd = e
     updateVar v = v

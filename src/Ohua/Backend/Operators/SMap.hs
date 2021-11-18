@@ -58,11 +58,11 @@ gen' (SMap input dataOut ctrlOut collectOut) =
     -- known size
     (
       Let "size" (Size "data") $
-      g collectOut (\c -> Stmt $ SendData $ SSend c "size") $
+      g collectOut (\c -> Stmt $ SendData $ SSend c $ Left "size") $
       g ctrlOut (\c -> Let "ctrl" (Tuple (Right $ BoolLit True) (Left "size")) .
-                       Stmt (SendData $ SSend c "ctrl") ) $
+                       Stmt (SendData $ SSend c $ Left "ctrl") ) $
       f dataOut (\dOut -> ForEach "d" "data" .
-                          Stmt (SendData $ SSend dOut "d"))
+                          Stmt (SendData $ SSend dOut $ Left "d"))
       $ Lit UnitLit
     )
     -- unknown size --> generator-style
@@ -70,14 +70,14 @@ gen' (SMap input dataOut ctrlOut collectOut) =
       Let "size" (Lit $ NumericLit 0) $
       Stmt
       (ForEach "d" "data" $
-        f dataOut (\dOut -> Stmt $ SendData $ SSend dOut "d") $
+        f dataOut (\dOut -> Stmt $ SendData $ SSend dOut $ Left "d") $
         g ctrlOut
         (\c -> Let "ctrl" (Tuple (Right $ BoolLit False) (Right $ NumericLit 1)) .
-               Stmt (SendData $ SSend c "ctrl"))
+               Stmt (SendData $ SSend c $ Left "ctrl"))
         $ Assign "size" $ Increment "size") $
-      g collectOut (\c -> Stmt $ SendData $ SSend c "size") $
+      g collectOut (\c -> Stmt $ SendData $ SSend c $ Left "size") $
       g ctrlOut (\c -> Let "ctrl" (Tuple (Right $ BoolLit True) (Right $ NumericLit 0)) .
-                         Stmt (SendData $ SSend c "ctrl"))
+                         Stmt (SendData $ SSend c $ Left "ctrl"))
       $ Lit UnitLit
     )
   where
@@ -97,7 +97,7 @@ gen' (Collect dataInput sizeInput collectedOutput) =
       Let "data" (genInput dataInput) $
       ListOp $ Append "collection" $ L.Var "data"
   ) $
-  SendData $ SSend collectedOutput "collection"
+  SendData $ SSend collectedOutput $ Left "collection"
 
 
 genInput :: DataIn ty -> TaskExpr ty

@@ -116,11 +116,13 @@ fuseCtrl
                 . propagateTypeFromRecv vars)
                 vars
         stateOuts' = map g stateOuts
-        g (SSend ch d) =
+        g (SSend ch (Left d)) =
             let d' = case NE.filter (\(OutputChannel (SChan o),_r) -> o == d) vars of
                         [(OutputChannel (SChan o),_)] -> o
                         _ -> error "invariant broken"
-            in SSend ch d' -- the var that I assign the state to becomes the new data out for the state
+            in SSend ch $ Left d' -- the var that I assign the state to becomes the new data out for the state
+        -- TODO(feliix42): Implement this
+        g (SSend ch (Right l)) = "Error: Fusing controls with literals is not supported yet (ohua-lang/ohua-backend#22)"
         propagateTypeFromRecv = propagateType . toList . map snd
 
 -- | This takes a function and fuses a control into it.
@@ -220,7 +222,7 @@ fuseFun (FunCtrl ctrlInput vars) =
                  Nothing)
                 (maybe
                     []
-                    (\g -> [SSend g $ unwrapBnd $ fst $ stateVar stateArg])
+                    (\g -> [SSend g $ Left $ unwrapBnd $ fst $ stateVar stateArg])
                     stateRes)
         (F.IdFusable arg res) ->
             FusedFunCtrl
@@ -329,7 +331,7 @@ genCtrl (FunCtrl ctrlInput vars) =
         initVarsExpr' = initVarsExpr receiveVars []
         receiveVars = toList $ NE.map (first (("var_" <>) . show) . second snd) $ NE.zip [0..] vars
         sendCode =
-            foldr (\(bnd, OutputChannel ch) c -> Stmt (SendData $ SSend ch bnd) c) (Lit UnitLit) sendVars
+            foldr (\(bnd, OutputChannel ch) c -> Stmt (SendData $ SSend ch $ Left bnd) c) (Lit UnitLit) sendVars
         sendVars = NE.map (first (("var_" <>) . show) . second fst) $ NE.zip [0..] vars
 
 genLitCtrl :: FusedLitCtrl ty -> TaskExpr ty
