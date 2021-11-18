@@ -2,17 +2,18 @@ module Ohua.Integration.Rust.Backend.Passes where
 
 import qualified Data.HashSet as HS
 import qualified Ohua.Core.DFLang.Passes.State as StateDFL
+import Ohua.Core.Compile.Configuration (CustomPasses)
+import Ohua.Integration.Config (Options)
 import Ohua.Integration.Rust.Backend.Subset
 import Ohua.Integration.Transform.DataPar (dataPar)
 import Ohua.Prelude
 
 
--- TODO configuration flag
-enableDataPar =False
-
-passes = StateDFL.load $ case enableDataPar of
-  True -> dataPar
-  False -> def
+-- | This function loads the following transformations:
+--   * It activates an optimization in core such that state can be fused properly (see Ohua.Core.DFLang.Passes.State.intoFusable).
+--   * [Optional] data parallelism
+passes :: Options -> CustomPasses
+passes= StateDFL.load . dataPar
 
 -- | Rust wants all __mutable__ variables to be tagged.
 --   This transformation finds them and does so.

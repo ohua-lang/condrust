@@ -7,6 +7,7 @@ import Ohua.Prelude
 import qualified Ohua.Frontend.Types as F
 import qualified Ohua.Backend.Types as B
 import qualified Ohua.Core.Compile.Configuration as CConfig
+import Ohua.Integration.Config (Config(..))
 import Ohua.Integration.Lang
 import Ohua.Integration.Architecture
 import Ohua.Integration.Rust.Backend.Passes (passes)
@@ -18,8 +19,6 @@ import Ohua.Integration.Rust.Backend ()
 
 
 type FileExtension = Text
-type ArchId = Text
-type Description = Text
 
 type FullIntegration lang arch =
   ( F.Integration (Language lang)
@@ -53,20 +52,15 @@ class Apply integration where
 instance Apply Integration where
     apply (I lang arch config) comp = comp config lang arch
 
-definedIntegrations :: [(FileExtension, ArchId, Description, Integration)]
-definedIntegrations =
-    [ (".rs", "sm", "Rust integration"
-      , I SRust SSharedMemory $ Just passes
-      )
-    , (".rs", "m3", "Rust integration", I SRust SM3 Nothing)]
-
 runIntegration :: CompM m
                 => Text
-                -> Text
+                -> Config
                 -> Compiler m a
                 -> m a
-runIntegration ext arch comp
-    | Just a <- find (\int -> (int ^. _1 == ext) && (int ^. _2 == arch) ) definedIntegrations
-        = apply (a ^. _4) comp
-    | otherwise =
-        throwError $ "No language integration defined for files with extension '" <> ext <> "'"
+runIntegration ext (Config arch options) comp =
+  case ext of
+    "rs" -> apply (loadIntegration SRust arch) comp
+    _ -> throwError $ "No language integration defined for files with extension '" <> ext <> "'"
+  where
+    loadIntegration SRust SharedMemory = I SRust SSharedMemory $ Just $ passes options
+    loadIntegration SRust M3  = I SRust SM3 Nothing

@@ -4,6 +4,8 @@ module Ohua.Integration.Transform.DataPar where
 
 -- import Ohua.Core.DFLang.PPrint (prettyExprM)
 
+import qualified Ohua.Integration.Config as IConf
+
 import Data.Functor.Foldable (cata, embed)
 import qualified Data.HashSet as HS
 import qualified Data.List.NonEmpty as NE
@@ -19,9 +21,16 @@ import qualified Ohua.Core.DFLang.Refs as DFRef
 import Ohua.Core.Feature.TailRec.Passes.ALang as TR (y)
 import Ohua.Core.Prelude hiding (concat, rewrite)
 
--- TODO conditionalize both via the config.
-dataPar :: CustomPasses
-dataPar = CustomPasses pure amorphous liftPureFunctions
+dataPar :: IConf.Options -> CustomPasses
+dataPar (IConf.Options dpar amorph) =
+  CustomPasses
+  pure
+  (case amorph of
+     Just n -> amorphous n
+     _ -> pure)
+  ( case dpar of
+      Just n -> liftPureFunctions
+      _ -> pure)
 
 invariantBroken :: Text -> OhuaM a
 invariantBroken s = throwError $ "Invariant broken: " <> s
@@ -305,9 +314,9 @@ concatLit = Lit $ FunRefLit $ FunRef concat Nothing $ FunType $ Right $ TypeVar 
 --             then f state' inputs' a
 --             else state'
 -- @
-amorphous :: AL.Expr ty -> OhuaM (AL.Expr ty)
-amorphous targetExpr = do
-  traceM $ "Trying to check expression:\n" <> quickRender targetExpr
+amorphous :: Integer -> AL.Expr ty -> OhuaM (AL.Expr ty)
+amorphous numRetries targetExpr = do
+--  traceM $ "Trying to check expression:\n" <> quickRender targetExpr
   transformM go targetExpr
   where
     -- TODO: Verify the correctness of the whole transformation
@@ -319,13 +328,13 @@ amorphous targetExpr = do
       let (ctxt, body) = lambdaArgsAndBody lam
        in case ctxt of
             ctxt' | length ctxt' < 2 -> do
-              traceM $ "Detected only context with length < 2: " <> show ctxt'
+--              traceM $ "Detected only context with length < 2: " <> show ctxt'
               pure lam
             ctxt' -> do
-              traceM $ "Found lambda body with sufficient length"
+--              traceM $ "Found lambda body with sufficient length"
               result <- case findResult body of
                 [r] -> do
-                  traceM $ "Found result " <> show r
+--                  traceM $ "Found result " <> show r
                   pure r
                 _ ->
                   throwError $
@@ -336,15 +345,15 @@ amorphous targetExpr = do
                 && isUsedState result body of
                 False -> pure lam
                 _ -> do
-                  traceM $ "result is in ctxt and used in body"
+--                  traceM $ "result is in ctxt and used in body"
                   case findLoops body of
                     [] -> pure lam
                     loops -> do
-                      traceM $ "Detected loops: " <> show loops
+--                      traceM $ "Detected loops: " <> show loops
                       case filter ((`HS.member` ctxtHS) . snd3) loops of
                         [] -> pure lam
                         loops' -> do
-                          traceM $ "Result after filtering with ctxtHS: " <> show loops'
+--                          traceM $ "Result after filtering with ctxtHS: " <> show loops'
                           case filter (isUsedState result . fst3) loops' of
                             -- TODO this only checks for calls to the state but it should
                             --      really also check that the result of the loop is input to the same call
@@ -356,8 +365,8 @@ amorphous targetExpr = do
                                       workResult <-
                                         findWorked body inp result recArgs
                                       rest <- generateBindingWith "rest"
-                                      traceM $ "state: " <> show result
-                                      traceM $ "wl: " <> show workResult
+--                                      traceM $ "state: " <> show result
+--                                      traceM $ "wl: " <> show workResult
                                       case workResult of
                                         Just workResult' -> do
                                           lam' <- transformM (takeNRewrite' inp workResult' rest) lam
@@ -368,7 +377,7 @@ amorphous targetExpr = do
                                     _ -> throwError $ "invariant broken: "
                                          <> "more than a single loop over the worklist found."
                             [(_, inp,_)] -> do
-                              traceM $ "Detected State usage: " <> show inp
+--                              traceM $ "Detected State usage: " <> show inp
                               recArgs <- findRecursionArgs body
                               workResult <-
                                 findWorked body inp result recArgs
@@ -494,9 +503,9 @@ amorphous targetExpr = do
               taken
               ( Apply
                   (Apply takeNLit $ AL.Var inp)
-                  $ Lit $ NumericLit 10
+                  $ Lit $ NumericLit numRetries
               )
-              $ destructure (AL.Var taken) [takenInp, rest] $ -- TODO take the value from the specification of lang (maybe via a type class)
+              $ destructure (AL.Var taken) [takenInp, rest] $
 
                 -- FIXME this assumes we take the result of an smap. but for an imperative case
                 --       it is some state altered inside this smap!
