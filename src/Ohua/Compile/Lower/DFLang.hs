@@ -222,7 +222,7 @@ generateNodeCode e@(PureDFFun out (FunRef fun _ _) inp) | fun == Refs.seqFun = d
         Unfusable $
         Stmt (ReceiveData $ SRecv t1 $ SChan $ unwrapABnd inpVar) $
         BLang.Let "x" (Lit l) $
-        SendData $ SSend out' "x"
+        SendData $ SSend out' $ Left "x"
     _ -> invariantBroken $
             "Seq must have two inputs where the second is a literal:\n" <> show e
 
