@@ -122,7 +122,7 @@ fuseCtrl
                         _ -> error "invariant broken"
             in SSend ch $ Left d' -- the var that I assign the state to becomes the new data out for the state
         -- TODO(feliix42): Implement this
-        g (SSend ch (Right l)) = "Error: Fusing controls with literals is not supported yet (ohua-lang/ohua-backend#22)"
+        g (SSend ch (Right l)) = error "Fusing controls with literals is not supported yet (ohua-lang/ohua-backend#22)"
         propagateTypeFromRecv = propagateType . toList . map snd
 
 -- | This takes a function and fuses a control into it.
