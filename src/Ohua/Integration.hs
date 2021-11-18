@@ -59,7 +59,7 @@ runIntegration :: CompM m
                 -> m a
 runIntegration ext (Config arch options) comp =
   case ext of
-    "rs" -> apply (loadIntegration SRust arch) comp
+    ".rs" -> apply (loadIntegration SRust arch) comp
     _ -> throwError $ "No language integration defined for files with extension '" <> ext <> "'"
   where
     loadIntegration SRust SharedMemory = I SRust SSharedMemory $ Just $ passes options
