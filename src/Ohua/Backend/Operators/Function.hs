@@ -3,7 +3,7 @@ module Ohua.Backend.Operators.Function where
 
 import Ohua.Prelude hiding (First, Second)
 
-import Ohua.Backend.Lang as L hiding (Function)
+import Ohua.Backend.Lang as L
 
 import qualified Data.List.NonEmpty as NE
 

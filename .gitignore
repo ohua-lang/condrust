@@ -2,3 +2,4 @@
 ohua-backend.cabal
 *~
 stack.yaml.lock
+*.html
