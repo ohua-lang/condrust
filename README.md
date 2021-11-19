@@ -38,3 +38,9 @@ Required tools:
 ## Examples
 
 Check out the test cases in the `test` folder for our existing integrations.
+
+## Developers
+
+You may run individual test cases using stack like so:
+
+    `stack test --ta '--match "/Rust Integration/TailRec/contexted function/"'`

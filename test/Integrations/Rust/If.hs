@@ -7,10 +7,10 @@ import Integrations.Rust.Utils
 
 
 spec :: Spec
-spec = 
+spec =
     describe "Conditionals" $ do
         it "simple condition" $ -- in most languages, a condition is not a function!
-            (showCode "Compiled: " =<< compileCode [sourceFile| 
+            (showCode "Compiled: " =<< compileCode [sourceFile|
                 use funs::*;
 
                 fn test(i: i32) -> i32 {
@@ -24,10 +24,10 @@ spec =
                     };
                     h(d)
                 }
-                |]) >>= 
+                |]) >>=
             (\compiled -> do
                 expected <- showCode "Expected:"
-                    [sourceFile| 
+                    [sourceFile|
                         use funs::*;
 
                         fn test(i: i32) -> i32 {
