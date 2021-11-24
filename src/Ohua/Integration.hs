@@ -57,10 +57,10 @@ runIntegration :: CompM m
                 -> Config
                 -> Compiler m a
                 -> m a
-runIntegration ext (Config arch options) comp =
-  case ext of
-    ".rs" -> apply (loadIntegration SRust arch) comp
+runIntegration ext (Config arch options) comp = do
+  integration <- case ext of
+    ".rs" -> case arch of
+               SharedMemory -> return $ I SRust SSharedMemory $ Just $ passes options
+               M3 -> return $ I SRust SM3 Nothing
     _ -> throwError $ "No language integration defined for files with extension '" <> ext <> "'"
-  where
-    loadIntegration SRust SharedMemory = I SRust SSharedMemory $ Just $ passes options
-    loadIntegration SRust M3  = I SRust SM3 Nothing
+  apply integration comp
