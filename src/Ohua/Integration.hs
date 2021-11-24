@@ -1,5 +1,6 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE ExistentialQuantification #-}
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 module Ohua.Integration where
 
 import Ohua.Prelude
