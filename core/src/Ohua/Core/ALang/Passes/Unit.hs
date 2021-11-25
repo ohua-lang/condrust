@@ -26,10 +26,10 @@ host language, these functions do not take an argument.)
 mkUnitFunctionsExplicit :: Expr ty -> Expr ty
 mkUnitFunctionsExplicit e =
     flip transform e $ \case
-        Let v (Apply (Lit (FunRefLit fun@(FunRef _ _ t))) u@(Lit UnitLit)) ie ->
+        Let v (Apply (Lit (FunRefLit fun@FunRef{})) u@(Lit UnitLit)) ie ->
             Let
                 v
-                ((Lit $ FunRefLit $ FunRef unitFun Nothing $ FunType $ Right [TypeVar, TypeVar]) `Apply`
+                ((Lit $ FunRefLit $ FunRef unitFun Nothing $ FunType $ Right $ TypeVar :| [TypeVar]) `Apply`
                  (Lit $ FunRefLit fun) `Apply`
                  u)
                 ie

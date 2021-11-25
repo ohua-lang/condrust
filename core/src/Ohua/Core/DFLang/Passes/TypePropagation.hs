@@ -19,7 +19,7 @@ propagateTypes e = evalState (transformExprM go e) HM.empty
       NormalizedDFExpr ty ->
       State (HM.HashMap Binding (Exists ty)) (NormalizedDFExpr ty)
     -- (Sebastian to himself): Implement these damn types already!!!
-    go (Let (PureDFFun out@(Direct outBnd) f@(FunRef fun _ _) [DFVar cty ctrlSig, DFVar ty dataInpBnd]) ct)
+    go (Let (PureDFFun out@(Direct outBnd) f@(FunRef fun _ _) (DFVar cty ctrlSig :| [DFVar ty dataInpBnd])) ct)
       | fun == Refs.ctrl = do
         -- traceM $ "Looking at ctrl control input type " <> show cty
         -- traceM $ "Looking at ctrl input type " <> show ty
@@ -36,7 +36,7 @@ propagateTypes e = evalState (transformExprM go e) HM.empty
               _ -> DFVar cty ctrlSig
         modify (HM.insert (unwrapABnd ctrlSig) $ Exists ctrlInp')
 
-        return $ Let (PureDFFun out f [ctrlInp', dataInp']) ct
+        return $ Let (PureDFFun out f (ctrlInp' :| [dataInp'])) ct
     go (Let (SMapFun out@(Just (Direct dOut), _, _) (DFVar ty dataInpBnd)) ct) = do
           -- traceM $ "Looking at smap input type " <> show ty
           vars <- get
@@ -60,7 +60,7 @@ propagateTypes e = evalState (transformExprM go e) HM.empty
       return $ Let (PureDFFun out f dataInps') ct
 
     -- Stateful Functions
-    go (Let (StateDFFun outBnds f@(FunRef _ _ (STFunType sty tyInfo)) stateIn dataIn) ct) = do
+    go (Let (StateDFFun oBnds f@(FunRef _ _ (STFunType sty tyInfo)) stateIn dataIn) ct) = do
       let stateIn' = case stateIn of
             (DFVar ty bnd) -> DFVar (pickType ty sty) bnd
       let dataIn' = case tyInfo of
@@ -76,7 +76,7 @@ propagateTypes e = evalState (transformExprM go e) HM.empty
                 v@(DFVar _ bnd) -> modify (HM.insert (unwrapABnd bnd) $ Exists v)
                 _ -> return ()
             ) dataIn'
-      return $ Let (StateDFFun outBnds f stateIn' dataIn') ct
+      return $ Let (StateDFFun oBnds f stateIn' dataIn') ct
 
     -- Recursion
     go (Let (RecurFun finalOut recCtrl argOuts initIns recIns cond result) ct) = do

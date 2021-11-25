@@ -26,7 +26,6 @@ import Control.Monad.Writer (listen, runWriter, tell)
 import Data.Functor.Foldable
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HS
-import Data.List.NonEmpty (fromList)
 
 import Ohua.Core.ALang.Lang
 import Ohua.Core.ALang.PPrint
@@ -207,7 +206,7 @@ ensureFinalLetInLambdas =
 ensureAtLeastOneCall :: (Monad m, MonadGenBnd m) => Expr ty -> m (Expr ty)
 ensureAtLeastOneCall e@(Var _) = do
     newBnd <- generateBinding
-    pure $ Let newBnd (pureFunction Refs.id Nothing (FunType $ Right $ fromList [TypeVar])`Apply` e) $ Var newBnd
+    pure $ Let newBnd (pureFunction Refs.id Nothing (FunType $ Right $ TypeVar :| [])`Apply` e) $ Var newBnd
 ensureAtLeastOneCall e = cata f e
   where
     f (LambdaF bnd body) =
@@ -216,7 +215,7 @@ ensureAtLeastOneCall e = cata f e
                 newBnd <- generateBinding
                 pure $
                     Lambda bnd $
-                    Let newBnd (pureFunction Refs.id Nothing (FunType $ Right $ fromList [TypeVar]) `Apply` v) $
+                    Let newBnd (pureFunction Refs.id Nothing (FunType $ Right $ TypeVar :| []) `Apply` v) $
                     Var newBnd
             eInner -> pure $ Lambda bnd eInner
     f eInner = embed <$> sequence eInner

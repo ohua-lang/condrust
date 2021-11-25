@@ -8,11 +8,11 @@ import qualified Ohua.Core.ALang.Refs as Refs
 collect :: QualifiedBinding
 collect = Refs.collect
 
-smapFun :: QualifiedBinding
-smapFun = Refs.smapFun
+--smapFun :: QualifiedBinding
+--smapFun = Refs.smapFun
 
-ifFun :: QualifiedBinding
-ifFun = Refs.ifFun
+--ifFun :: QualifiedBinding
+--ifFun = Refs.ifFun
 
 select :: QualifiedBinding
 select = Refs.select
@@ -20,11 +20,11 @@ select = Refs.select
 ctrl :: QualifiedBinding
 ctrl = Refs.ctrl
 
-recurFunBnd :: QualifiedBinding
-recurFunBnd = "ohua.lang/recurFun"
+--recurFunBnd :: QualifiedBinding
+--recurFunBnd = "ohua.lang/recurFun"
 
-recurFun :: QualifiedBinding
-recurFun = recurFunBnd
+--recurFun :: QualifiedBinding
+--recurFun = recurFunBnd
 
 seqFun :: QualifiedBinding
 seqFun = Refs.seq

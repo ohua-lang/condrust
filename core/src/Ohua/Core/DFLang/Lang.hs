@@ -1,13 +1,14 @@
 {-# LANGUAGE DataKinds #-}
 -- {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ScopedTypeVariables, NoOverloadedLists #-}
 
 module Ohua.Core.DFLang.Lang where
 
 import qualified Data.List.NonEmpty as NE
-import Ohua.Core.DFLang.Refs as DFLangRefs (recurFun, smapFun)
+import Ohua.Core.ALang.Refs as ALangRefs (recurFun, smapFun, ifFun)
 import Ohua.Core.Prelude hiding (length)
 import Ohua.Types.Vector as V hiding (map)
+import qualified Data.HashSet as HS
 
 data BindingType = State | Data deriving (Show, Eq, Generic)
 
@@ -120,10 +121,13 @@ data DFApp (f :: FunANF) (ty :: Type) :: Type where
        )
     -> DFVar a ty  -- ^ data in
     -> DFApp 'Fun ty -- FIXME would be this: DFApp 'BuiltIn ty (fix when all IRs are fixed and I do not need to convert a Fun into a BuiltIn)
+  IfFun
+    :: (OutData 'Data, OutData 'Data)
+    -> DFVar 'Data ty
+    -> DFApp 'Fun ty -- FIXME would be this: DFApp 'BuiltIn ty (fix when all IRs are fixed and I do not need to convert a Fun into a BuiltIn)
 
 -- Collect
 -- Ctrl
--- IfFun
 -- Select
 
 data Expr (fun :: FunANF -> Type -> Type) (ty :: Type) :: Type where
@@ -134,6 +138,10 @@ data Expr (fun :: FunANF -> Type -> Type) (ty :: Type) :: Type where
 ----------------------------
 -- Accessor functions
 ----------------------------
+
+renameABnd :: Binding -> ABinding a -> ABinding a
+renameABnd b (DataBinding _) = DataBinding b
+renameABnd b (StateBinding _) = StateBinding b
 
 outsApp :: App ty a -> NonEmpty Binding
 outsApp (PureFun out _ _) = unwrapABnd out :| []
@@ -156,6 +164,7 @@ outsDFApp (SMapFun (dOut, collectOut, sizeOut) _) =
   maybe [] (NE.toList . outBnds) dOut ++
   maybe [] (NE.toList . outBnds) collectOut ++
   maybe [] (NE.toList . outBnds) sizeOut
+outsDFApp (IfFun (oTrue, oFalse) _) = NE.toList $ outBnds oTrue <> outBnds oFalse
 
 outBnds :: OutData a -> NonEmpty Binding
 outBnds (Destruct o) = sconcat $ NE.map outBnds o
@@ -175,6 +184,7 @@ insDFApp (RecurFun _ _ _ initIns recurs cond result) =
     <> extractBndsFromInputs [cond]
     <> extractBndsFromInputs [result]
 insDFApp (SMapFun _ dIn) = extractBndsFromInputs [dIn]
+insDFApp (IfFun _ dIn) = extractBndsFromInputs [dIn]
 
 extractBndsFromInputs :: [DFVar a ty] -> [Binding]
 extractBndsFromInputs =
@@ -190,6 +200,7 @@ insAndTypesDFApp (RecurFun _ _ _ initIns recurs cond result) =
     <> extractBndsAndTypesFromInputs [cond]
     <> extractBndsAndTypesFromInputs [result]
 insAndTypesDFApp (SMapFun _ dIn) = extractBndsAndTypesFromInputs [dIn]
+insAndTypesDFApp (IfFun _ dIn) = extractBndsAndTypesFromInputs [dIn]
 
 extractBndsAndTypesFromInputs :: [DFVar a ty] -> [(ArgType ty, Binding)]
 extractBndsAndTypesFromInputs =
@@ -295,8 +306,9 @@ instance Function (DFApp ty a) where
     case f of
       (PureDFFun _ (FunRef fr _ _) _) -> fr
       (StateDFFun _ (FunRef fr _ _) _ _) -> fr
-      RecurFun {} -> DFLangRefs.recurFun
-      SMapFun {} -> DFLangRefs.smapFun
+      RecurFun {} -> ALangRefs.recurFun
+      SMapFun {} -> ALangRefs.smapFun
+      IfFun {} -> ALangRefs.ifFun
 
 transformExpr :: forall ty. (NormalizedDFExpr ty -> NormalizedDFExpr ty) -> NormalizedDFExpr ty -> NormalizedDFExpr ty
 transformExpr f = runIdentity . transformExprM go
@@ -318,8 +330,12 @@ transformExprTDM f l =
             v -> return v
         )
 
+-- | A top-down traversal
 mapFunsM :: Monad m => (forall a. DFApp a ty -> m (DFApp a ty)) -> NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
-mapFunsM f (Let app cont) = Let <$> f app <*> mapFunsM f cont
+mapFunsM f (Let app cont) = do
+  app' <- f app
+  cont' <- mapFunsM f cont
+  return $ Let app' cont'
 mapFunsM _ v = return v
 
 mapFuns :: (forall a. DFApp a ty -> DFApp a ty) -> NormalizedDFExpr ty -> NormalizedDFExpr ty
@@ -341,3 +357,38 @@ countBindings (Let app cont) =
 usedBindings :: NormalizedDFExpr ty -> [Binding]
 usedBindings (Let app cont) = insDFApp app ++ usedBindings cont
 usedBindings (Var result) = [result]
+
+
+data SubstitutionStrategy = FirstOccurrence | All
+
+-- | Assumes SSA
+-- TODO How can we encode this into the type system other than with de Bruijn indexes?
+--      I guess we could define a de Bruijn index on the type level that carries a name on the term level.
+substitute :: forall ty. SubstitutionStrategy -> (Binding, Binding) -> NormalizedDFExpr ty -> NormalizedDFExpr ty
+substitute strat (from,to) e = evalState (mapFunsM go e) False
+  where
+    go :: DFApp a ty -> State Bool (DFApp a ty)
+    go (PureDFFun o f dIns) = check =<< PureDFFun o f <$> mapM replace dIns
+    go (StateDFFun o f sIn dIns) = check =<< StateDFFun o f sIn <$> mapM replace dIns
+    go r@RecurFun{} = return r -- we do not replace these because RecurFun has variables that not yet defined.
+                               -- we need a better representation for these.
+    go (SMapFun o i) = check =<< SMapFun o <$> replace i
+    go (IfFun o i) = check =<< IfFun o <$> replace i
+
+    replace :: DFVar t ty -> State Bool (DFVar t ty)
+    replace d@(DFVar t bnd) | unwrapABnd bnd == from = do
+                              s <- get
+                              case (strat, s) of
+                                (FirstOccurrence, True)  -> return d
+                                (FirstOccurrence, False) -> DFVar t (renameABnd to bnd) <$ put True
+                                _ -> return $ DFVar t $ renameABnd to bnd
+    replace d = return d
+
+    check :: DFApp a ty -> State Bool (DFApp a ty)
+    check app = checkDefined app >> return app
+
+    checkDefined :: DFApp a ty -> State Bool ()
+    checkDefined f =
+      if HS.member from $ HS.fromList $ outBindings f
+      then put True
+      else return ()

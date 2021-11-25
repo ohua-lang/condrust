@@ -18,9 +18,9 @@ import qualified Data.HashSet as HS
 import qualified Data.List.NonEmpty as NE
 import qualified Data.List.NonEmpty.Extra as NEE
 import Ohua.Core.ALang.Lang as ALang
+import Ohua.Core.ALang.Refs as ALangRefs (smapFun,ifFun)
 import Ohua.Core.ALang.Util
 import Ohua.Core.DFLang.Lang as DFLang hiding (length)
-import qualified Ohua.Core.DFLang.Refs as DFLangRefs (smapFun)
 import Ohua.Core.DFLang.Passes.DeadCodeElimination (eliminate)
 import Ohua.Core.DFLang.Passes.DispatchInsertion (insertDispatch)
 import Ohua.Core.DFLang.Passes.TypePropagation (propagateTypes)
@@ -69,16 +69,26 @@ removeNth expr = do
                -> State
                (HM.HashMap Binding (NonEmpty (Integer, Binding)))
                (Maybe (DFApp a ty))
-    toDFAppFun (PureFun tgt (FunRef "ohua.lang/nth" _ _) [DFEnvVar _ (NumericLit i), _, DFVar _ (DataBinding src)]) =
+    toDFAppFun (PureFun tgt (FunRef "ohua.lang/nth" _ _) (DFEnvVar _ (NumericLit i) :| [_, DFVar _ (DataBinding src)]) ) =
       modify (HM.insertWith (<>) src ((i, unwrapABnd tgt) :| [])) >> pure Nothing
-    toDFAppFun (PureFun out (FunRef fr _ _) ins) | fr == DFLangRefs.smapFun = do
+    toDFAppFun (PureFun out (FunRef fr _ _) ins) | fr == ALangRefs.ifFun = do
       hm <- get
       let out' =
             case toDFOuts (unwrapABnd out) DataBinding hm of
-              Destruct [dOut, ctrlOut, sizeOut] -> (Just dOut, Just ctrlOut, Just sizeOut)
+              Destruct (trueOut :| [falseOut]) -> (trueOut, falseOut)
+              _ -> error $ "Invariant broken: IfFun has wrong output: " <> show out'
+      let dIn = case ins of
+                  (d :| []) -> d
+                  _ -> error $ "Invariant broken: IfFun has wrong input:" <> show ins
+      return $ Just $ IfFun out' dIn
+    toDFAppFun (PureFun out (FunRef fr _ _) ins) | fr == ALangRefs.smapFun = do
+      hm <- get
+      let out' =
+            case toDFOuts (unwrapABnd out) DataBinding hm of
+              Destruct (dOut :| [ctrlOut, sizeOut]) -> (Just dOut, Just ctrlOut, Just sizeOut)
               _ -> error $ "Invariant broken: SMap has wrong output: " <> show out'
       let dIn = case ins of
-                  [d] -> d
+                  (d :| []) -> d
                   _ -> error $ "Invariant broken: SMap has wrong input:" <> show ins
       return $ Just $ SMapFun out' dIn
     toDFAppFun (PureFun out fun ins) = do

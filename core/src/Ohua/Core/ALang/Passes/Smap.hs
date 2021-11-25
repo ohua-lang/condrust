@@ -33,13 +33,11 @@ import Ohua.Core.Prelude
 
 import Ohua.Core.ALang.PPrint ()
 
-import Data.List.NonEmpty (fromList)
-
 smapSfFun :: Expr ty
-smapSfFun = Lit $ FunRefLit $ FunRef Refs.smapFun Nothing $ FunType $ Right $ fromList [TypeVar]
+smapSfFun = Lit $ FunRefLit $ FunRef Refs.smapFun Nothing $ FunType $ Right $ TypeVar :| []
 
 collectSf :: Expr ty
-collectSf = Lit $ FunRefLit $ FunRef Refs.collect Nothing $ FunType $ Right $ fromList [TypeVar, TypeVar]
+collectSf = Lit $ FunRefLit $ FunRef Refs.collect Nothing $ FunType $ Right $ TypeVar :| [TypeVar]
 
 smapRewrite :: (Monad m, MonadGenBnd m) => Expr ty -> m (Expr ty)
 smapRewrite =

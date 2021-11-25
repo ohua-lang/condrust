@@ -59,3 +59,9 @@ runSTCLangSMap = "ohua.lang/runSTCLang-Smap"
 
 runSTCLangIf :: QualifiedBinding
 runSTCLangIf = "ohua.lang/runSTCLang-If"
+
+recurFunBnd :: QualifiedBinding
+recurFunBnd = "ohua.lang/recurFun"
+
+recurFun :: QualifiedBinding
+recurFun = recurFunBnd

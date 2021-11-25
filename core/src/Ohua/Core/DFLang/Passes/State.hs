@@ -18,8 +18,8 @@ import Ohua.Core.Compile.Configuration
 intoFusable :: Monad m => NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
 intoFusable = mapFunsM (pure . f)
   where
-    f (PureDFFun out r@(FunRef fun _ _) [_, sIn])
-      | fun == Refs.runSTCLangSMap = PureDFFun out r [sIn]
+    f (PureDFFun out r@(FunRef fun _ _) (_:| [sIn]))
+      | fun == Refs.runSTCLangSMap = PureDFFun out r (sIn :| [])
     f e = e
 
 load :: CustomPasses -> CustomPasses

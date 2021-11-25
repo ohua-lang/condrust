@@ -82,7 +82,14 @@ instance Pretty (DFApp a ty) where
             , "smapFun"
             ] <>
             [align $ tupled [pretty dIn]]
-
+    pretty (IfFun (trueOut,falseOut) dIn) =
+        hsep $
+            [ align $ tupled [pretty trueOut, pretty falseOut]
+            , "="
+            , "ifFun"
+            ] <>
+            [align $ tupled [pretty dIn]]
+            
 instance Pretty (OutData a) where
     pretty (Direct b) = pretty b
     pretty (Destruct ds) = align $ tupled $ map pretty $ toList ds

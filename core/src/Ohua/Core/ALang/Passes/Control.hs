@@ -155,7 +155,6 @@
 module Ohua.Core.ALang.Passes.Control where
 
 import Control.Monad.Trans.Writer.Lazy
-import Data.List.NonEmpty (fromList)
 import Ohua.Core.ALang.Lang
 import qualified Ohua.Core.ALang.Refs as Refs
 import Ohua.Core.ALang.Util
@@ -191,7 +190,7 @@ liftIntoCtrlCtxt ctrlIn e0 = do
     then -- TODO Assumption: $ lam' == e0
       pure lam'
     else do
-      let actuals' = Var ctrlIn : actuals
+      let actuals' = Var ctrlIn :| actuals
       let ie = mkDestructured formals ctrlOut e
       return $
         mkLambda originalFormals $
@@ -201,14 +200,13 @@ liftIntoCtrlCtxt ctrlIn e0 = do
                 ( FunRef Refs.ctrl Nothing $
                     FunType $
                       Right $
-                        fromList $
                           map
                             ( const $
                                 TupleTy (TypeVar :| [TypeVar])
                             )
                             actuals'
                 )
-                actuals'
+                $ toList actuals'
             )
             ie
 

@@ -34,7 +34,6 @@ dependencies:
 - singletons
 default-extensions:
 - OverloadedStrings
-- OverloadedLists
 - MultiParamTypeClasses
 - FunctionalDependencies
 - TypeFamilies

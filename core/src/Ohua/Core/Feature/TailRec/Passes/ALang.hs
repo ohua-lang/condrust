@@ -251,7 +251,7 @@ ySf :: Expr ty
 ySf = pureFunction y Nothing Untyped
 
 recurFun :: QualifiedBinding
-recurFun = DFRefs.recurFunBnd
+recurFun = ALangRefs.recurFunBnd
 
 recurFunPureFunction :: Expr ty
 recurFunPureFunction = pureFunction recurFun Nothing Untyped

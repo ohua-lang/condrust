@@ -14,13 +14,13 @@ mkOhuaLangRef :: Binding -> FunType ty -> Expr ty
 mkOhuaLangRef = mkQualVar ohuaLangNS
 
 ifBuiltin :: Expr ty
-ifBuiltin = mkOhuaLangRef "if" (FunType $ Right [TypeVar,TypeVar,TypeVar])
+ifBuiltin = mkOhuaLangRef "if" (FunType $ Right $ TypeVar :| [TypeVar,TypeVar])
 
 smapBuiltin :: Expr ty
-smapBuiltin = mkOhuaLangRef "smap" (FunType $ Right [TypeVar,TypeVar])
+smapBuiltin = mkOhuaLangRef "smap" (FunType $ Right $ TypeVar :| [TypeVar])
 
 seqBuiltin :: Expr ty
-seqBuiltin = mkOhuaLangRef "seq" (FunType $ Right [TypeVar,TypeVar])
+seqBuiltin = mkOhuaLangRef "seq" (FunType $ Right $ TypeVar :| [TypeVar])
 
 funcTyConRef :: QualifiedBinding
 funcTyConRef = QualifiedBinding ohuaLangNS "->"
