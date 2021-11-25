@@ -174,7 +174,7 @@ instance Integration (Language 'Rust) where
         mapM lookupFunTypes [f | LitE (FunRefLit (FunRef f _ _)) <- universe code]
 
       lookupFunTypes :: CompM m => QualifiedBinding -> m ([NSRef], QualifiedBinding)
-      lookupFunTypes q@(QualifiedBinding [] nam) =
+      lookupFunTypes q@(QualifiedBinding (NSRef []) nam) =
         return $ (,q) $ maybe globs (: []) $ HM.lookup nam fullyResolvedImports
       lookupFunTypes q@(QualifiedBinding nsRef _name) =
         let (aliaz : rest) = unwrap nsRef

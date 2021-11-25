@@ -123,7 +123,7 @@ instance Integration (Language 'Rust) where
 --      v.iter().size_hint().1.is_some()
 
 pattern UnqualFun :: Binding -> QualifiedBinding
-pattern UnqualFun bnd <- QualifiedBinding [] bnd
+pattern UnqualFun bnd <- QualifiedBinding (NSRef []) bnd
 
 mkFunRefUnqual :: Binding -> QualifiedBinding
 mkFunRefUnqual = QualifiedBinding (makeThrow [])

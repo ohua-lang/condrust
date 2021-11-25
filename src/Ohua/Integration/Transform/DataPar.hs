@@ -15,7 +15,7 @@ import Ohua.Core.ALang.Lang as AL
 import Ohua.Core.ALang.Refs as ALRefs
 import Ohua.Core.ALang.Util (destructure, findFreeBindings, findFreeVariables, lambdaArgsAndBody, substitute)
 import Ohua.Core.Compile.Configuration
-import Ohua.Core.DFLang.Lang as DFL hiding (length)
+import Ohua.Core.DFLang.Lang as DFL hiding (length, substitute)
 import qualified Ohua.Core.DFLang.Lang as DFL (length)
 import qualified Ohua.Core.DFLang.Refs as DFRef
 import Ohua.Core.Feature.TailRec.Passes.ALang as TR (y)
@@ -203,7 +203,7 @@ appendExpr (DFL.Let app cont) rest = DFL.Let app $ appendExpr cont rest
 appendExpr DFL.Var {} rest = rest
 
 isIgnorable :: QualifiedBinding -> Bool
-isIgnorable (QualifiedBinding ["ohua", "lang"] _) = True
+isIgnorable (QualifiedBinding (NSRef ["ohua", "lang"]) _) = True
 isIgnorable _ = False
 
 liftFunction ::
