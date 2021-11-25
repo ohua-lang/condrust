@@ -3,10 +3,10 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE TypeOperators #-}
 module Ohua.Types.Vector where
 
 import Universum hiding (Nat, toList, map, replicate, zip, zip3, filter, unzip, unzip3)
-import Data.List.NonEmpty (NonEmpty(..))
 import Data.Singletons
 
 data Nat where
@@ -16,6 +16,10 @@ data Nat where
 deriving instance Generic Nat
 deriving instance Show Nat
 deriving instance Eq Nat
+
+instance Semigroup Nat where
+  Zero <> n = n
+  (Succ n1) <> n2 = Succ (n1 <> n2)
 
 data Vec (n::Nat) a where
     VNil :: Vec 'Zero a
@@ -58,6 +62,14 @@ instance SingKind Nat where
     toSing Zero = SomeSing SZero
     toSing (Succ n) = case toSing n of
                         (SomeSing n') -> SomeSing $ SSucc n'
+
+type family (a :: Nat) + (b :: Nat) :: Nat where
+  'Zero + n = n
+  'Succ n + m = 'Succ (n + m)
+
+add :: SNat n -> SNat m -> SNat (n + m)
+add SZero m = m
+add (SSucc n) m = SSucc (add n m)
 
 toNonEmpty :: Vec ('Succ n) a -> NonEmpty a
 toNonEmpty (x :> xs) = x :| toList xs

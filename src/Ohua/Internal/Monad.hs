@@ -122,7 +122,7 @@ initNameGen :: MonadError Error m => HS.HashSet Binding -> m NameGenerator
 initNameGen taken =
     make
         ( taken
-        , [ makeThrow $ char `T.cons` maybe [] show num
+        , [ makeThrow $ char `T.cons` maybe T.empty show num
           | num <- Nothing : map Just [(0 :: Integer) ..]
           , char <- ['a' .. 'z']
           ])
