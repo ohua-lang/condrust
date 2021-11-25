@@ -34,7 +34,6 @@ dependencies:
 - lens
 default-extensions:
 - OverloadedStrings
-- OverloadedLists
 - MultiParamTypeClasses
 - FunctionalDependencies
 - TypeFamilies

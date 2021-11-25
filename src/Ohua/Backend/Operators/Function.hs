@@ -78,7 +78,7 @@ genSend = \case
     (PureFusable _ _ o) -> dataOut (toList o) $ Lit UnitLit
     (STFusable stateRecv receives _ sendRes sendState) ->
         let varsAndReceives =
-              NE.zipWith (curry generateReceiveCode) [0 ..] $ stateRecv :| receives
+              NE.zipWith (curry generateReceiveCode) (0 :| [1 ..]) $ stateRecv :| receives
             stateArg = (\(_,v,_) -> v) $ NE.head varsAndReceives
         in dataOut sendRes $
            maybe (Lit UnitLit) (SendData . (`SSend` (Left stateArg))) sendState
@@ -113,7 +113,7 @@ genFun' ct = \case
            callWithResult (toList out) call ct
     (STFusable stateRecv receives (FunRef app _ funTy) sendRes _sendState) ->
         let varsAndReceives =
-              NE.zipWith (curry generateReceiveCode) [0 ..] $ stateRecv :| receives
+              NE.zipWith (curry generateReceiveCode) (0 :| [1 ..]) $ stateRecv :| receives
             callArgs = getCallArgs funTy $ NE.tail varsAndReceives
             stateArg = (\(_,v,_) -> v) $ NE.head varsAndReceives
             call = (Apply $ Stateful (Var stateArg) app callArgs)
