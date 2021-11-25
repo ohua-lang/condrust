@@ -1,51 +1,54 @@
-module Integrations.Rust.Utils (
-    renderRustCode, showCode, compileCode, compileCodeWithRec,
+module Integrations.Rust.Utils
+  ( renderRustCode,
+    showCode,
+    showCodeWithDiff,
+    compileCode,
+    compileCodeWithDebug,
+    compileCodeWithRec,
+    compileCodeWithRecWithDebug,
     module Test.Hspec,
-    module Language.Rust.Quote
-) where
+    module Language.Rust.Quote,
+  )
+where
 
-import Ohua.Prelude
-
-import Test.Hspec
-
-import Ohua.Core.Types.Environment (stageHandling, Options, transformRecursiveFunctions)
-import Ohua.Core.Types.Stage (DumpCode(..), StageHandling)
-import Ohua.Core.Stage
-
-import qualified Ohua.Integration.Config as IC
-import qualified Ohua.Integration.Architecture as Arch
-import Ohua.Compile.Compiler
-import Ohua.Compile.Config (intoStageHandling, Stage(..))
+import qualified Data.ByteString.Lazy.Char8 as L
 import qualified Data.HashMap.Lazy as HM
-
-import System.FilePath
-import System.IO.Temp
-import System.Directory (setCurrentDirectory)
-
-import Language.Rust.Pretty ( pretty' )
-import Language.Rust.Quote
-import Language.Rust.Syntax
-import Language.Rust.Parser (parse', readInputStream, Span)
+import Data.Text as T (Text, concat)
 import Data.Text.Prettyprint.Doc
 import Data.Text.Prettyprint.Doc.Render.Text
-import Data.Text as T (concat, Text)
-import qualified Data.ByteString.Lazy.Char8 as L
+import Language.Rust.Parser (Span, parse', readInputStream)
+import Language.Rust.Pretty (pretty')
+import Language.Rust.Quote
+import Language.Rust.Syntax
+import Ohua.Compile.Compiler
+import Ohua.Compile.Config (Stage (..), intoStageHandling)
+import Ohua.Core.Stage
+import Ohua.Core.Types.Environment (Options, stageHandling, transformRecursiveFunctions)
+import Ohua.Core.Types.Stage (DumpCode (..), StageHandling)
+import qualified Ohua.Integration.Architecture as Arch
+import qualified Ohua.Integration.Config as IC
+import Ohua.Prelude
+import System.Directory (setCurrentDirectory)
+import System.FilePath
+import System.IO.Temp
+import Test.Hspec
 
 
--- TODO turn this into a parameter for a particular test
-debug :: Bool
-debug = False
+data DebugOptions = DebugOptions
+  { printIRs :: Bool,
+    showCodeDiff :: Bool
+  }
 
-showCodeDiff :: Bool
-showCodeDiff = False
+instance Default DebugOptions where
+  def = DebugOptions False False
 
 renderRustCode :: SourceFile Span -> L.ByteString
 renderRustCode =
-    encodeUtf8 .
-    (<> "\n") .
-    renderLazy .
-    layoutSmart defaultLayoutOptions .
-    pretty'
+  encodeUtf8
+    . (<> "\n")
+    . renderLazy
+    . layoutSmart defaultLayoutOptions
+    . pretty'
 
 withDebug :: Options -> Options
 withDebug d = d & stageHandling .~ debugStageHandling
@@ -55,64 +58,78 @@ withRec d = d & transformRecursiveFunctions .~ True
 
 debugStageHandling :: StageHandling
 debugStageHandling =
-    intoStageHandling DumpStdOut
-        $ Just
-            [ Stage resolvedAlang True False
-            , Stage normalizedAlang True False
-            , Stage coreDflang True False
-            , Stage coreAlang True False
-            , Stage initialDflang True False
-            , Stage preControlSTCLangALang True False
-            , Stage smapTransformationALang True False
-            , Stage conditionalsTransformationALang True False
-            , Stage seqTransformationALang True False
-            , Stage postControlSTCLangALang True False
-            , Stage normalizeAfterCorePasses True False
-            , Stage customDflang True False
-            , Stage finalDflang True False
-            ]
+  intoStageHandling DumpStdOut $
+    Just
+      [ Stage resolvedAlang True False,
+        Stage normalizedAlang True False,
+        Stage coreDflang True False,
+        Stage coreAlang True False,
+        Stage initialDflang True False,
+        Stage preControlSTCLangALang True False,
+        Stage smapTransformationALang True False,
+        Stage conditionalsTransformationALang True False,
+        Stage seqTransformationALang True False,
+        Stage postControlSTCLangALang True False,
+        Stage normalizeAfterCorePasses True False,
+        Stage customDflang True False,
+        Stage finalDflang True False
+      ]
 
 integrationOptions :: IC.Config
 integrationOptions = IC.Config Arch.SharedMemory $ IC.Options Nothing Nothing
 
 compileCodeWithRec :: SourceFile Span -> IO (SourceFile Span)
-compileCodeWithRec inCode = compileCode' inCode $ withRec def
+compileCodeWithRec inCode = runReaderT (compileCode' inCode $ withRec def) def
+
+compileCodeWithRecWithDebug :: SourceFile Span -> IO (SourceFile Span)
+compileCodeWithRecWithDebug inCode = runReaderT (compileCode' inCode $ withRec def) $ DebugOptions True False
 
 compileCode :: SourceFile Span -> IO (SourceFile Span)
-compileCode inCode = compileCode' inCode def
+compileCode inCode = runReaderT (compileCode' inCode def) def
 
-compileCode' :: SourceFile Span -> Options -> IO (SourceFile Span)
-compileCode' inCode opts =
-    withSystemTempDirectory "testDir"
-        $ \testDir -> do
-            setCurrentDirectory testDir
-            writeFile (testDir </> "funs.rs") funs
-            writeFile (testDir </> "benchs.rs") benchs
-            writeFile (testDir </> "std.rs") std
-            let inFile = testDir </> "test.rs"
-            L.writeFile inFile $ renderRustCode inCode
-            withSystemTempDirectory "output"
-                $ \outDir -> do
-                    let compScope = HM.empty
-                    let options = if debug then withDebug opts else opts
-                    runCompM
-                        LevelWarn
-                        $ compile inFile compScope options integrationOptions outDir
-                    outCode :: SourceFile Span
-                        <- parse' <$> readInputStream (outDir </> takeFileName inFile)
-                    return outCode
+compileCodeWithDebug :: SourceFile Span -> IO (SourceFile Span)
+compileCodeWithDebug inCode = runReaderT (compileCode' inCode def) $ DebugOptions True False
+
+compileCode' :: SourceFile Span -> Options -> ReaderT DebugOptions IO (SourceFile Span)
+compileCode' inCode opts = do
+  debug <- asks printIRs
+  lift $ withSystemTempDirectory
+    "testDir"
+    $ \testDir -> do
+      setCurrentDirectory testDir
+      writeFile (testDir </> "funs.rs") funs
+      writeFile (testDir </> "benchs.rs") benchs
+      writeFile (testDir </> "std.rs") std
+      let inFile = testDir </> "test.rs"
+      L.writeFile inFile $ renderRustCode inCode
+      withSystemTempDirectory "output" $
+        \outDir -> do
+          let compScope = HM.empty
+          let options = if debug then withDebug opts else opts
+          runCompM
+            LevelWarn
+            $ compile inFile compScope options integrationOptions outDir
+          outCode :: SourceFile Span <-
+            parse' <$> readInputStream (outDir </> takeFileName inFile)
+          return outCode
 
 showCode :: T.Text -> SourceFile Span -> IO T.Text
-showCode msg code =
-    let
-        c = renderStrict $ layoutSmart defaultLayoutOptions $ pretty' code
-    in do
-        when showCodeDiff $ printCode c
+showCode msg code = runReaderT (showCode' msg code) def
+
+showCodeWithDiff :: T.Text -> SourceFile Span -> IO T.Text
+showCodeWithDiff msg code = runReaderT (showCode' msg code) $ DebugOptions False True
+
+showCode' :: T.Text -> SourceFile Span -> ReaderT DebugOptions IO T.Text
+showCode' msg code =
+  let c = renderStrict $ layoutSmart defaultLayoutOptions $ pretty' code
+   in do
+        showDiff <- asks showCodeDiff
+        lift $ when showDiff $ printCode c
         return c
-    where
-        printCode c = putStr $ boundary <> header <> c <> boundary
-        boundary = "\n" <> T.concat (replicate 20 ("-"::T.Text)) <> "\n"
-        header = msg <> "\n\n"
+  where
+    printCode c = putStr $ boundary <> header <> c <> boundary
+    boundary = "\n" <> T.concat (replicate 20 ("-" :: T.Text)) <> "\n"
+    header = msg <> "\n\n"
 
 funs :: Text
 funs =
@@ -293,4 +310,4 @@ std =
   \ enum Option<T> {} \
   \ "
 
-  -- We'd normally have this in the impl block: pub const fn new() -> Self { unimplemented!() }
+-- We'd normally have this in the impl block: pub const fn new() -> Self { unimplemented!() }

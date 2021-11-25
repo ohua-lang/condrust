@@ -127,15 +127,13 @@ generateNodeCode e@(PureDFFun out (FunRef fun _ _) inp) | fun == collect = do
             _ -> invariantBroken $ "Collect outputs don't match:\n" <> show e
     return $ SMap $ Ops.collect dataIn sizeIn collectedOutput
 
-generateNodeCode e@(PureDFFun out (FunRef fun _ _) inp) | fun == ifFun = do
+generateNodeCode e@(IfFun out inp) = do
     condIn <-
         case inp of
-            [DFVar xType x] -> return $ SRecv xType $ SChan $ unwrapABnd x
-            _ -> invariantBroken $ "IfFun arguments don't match:\n" <> show e
+            (DFVar xType x) -> return $ SRecv xType $ SChan $ unwrapABnd x
     (ctrlTrueOut, ctrlFalseOut) <-
         case out of
-            Destruct [Direct t, Direct fa] -> return (SChan $ unwrapABnd t, SChan $ unwrapABnd fa)
-            _ -> invariantBroken $ "IfFun outputs don't match:\n" <> show e
+            (Direct t, Direct fa) -> return (SChan $ unwrapABnd t, SChan $ unwrapABnd fa)
     return $ Unfusable $
         EndlessLoop $
             Ops.ifFun condIn ctrlTrueOut ctrlFalseOut

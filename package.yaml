@@ -10,7 +10,6 @@ extra-source-files:
 - README.md
 default-extensions:
 - OverloadedStrings
-- OverloadedLists
 - MultiParamTypeClasses
 - FunctionalDependencies
 - TypeFamilies
