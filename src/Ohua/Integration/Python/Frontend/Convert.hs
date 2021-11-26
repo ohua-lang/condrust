@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 {-|
 Module      : Python.Frontend.Convert
 Description : Convert AST to supported python subset
@@ -20,6 +21,9 @@ import Language.Python.Common (SrcSpan (SpanEmpty))
 suiteToSub:: (Monad m, MonadError Error m) => Py.Suite SrcSpan -> m Sub.Suite
 suiteToSub stmts = Sub.PySuite  <$> mapM stmtToSub stmts
 
+suiteToBlock::(Monad m, MonadError Error m) => Py.Suite SrcSpan -> m Sub.Block
+suiteToBlock = mapM (stmtToSub <=< isNoReturn)
+
 stmtToSub::(Monad m, MonadError Error m) => Py.Statement SrcSpan -> m Sub.Stmt
 stmtToSub stmt@Py.Import{import_items=items} = unsupError "local imports" stmt
 stmtToSub stmt@Py.FromImport{from_module= mod, from_items=items} =  unsupError "local imports" stmt
@@ -27,16 +31,17 @@ stmtToSub assign@(Py.Assign [target] expr annot) = do
     targets' <- exprToTarget target
     expr' <- exprToSubExpr expr
     return $ Sub.Assign targets' expr'
-stmtToSub assign@(Py.Assign targets expr annot) = unsupError "multiple variables in assignment" assign    
+stmtToSub assign@(Py.Assign targets expr annot) = unsupError "multiple variables in assignment. You may use a tuple instead" assign
 stmtToSub whileE@(Py.While cond do_block [] annE) = do
     cond' <- exprToSubExpr cond
-    block' <- suiteToSub do_block
+    block' <- suiteToBlock do_block
     return $ Sub.WhileStmt cond' block'
+
 stmtToSub whileE@(Py.While cond do_block elseBlock annE) = unsupError "else blocks in while expressions" whileE
 stmtToSub forE@(Py.For targets generator body [] annot) = do
     targets' <- targetsToSub targets
     generator' <- exprToSubExpr generator
-    body' <- suiteToSub body
+    body' <- suiteToBlock body
     return $ Sub.ForStmt targets' generator' body'
 stmtToSub forE@(Py.For _ _ _ elseBlock _) = unsupError "else blocks in for expressions" forE
 
@@ -48,14 +53,14 @@ stmtToSub forE@(Py.For _ _ _ elseBlock _) = unsupError "else blocks in for expre
 -}
 stmtToSub ifElifElse@(Py.Conditional ifsAndSuites elseSuite annot ) = do
     ifs <- mapM (exprToSubExpr . fst) ifsAndSuites
-    suites <-  mapM (suiteToSub . snd) ifsAndSuites
-    elseSuite' <- suiteToSub elseSuite
-    return $ Sub.CondStmt (zip ifs suites)  elseSuite'
+    blocks <-  mapM (suiteToBlock . snd) ifsAndSuites
+    elseBlock <- suiteToBlock elseSuite
+    return $ Sub.CondStmt (zip ifs blocks)  elseBlock
 
-stmtToSub stmt@(Py.StmtExpr expr annot) = do 
+stmtToSub stmt@(Py.StmtExpr expr annot) = do
     expr' <- exprToSubExpr expr
     return $ Sub.StmtExpr expr'
-    
+
 stmtToSub ret@(Py.Return Nothing annot) = return $ Sub.Return Nothing
 stmtToSub ret@(Py.Return (Just expr) annot) = do
     expr' <- exprToSubExpr expr
@@ -130,14 +135,14 @@ exprToSubExpr (Py.Tuple exprs annot) = do
 
 exprToSubExpr lam@(Py.Lambda params expr annot) = do
     params' <- mapM paramToSub params
-    expr' <- exprToSubExpr expr 
+    expr' <- exprToSubExpr expr
     return $ Sub.Lambda params' expr'
 
-exprToSubExpr (Py.List exprs annot) = do 
-    exprs' <- mapM exprToSubExpr exprs 
+exprToSubExpr (Py.List exprs annot) = do
+    exprs' <- mapM exprToSubExpr exprs
     return $ Sub.List exprs'
 
-exprToSubExpr (Py.Dictionary dictMappings annot) = do 
+exprToSubExpr (Py.Dictionary dictMappings annot) = do
     exprs' <- mapM dictMapToSub dictMappings
     return $ Sub.Dict exprs'
 
@@ -157,10 +162,8 @@ exprToSubExpr await@(Py.Await expr annot) = unsupError "await expression" await
 
 exprToSubExpr listComp@(Py.ListComp comprehension annot) = unsupError "list comprehensions" listComp
 exprToSubExpr dictComp@(Py.DictComp compehension annot) = unsupError "dict comprehensions" dictComp
--- TODO: Could be a list, but we'd loose distinction in the backend as with dicts :-(
 exprToSubExpr set@(Py.Set items annot) = unsupError "set expressions" set
 exprToSubExpr setComp@(Py.SetComp comprehension annot) =  unsupError "set comprehensions" setComp
--- I think supporting this could get complicated if we want to have any controle over types
 exprToSubExpr starred@(Py.Starred expr annot) = unsupError "Starred Expressions" starred
 -- TODO/Question: I need to know all possible occurences of parenthesized expressionss and 
 -- in how far there can be precedence or other semantic issues arrising from just using the inner expression
@@ -185,6 +188,7 @@ exprToFRef anyOther = unsupError "this kind of expression as function reference:
 targetsToSub:: (Monad m, MonadError Error m) => [Py.Expr SrcSpan] -> m Sub.Target
 targetsToSub [expr] = exprToTarget expr
 targetsToSub (e:es) = Sub.Tpl <$> mapM (varOrFail <=< exprToTarget) (e:es)
+targetsToSub _ = error "An empty target of assignment or for loop is no valid Python"
 
 
 
@@ -212,13 +216,6 @@ exprToTarget subScr@(Py.Subscript subscriptee indexExpr annot) = unsupError "ind
 exprToTarget slice@(Py.SlicedExpr subscriptee slices annot) = unsupError "slice patterns" slice
 exprToTarget starred@(Py.Starred expr annot) = unsupError "starred expression patterns" starred
 exprToTarget any = throwError $ "Encountered " <> show any <> " while trying to convert patterns. This is a bug"
-
-
-varOrFail :: (Monad m, MonadError Error m) => Sub.Target -> m Binding
-varOrFail pat =
-         case pat of
-            Sub.Single bnd -> return bnd
-            _ -> unsupError "nested targets in for loops or assignments" pat
 
 argToSub :: (Monad m, MonadError Error m) => Py.Argument SrcSpan -> m Sub.Argument
 argToSub (Py.ArgExpr expr annot) = do
@@ -275,6 +272,18 @@ binOpToSub Py.ShiftRight{} = return Sub.ShiftRight
 unOpToSub :: (Monad m, MonadError Error m) => Py.Op SrcSpan -> m Sub.UnOp
 unOpToSub Py.Not{}  = return Sub.Not
 unOpToSub Py.Invert{} = return Sub.Invert
+
+
+isNoReturn:: (Monad m, MonadError Error m) => Py.Statement SrcSpan -> m (Py.Statement SrcSpan)
+isNoReturn ret@Py.Return{} = unsupError "'return' anywhere but at the end of a function. Please use an assignment" ret
+isNoReturn notAReturn = return notAReturn
+
+
+varOrFail :: (Monad m, MonadError Error m) => Sub.Target -> m Binding
+varOrFail pat =
+         case pat of
+            Sub.Single bnd -> return bnd
+            _ -> unsupError "nested targets in for loops or assignments" pat
 
 
 chainBindings:: String -> Py.Expr SrcSpan -> String

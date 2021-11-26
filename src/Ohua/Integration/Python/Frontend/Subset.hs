@@ -7,9 +7,10 @@ import Data.Functor.Foldable.TH (makeBaseFunctor)
 import Language.Haskell.TH.Syntax (Lift)
 import Control.Lens.Plated
 
--- | This is the supported frontend subset of the python 
+{- | This is the supported frontend subset of the python 
 -- integration, as the AST generated from language-python is underspecified at some points, this 
 -- subset refers to the grammer definition of python 3.1 which underlies the ASt
+-}
 
 -- I currently don't type anything but for a) the possibility to use at least annotated
 -- types and b) consistency with other integration I'll thread this dummmy trough the logic
@@ -18,10 +19,12 @@ data PythonType = PythonType deriving (Show, Eq, Generic)
 newtype Suite  =  PySuite [Stmt]
   deriving (Eq, Generic, Show)
 
+type Block = [Stmt] -- ^ this is an alias for blocks inside loops or branches that must not contain 'return'
+    
 data Stmt  = 
-    WhileStmt Expr Suite 
-    | ForStmt Target Expr Suite 
-    | CondStmt [(Expr, Suite )] Suite 
+    WhileStmt Expr Block 
+    | ForStmt Target Expr Block 
+    | CondStmt [(Expr, Block )] Block
     -- TODO: Rework when/if assignments and returns of lists of targets are supported
     | Assign Target Expr 
     | Pass 
@@ -46,6 +49,7 @@ data Expr =
     | Lambda [Param] Expr
     | Tuple [Expr]
     | List [Expr]
+    -- | ListComp Context Expr Target Expr -- ^ x = [f(t) for t in ts] gives ListComp x f(t) t ts 
     | Dict [(Expr, Expr)]
     -- TODO: test this bevore it's included
     -- \| ParenExpr
@@ -69,6 +73,7 @@ data Argument = Arg Expr deriving (Eq, Show) -- StarArg Expr | StarKwArg Expr | 
 -- Note: first Maybe is an optional type annotation, second Maybe is the default
 data Param = Param Binding deriving (Eq, Show) {-- (Maybe Expr) (Maybe Expr)| ArgsParam Binding | KwargsParam Binding -}
 
+type Context = Binding -- ^ We need to keep track of the variable name a coprehension is assigned to 
   
     -- Todo: Call that TupP, ListP or have both?
     -- Reason: On the python side patterns can be lists or

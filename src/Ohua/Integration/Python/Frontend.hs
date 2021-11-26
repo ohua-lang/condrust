@@ -24,7 +24,7 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.List.NonEmpty as NE
 
--- | Contexts keepa track of names and types 
+-- | Contexts keeps track of names and types 
 type Context = HM.HashMap Binding Sub.PythonType
 type ConvertM m = (Monad m, MonadState Context m)
 
@@ -187,7 +187,7 @@ subSuiteToIR (Sub.PySuite stmts) =
 subStmtToIR :: ConvertM m=> Sub.Stmt -> m (FrLang.Expr PythonArgType)
 subStmtToIR (Sub.WhileStmt expr suite) = do
     cond <- subExprToIR expr
-    suite' <- subSuiteToIR suite
+    suite' <- subSuiteToIR (Sub.PySuite suite)
     let loopRef = "while_loop_body"
     let recursivePart= IfE cond (AppE (VarE loopRef) [])  (LitE UnitLit)
     return $ LetE (VarP loopRef) (LamE [] $ StmtE suite' recursivePart) recursivePart
@@ -195,19 +195,19 @@ subStmtToIR (Sub.WhileStmt expr suite) = do
 subStmtToIR (Sub.ForStmt target generator suite) = do
     targets' <- subTargetToIR target
     generator' <- subExprToIR generator
-    suite <- subSuiteToIR suite
+    suite <- subSuiteToIR (Sub.PySuite suite)
     return $ MapE (LamE [targets'] suite) generator'
 
 subStmtToIR (Sub.CondStmt [(cond, suite)] elseSuite) = do
     cond' <- subExprToIR cond
-    suite' <- subSuiteToIR suite
-    elseSuite' <- subSuiteToIR elseSuite
+    suite' <- subSuiteToIR (Sub.PySuite suite)
+    elseSuite' <- subSuiteToIR (Sub.PySuite elseSuite)
     return $ IfE cond' suite' elseSuite'
 
 subStmtToIR (Sub.CondStmt ifsAndSuits elseSuite) = do
     let ((ifE, suite):elifs) = ifsAndSuits
     condE <- subExprToIR ifE
-    trueBranch <-  subSuiteToIR suite
+    trueBranch <-  subSuiteToIR (Sub.PySuite suite)
     falseBranch <-  subStmtToIR (Sub.CondStmt elifs elseSuite)
     return $ IfE condE trueBranch falseBranch
 
