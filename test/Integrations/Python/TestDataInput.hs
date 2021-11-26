@@ -301,6 +301,14 @@ def algo(a, b):
 |]
 
 
+assignSet = [pythonModule|
+from testLib import *
+
+def algo(a, b):
+    x = {a,b,1,2,3}
+    return x
+|]
+
 --Test cases for State.hs ---------------------------------------------
 callMethod = [pythonModule|
 from testLib import *
@@ -376,23 +384,11 @@ iteLiteralArgs = [pythonModule|
 from testLib import *
 
 def algo(a): 
-    b = a
+    b = f(a)
     if b:
         x = f(13)
     else:
         x = g(14)
-    return x
-|]
-
-iteParamArgs = [pythonModule|
-from testLib import *
-
-def algo(a , b): 
-    c = a
-    if b:
-        x = f(a)
-    else:
-        x = g(b)
     return x
 |]
 
@@ -406,34 +402,6 @@ def algo(a,b):
         return
     return oneArg(d) 
 |] 
-
-iteNoParams = [pythonModule|
-from testLib import *
-
-def algo():
-    a = f()
-    b = f1(a)
-    c = f2(a)
-    if a:
-        d = g0(b)
-    else:
-        d = g1(c)
-    return oneArg(d) 
-|]
-
-iteParam = [pythonModule|
-from testLib import *
-
-def algo(a):
-    a = f()
-    b = f1(a)
-    c = f2(a)
-    if a:
-        d = g0(b)
-    else:
-        d = g1(c)
-    return oneArg(d) 
-|]
 
 iteRustExample = [pythonModule|
 from testLib import *
@@ -449,25 +417,54 @@ def algo(i):
     return oneArg(d) 
 |]
 
+iteStateful = [pythonModule|
+from testLib import *
+
+def algo(i):
+    mob = MObs(22) 
+    a = f(i)
+    if a:
+        mob.addNum(3)
+    else:
+        mob.addNum(23)
+    return mob
+|]
+
 condExprLit = [pythonModule|
 from testLib import *
 
 def algo(i):
     cond = f(i)
-    x = 0 if cond else 1
+    x = 1 if cond else 0
     return x
 |]
 
-condExpr = [pythonModule|
+condExprLitOnly = [pythonModule|
+from testLib import *
+
+def algo():
+    x = 1 if True else 2 
+    return x
+|]
+
+
+condExprComCond = [pythonModule|
 from testLib import *
 
 def algo(i):
-    c = f2(i)
-    b = id(i)
-    x = f(b) if c else g(42)
-    return x
+    a = f()
+    d = True if (a < 3) else False
+    return d 
 |]
 
+
+condExprFunCond = [pythonModule|
+from testLib import *
+
+def algo(i):
+    d = g() if f() else h()
+    return d 
+|]
 
 condExpr2 = [pythonModule|
 from testLib import *
@@ -480,45 +477,79 @@ def algo(i):
     return oneArg(d) 
 |]
 
+condExpr3 = [pythonModule|
+from testLib import *
+
+def algo(i):
+    a = f()
+    d = g0(b) if (a < 3) else g1(c)
+    return oneArg(d) 
+|]
+
+
+
+
 --Test cases for State.hs --------------------------------------------
 
 
 --Test cases for TailRec.hs --------------------------------------------
-tailRec= [pythonModule|
+tailRecExpr= [pythonModule|
 from testLib import *
-def algo(i):
+def algo2(i):
     j = g0(i)
-    return rec(j) if check(j) else j 
+    
+    returnV = j.id()
+    recursionFlag = j.id()
+
+    k = algo2(returnV) if check(recursionFlag) else returnV
+    return k
+
+def algo():
+    return algo2(1)
+|]
+
+tailRecStmt= [pythonModule|
+from testLib import *
+def algo2(i):
+    j = g0(i)
+    if check(j):
+        return algo2(j)
+    else: 
+        return j 
+
+def algo():
+    return algo2(1)
 |]
 
 tailRecMultiArg= [pythonModule|
 from testLib import *
-def rec(one, two):
+
+def algo(one, two):
     i = g0(one)
     j = g0(two)
     k = twoArgs(i,j)
     if check(k):
-        return rec(i, j)
+        return algo(i, j)
     else:
         return k
 
-def algo():
-    rec(2,  4)
+def algo2():
+    algo(2,  4)
 |]
 
 tailRecContext= [pythonModule|
 from testLib import *
-def rec(one):
+def algo(one):
     i = g0(one)
     j = f()
     k = twoArgs(i,j)
     if check(k):
-        return rec(k)
+        return algo(k)
     else:
         return k
 
-def algo():
-    rec(2)
+def algo2():
+    algo(2)
 |]
 
 ----------------

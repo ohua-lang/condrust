@@ -103,12 +103,19 @@ spec =
                 expected <- showCode "Expected:" Expect.assignDict
                 compiled `shouldBe` expected) 
 
+        it "Assign set with elements" $
+            (showCode "Compiled: " =<< compileCode Input.assignSet) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" Expect.tupleArgumentCall
+                compiled `shouldBe` expected) 
         
         it "Tuple as argument" $
             (showCode "Compiled: " =<< compileCode Input.tupleArgumentCall) >>=
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.tupleArgumentCall
-                compiled `shouldBe` expected) 
+                compiled `shouldBe` expected)
+
+        
         
 
         

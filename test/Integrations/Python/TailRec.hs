@@ -19,7 +19,7 @@ spec =
                 
         -}
         it "simple one argument" $
-            (showCode "Compiled: " =<< compileCodeWithRec Input.tailRec) >>=
+            (showCode "Compiled: " =<< compileCodeWithRec Input.tailRecExpr) >>=
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.tailRec
                 compiled `shouldBe` expected)

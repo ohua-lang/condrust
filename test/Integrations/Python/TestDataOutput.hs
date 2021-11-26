@@ -548,7 +548,7 @@ assignEmptyList = [pythonModule|
 import multiprocessing as mp
 x_0_0_0_sender, x_0_0_0_receiver = mp.Pipe()
 def task_1():
-    x_0_0_0 = list()
+    x_0_0_0 = []
     x_0_0_0_sender.send(x_0_0_0)
 from testLib import *
 def main(a_1, b_1):
@@ -592,7 +592,7 @@ assignEmptyDict = [pythonModule|
 import multiprocessing as mp
 x_0_0_0_sender, x_0_0_0_receiver = mp.Pipe()
 def task_1():
-    x_0_0_0 = dict()
+    x_0_0_0 = {}
     x_0_0_0_sender.send(x_0_0_0)
 from testLib import *
 def main(a_1, b_1):
@@ -749,7 +749,7 @@ ctrl_0_0_sender, ctrl_0_0_receiver = mp.Pipe()
 d_1_0_sender, d_1_0_receiver = mp.Pipe()
 n_0_0_0_sender, n_0_0_0_receiver = mp.Pipe()
 def task_1():
-    g_0_0_1 = dict()
+    g_0_0_1 = {}
     g_0_0_1_sender.send(g_0_0_1)
 def task_2():
     while True:
@@ -830,21 +830,15 @@ from testLib import *
 # ToDO
 |]
 
-iteParamArgs = [pythonModule|
-from testLib import *
-# ToDo
-|]
-
-
 branchReturn = [pythonModule|
 from testLib import *
 # ToDo
 |] 
 
-iteNoParams = [pythonModule|
+iteStateful = [pythonModule|
 from testLib import *
 # ToDo
-|]
+|] 
 
 iteRustExample = [pythonModule|
 from testLib import *

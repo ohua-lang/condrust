@@ -13,12 +13,16 @@ import Ohua.Core.Stage
 
 import Ohua.Compile.Compiler
 import Ohua.Compile.Config (intoStageHandling, Stage(..))
-import qualified Data.HashMap.Lazy as HM
+
+import qualified Ohua.Integration.Config as IC
+import qualified Ohua.Integration.Architecture as Arch
+
 
 import Language.Python.Common.AST
 import Language.Python.Version3 as V3
 import Language.Python.Common (prettyText, Token)
 import Language.Python.Common.ParserMonad (ParseError)
+import Language.Python.Common.SrcLocation (SrcSpan)
 import qualified Language.Python.Common.Pretty as PyPretty
 
 import qualified Integrations.Python.TestDataInput as Input
@@ -32,14 +36,15 @@ import Data.Text.Prettyprint.Doc as PP
 import Data.Text.Prettyprint.Doc.Render.Text as PP
 import Data.Text as T (concat, Text, span, pack, unpack)
 import qualified Data.ByteString.Lazy.Char8 as L
-import Language.Python.Common.SrcLocation (SrcSpan)
+import qualified Data.HashMap.Lazy as HM
+
 
 type ParseResult = Either ParseError (ModuleSpan, [Token])
 
 -- TODO turn this into a parameter for a particular test
 -- TODO: remove redundancy among rust.utils and python.utils
 debug :: Bool
-debug = True -- False
+debug = False -- True -- False
 
 withDebug :: Options -> Options
 withDebug d = d & stageHandling .~ debugStageHandling
@@ -69,6 +74,9 @@ debugStageHandling =
 renderPython:: (PyPretty.Pretty a)=> a -> Text
 renderPython = T.pack . prettyText
 
+integrationOptions :: IC.Config
+integrationOptions = IC.Config Arch.MultiProcessing $ IC.Options Nothing Nothing
+
 compileCodeWithRec :: Module SrcSpan -> IO (Module SrcSpan)
 compileCodeWithRec inCode = compileCode' inCode $ withRec def
 
@@ -83,7 +91,7 @@ wrappedParsing pyCode filename = do
         Right (mod_span, _comments) -> mod_span
 
 --TODO: Change return types once compiling is implemented 
-compileCode' ::  Module SrcSpan  -> Options -> IO (Module SrcSpan)
+compileCode' ::  Module SrcSpan -> Options -> IO (Module SrcSpan)
 compileCode' inCode opts =
      withSystemTempDirectory "testDir"
         $ \testDir -> do
@@ -99,12 +107,14 @@ compileCode' inCode opts =
                 $ \outDir -> do
                     let compScope = HM.empty
                     let options = if debug then withDebug opts else opts
+                    traceM "before runCompM"
                     runCompM
                         LevelWarn
-                        $ compile inFile compScope options outDir
+                        $ compile inFile compScope options integrationOptions outDir
                     (caller:modules) <- listDirectory outDir
+                    putStr filesHint
                     mapM_ putStr (caller:modules)
-                    files <- mapM (\name -> readFile (outDir </> name)) (caller:modules)
+                    -- files <- mapM (\name -> readFile (outDir </> name)) (caller:modules)
                     producedFile <-readFile (outDir </> "algo.py")
                     newMain <-readFile (outDir </> "test.py")
                     putStr newMainStr
@@ -112,12 +122,7 @@ compileCode' inCode opts =
                     putStr algoModStr 
                     putStr $ producedFile  <> "\n"
                     return $ wrappedParsing  (T.unpack producedFile) (takeFileName inFile)
-                    {-- Dummy replacement for 'id compilation'
-                    writeFile
-                        (outDir </> takeFileName inFile)
-                        (renderPython inCode)
-                    contents <- readFile (outDir </> takeFileName inFile)
-                    let outCode = wrappedParsing (T.unpack contents) "test.py"--}
+                   
 
 showCode :: T.Text -> Module SrcSpan -> IO T.Text
 showCode msg ast =
@@ -136,3 +141,6 @@ newMainStr = "\nNew__MainModule_____________\n"
 
 algoModStr :: String
 algoModStr = "\nAlgo__Module_____________\n"
+
+filesHint :: String
+filesHint = "\n\nPRODUCED THE FOLLOWING FILES _______________:\n\n"
