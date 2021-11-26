@@ -51,7 +51,8 @@ data Expr =
     | List [Expr]
     -- | ListComp Context Expr Target Expr -- ^ x = [f(t) for t in ts] gives ListComp x f(t) t ts 
     | Dict [(Expr, Expr)]
-    -- TODO: test this bevore it's included
+    | Set [Expr]
+    -- TODO: test this bevor it's included
     -- \| ParenExpr
     deriving (Eq, Show)
 

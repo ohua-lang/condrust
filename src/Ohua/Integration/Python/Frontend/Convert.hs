@@ -146,6 +146,10 @@ exprToSubExpr (Py.Dictionary dictMappings annot) = do
     exprs' <- mapM dictMapToSub dictMappings
     return $ Sub.Dict exprs'
 
+exprToSubExpr (Py.Set exprs annot) = do
+    exprs' <- mapM exprToSubExpr exprs
+    return $ Sub.Set exprs'
+
 exprToSubExpr lL@Py.LongInt{} = unsupError "LongInts" lL
 exprToSubExpr fL@(Py.Float valDbl strRepr annot) = unsupError "Floats" fL
 exprToSubExpr imL@(Py.Imaginary valDbl strRepr annot) = unsupError "Imaginaries" imL
@@ -162,7 +166,6 @@ exprToSubExpr await@(Py.Await expr annot) = unsupError "await expression" await
 
 exprToSubExpr listComp@(Py.ListComp comprehension annot) = unsupError "list comprehensions" listComp
 exprToSubExpr dictComp@(Py.DictComp compehension annot) = unsupError "dict comprehensions" dictComp
-exprToSubExpr set@(Py.Set items annot) = unsupError "set expressions" set
 exprToSubExpr setComp@(Py.SetComp comprehension annot) =  unsupError "set comprehensions" setComp
 exprToSubExpr starred@(Py.Starred expr annot) = unsupError "Starred Expressions" starred
 -- TODO/Question: I need to know all possible occurences of parenthesized expressionss and 
@@ -300,3 +303,9 @@ py2Error expr = throwError $ "For whatever reason you managed to get the exclusi
 
 makeLoopRef :: String -> SrcSpan -> String
 makeLoopRef loopKind loc = loopKind ++ "_"
+{-
+data UnsupportedSyntaxError a = (Show a)=> UnsupportedSyntax String a
+instance Error (UnsupportedSyntaxError a) where
+    noMsg = UnsupportedSyntax ""
+    strMsg s = UnsupportedSyntax s
+-}

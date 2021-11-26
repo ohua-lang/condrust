@@ -222,6 +222,10 @@ convertFunCall arch TupleConstructor args =
     wrapSubExpr $ Sub.Tuple items
     where items = map (unwrapSubStmt . convertExpr arch) args
 
+convertFunCall arch SetConstructor args = 
+    wrapSubExpr $ Sub.Set items
+    where items = map (unwrapSubStmt . convertExpr arch) args
+
 convertFunCall arch op [arg] | isJust $ unOp op =
     wrapSubExpr $ Sub.UnaryOp (fromJust $ unOp op) arg'
     where
@@ -300,3 +304,6 @@ pattern DictConstructor <- QualifiedBinding [] "dict"
 
 pattern TupleConstructor::QualifiedBinding
 pattern TupleConstructor <- QualifiedBinding [] "tuple"
+
+pattern SetConstructor::QualifiedBinding
+pattern SetConstructor <- QualifiedBinding [] "set"

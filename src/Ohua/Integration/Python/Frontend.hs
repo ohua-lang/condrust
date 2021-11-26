@@ -1,7 +1,7 @@
 {-# LANGUAGE InstanceSigs#-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ConstraintKinds #-}
-{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
+-- {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 
 module Ohua.Integration.Python.Frontend where
 
@@ -277,6 +277,11 @@ subExprToIR (Sub.Dict mappings) = do
     exprs' <- mapM (\(k,v) -> subExprToIR $ Sub.Tuple [k,v]) mappings
     dictCall <- toFunRefLit "dict"
     return $ AppE dictCall exprs'
+
+subExprToIR (Sub.Set  exprs) = do
+    exprs' <- mapM subExprToIR exprs
+    setCall <- toFunRefLit "set"
+    return $ AppE setCall exprs'
 
 mappingToTuple ::ConvertM m => (Sub.Expr, Sub.Expr) -> m (FrLang.Expr PythonArgType)
 mappingToTuple (key, value) = do

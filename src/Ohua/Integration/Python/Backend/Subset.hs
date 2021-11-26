@@ -33,6 +33,7 @@ data Expr =
     | Tuple [Expr] 
     | List [Expr]
     | Dict [(Expr, Expr)]
+    | Set [Expr]
     -- TODO: Subscript in the python AST does not 
     -- make a difference between tuples and lists
     -- So actually I use the 'universal' subscript expr,

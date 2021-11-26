@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 {-|
 Module      : Python.Backend.Convert
 Description : Converts supported backend subset to elements of the python AST
@@ -67,6 +66,7 @@ subToExpr (Sub.CondExpr condE thenE elseE) =
 subToExpr (Sub.Tuple exprs) = Py.Tuple (map subToExpr exprs) noSpan
 subToExpr (Sub.List exprs) = Py.List (map subToExpr exprs) noSpan 
 subToExpr (Sub.Dict tuples) = Py.Dictionary (map subToDictItem tuples) noSpan
+subToExpr (Sub.Set exprs) = Py.Set (map subToExpr exprs) noSpan 
 
 subToExpr (Sub.TplSubscript bnd pos) =
     Py.Subscript
