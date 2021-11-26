@@ -19,12 +19,7 @@ newtype Suite  =  PySuite [Stmt]
   deriving (Eq, Generic, Show)
 
 data Stmt  = 
-    -- TODO: need to specify that only while and for
-    --  with empty elseBlock are supported
     WhileStmt Expr Suite 
-    -- Question: Do i express the fact, that we do not support 
-    -- else-branches for While/For by leaving out the according part
-    -- of the original constructor ? 
     | ForStmt Target Expr Suite 
     | CondStmt [(Expr, Suite )] Suite 
     -- TODO: Rework when/if assignments and returns of lists of targets are supported
@@ -41,24 +36,15 @@ data Expr =
     | Int Integer 
     | Bool Bool
     | None
-    -- MethodCalls are not a separete token. They are 'Calls' where:
+    -- MethodCalls are not a separate token. They are 'Calls' where:
     -- A) the call_fun attribute is a dotExpr and 
     -- B) it is not a class method or a toplevel function of an imported module
-    -- > We don't see the implicit 'self' argument in method calls, So the question is:
-    -- (How) can we distiguish method calls on statefull objects 
-    -- from calls to functions in other namespaces :-/
     | Call FRef [Argument]
     | CondExpr Expr Expr Expr 
     | BinaryOp BinOp Expr Expr
     | UnaryOp UnOp Expr
     | Lambda [Param] Expr
-    -- TODO: in Dot =>  Expr = Var Ident | Dot DotExpr Ident 
-    -- Question: Appart from method calls, Dot's also represent attribute access. 
-    -- This is equivalent to FieldAccess in Rust, so we do not generally support it.
-    -- So is it a part of the subset or not? 
-    -- | Dot QualifiedBinding 
     | Tuple [Expr]
-    -- TODO: Currentyl we only support the constructor for an empty list
     | List [Expr]
     | Dict [(Expr, Expr)]
     -- TODO: test this bevore it's included
@@ -80,7 +66,7 @@ data UnOp =  Not | Invert  deriving (Show, Eq, Generic)
 
 data Argument = Arg Expr deriving (Eq, Show) -- StarArg Expr | StarKwArg Expr | KwArg Expr Ident  
 
-{-TODO first Maybe is an optional type annotation, second Maybe is the default-}
+-- Note: first Maybe is an optional type annotation, second Maybe is the default
 data Param = Param Binding deriving (Eq, Show) {-- (Maybe Expr) (Maybe Expr)| ArgsParam Binding | KwargsParam Binding -}
 
   
@@ -93,9 +79,7 @@ data Param = Param Binding deriving (Eq, Show) {-- (Maybe Expr) (Maybe Expr)| Ar
     -- > Do I loos meaning when I map both to the IR TupP ?
     -- TODO: Check if Rust now supports subscriptions to attributes or slices
     -- TODO: Should I introduce a separate symbol for '_' Bindings?
-
     -- TODO: Dots can also be patterns but we currently do not support attribute access
-    -- DotP QualifiedBinding
 data Target = Single Binding | Tpl [Binding]   deriving (Show, Eq, Generic)
 
 -- TODO: Comment in when I have augmented assignments

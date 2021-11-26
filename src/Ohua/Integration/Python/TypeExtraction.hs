@@ -25,7 +25,7 @@ type FunTypes = HM.HashMap QualifiedBinding (FunType PythonTypeAnno)
 extractFromFile :: CompM m => FilePath -> m FunTypes
 extractFromFile srcFile = extract srcFile =<< liftIO (load srcFile)
 
--- TODO: Given a filepath and an AST, ceate a Hashmap of contextualized funtion names (qualified bindings) and function types
+-- TODO: Given a filepath and an AST, create a Hashmap of contextualized funtion names (qualified bindings) and function types
 -- function types 
 -- Note: in Rust 'self' funtions are separate items (Impl) -> in Python identify via context (in a Suite of Class items)
 -- and expl. parse first arg as self is not a type in the parser 
@@ -56,7 +56,6 @@ extract srcFile (Module statements) = HM.fromList <$> extractTypes statements
                 [] -> return $ FunType $ Left Unit
                 (x:xs) -> convert x  =<< mapM convertArg xs
 
-        -- TODO: Instead of just ignoring anything ... parse types of parameters 
 
         convertArg :: (CompM m, Show a) => Parameter a -> m (ArgType PythonArgType)
         convertArg param@Param{} = return $ Type $ annotation_or_error param

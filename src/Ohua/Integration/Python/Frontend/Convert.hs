@@ -39,26 +39,30 @@ stmtToSub forE@(Py.For targets generator body [] annot) = do
     body' <- suiteToSub body
     return $ Sub.ForStmt targets' generator' body'
 stmtToSub forE@(Py.For _ _ _ elseBlock _) = unsupError "else blocks in for expressions" forE
-{-Note: there's 2 complications with if's in python 
-    1st: there's elIfs -> this probably not hard, it just means i have to nes translation
-    2nd: there'r blocks inside and again, I can not exclude 'return' statements in python 
-    -> I assume rust function execution continues, when an if-block return a value, this is not the case in python 
 
+{-Note: there's 2 complications with if-Statements in python 
+    1st: there's elIfs -> this probably not hard, it just means i have to nest translation
+    2nd: there'r blocks inside the branches. I can not exclude 'return' statements from blocks in general in python 
+    -> I assume rust function execution continues, when an if-block return a value, this is not the case in python 
+    -> I'll need a separate handling for non-function blocks
 -}
 stmtToSub ifElifElse@(Py.Conditional ifsAndSuites elseSuite annot ) = do
     ifs <- mapM (exprToSubExpr . fst) ifsAndSuites
     suites <-  mapM (suiteToSub . snd) ifsAndSuites
     elseSuite' <- suiteToSub elseSuite
     return $ Sub.CondStmt (zip ifs suites)  elseSuite'
+
 stmtToSub stmt@(Py.StmtExpr expr annot) = do 
     expr' <- exprToSubExpr expr
     return $ Sub.StmtExpr expr'
+    
 stmtToSub ret@(Py.Return Nothing annot) = return $ Sub.Return Nothing
 stmtToSub ret@(Py.Return (Just expr) annot) = do
     expr' <- exprToSubExpr expr
     return $ Sub.Return (Just expr')
--- Todo: is it valid to translate 'pass' to 'UnitLit'?
-{- 'pass' as a function body -> equiv. to 'return None' -> works
+
+{- Is it valid to translate 'pass' to 'UnitLit'?
+    'pass' as a function body -> equiv. to 'return None' -> works
     'pass' TL -> not relevant, we only look inside algos
     'pass' in a class defintion -> we don't touch those either, so that should be ok
     'pass' in a branch -> in the backend, the only point where 'UnitLit' is translated to
@@ -85,15 +89,13 @@ stmtToSub stmt@Py.Break{} = unsupError "break statements" stmt
 stmtToSub stmt@Py.Continue{} = unsupError "continue statements" stmt
 stmtToSub stmt@Py.Delete{} = unsupError "delete statements" stmt
 
--- TODO: We will probably never support this
 stmtToSub stmt@Py.Global{} = unsupError "global keyword"stmt
 stmtToSub stmt@Py.NonLocal{} = unsupError "nonlocal keyword"stmt
 stmtToSub stmt@Py.Assert{} = unsupError "assertions"stmt
 stmtToSub stmt@Py.Print{} = py2Error stmt
 stmtToSub stmt@Py.Exec{} = unsupError "exec statements"stmt
-{-
 
--}
+
 exprToSubExpr :: (Monad m, MonadError Error m) => Py.Expr SrcSpan -> m Sub.Expr
 exprToSubExpr Py.Var {var_ident=ident} =   return $ Sub.Var $ toBinding ident
 exprToSubExpr (Py.Int val strRepr annot) = return $ Sub.Int val
@@ -126,7 +128,6 @@ exprToSubExpr (Py.Tuple exprs annot) = do
     exprs' <- mapM exprToSubExpr exprs
     return $ Sub.Tuple exprs'
 
-
 exprToSubExpr lam@(Py.Lambda params expr annot) = do
     params' <- mapM paramToSub params
     expr' <- exprToSubExpr expr 
@@ -149,21 +150,11 @@ exprToSubExpr strsL@(Py.Strings strings annot) = unsupError "Strings Literals" s
 exprToSubExpr ustrL@(Py.UnicodeStrings strings annot) = unsupError "UnicodeStrings Literals" ustrL
 exprToSubExpr subSc@(Py.Subscript subscripted subscript annot) = unsupError "Subscript Expressions" subSc
 exprToSubExpr slice@(Py.SlicedExpr sliced slices annot) = unsupError "Slicing Expressions" slice
--- TODO: Dotted's can be function references (in statefull calls) or attribute references
--- as the latter one is not supported we do not gerenally support Dot expressions
 exprToSubExpr dot@(Py.Dot object attribute annot) = unsupError "Attribute references" dot
 exprToSubExpr yield@(Py.Yield mayBeArg annot) = unsupError "Yield Expressions" yield
 exprToSubExpr gen@(Py.Generator comprehension annot) = unsupError "generator expression " gen
 exprToSubExpr await@(Py.Await expr annot) = unsupError "await expression" await
 
--- TODO/Note: It would at first glance be possible to translate lists, sets and dictioniries to tuples
--- In a way, this enforces 'functional' usage of them i.e. recreating insted of mutating
---But: Problems in Frontend/for Transormations
-    -- Slicing with nth would not work for dicts (I could build a workarround maybe for slice expressions in the frontend)
-    -- Appending works differently for sets (no duplicates)
--- Problems in Backend: 
-    -- I can not distiguish Tuples from 'Tupled-Containers' and calls
-    --  like l.pop(), l.items(), l.values(), l.intersect() will fail  
 exprToSubExpr listComp@(Py.ListComp comprehension annot) = unsupError "list comprehensions" listComp
 exprToSubExpr dictComp@(Py.DictComp compehension annot) = unsupError "dict comprehensions" dictComp
 -- TODO: Could be a list, but we'd loose distinction in the backend as with dicts :-(
@@ -212,7 +203,7 @@ exprToTarget:: (Monad m, MonadError Error m) => Py.Expr SrcSpan -> m Sub.Target
 exprToTarget Py.Var {var_ident=ident} = return $ Sub.Single $ toBinding ident
 exprToTarget (Py.Tuple exprs annot) = Sub.Tpl <$> mapM (varOrFail <=< exprToTarget) exprs
 exprToTarget (Py.Paren (Py.Tuple exprs an) ann) = Sub.Tpl <$> mapM (varOrFail <=< exprToTarget) exprs
-{-Question: Can we have list patterns?-}
+-- Question: Can we have list patterns?
 exprToTarget lst@(Py.List exprs annot) = unsupError "lists as patterns" lst
 exprToTarget dot@(Py.Dot exprs termVar annot) = unsupError "attribute assignment" dot
 -- Question: I assume it's troublesome for some reason to translate this (probably because in haskell 
@@ -295,12 +286,8 @@ chainBindings lst (Py.Dot expr ident annot) =
 unsupError :: (MonadError e m, Semigroup e, IsString e, Show a1) => e -> a1 -> m a2
 unsupError text expr = throwError $ "Currently we do not support "<> text <>" used in: "<> show expr
 
---TODO: can this be my responsibility in any way or redirect to bjpop@csse.unimelb.edu.au here ?
 py2Error expr = throwError $ "For whatever reason you managed to get the exclusively version 2 expression "
                                 <> show expr <> " through the python3 parser of language-python."
 
 makeLoopRef :: String -> SrcSpan -> String
--- TODO: Case we like the idea, propagate ScrSpan => a throug all fknts and
--- produce name based on coords here. 
--- Alternative make case distinction here if we may want to change the annotations
 makeLoopRef loopKind loc = loopKind ++ "_"

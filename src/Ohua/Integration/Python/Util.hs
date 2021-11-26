@@ -77,8 +77,3 @@ joinProcs = StmtExpr {stmt_expr = Call {call_fun = Var {var_ident = Ident {ident
 returnResult :: Statement SrcSpan
 returnResult= Return {return_expr = Just (Var {var_ident = Ident {ident_string = "result", ident_annot = SpanEmpty}, expr_annot = SpanEmpty}), stmt_annot = SpanEmpty}
 
-
-ifNameIsMain = BinaryOp{ 
-    operator = Equality{}, 
-    left_op_arg = Var {var_ident = Ident {ident_string = "__name__"}}, 
-    right_op_arg = Strings {strings_strings = ["'__main__'"]}}

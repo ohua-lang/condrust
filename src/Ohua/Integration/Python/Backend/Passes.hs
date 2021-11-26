@@ -6,7 +6,5 @@ import Ohua.Integration.Transform.DataPar (dataPar)
 import Ohua.Prelude
 
 
--- TODO configuration flag
-enableDataPar =False
 
-passes = StateDFL.load $ if enableDataPar then dataPar else def
+passes = StateDFL.load . dataPar

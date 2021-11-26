@@ -69,7 +69,9 @@ runIntegration :: CompM m
 runIntegration ext (Config arch options) comp = do
   integration <- case ext of
     ".rs" -> case arch of
-               SharedMemory -> return $ I SRust SSharedMemory $ Just $ passes options
+               SharedMemory -> return $ I SRust SSharedMemory $ Just $ RustPasses.passes options
                M3 -> return $ I SRust SM3 Nothing
+    ".py" -> case arch of
+               MultiProcessing-> return $ I SPython SMultiProc Nothing 
     _ -> throwError $ "No language integration defined for files with extension '" <> ext <> "'"
   apply integration comp

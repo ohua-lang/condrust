@@ -21,11 +21,13 @@ import Data.Functor.Foldable (cata, embed)
 import Data.Maybe
 
 
-
+{-| Convert a task to a function block of the
+    subset Language.
+-}
+-- Todo: Check if Let is really something different
 convertToSuite::(Architecture arch, Lang arch ~ Language 'Python)
     => arch -> TaskExpr PythonTypeAnno -> Sub.Suite
 convertToSuite arch (TCLang.Let varName valExpr inExpr) =
-    -- In python there is no syntactical difference between assigning and defining a variable and setting it to a value
     convertExpr arch (TCLang.Assign varName valExpr) : convertToSuite arch inExpr
 convertToSuite arch (TCLang.Stmt stmt otherStmts) =
     convertExpr arch stmt : convertToSuite arch otherStmts
@@ -41,17 +43,11 @@ instance Integration (Language 'Python) where
     type Expr (Language 'Python) = Sub.Stmt
     type Task (Language 'Python) = Sub.Suite
 
-{--Note:  lower should basically turn a Programm (Backend.Types) of taskExpressions
-     (actually a function that returns the expression inside a FullExpression) 
-     into a task as defined for the Backend (in this case a Python.Suite).-}
-
-    -- Basically converts Backend Language () to AST again but adds functionality to receive and send 
-    -- local vars from to channels
+    {- | Lower basically turns a Programm (Backend.Types) of taskExpressions 
+         into a task as defined for the Backend (in this case a subset Suite).
+    -}
     lower (Module filePath (Py.Module statements)) arch nameSpace = do
         return $
-            -- Note: '&' -> forward application (reverse $), '%~'-> Setter from Lens
-            -- means -> map function: algoCode of algos is set by convertTask(annotation algo)
-            -- return->  ns algos, where algos are set by the map functione
             nameSpace & algos %~ map (\algo -> algo & algoCode %~ convertTasks (algo^.algoAnno))
         where
             convertTasks (Py.Fun id params opt_anno body anno) (Program chans (SRecv argType channel) tasks) =
@@ -67,51 +63,30 @@ instance Integration (Language 'Python) where
                 e -> embed e
 
             argToVar :: Py.Parameter a -> TCLang.TaskExpr PythonTypeAnno
-            -- argToVar Py.EndPositional{} = undefined -- they shall not pass B-)...no, actually they just not pass the frontend
             argToVar param = Var $ toBinding $ Py.param_name param
 
     convertExpr _ (TCLang.Var bnd) = wrapSubExpr $ Sub.Var bnd
-    -- Question: Are there only Int literals? What about Floats ? 
     convertExpr _ (TCLang.Lit (NumericLit i)) = wrapSubExpr $ Sub.Int i
     convertExpr _ (TCLang.Lit (BoolLit b)) = wrapSubExpr $ Sub.Bool b
     convertExpr _ (TCLang.Lit UnitLit) = wrapSubExpr Sub.None
     convertExpr _ (TCLang.Lit (EnvRefLit _hostExpr)) = error "Host expression encountered! This is a compiler error. Please report!"
-    {-
-    -- Question: What are the function IDs?
-    -- ! TODO: The NS references do not refere to original names but ohua namespace names 
-    -}
+
     convertExpr _ (TCLang.Lit (FunRefLit (FunRef qBnd mFunID _type))) = case qBnd of
         (QualifiedBinding [] bnd) -> wrapSubExpr (Sub.Var bnd)
         (QualifiedBinding refNames bnd)  -> wrapSubExpr $ Sub.Var $ dotConcat refNames bnd
 
     convertExpr arch (Apply (Stateless bnd args)) = convertFunCall arch bnd args
-    -- There are no different definitions for functions and methods in Python
     convertExpr arch (Apply (Stateful stateBnd funBnd args)) =
         wrapSubExpr $
             Sub.Call
                 (Sub.DotExpr (unwrapSubStmt $ convertExpr arch stateBnd) funBnd)
                 (map (convertArgument arch) args)
 
-
-
-    -- The Rust approach wont work in Python, again because I have no single Expressions or Statements,
-    -- to wrap a list of statements
-    -- Question: I assume this is the way, Tasks are actually structured i.e. 
-    -- let y_0_0 = recv() in 
-        -- let z_0_0 = recv() in
-            -- do stuff
-    -- > Based on this assumption I'll try to handle that case in convertToSuite
     convertExpr arch (TCLang.Let varName valExpr inExpr) =
        error $ "Todo: I thought I could handle this elsewhere but 'Let "<> show varName <> "' came accross"
     convertExpr _ (TCLang.Stmt expr1 expr2) = error "Todo: Stmt conversion should be handled elsewhere. Please file a bug"
 
     convertExpr arch (TCLang.Assign bnd expr) =
-        -- Question: An equivalent to 'prependToBlock' would be pointless as long as I don't wrap function blocks into e.g. 
-        -- a StmtExpr...which itself is pointless beyonde the point of type compat 
-        -- But what's the purpose of the TCLang.Lit UnitLit? Is it the 'return None' at the end of the produced block?
-        -- In rust integration: 
-            {--[Semi (Rust.Assign [] (convertExpr arch $ Var bnd) (convertExpr arch expr) noSpan) noSpan]
-            $ convertExpr arch $ TCLang.Lit UnitLit --}
         Sub.Assign
             [Sub.Var bnd]
             (unwrapSubStmt $ convertExpr arch expr)
@@ -119,13 +94,13 @@ instance Integration (Language 'Python) where
     convertExpr arch (TCLang.ReceiveData recv) = convertRecv arch recv
     convertExpr arch (TCLang.SendData send) = convertSend arch send
 
-    --- specific control flow
     convertExpr arch (TCLang.EndlessLoop expr) =
         let suite = convertToSuite arch expr
             condition = Sub.Bool True
         in Sub.WhileStmt condition suite
 
-    -- Todo: Maybe rather make this a comprehension
+    -- Todo: Can we find out, if the function applied 'forEach' is just a call such that
+    --       we could wrap this in a comprehension ? 
     convertExpr arch (TCLang.ForEach itemBnd itemsBnd expr) =
         let suite = convertToSuite arch expr
             targets = [Sub.Var itemBnd]
@@ -154,7 +129,6 @@ instance Integration (Language 'Python) where
             elseBranch = convertToSuite arch elseExp
         in Sub.CondStmt ifElifs elseBranch
 
-    --- specific functions
     -- TODO: hasSize = True if hasattr(bnd, '__len__') 
         -- Current solution has some pros and cons... check and change if required
     convertExpr arch (TCLang.HasSize bnd) =
@@ -173,8 +147,7 @@ instance Integration (Language 'Python) where
 
     convertExpr arch (TCLang.ListOp (Append bnd expr)) =
         convertExpr arch $ Apply $ Stateful (Var bnd) (mkFunRefUnqual "append") [expr]
-    -- Todo: Actually we have nothing matching tuple in python as the backend tuple just has two components
-    -- and list are homogenous :-/ 
+    
     convertExpr arch (TCLang.Tuple one two) =
         let conv =  unwrapSubStmt . convertExpr arch . either TCLang.Var TCLang.Lit
         in  wrapSubExpr $ Sub.Tuple [conv one, conv two]
@@ -185,11 +158,9 @@ instance Integration (Language 'Python) where
         Sub.TplSubscript bnd 1
 
     convertExpr arch (TCLang.Increment bnd) =
-        --Sub.AugmentedAssign (Sub.Var bnd) Sub.PlusAssign (Sub.Int 1)
         convertExpr arch $
             Apply $ Stateless (mkFunRefUnqual "+") [Var bnd, TCLang.Lit $ NumericLit 1]
     convertExpr arch (TCLang.Decrement bnd) =
-        -- Sub.AugmentedAssign (Sub.Var bnd) Sub.MinusAssign (Sub.Int 1)
         convertExpr arch $
             Apply $ Stateless (mkFunRefUnqual "-") [Var bnd, TCLang.Lit $ NumericLit 1]
     convertExpr arch (TCLang.Not expr) =  wrapSubExpr $
@@ -274,7 +245,7 @@ convertFunCall arch funRef args =
 
 convertArgument:: (Architecture arch, Lang arch ~ Language 'Python) =>
     arch -> TaskExpr PythonTypeAnno -> Sub.Argument
--- TODO: Translating args and kwargs at the frontend I just prepend their names with '*'/'**'
+-- TODO: If I could translate args and kwargs at the frontend I'd maybe just prepend their names with '*'/'**'
 -- > Check if translating this back just using normal args yields same behaviour
 -- > Currently original type annotation and default are lost in translation (no pun intended) anyways, otherwise 
 -- doing it this way would theoretically allow args/kwars with type annotation or defaults so actually this should not be 
@@ -305,8 +276,7 @@ bToString = unpack . unwrap
 asUntypedFunctionLiteral qBinding = TCLang.Lit $ FunRefLit $ FunRef qBinding Nothing Untyped
 
 -- | Turn an unqualified binding (just a name) 
---  into a qualified binding (name with [import] context) with just no context
--- TODO: The name is confusing...kept for consistency though
+--   into a qualified binding (name with [import] context) with just no context
 mkFunRefUnqual :: Binding -> QualifiedBinding
 mkFunRefUnqual = QualifiedBinding (makeThrow [])
 
@@ -314,9 +284,9 @@ hasAttrArgs :: Binding -> [Sub.Argument]
 hasAttrArgs bnd = [Sub.Arg (Sub.Var bnd) , Sub.Arg (Sub.Strings ["'__len__'"] )]
 
 
--- | To be complient with the Integrtion class, 'convertExpr' has to return terms of type
--- 'Expr (Language 'Python)'. As the function needs to translate Statements, as well as Expressions
--- from the python AST, the later ones are wraped into and unwraped from Statements using this helpers
+-- | To be complient with the Integration class, 'convertExpr' has to return terms of type
+--  'Expr (Language 'Python)'. As the function needs to translate Statements, as well as Expressions
+--  from the python AST, the later ones are wraped into and unwraped from Statements using this helpers
 wrapSubExpr = Sub.StmtExpr
 unwrapSubStmt (Sub.StmtExpr expr) = expr
 unwrapSubStmt any = error $ "Tried to unwrap a statment other than StmtExpr " <> show any

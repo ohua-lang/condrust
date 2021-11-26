@@ -36,44 +36,51 @@ instance Architecture (Architectures 'MultiProcessing) where
     type Chan (Architectures 'MultiProcessing) = Sub.Stmt
     type ATask (Architectures 'MultiProcessing) = Py.Statement SrcSpan
 
-    -- | Convert a backend channel i.e. an arc in the DFG to an expression of the target architecture
-    -- | that instantiates the according process communication channel
+    {- | Convert a backend channel i.e. an arc in the DFG to an expression of the target architecture
+         that instantiates the according process communication channel
+    -}
     convertChannel SMultiProc (SRecv argTy( SChan bnd))=
         let expr = unwrapSubStmt $ convertExpr SMultiProc $ Apply $ Stateless (QualifiedBinding (makeThrow []) "mp.Pipe") []
             send = unwrapSubStmt $ convertExpr SMultiProc $ TCLang.Var $ bnd <> "_sender"
             recv = unwrapSubStmt $ convertExpr SMultiProc $ TCLang.Var $ bnd <> "_receiver"
         in Sub.Assign [Sub.Tuple [send, recv]] expr
 
-    -- | Converts an 'incomming edge' of a backend channel into an expression of the target architecture
-    --  to receive from a process communication channel 
+    {- | Converts an 'incomming edge' of a backend channel into an expression of the target architecture
+      to receive from a process communication channel 
+    -}
     -- Todo: Rust wraps that in a 'try'. Receiving is blocking 
     -- and raises EOFError if there's nothing left to receive and the sender is allready closed
         -- > Do I need to wrap this also?
     convertRecv SMultiProc  (SRecv _type (SChan channel)) =
-    -- currently this will yield $channel_reciever.recv()           
+     -- currently this will yield $channel_reciever.recv()           
         convertExpr SMultiProc $
             Apply $ Stateful (TCLang.Var $ channel <> "_receiver") (mkFunRefUnqual "recv") []
 
-    -- | Converts the 'outgoing edge' of a backend channel into an expression of the target architecture
-    -- | to send the result of the node computation to a process communication channel 
+    {- | Converts the 'outgoing edge' of a backend channel into an expression of the target architecture
+         to send the result of the node computation to a process communication channel 
+    -}
     -- Todo: Sending is only valid for picklable objects, i.e. basic Types, things def'd at TL of a module
         -- and ADTs thereof. Restriction on the Frontend should actualy prohibit non-TL def's. Also objects 
         -- must not exceed ~ 32MiB. I might need to catch PickleError's or ValueError's here
-    convertSend SMultiProc  (SSend (SChan chnlName) toSend)=
-        convertExpr SMultiProc $
-            Apply $ Stateful (TCLang.Var $ chnlName <> "_sender") (mkFunRefUnqual "send") [TCLang.Var toSend]
+    convertSend SMultiProc  (SSend (SChan chnlName) toSend) = 
+        let sendItem = case toSend of
+                Left varBnd -> TCLang.Var varBnd
+                Right literal -> TCLang.Lit literal
+        in convertExpr SMultiProc $
+            Apply $ Stateful (TCLang.Var $ chnlName <> "_sender") (mkFunRefUnqual "send") [sendItem]
 
 
-    -- Wraps the tasks i.e. codeblocks of host language function calls and 'wiring' to send and
-    -- receive into actual independent tasks, in this case named closures because lambdas are to limited in python  
+    {- | Wraps the tasks i.e. codeblocks of host language function calls and 'wiring' to send and
+         receive into actual independent tasks, in this case named closures because lambdas are to limited in python  
+    -}
     build SMultiProc (Module fPath (Py.Module stmts)) ns =
         return $ ns & algos %~ map (\algo -> algo & algoCode %~ createTasksAndChannels)
-
-        where
-            -- Tasks are enumerated to create named functions task_1, task_2 ...
+    -- TODO: At this point 
+        where 
             createTasksAndChannels (Program chans retChan tasks)  =
-                Program chans retChan (zipWith (curry taskFromSuite) [1..] tasks)
+                Program chans retChan (zipWith (curry taskFromSuite) [1..] tasks) 
 
+            -- ^ Tasks are enumerated to create named functions task_1, task_2 ...
             taskFromSuite:: (Int, FullTask ty Sub.Suite)
                  ->  FullTask ty (Py.Statement SrcSpan)
             taskFromSuite (num, FullTask ins out suite) = FullTask ins out fun
@@ -85,7 +92,11 @@ instance Architecture (Architectures 'MultiProcessing) where
                             (subToSuite suite)
                             noSpan
 
-    -- Critical TODO: receiving the result must happen before termination, but is blocking 
+    {- | Build the process management arround the tasks for each algorith i.e. produce algoModules,
+         and build a new caller module to replace the input libraray that i) imports those algo algoModules
+         as 'algo_parallel' and b) contains all original function calls with function bodies replaced by a 
+         call to the respective parallel module         
+    -}
     serialize  SMultiProc srcModule ns = return $ callerModule :| algoModules
         where
 
@@ -97,9 +108,9 @@ instance Architecture (Architectures 'MultiProcessing) where
             algoModules = map (makeAlgoModule srcModule) convertedAlgoInfos
             callerModule = makeParallelLib srcModule algoNames
 
--- | This function generates a new python module for every parallelized function from the input. Statements and imports from
--- | the original code are included in the new file
--- TODO : filter exisitng main functions
+{- | This function generates a new python module for every parallelized function from the input. 
+     Statements and imports from the original code are included in the new file
+-}
 makeAlgoModule :: Module -> (String, FullyPyProgram, [Py.Parameter SrcSpan]) -> (FilePath , L.ByteString)
 makeAlgoModule (Module path (Py.Module inputCode)) (algoName, prgrm@(Program _ _ tasks), params )=
     let taskList = enumeratedTasks tasks
@@ -111,9 +122,10 @@ makeAlgoModule (Module path (Py.Module inputCode)) (algoName, prgrm@(Program _ _
     in (modName, printableCode)
 
 
--- | This function produces a parallelized version of the input module that 
--- |    a) imports the modules generated from each function declaration
--- |    b) calls the respective main functions of those modules, instead of the original function code
+{- | This function produces a parallelized version of the input module that 
+        a) imports the modules generated from each function declaration
+        b) calls the respective main functions of those modules, instead of the original function code
+-}
 makeParallelLib :: Module -> [Binding] -> (FilePath , L.ByteString)
 makeParallelLib (Module path (Py.Module statements)) algoNames =
     let newImports = map makeImport algoNames
@@ -228,6 +240,7 @@ funOrMainCall stmt = case stmt of
     _ -> False
 
 
+modName :: Py.Parameter annot -> [Char] -> Py.Ident SrcSpan
 modName (Py.Param (Py.Ident name _) mTyp mDef anno) modV = Py.Ident (name++modV) noSpan
 
 
