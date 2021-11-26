@@ -2,9 +2,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
-{-|Slowly move frontend covnersion to this file withou messing up the 
-old frontend to much
-|-}
+
 module Ohua.Integration.Python.Frontend where
 
 import Ohua.Prelude
@@ -19,15 +17,14 @@ import Ohua.Integration.Python.TypeExtraction
 import Ohua.Integration.Python.Frontend.Convert (suiteToSub, paramToSub)
 import qualified Ohua.Integration.Python.Frontend.Subset as Sub
 
-import Language.Python.Common (SrcSpan (SpanEmpty))
+import Language.Python.Common (SrcSpan (SpanEmpty), Pretty (pretty))
 import qualified Language.Python.Common.AST as Py
 
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.List.NonEmpty as NE
 
--- Keep track of names and types 
--- > will be useful when/if annotated types are passed through
+-- | Contexts keepa track of names and types 
 type Context = HM.HashMap Binding Sub.PythonType
 type ConvertM m = (Monad m, MonadState Context m)
 
@@ -39,6 +36,12 @@ instance Integration (Language 'Python) where
     type Type (Language 'Python) =  PythonArgType
     type AlgoSrc (Language 'Python) = Py.Statement SrcSpan
 
+    {- | Loading a namespace means extracting 
+            a) function defintions to be complied and
+            b) imported references
+         from a given source file. Any other top-level statements will be
+         ignored for now. 
+    -}
     loadNs :: CompM m => Language 'Python -> FilePath -> m (Module, PythonNamespace)
     loadNs _ srcFile = do
             mod <- liftIO $ load srcFile
@@ -71,8 +74,6 @@ instance Integration (Language 'Python) where
                     return $ LamE args' block'
 
                 extractImports::CompM m => [Py.ImportItem SrcSpan] -> m [Import]
-                -- TODO: Normal imports are Globs, imports with an 'as' are Alias
-                -- > Full imports are allways Py.RelativeImport
                 extractImports [] = throwError "Invalid: Empty import should not have passed the python parser"
                 extractImports imports  = return $ map globOrAlias imports
 
@@ -81,9 +82,9 @@ instance Integration (Language 'Python) where
                     case mDottedName of
                         Just names -> case fromItems of
                             Py.ImportEverything annot -> return [Glob . makeThrow $ toBindings names]
-                            -- Question: Objects can also be imported by their 'real binding' or by alias
+                            -- Todo: Objects can also be imported by their 'real binding' or by alias
                             -- Which one should be the 'binding' in the Full Import?
-                            -- OOr can we introduce an alias also for Full Imports?
+                            -- Or can we introduce an alias also for Full Imports?
                             Py.FromItems items annot -> return $ map (fullByNameOrAlias names) items
                         -- Question: Can we solve this by resolving the path or will this inevitably cause problems in distrb. scenario?
                         -- TODO: I realy think we need this as I've literally seen absolut import failing in 'the cloud' cause of
@@ -106,8 +107,6 @@ instance Integration (Language 'Python) where
         where
             funsForAlgo :: CompM m => Algo (FrLang.Expr PythonArgType) (Py.Statement SrcSpan)
                     -> m [([NSRef], QualifiedBinding)]
-            -- extracts function literals from code and extracts for each the function
-            -- type ()
             funsForAlgo (Algo _name code annotation) = do
                 return []
 
@@ -122,7 +121,6 @@ instance Integration (Language 'Python) where
             verifyAndRegister :: CompM m => FunTypes -> ([NSRef], QualifiedBinding)
                         -> m (QualifiedBinding, FunType PythonArgType)
             verifyAndRegister fun_types ([candidate], qB@(QualifiedBinding _ qBName)) = undefined
-            -- TODO: Can this happen and what to do then?
             verifyAndRegister fun_types ( _ , qB@(QualifiedBinding _ qBName)) = undefined
 
             assignTypes :: CompM m => FunTypes -> FrLang.Expr PythonArgType -> m (FrLang.Expr PythonArgType)
@@ -150,8 +148,7 @@ instance Integration (Language 'Python) where
 
 fullByNameOrAlias :: Py.DottedName SrcSpan -> Py.FromItem SrcSpan -> Import
 fullByNameOrAlias dotted (Py.FromItem  ident Nothing annot) = flip Full (toBinding ident) . makeThrow $ toBindings dotted
--- TODO: What about aliasing fully qualified imports??
-fullByNameOrAlias dotted (Py.FromItem  ident (Just alias) annot) = undefined
+fullByNameOrAlias dotted (Py.FromItem ident (Just alias) annot) = flip Alias (toBinding alias) . makeThrow $ toBindings dotted ++ [toBinding ident]
 
 globOrAlias :: Py.ImportItem SrcSpan -> Import
 globOrAlias  (Py.ImportItem dotted Nothing  annot) = Glob . makeThrow $ toBindings dotted
@@ -216,9 +213,8 @@ subStmtToIR (Sub.CondStmt ifsAndSuits elseSuite) = do
 
 subStmtToIR (Sub.StmtExpr expr) = subExprToIR expr
 subStmtToIR Sub.Pass = return $ LitE UnitLit
--- subStmtToIR any = convError any
 
--- subExprToIR ::ConvertM m => Sub.Expr -> m (FrLang.Expr PythonArgType)
+
 subExprToIR :: ConvertM m => Sub.Expr -> m (FrLang.Expr PythonArgType)
 subExprToIR (Sub.Var bnd) = return $ VarE bnd
 subExprToIR (Sub.Int int) = return $ LitE $ NumericLit int
@@ -244,8 +240,8 @@ subExprToIR (Sub.Call (Sub.Direct lambdaExpr) args) = do
 
 subExprToIR (Sub.CondExpr condE trueExpr falseExpr) = do
     cond <- subExprToIR condE
-    true <- subSuiteToIR $ Sub.PySuite [Sub.StmtExpr trueExpr]
-    false <- subSuiteToIR $ Sub.PySuite [Sub.StmtExpr falseExpr]
+    true <- subExprToIR trueExpr
+    false <- subExprToIR falseExpr
     return $ IfE cond true false
 
 subExprToIR (Sub.BinaryOp binOp expr1 expr2) = do
@@ -271,28 +267,16 @@ subExprToIR (Sub.Tuple exprs) = do
     tupleCall <- toFunRefLit "tuple"
     return $ AppE tupleCall exprs'
 
--- TODO: Remove special case when tuple-issue is fixed
-subExprToIR (Sub.List []) = do
-    listCall <- toFunRefLit "list"
-    return $ AppE listCall []
-
 subExprToIR (Sub.List exprs) = do
     exprs' <- mapM subExprToIR exprs
     listCall <- toFunRefLit "list"
     return $ AppE listCall exprs'
-
---TODO: Remove when tuple-issue is fixed
-subExprToIR (Sub.Dict []) = do 
-    dictCall <- toFunRefLit "dict"
-    return $ AppE dictCall []
 
 -- | Mapping d = {1:2, 3:4} to d = dict(((1,2), (3,4)))
 subExprToIR (Sub.Dict mappings) = do
     exprs' <- mapM (\(k,v) -> subExprToIR $ Sub.Tuple [k,v]) mappings
     dictCall <- toFunRefLit "dict"
     return $ AppE dictCall exprs'
-
--- subExprToIR any =  convError any
 
 mappingToTuple ::ConvertM m => (Sub.Expr, Sub.Expr) -> m (FrLang.Expr PythonArgType)
 mappingToTuple (key, value) = do
@@ -355,16 +339,12 @@ listofPyType [] = Left Unit
 listofPyType (a:args') = Right $ map (const $ Type PythonObject) (a:|args')
 
 
+{- | Turns given string representation into literal expression representig an untyped, 
+     'unscoped' (the empty list in as Binding argument) function reference 
+-}
 toFunRefLit :: Monad m => Binding -> m (FrLang.Expr PythonArgType)
-{-- Note: Turns given string representation into literal expression representig an untyped, 
-'unscoped' (the empty list in as Binding argument) function reference 
--- Question: why untyped ? --}
 toFunRefLit string_repr = return $
                         LitE $ FunRefLit $
                         FunRef (QualifiedBinding (makeThrow []) string_repr) Nothing Untyped
 
-convError any = throwError $ "This shouldn't happen. Please file a bug about"
-                <>" missing conversion for the subset expression: " <> show any
-
 toBindings = map toBinding
-
