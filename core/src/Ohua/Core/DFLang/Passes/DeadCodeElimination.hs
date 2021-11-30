@@ -12,29 +12,22 @@ import qualified Ohua.Types.Vector as V
 
 eliminate :: (MonadOhua m) => NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
 eliminate expr = do
-  traceM "eliminate"
   expr' <- (eliminateExprs . eliminateOuts) expr
-  traceM "eliminat outs and exprs done!"
   case L.countBindings expr == L.countBindings expr' of
-    True -> do
-      traceM "eliminate done"
-      pure expr'
+    True -> pure expr'
     False -> eliminate expr'
 
 eliminateExprs :: forall m ty. (MonadOhua m) => NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
 eliminateExprs expr = do
-  traceM "eliminateExprs"
   expr' <- eliminateDeadExprs expr
-  traceM "eliminateDeadExprs done."
   case L.length expr == L.length expr' of
-    True -> trace "eliminateExprs done!" $ pure expr'
+    True -> pure expr'
     False -> eliminateExprs expr'
   where
     eliminateDeadExprs = transformExprM f
 
     f :: NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
     f (Let app@(PureDFFun out (FunRef fun _ _) _) cont) = do
-      traceM ("app: " <> show fun)
       case isUsed out of
           True -> pure $ Let app cont
           False -> warn fun >> return cont
@@ -51,8 +44,7 @@ eliminateExprs expr = do
     warning fun = liftIO $ T.putStrLn $ "[WARNING] The output of pure function '" <> show fun <> "' is not used. As such, it will be deleted. If the function contains side-effects then this function actually wants to be stateful!"
 
 eliminateOuts :: NormalizedDFExpr ty -> NormalizedDFExpr ty
-eliminateOuts expr =
-  trace "eliminateOuts done!" $ mapFuns go $ trace "eliminateOuts" expr
+eliminateOuts expr = mapFuns go expr
   where
     go (RecurFun c ctrlOut outArgs initArgs inArgs cond result) = do
       let ctrlOut' = filterOutData =<< ctrlOut

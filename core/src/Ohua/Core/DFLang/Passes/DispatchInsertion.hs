@@ -42,10 +42,7 @@ instance Semigroup Record where
 --   Core delegates the decision of cloning or not cloning to the language integration.
 -- TODO add proper documentation
 insertDispatch :: forall m ty. MonadGenBnd m => MonadOhua m => NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
-insertDispatch e = do
-  e' <- evalStateT (transformExprM go e) HM.empty
-  traceM ("Dispatch done: " <> show e')
-  return e'
+insertDispatch e = evalStateT (transformExprM go e) HM.empty
   where
     go :: NormalizedDFExpr ty -> StateT FreeVars m (NormalizedDFExpr ty)
     go l@(Let app cont) = do
@@ -60,7 +57,11 @@ insertDispatch e = do
           (cont', trueOut') <- dispatchOutput cont trueOut
           (cont'', falseOut') <- dispatchOutput cont' falseOut
           return $ Let (IfFun (trueOut', falseOut') dIn) cont''
-        (PureDFFun _ (FunRef f _ _) _) | f == DFLangRefs.ctrl -> collect app >> return l
+        (PureDFFun _ (FunRef f _ _) _)
+          | f == DFLangRefs.ctrl
+            || f == DFLangRefs.select
+            || f == DFLangRefs.collect
+            -> collect app >> return l
         (PureDFFun o f i) -> do
           (cont', o') <- dispatchOutput cont o
           return $ Let (PureDFFun o' f i) cont'
@@ -70,7 +71,7 @@ insertDispatch e = do
           return $ Let (StateDFFun (sOut', dOut') f sIn dIn) cont''
        -- TODO recurFun control output also needs to be dispatched!
         _ -> return l
-      modify $ \condIns -> foldl (flip HM.delete) condIns $ outBindings app
+      modify $ \outB -> foldl (flip HM.delete) outB $ outBindings app
       return l'
     go v = pure v
 
@@ -85,11 +86,6 @@ insertDispatch e = do
             (c', out') <- dispatchOutput cont out
             return (c', Just out')
        in maybeM (return (cont, dOut)) f $ return dOut
-    --    onOut c o = case o of
-    --      Nothing -> return (c, o)
-    --      Just out -> do
-    --        (c', out') <- foldMapOutData c out
-    --        return (c', Just out')
 
     dispatchOutput :: NormalizedDFExpr ty -> OutData bndType -> StateT FreeVars m (NormalizedDFExpr ty, OutData bndType)
     dispatchOutput cont (Direct o) = do
@@ -127,10 +123,10 @@ insertDispatch e = do
     checkAndDispatch cont o = do
       condIns <- get
       case HM.lookup (unwrapABnd o) condIns of
-        (Just (Record _ n)) -> do
+        (Just (Record _ n@(SSucc (SSucc _)))) -> do
           (cont', bnds) <- lift $ insertDispatch' cont o n
           return (cont', bnds)
-        Nothing -> return (cont, o :| [])
+        _ -> return (cont, o :| [])
 
     insertDispatch' :: NormalizedDFExpr ty -> ABinding bndType -> SNat ('Succ n) -> m (NormalizedDFExpr ty, NonEmpty (ABinding bndType))
     insertDispatch' cont b (SSucc n) = do
@@ -142,100 +138,3 @@ insertDispatch e = do
         k@SSucc{} -> (\(c, bnds) -> (c, renameABnd bnd' b <| bnds)) <$> insertDispatch' cont' b k
 
     substituteFirstOccurence = substitute FirstOccurrence
-
--- TODO rewrit using the fact that this is already a bottom-up traversal.
---foldMapOutData ::
---  forall ty b m.
---  MonadOhua m =>
---  NormalizedDFExpr ty ->
---  OutData b ->
---  m (NormalizedDFExpr ty, OutData b)
---foldMapOutData expr (Direct bnd@(DataBinding _)) = do
---  (cont', bnds') <- renameChannels (expr, []) (unwrapABnd bnd)
---  case bnds' of
---    [] -> return (cont', Direct bnd) -- The output is never used in the continuation. This will be caught by the dead code elimination
---    [x] -> return (cont', Direct x)
---    _ -> return (cont', Dispatch $ NE.fromList bnds')
---foldMapOutData expr ob@(Direct (StateBinding _)) = return (expr, ob)
-----foldMapOutData expr (Destruct bnds) = do
-----  (cont', bnds') <- foldrM g (expr, []) bnds
-----  return (cont', Destruct $ NE.fromList bnds')
---foldMapOutData expr (Destruct (bnd :| bnds)) = do
---  (cont', bnd') <- foldMapOutData expr bnd
---  (cont', bnds') <- foldrM g (expr, []) bnds
---  return (cont', Destruct $ NE.fromList bnds')
---  where
---    g :: OutData b -> (NormalizedDFExpr ty, [OutData b]) -> m (NormalizedDFExpr ty, [OutData b])
---    g bnd (exp, currentBinds) = do
---      (expr', currentBinds') <- foldMapOutData exp bnd
---      return (expr', currentBinds' : currentBinds)
---foldMapOutData expr (Dispatch bnds@((DataBinding _) :| _)) = do
---  (cont', bnds') <- foldM f (expr, []) bnds
---  return (cont', Dispatch $ NE.fromList bnds')
---  where
---    f :: (NormalizedDFExpr ty, [ABinding 'Data]) -> ABinding 'Data -> m (NormalizedDFExpr ty, [ABinding 'Data])
---    f (exp, currentBinds) bnd = do
---      (expr', currentBinds') <- renameChannels (exp, []) (unwrapABnd bnd)
---      return (expr', currentBinds ++ currentBinds')
---foldMapOutData expr ob@(Dispatch ((StateBinding _) :| _)) = return (expr, ob)
---
----- takes the smap body, the binding to the size channel, whether the binding has been seen before and the replaced bindings
---renameChannels ::
---  forall ty m.
---  MonadOhua m =>
---  (NormalizedDFExpr ty, [ABinding 'Data]) ->
---  Binding ->
---  m (NormalizedDFExpr ty, [ABinding 'Data])
---renameChannels (Let app@(PureDFFun out fn inp) cont, newBinds) bnd
---  | elem bnd $ insDFApp app =
---    -- rewrite
---    do
---      -- create a new binding
---      newBnd <- DataBinding <$> generateBindingWith bnd
---      let inp' = map (replaceInput bnd newBnd) inp
---      let newBinds' = newBnd : newBinds
---      (cont', newBinds'') <- renameChannels (cont, newBinds') bnd
---      return (Let (PureDFFun out fn inp') cont', newBinds'')
---  | otherwise = do
---    -- no match, continue
---    (cont', newBinds') <- renameChannels (cont, newBinds) bnd
---    return (Let app cont', newBinds')
---renameChannels ((Let app@(StateDFFun out fn boundState inp) cont), newBinds) bnd
---  | (elem bnd $ extractBndsFromInputs [boundState])
---      && (elem bnd $ extractBndsFromInputs $ NE.toList inp) =
---    throwError "Invariant broken: Cannot use state variable as argument at the same time!"
---  | elem bnd $ extractBndsFromInputs [boundState] =
---    -- this is most delicate: The binding is used as state!
---    do
---      assertE (null newBinds) "Invariant broken: Cannot have a state used more than once (which would require a Dispatch)"
---      assertE (ensureNoUse bnd cont) "Invariant broken: Cannot have a state used more than once (which would require a Dispatch)"
---      return (Let app cont, [DataBinding bnd])
---  | elem bnd $ extractBndsFromInputs $ NE.toList inp =
---    do
---      -- similar procedure as for a PureDFFun
---      newBnd <- DataBinding <$> generateBindingWith bnd
---      let inp' = map (replaceInput bnd newBnd) inp
---      let newBinds' = newBnd : newBinds
---      (cont', newBinds'') <- renameChannels (cont, newBinds') bnd
---      return (Let (StateDFFun out fn boundState inp') cont', newBinds'')
---  | otherwise = do
---    -- no match, continue
---    (cont', newBinds') <- renameChannels (cont, newBinds) bnd
---    return (Let app cont', newBinds')
---  where
---    ensureNoUse :: Binding -> NormalizedDFExpr ty -> Bool
---    ensureNoUse b (Var bnd) = bnd /= b
---    ensureNoUse b (Let app cont) = case elem b $ insDFApp app of
---      True -> False
---      False -> ensureNoUse b cont
---renameChannels ((Let app cont), newBinds) bnd = do
---  (cont', newBinds') <- renameChannels (cont, newBinds) bnd
---  return (Let app cont', newBinds')
---renameChannels v@((Var _), _) _ = return v
---
---replaceInput :: Binding -> ABinding 'Data -> DFVar 'Data a -> DFVar 'Data a
---replaceInput old newBind var = case var of
---  (DFVar t bnd)
---    | unwrapABnd bnd == old -> (DFVar t newBind)
---    | otherwise -> var
---  (DFEnvVar _ _) -> var

@@ -76,11 +76,6 @@ data App (f :: FunANF) (ty :: Type) :: Type where
     NonEmpty (DFVar 'Data ty) ->
     App 'ST ty
 
--- TODO define the builtin functions right here:
--- SMap :: Binding -> '[Binding, Binding] -> App 'SMapFun
--- If
--- (no need to introduce Nth here at all!)
-
 -- | The applicative normal form with the ops resolved.
 --   (a function with output destructuring and dispatched result)
 data DFApp (f :: FunANF) (ty :: Type) :: Type where
