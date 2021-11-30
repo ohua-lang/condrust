@@ -56,8 +56,9 @@ generateFunctionCode = \case
       pureOut _ (Direct out) = return ((Ops.SendResult $ SChan (unwrapABnd out)) :| [])
       pureOut _ (Destruct (Direct out1 :| [Direct out2])) =
         return ((Ops.SendResult $ SChan (unwrapABnd out1)) :| [Ops.SendResult $ SChan $ unwrapABnd out2])
-      -- TODO support dispatch output
-      pureOut fn e = throwError $ "Unsupported (more than 2) data outputs on function " <> show fn <> ": " <> show e
+      pureOut _ (Dispatch outs) = return $ (Ops.DispatchResult $ map (SChan . unwrapABnd) outs) :| []
+      -- TODO support nested dispatch output for destruct (and limit it in DFLang. see issue ohua-core#28)
+      pureOut fn e = throwError $ "Unsupported output configuration on function " <> show fn <> ": " <> show e
 
       stateOut fn (sOut, dout) = do
         sOut' <- toDirect fn sOut
@@ -71,9 +72,8 @@ generateFunctionCode = \case
       toDirect fn e = throwError $ "Unsupported multiple outputs for state on stateful function " <> show fn <> ": " <> show e
 
 generateReceive :: DFVar semTy ty -> Ops.CallArg ty
-generateReceive (DFVar t bnd) =
-    Ops.Arg $ SRecv t $ SChan $ unwrapABnd bnd
-generateReceive (DFEnvVar t l) = Ops.Converted $ Lit l -- FIXME looses type info!
+generateReceive (DFVar t bnd) = Ops.Arg $ SRecv t $ SChan $ unwrapABnd bnd
+generateReceive (DFEnvVar _t l) = Ops.Converted $ Lit l -- FIXME looses type info!
 
 generateArcsCode :: NormalizedDFExpr ty -> NonEmpty (Channel ty)
 generateArcsCode = go
