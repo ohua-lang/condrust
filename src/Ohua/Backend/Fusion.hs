@@ -223,7 +223,7 @@ fuseSTCLang (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ go
                   HS.toList $
                   HS.difference
                     (HS.fromList all)
-                    $ HS.fromList $ concat $ map (\(x,y) -> [x,STC y]) sourceAndTarget
+                    $ HS.fromList $ concatMap (\(x,y) -> [x,STC y]) sourceAndTarget
                 all' = noFused ++ fused
             in case unfusable of
                  [] -> all'
@@ -323,9 +323,9 @@ fuseSMaps (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ go e
       (Control (Left (VarCtrl cIn p@(OutputChannel c@(SChan b),inData) )))
       | c == inp =
           Just $ genFused $ fuseSMap (FunCtrl cIn (p:|[])) $ SMap.fuse b smap
-    -- we could of course also fuse if the function returns a tuple but let's not do
-    -- this for now.
-    getAndDrop smap inp (Fun fun@(PureFusable _ _ (c@(SChan b) :| [])))
+    -- we could of course also fuse if the function returns a tuple or a dispatch but let's
+    -- not do this for now.
+    getAndDrop smap inp (Fun fun@(PureFusable _ _ ((SendResult c@(SChan b)) :| [])))
       | c == inp =
           Just $ genFun' (SMap.gen $ SMap.fuse b smap) $ toFuseFun fun
     getAndDrop smap inp (Fun st@(STFusable sIn dIn app dOut sOut)) =
@@ -336,7 +336,7 @@ fuseSMaps (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ go e
             in Just $ genFun' (Stmt send' $ SMap.gen' $ SMap.fuse b smap) $ toFuseFun st
         _ ->
           case dOut of
-            [c@(SChan b)]
+            [SendResult c@(SChan b)]
               | c == inp ->
                 let send' = genSend $ toFuseFun $ STFusable sIn dIn app [] sOut
                 in Just $ genFun' (Stmt send' $ SMap.gen' $ SMap.fuse b smap) $ toFuseFun st

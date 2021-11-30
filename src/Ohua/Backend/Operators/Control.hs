@@ -147,7 +147,7 @@ fuseCtrlIntoFun fun (FusedFunCtrl ctrlIn ins expr outs) =
         (F.STFusable sRecv recvs qb out sOut) ->
             let ins' = filterState sOut ins
                 sOut' = if length ins' < length ins then Nothing else sOut
-             in forPure out (toList out) ins' (\o ->F.STFusable (F.Arg sRecv) recvs qb o sOut')
+             in forPure out (toList out) ins' (\o -> F.STFusable (F.Arg sRecv) recvs qb o sOut')
         (F.IdFusable recv out) ->
             forPure out (toList out) [] $ F.IdFusable recv
    where
@@ -155,6 +155,9 @@ fuseCtrlIntoFun fun (FusedFunCtrl ctrlIn ins expr outs) =
      filterState (Just out) ins0 =
        filter ((\(SRecv _ inp) -> inp /= out) . snd . fromVarReceive) ins0
 
+     -- | This function filters the inputs by checking whether the outputs
+     --   have the same channel reference. If they do then clearly we can drop it from the list of
+     --   inputs such that no receive code is being generated.
      filterData [] ins0 = ins0
      filterData outs ins0 =
        filter
@@ -163,27 +166,38 @@ fuseCtrlIntoFun fun (FusedFunCtrl ctrlIn ins expr outs) =
         fromVarReceive)
        ins0
 
-     forPure :: ( Ext.IsList (c (Com 'Channel ty))
-                , Ext.IsList (c (F.Result ty))
+     forPure :: ( Ext.IsList (c (F.Result ty))
                 , Functor c)
-             => c (Com 'Channel ty)
-             -> [Com 'Channel ty]
+             => c (F.Result ty)
+             -> [F.Result ty]
              -> [VarReceive ty]
              -> ((c (F.Result ty) -> F.FusedFunction ty) -> F.FusedFun ty)
-     forPure out outsL ins' =
-       -- I could not get this to work :(
-       -- let ins'' = filterData (Ext.toList out) ins'
-       let ins'' = filterData outsL ins'
-           outHS = HS.fromList $ map ((\(SRecv _ inp) -> inp) . snd . fromVarReceive) ins
-           out' = map (\o -> case HS.member o outHS of
-                               True -> F.DropResult
-                               False -> F.SendResult o
-                      )
-                  out
+     forPure out outAsList ins' =
+       let
+         downstreamIns'' = filterData (concatMap F.channels outAsList) ins'
+         downstreamInChans = HS.fromList $ map ((\(SRecv _ inp) -> inp) . snd . fromVarReceive) ins
+
+         -- | We drop all send operations for wich we can find inputs
+         --   for the downstream operator that we are fusing.
+         --   Because all we want to do is bind this result to a value but not send it.
+         --   The above function `filterData` does the exact same thing for the inputs
+         --   of the downstream operator.
+         drop F.DropResult       = F.DropResult
+         drop o@(F.SendResult c) = if HS.member c downstreamInChans
+                                   then F.DropResult
+                                   else o
+         drop (F.DispatchResult cs) =
+           let cs' = NE.filter (not . (`HS.member` downstreamInChans)) cs
+            in case cs' of
+                 []        -> F.DropResult
+                 [c]       -> F.SendResult c
+                 (c : cs'') -> F.DispatchResult $ c :| cs''
+
+         out' = map drop out
        in \f ->
             F.FusedFun (f out') $
             genFused $
-            FusedFunCtrl ctrlIn ins'' expr outs
+            FusedFunCtrl ctrlIn downstreamIns'' expr outs
 
 
 -- | This takes a control and fuses a function into it.
@@ -218,7 +232,7 @@ fuseFun (FunCtrl ctrlInput vars) =
                  (f $ F.Arg stateArg)
                  (map f args)
                  app
-                 (map F.SendResult res)
+                 res
                  Nothing)
                 (maybe
                     []

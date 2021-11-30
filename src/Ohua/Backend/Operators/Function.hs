@@ -17,10 +17,13 @@ instance Hashable (CallArg ty)
 
 data Result ty
   = SendResult (Com 'Channel ty)
+  | DispatchResult (NonEmpty (Com 'Channel ty))
   -- | This happens during fusion. But we still need to preserve the index positions otherwise
   --   the destructuring breaks.
   | DropResult
   deriving (Eq, Generic, Show)
+
+instance Hashable (Result ty)
 
 -- TODO:
 --   1) no functions in data type -> done
@@ -30,34 +33,39 @@ data Result ty
 --   5) certainly this definition of a function really is no different
 --      from the newly defined DFLang! (one more reason to move this into common.)
 
-data FusFunction sin pout ty
+data FusFunction sin ty
     = PureFusable
         [CallArg ty]  -- data receive
         (FunRef ty)
-        (NonEmpty (pout ty)) -- send result
+        (NonEmpty (Result ty)) -- send result
     | STFusable
         (sin ty) -- state receive
         [CallArg ty]  -- data receive
         (FunRef ty)
-        [pout ty] -- send result
+        [Result ty] -- send result
         (Maybe (Com 'Channel ty)) -- send state
     | IdFusable
         (CallArg ty)
-        (NonEmpty (pout ty))
+        (NonEmpty (Result ty))
     deriving (Generic)
 
 -- using a vector would have been so much nicer, but implementing Eq and Hashable
 -- manually is just a pain.
-type FusableFunction ty = FusFunction (Com 'Recv) (Com 'Channel) ty
-type FusedFunction ty = FusFunction CallArg Result ty
+type FusableFunction ty = FusFunction (Com 'Recv) ty
+type FusedFunction ty = FusFunction CallArg ty
 
 deriving instance Hashable (FusableFunction ty)
 deriving instance Eq (FusableFunction ty)
 
+channels :: Result ty -> [Com 'Channel ty]
+channels (SendResult c) = [c]
+channels (DispatchResult cs) = toList cs
+channels DropResult = []
+
 toFuseFun :: FusableFunction ty -> FusedFunction ty
-toFuseFun (PureFusable recvs qb outs) = PureFusable recvs qb $ map SendResult outs
-toFuseFun (STFusable a b c d e) = STFusable (Arg a) b c (map SendResult d) e
-toFuseFun (IdFusable recv outs) = IdFusable recv $ map SendResult outs
+toFuseFun (PureFusable recvs qb outs) = PureFusable recvs qb outs
+toFuseFun (STFusable a b c d e) = STFusable (Arg a) b c d e
+toFuseFun (IdFusable recv outs) = IdFusable recv outs
 
 genFun :: FusableFunction ty -> TaskExpr ty
 genFun fun = loop (funReceives fun) $ (\f -> genFun' (genSend f) f) $ toFuseFun fun
@@ -96,6 +104,7 @@ genSend = \case
 
       getOut :: Result ty -> (Binding -> TaskExpr ty) -> TaskExpr ty -> TaskExpr ty
       getOut DropResult _ ct = ct
+      getOut (DispatchResult chans) f ct = foldr (\chan cont -> getOut (SendResult chan) f cont) ct chans
       getOut (SendResult (SChan b)) f ct =
         Let b (f resultTuple) $
         Stmt (SendData $ SSend (SChan b) (Left b)) ct
