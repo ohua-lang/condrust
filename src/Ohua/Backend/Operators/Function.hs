@@ -79,7 +79,7 @@ loop :: [Com 'Recv ty] -> TaskExpr ty -> TaskExpr ty
 loop [] c = c
 loop _  c = EndlessLoop c
 
-resultTuple = "restup"
+result = "res"
 
 genSend :: forall ty.FusedFunction ty -> TaskExpr ty
 genSend = \case
@@ -100,13 +100,18 @@ genSend = \case
         getOut out1 First $
         getOut out2 Second $
         ct
+      dataOut [DispatchResult chans] ct =
+        foldr
+        (\chan cont -> Stmt (SendData $ SSend chan (Left result)) cont)
+        ct
+        chans
       dataOut _ _ = error "unsupported: more than tuple"
 
       getOut :: Result ty -> (Binding -> TaskExpr ty) -> TaskExpr ty -> TaskExpr ty
       getOut DropResult _ ct = ct
       getOut (DispatchResult chans) f ct = foldr (\chan cont -> getOut (SendResult chan) f cont) ct chans
       getOut (SendResult (SChan b)) f ct =
-        Let b (f resultTuple) $
+        Let b (f result) $
         Stmt (SendData $ SSend (SChan b) (Left b)) ct
 
 genFun'' :: FusableFunction ty -> TaskExpr ty
@@ -144,7 +149,7 @@ genFun' ct = \case
             [] -> Stmt call ct
             _ -> case out of
                    [SendResult (SChan b)] -> Let b call ct
-                   cs -> Let resultTuple call ct
+                   cs -> Let result call ct
 
 generateReceiveCode :: (Show a) => (a, CallArg ty) -> (CallArg ty, Binding, TaskExpr ty)
 generateReceiveCode (idx, a@(Arg r)) = (a, "var_" <> show idx, ReceiveData r)
