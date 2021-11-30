@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedLists #-}
 -- |
 -- Module      : $Header$
 -- Description : Tests for lowering the frontend language into ALang.
@@ -30,9 +31,9 @@ spec =
                 pureFunction ALangRefs.nth Nothing (FunType $ Right $ fromList [TypeVar,TypeVar,TypeVar]) `Apply` Lit (NumericLit i) `Apply`
                 Lit (NumericLit total) `Apply`
                 Var objBnd
-            runRemDestr = 
-                runCompM LevelDebug . 
-                toAlang' (HS.fromList ["a", "b", "c"]) 
+            runRemDestr =
+                runCompM LevelDebug .
+                toAlang' (HS.fromList ["a", "b", "c"])
         it "removes destructuring from lets" $
             let objBnd = "d"
                 mkNth = mkNth0 objBnd
@@ -46,7 +47,7 @@ spec =
         it "removes destructuring from lambdas" $
             let objBnd = "d"
                 mkNth = mkNth0 objBnd
-             in runRemDestr (LamE [["a", "b", "c"]] "y") -- [embedALang| \(a, b, c) -> y |] 
+             in runRemDestr (LamE [["a", "b", "c"]] "y") -- [embedALang| \(a, b, c) -> y |]
                 `shouldReturn`
                 Lambda
                     objBnd

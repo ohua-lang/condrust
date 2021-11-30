@@ -170,7 +170,7 @@ spec =
                     |]
                 compiled `shouldBe` expected)
         it "context functions" $
-            (showCode "Compiled: " =<< compileCodeWithDebug [sourceFile|
+            (showCodeWithDiff "Compiled: " =<< compileCodeWithDebug [sourceFile|
                 use funs::*;
 
                 fn test(i: i32) -> i32 {

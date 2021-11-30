@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE QuasiQuotes       #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module ConfigSpec (spec) where
@@ -17,7 +18,7 @@ parseConfig :: ByteString -> IO CompilerOptions
 parseConfig = Y.decodeThrow
 
 spec :: Spec
-spec = 
+spec =
     describe "config parsing" $ do
         it "parse full config" $
             parseConfig [r|
@@ -29,15 +30,15 @@ spec =
                 - tail-rec
                 debug:
                     log-level: verbose
-                    core-stages: 
+                    core-stages:
                         - stage: "before-normalization"
                           dump: yes
                           abort-after: no
                         - stage: "after-normalization"
                           dump: yes
                           abort-after: yes
-            |] >>= (`shouldBe` 
-                C.CompilerOptions 
+            |] >>= (`shouldBe`
+                C.CompilerOptions
                 { compilationScope = HM.fromList [ (["some","other","ns","module"],".go")
                                                 , (["some","ns","module"],".go")]
                 , extraFeatures = ["tail-rec"]
@@ -53,8 +54,8 @@ spec =
                 - some/ns/module.go
                 extra-features:
                 - tail-rec
-            |] >>= (`shouldBe` 
-                C.CompilerOptions 
+            |] >>= (`shouldBe`
+                C.CompilerOptions
                 { compilationScope = HM.fromList [ (["some","ns","module"],".go") ]
                 , extraFeatures = ["tail-rec"]
                 , debug = C.DebugOptions { logLevel = LevelWarn
@@ -68,8 +69,8 @@ spec =
                 - some/ns/module.go
                 extra-features:
                 - tail-rec
-            |] >>= (`shouldBe` 
-                C.CompilerOptions 
+            |] >>= (`shouldBe`
+                C.CompilerOptions
                 { compilationScope = HM.fromList [ (["some","ns","module"],".go") ]
                 , extraFeatures = ["tail-rec"]
                 , debug = C.DebugOptions { logLevel = LevelWarn
@@ -81,8 +82,8 @@ spec =
             parseConfig [r|
                 compilation-scope:
                 - some/ns/module.go
-            |] >>= (`shouldBe` 
-                C.CompilerOptions 
+            |] >>= (`shouldBe`
+                C.CompilerOptions
                 { compilationScope = HM.fromList [ (["some","ns","module"],".go") ]
                 , extraFeatures = []
                 , debug = C.DebugOptions { logLevel = LevelWarn
@@ -96,8 +97,8 @@ spec =
                 - some/ns/module.go
                 debug:
                     log-level: debug
-            |] >>= (`shouldBe` 
-                C.CompilerOptions 
+            |] >>= (`shouldBe`
+                C.CompilerOptions
                 { compilationScope = HM.fromList [ (["some","ns","module"],".go") ]
                 , extraFeatures = []
                 , debug = C.DebugOptions { logLevel = LevelDebug
@@ -110,8 +111,8 @@ spec =
                 compilation-scope:
                 debug:
                     log-level: debug
-            |] >>= (`shouldBe` 
-                C.CompilerOptions 
+            |] >>= (`shouldBe`
+                C.CompilerOptions
                 { compilationScope = HM.empty
                 , extraFeatures = []
                 , debug = C.DebugOptions { logLevel = LevelDebug
@@ -123,8 +124,8 @@ spec =
             parseConfig [r|
                 debug:
                     log-level: debug
-            |] >>= (`shouldBe` 
-                C.CompilerOptions 
+            |] >>= (`shouldBe`
+                C.CompilerOptions
                 { compilationScope = HM.empty
                 , extraFeatures = []
                 , debug = C.DebugOptions { logLevel = LevelDebug
