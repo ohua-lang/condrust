@@ -53,9 +53,10 @@ generateFunctionCode = \case
            dataOut
            (SChan <$> sOut)
     where
-      pureOut _ (Direct out) = return (SChan (unwrapABnd out) :| [])
-      pureOut _ (Destruct [Direct out1, Direct out2]) =
-        return (SChan (unwrapABnd out1) :| [SChan $ unwrapABnd out2])
+      pureOut _ (Direct out) = return ((Ops.SendResult $ SChan (unwrapABnd out)) :| [])
+      pureOut _ (Destruct (Direct out1 :| [Direct out2])) =
+        return ((Ops.SendResult $ SChan (unwrapABnd out1)) :| [Ops.SendResult $ SChan $ unwrapABnd out2])
+      -- TODO support dispatch output
       pureOut fn e = throwError $ "Unsupported (more than 2) data outputs on function " <> show fn <> ": " <> show e
 
       stateOut fn (sOut, dout) = do
@@ -86,7 +87,7 @@ generateArcsCode = go
         go (DFLang.Var bnd) = SRecv TypeVar (SChan bnd) :|[] -- result channel
 
         manuallyDedup :: [Com 'Recv ty] -> [Com 'Recv ty]
-        manuallyDedup xs = foldr (\x acc -> if x `elem` acc then acc else x : acc) [] xs
+        manuallyDedup = foldr (\x acc -> if x `elem` acc then acc else x : acc) []
 -- FIXME see sertel/ohua-core#7: all these errors would immediately go away
 generateNodeCode :: CompM m => DFApp semTy ty ->  LoweringM m (FusableExpr ty)
 generateNodeCode e@(SMapFun (dOut,ctrlOut,sizeOut) inp) = do
@@ -97,19 +98,19 @@ generateNodeCode e@(SMapFun (dOut,ctrlOut,sizeOut) inp) = do
         _ -> invariantBroken $ "Input to SMap must be var not literal:\n" <> show e
     dOut'    <- intoChan dOut
     dOut''   <- sequence (serializeDataOut <$> dOut')
-    ctrlOut' <- (maybe [] toList) <$> intoChan ctrlOut
-    sizeOut' <- (maybe [] toList) <$> intoChan sizeOut
+    ctrlOut' <- maybe [] toList <$> intoChan ctrlOut
+    sizeOut' <- maybe [] toList <$> intoChan sizeOut
     return $ SMap $ Ops.smapFun input dOut'' ctrlOut' sizeOut'
     where
       intoChan :: CompM m => Maybe (OutData a) -> m (Maybe (NonEmpty (Com 'Channel ty)))
       intoChan o = do
-        o' <- sequence $ (serializeOut <$> o)
-        let o'' = (map SChan) <$> o'
+        o' <- sequence (serializeOut <$> o)
+        let o'' = map SChan <$> o'
         return o''
 
       serializeDataOut :: CompM m => NonEmpty (Com 'Channel ty) -> m (Com 'Channel ty)
-      serializeDataOut [a] = pure a
-      serializeDataOut _ = throwError $ "We currently do not support destructuring and dispatch for loop data."
+      serializeDataOut (a :| []) = pure a
+      serializeDataOut _ = throwError "We currently do not support destructuring and dispatch for loop data."
 
       serializeOut :: CompM m => OutData a -> m (NonEmpty Binding)
       serializeOut Destruct{} = throwError $ "We currently do not support destructuring on loop data: " <> show e
@@ -118,7 +119,7 @@ generateNodeCode e@(SMapFun (dOut,ctrlOut,sizeOut) inp) = do
 generateNodeCode e@(PureDFFun out (FunRef fun _ _) inp) | fun == collect = do
     (sizeIn, dataIn) <-
         case inp of
-            [DFVar sType s, DFVar dType d] ->
+            (DFVar sType s :| [DFVar dType d]) ->
                 return (SRecv sType $ SChan $ unwrapABnd s, SRecv dType $ SChan $ unwrapABnd d)
             _ -> invariantBroken $ "Collect arguments don't match:\n" <> show e
     collectedOutput <-
@@ -131,9 +132,11 @@ generateNodeCode e@(IfFun out inp) = do
     condIn <-
         case inp of
             (DFVar xType x) -> return $ SRecv xType $ SChan $ unwrapABnd x
+            _ -> invariantBroken $ "envars as conditional input not yet supported:\n" <> show e
     (ctrlTrueOut, ctrlFalseOut) <-
         case out of
             (Direct t, Direct fa) -> return (SChan $ unwrapABnd t, SChan $ unwrapABnd fa)
+            _ -> invariantBroken $ "only direct outputs supported but got:\n" <> show e
     return $ Unfusable $
         EndlessLoop $
             Ops.ifFun condIn ctrlTrueOut ctrlFalseOut
@@ -141,7 +144,7 @@ generateNodeCode e@(IfFun out inp) = do
 generateNodeCode e@(PureDFFun out (FunRef fun _ _) inp) | fun == select = do
     (condIn, trueIn, falseIn) <-
         case inp of
-            [DFVar xType x, DFVar yType y, DFVar zType z] ->
+            (DFVar xType x :| [DFVar yType y, DFVar zType z]) ->
                 return
                     ( SRecv xType $ SChan $ unwrapABnd x
                     , SRecv yType $ SChan $ unwrapABnd y
@@ -162,13 +165,13 @@ generateNodeCode e@(PureDFFun out (FunRef fun _ _) inp) | fun == Refs.runSTCLang
             Direct x -> return $ SChan $ unwrapABnd x
             _ -> invariantBroken $ "STCLangSMap outputs don't match:\n" <> show e
     case inp of
-      [DFVar xType x, DFVar yType y] ->
+      (DFVar xType x :| [DFVar yType y]) ->
         return $ Unfusable $ Ops.genSTCLangSMap $
         Ops.STCLangSMap
         (SRecv xType $ SChan $ unwrapABnd x)
         (SRecv yType $ SChan $ unwrapABnd y)
         out'
-      [DFVar xType x] ->
+      (DFVar xType x :| []) ->
         return $ STC $ Ops.FusableSTCLangSMap (SRecv xType $ SChan $ unwrapABnd x) out'
       _ -> invariantBroken $ "STCLangSMap arguments don't match:\n" <> show e
 
@@ -196,7 +199,7 @@ generateNodeCode e@(PureDFFun out (FunRef fun _ _) inp) | fun == ctrl = do
     out' <-
         case out of
             Direct x -> return $ SChan $ unwrapABnd x
-            Destruct [Direct x] -> return $ SChan $ unwrapABnd x
+            Destruct (Direct x :| []) -> return $ SChan $ unwrapABnd x
             _ -> invariantBroken $ "Control outputs don't match:\n" <> show e
     case inp of
         DFVar tc ctrlInp :| [DFVar ti inp'] ->
@@ -229,17 +232,17 @@ generateNodeCode e@(PureDFFun out (FunRef fun _ _) inp) | fun == Refs.unitFun = 
            Direct x -> return $ SChan $ unwrapABnd x
            _ -> invariantBroken $ "unitFun must only have one output:\n" <> show e
   case inp of
-   [DFEnvVar _t (FunRefLit (FunRef p _ _)), v] | p == Refs.id ->
+   DFEnvVar _t (FunRefLit (FunRef p _ _)) :| [v] | p == Refs.id ->
      case v of
         (DFVar t bnd) ->
           return $
             Fusion.Fun $
-            Ops.IdFusable (Ops.Arg $ SRecv t $ SChan $ unwrapABnd bnd) $ out' :| []
+            Ops.IdFusable (Ops.Arg $ SRecv t $ SChan $ unwrapABnd bnd) $ Ops.SendResult out' :| []
         (DFEnvVar _ l) ->
           return $
             Fusion.Fun $
-            Ops.IdFusable (Ops.Converted $ Lit l) $ out' :| []
-   [DFEnvVar _t (FunRefLit pr@(FunRef p _ _)), v] -> -- FIXME this feels like a bug to me. why do we take this detour via unitFun???
+            Ops.IdFusable (Ops.Converted $ Lit l) $ Ops.SendResult out' :| []
+   (DFEnvVar _t (FunRefLit pr@FunRef{}) :| [v]) -> -- FIXME this feels like a bug to me. why do we take this detour via unitFun???
      generateFunctionCode $ PureDFFun out pr (v:|[])
    _ -> invariantBroken $ "unknown function as first argument or wrong number of arguments (expetced 2) to unitFun:\n" <> show e
 
@@ -281,7 +284,7 @@ generateNodeCode e@(RecurFun resultOut ctrlOut recArgsOuts recInitArgsIns recArg
         directOut x = case x of
                         Direct x' -> return $ SChan $ unwrapABnd x'
                         _ -> invariantBroken $ "Control outputs don't match:\n" <> show e
-        directOut' Nothing = pure Nothing
+        -- directOut' Nothing = pure Nothing
         varToChanOrLit :: DFVar a ty -> Either (Com 'Recv ty) (Lit ty)
         varToChanOrLit (DFVar t v) = Left $ SRecv t $ SChan $ unwrapABnd v
         varToChanOrLit (DFEnvVar _ l) = Right l
