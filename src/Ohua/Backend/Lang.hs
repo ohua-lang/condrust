@@ -90,7 +90,6 @@ data TaskExpr ty
 
 instance Hashable (TaskExpr ty)
 
-data Function expr = Function QualifiedBinding [Binding] expr deriving (Show, Eq)
 
 containsBinding :: TaskExpr ty -> Binding -> Bool
 containsBinding (Var bnd) b = b == bnd

@@ -4,7 +4,7 @@ module Ohua.Backend.Operators.Control where
 import Ohua.Prelude
 
 import Ohua.Backend.Operators.Common
-import Ohua.Backend.Lang as L hiding (Function)
+import Ohua.Backend.Lang as L
 import Ohua.Backend.Operators.State
 import qualified Ohua.Backend.Operators.Function as F
 import qualified Ohua.Backend.Operators.SMap as SMap
@@ -61,9 +61,9 @@ type FusedFunCtrl = FusedCtrl 'Function
 type FusedLitCtrl = FusedCtrl 'Literal
 
 instance Hashable (FusedCtrl anno ty) where
-    hashWithSalt s (FusedFunCtrl cInp inOut comp stateOuts) = 
+    hashWithSalt s (FusedFunCtrl cInp inOut comp stateOuts) =
         s `hashWithSalt` cInp `hashWithSalt` inOut `hashWithSalt` comp `hashWithSalt` stateOuts
-    hashWithSalt s (FusedLitCtrl cInp inOut comp) = 
+    hashWithSalt s (FusedLitCtrl cInp inOut comp) =
         s `hashWithSalt` cInp `hashWithSalt` inOut `hashWithSalt` comp
 
 fuseSTCSMap :: STCLangSMap 'Fusable ty -> FusedFunCtrl ty -> FusedFunCtrl ty
@@ -399,7 +399,7 @@ sigStateInit :: Binding -> TaskExpr ty -> TaskExpr ty
 sigStateInit bnd = Let bnd (Lit $ BoolLit False)
 
 sigStateRecv ::  CtrlInput ty -> TaskExpr ty -> TaskExpr ty
-sigStateRecv (CtrlInput ctrlInput) cont = 
+sigStateRecv (CtrlInput ctrlInput) cont =
     Let "sig" (ReceiveData ctrlInput) $
     Let "count" (L.Second "sig") cont
 
@@ -407,6 +407,6 @@ ctxtLoop :: TaskExpr ty -> TaskExpr ty
 ctxtLoop = Repeat $ Left "count"
 
 sigStateRenew :: Binding -> TaskExpr ty
-sigStateRenew bnd = 
+sigStateRenew bnd =
     Let "renew_next_time" (L.First "sig") $
     Assign bnd $ Var "renew_next_time"
