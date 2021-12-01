@@ -543,7 +543,9 @@ fn test() -> String {
                 fn test() -> String {
                     algo(4)
                 }
-                |]) >>=
+                |]) >>= 
+            -- Question: I wonder why I didn't notice until now but ...Why are tasks doubled in 
+                -- algo() and test()?
             (\compiled -> do
                 expected <- showCode "Expected:"
                     [sourceFile|

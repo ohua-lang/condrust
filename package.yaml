@@ -103,7 +103,9 @@ tests:
     - hspec
     - raw-strings-qq
     - temporary
+    - language-python
     - language-rust
+    - template-haskell
     - prettyprinter
     - text
     - bytestring

@@ -3,3 +3,10 @@
 .vscode
 *.ohuao
 stack.yaml*
+.idea
+*.html
+*.txt
+*.js
+*.css
+*.png
+*.json
