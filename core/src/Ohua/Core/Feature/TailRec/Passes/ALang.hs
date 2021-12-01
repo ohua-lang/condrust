@@ -217,8 +217,6 @@ import Ohua.Core.ALang.Util
     , lambdaArgsAndBody
     , mkDestructured
     )
-import qualified Ohua.Core.DFLang.Refs as DFRefs
-
 
 --  ==== Implementation starts here
 

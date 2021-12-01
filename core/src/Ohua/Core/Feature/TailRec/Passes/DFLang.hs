@@ -27,7 +27,7 @@ recurLowering expr
       recurStartToRecurFun :: NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
       -- TODO What was the assumption here that recurStart can only have one argument?!
       -- recurStartToRecurFun (Let app@(PureDFFun (Destruct [_, _]) fun inp) rest)
-      recurStartToRecurFun (Let app@(PureDFFun Destruct{} fun inp) rest)
+      recurStartToRecurFun (Let app@(PureDFFun Destruct{} _fun inp) rest)
         | funRef app == ALangPass.recurStartMarker = do
             outs <- case outsANew app of
                       [] -> error $ "invariant broken: the recur start marker does not have outputs"
@@ -48,7 +48,7 @@ recurLowering expr
 
       findEnd :: NonEmpty (OutData 'Data) -> NonEmpty (DFVar 'Data ty)
               -> NormalizedDFExpr ty -> m (DFApp 'BuiltIn ty)
-      findEnd outs inp (Let app@PureDFFun{} cont) | funRef app == ALangPass.recurEndMarker =
+      findEnd outs inp (Let app@PureDFFun{} _) | funRef app == ALangPass.recurEndMarker =
           let cond:(fixRef:recurArgs) = insDFApp app
               -- FIXME we don't need the var lists when we use the assertion
               -- that these two lists have the same size! and this is always

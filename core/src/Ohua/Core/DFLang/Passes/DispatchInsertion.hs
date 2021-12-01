@@ -69,7 +69,9 @@ insertDispatch e = evalStateT (transformExprM go e) HM.empty
           (cont', dOut') <- maybeDispatch cont dOut
           (cont'', sOut') <- maybeDispatch cont' sOut
           return $ Let (StateDFFun (sOut', dOut') f sIn dIn) cont''
-       -- TODO recurFun control output also needs to be dispatched!
+        (RecurFun fOut ctrlOut recArgsOut initIns recIns recCondIn fIn) -> do
+          (cont', ctrlOut') <- maybeDispatch cont ctrlOut
+          return $ Let (RecurFun fOut ctrlOut' recArgsOut initIns recIns recCondIn fIn) cont'
         _ -> return l
       modify $ \outB -> foldl (flip HM.delete) outB $ outBindings app
       return l'
