@@ -91,21 +91,23 @@ instance Integration (Language 'Python) where
                             -- incompatible python paths (or dark magic :-/)
                         Nothing -> throwError  "Currently we do not support relative import paths"
 
+    -- | This function assignes types to the functions called inside an algorithm. In Rust, it 
+    -- | would do so, by checking the given namespace for definitions of those functions.
+    -- | As we currently do not 'type' any of the arguments in Python and the number of
+    -- | (explicit) arguments may vary for each function due to default values, we just assign
+    -- | a type of [PyObject] to every function call site.
     loadTypes :: CompM m => Language 'Python ->
                     Module ->
                     PythonNamespace ->
                     m PythonNamespace
-    -- TODO: Can meanwhile be replaced by id function
     loadTypes lang (Module filepath pymodule) ohuaNS = do
-        -- Alles was vor update epressions steht ist dafür da, functionstypen aus deklarartionen (aus versch. Dateien im comilation scope zu popeln)
-        -- _> ich hole mir die typen aus den call und kann mir daher den ersten Teil erstmal sparen
-        filesAndPaths <- concat <$> mapM funsForAlgo (ohuaNS^.algos)
+        {-filesAndPaths <- concat <$> mapM funsForAlgo (ohuaNS^.algos)
         let filesAndPaths' = map (first convertOwn) filesAndPaths
         fun_types <- typesFromNS $ concatMap fst filesAndPaths'
-        types' <- HM.fromList <$> mapM (verifyAndRegister fun_types) filesAndPaths'
-        updateExprs ohuaNS (transformM (assignTypes types'))
+        types' <- HM.fromList <$> mapM (verifyAndRegister fun_types) filesAndPaths'-}
+        updateExprs ohuaNS (transformM (assignTypes []))
         where
-            funsForAlgo :: CompM m => Algo (FrLang.Expr PythonArgType) (Py.Statement SrcSpan)
+            {-funsForAlgo :: CompM m => Algo (FrLang.Expr PythonArgType) (Py.Statement SrcSpan)
                     -> m [([NSRef], QualifiedBinding)]
             funsForAlgo (Algo _name code annotation) = do
                 return []
@@ -121,7 +123,7 @@ instance Integration (Language 'Python) where
             verifyAndRegister :: CompM m => FunTypes -> ([NSRef], QualifiedBinding)
                         -> m (QualifiedBinding, FunType PythonArgType)
             verifyAndRegister fun_types ([candidate], qB@(QualifiedBinding _ qBName)) = undefined
-            verifyAndRegister fun_types ( _ , qB@(QualifiedBinding _ qBName)) = undefined
+            verifyAndRegister fun_types ( _ , qB@(QualifiedBinding _ qBName)) = undefined-}
 
             assignTypes :: CompM m => FunTypes -> FrLang.Expr PythonArgType -> m (FrLang.Expr PythonArgType)
             assignTypes funTypes function = case function of
