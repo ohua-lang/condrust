@@ -1,4 +1,4 @@
-module Ohua.Integration.Python.Datapar where
+module Ohua.Integration.Python.DataPar where
 
 
 import Ohua.Prelude hiding (concat)
