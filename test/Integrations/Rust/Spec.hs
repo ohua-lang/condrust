@@ -23,5 +23,5 @@ spec =
     SMap.spec >>
     TailRec.spec >>
     -- ohua-lang/ohuac#32
-    Benchmark.spec >>
+    -- Benchmark.spec >>
     Control.spec
