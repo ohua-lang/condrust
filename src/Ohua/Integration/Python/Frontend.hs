@@ -1,6 +1,7 @@
 {-# LANGUAGE InstanceSigs#-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ConstraintKinds #-}
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 -- {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 
 module Ohua.Integration.Python.Frontend where
@@ -203,7 +204,10 @@ subStmtToIR (Sub.ForStmt target generator suite) = do
 subStmtToIR (Sub.CondStmt [(cond, suite)] elseSuite) = do
     cond' <- subExprToIR cond
     suite' <- subSuiteToIR (Sub.PySuite suite)
-    elseSuite' <- subSuiteToIR (Sub.PySuite elseSuite)
+    elseSuite' <- do 
+        case elseSuite of
+            Nothing -> return $ LitE UnitLit 
+            Just block -> subSuiteToIR (Sub.PySuite block)
     return $ IfE cond' suite' elseSuite'
 
 subStmtToIR (Sub.CondStmt ifsAndSuits elseSuite) = do

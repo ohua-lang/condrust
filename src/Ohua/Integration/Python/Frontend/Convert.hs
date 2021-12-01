@@ -54,8 +54,12 @@ stmtToSub forE@(Py.For _ _ _ elseBlock _) = unsupError "else blocks in for expre
 stmtToSub ifElifElse@(Py.Conditional ifsAndSuites elseSuite annot ) = do
     ifs <- mapM (exprToSubExpr . fst) ifsAndSuites
     blocks <-  mapM (suiteToBlock . snd) ifsAndSuites
-    elseBlock <- suiteToBlock elseSuite
-    return $ Sub.CondStmt (zip ifs blocks)  elseBlock
+    protoElse <- suiteToBlock elseSuite
+    elseBlock <- do 
+        case elseSuite of
+            [] -> return Nothing 
+            block -> return $ Just protoElse
+    return $ Sub.CondStmt (zip ifs blocks) elseBlock
 
 stmtToSub stmt@(Py.StmtExpr expr annot) = do
     expr' <- exprToSubExpr expr

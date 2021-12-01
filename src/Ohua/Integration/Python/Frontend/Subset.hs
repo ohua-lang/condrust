@@ -24,7 +24,7 @@ type Block = [Stmt] -- ^ this is an alias for blocks inside loops or branches th
 data Stmt  = 
     WhileStmt Expr Block 
     | ForStmt Target Expr Block 
-    | CondStmt [(Expr, Block )] Block
+    | CondStmt [(Expr, Block )] (Maybe Block)
     -- TODO: Rework when/if assignments and returns of lists of targets are supported
     | Assign Target Expr 
     | Pass 
