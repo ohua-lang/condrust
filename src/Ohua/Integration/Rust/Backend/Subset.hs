@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveLift #-}
+--{-# LANGUAGE DeriveLift #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module Ohua.Integration.Rust.Backend.Subset

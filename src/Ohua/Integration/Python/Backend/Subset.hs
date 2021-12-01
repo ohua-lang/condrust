@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskell #-}
 module Ohua.Integration.Python.Backend.Subset where
 
 import Ohua.Prelude 
@@ -54,3 +55,25 @@ data BinOp =
 data UnOp =  Not | Invert  deriving (Show, Eq, Generic)
 
 data Argument = Arg Expr deriving (Eq, Show) -- StarArg Expr | StarKwArg Expr | KwArg Expr Ident
+
+-------------------- Recursion schemes support --------------------
+
+makeBaseFunctor ''Expr
+
+instance Plated Expr where plate = gplate
+
+transformExprInSuite :: (Expr -> Expr) -> Suite -> Suite
+transformExprInSuite func  = runIdentity . transformExprInSuiteM (pure . func)
+
+transformExprInSuiteM :: (Monad m) => (Expr -> m Expr) -> Suite -> m Suite
+transformExprInSuiteM func = transfSuite
+    where
+        transfSuite stmts = reverse <$> mapM transfStmt (reverse stmts)
+
+        transfStmt (WhileStmt expr suite) = WhileStmt expr <$> transfSuite suite
+        transfStmt (ForStmt exprs expr suite) =  
+        transfStmt (CondStmt (ife, ifsuite) elsesuite) = undefined 
+        transfStmt (Assign exprs expr) = undefined 
+        transfStmt (StmtExpr expr) = undefined
+
+
