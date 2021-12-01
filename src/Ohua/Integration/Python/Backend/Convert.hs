@@ -125,4 +125,4 @@ subToUnOp Sub.Not  = Py.Not noSpan
 subToUnOp Sub.Invert = Py.Invert noSpan
 
 convertQBind :: QualifiedBinding -> Py.Ident SrcSpan
-convertQBind (QualifiedBinding [] bnd) = fromBinding bnd
+convertQBind (QualifiedBinding (NSRef []) bnd) = fromBinding bnd

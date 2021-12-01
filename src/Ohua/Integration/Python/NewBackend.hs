@@ -72,7 +72,7 @@ instance Integration (Language 'Python) where
     convertExpr _ (TCLang.Lit (EnvRefLit _hostExpr)) = error "Host expression encountered! This is a compiler error. Please report!"
 
     convertExpr _ (TCLang.Lit (FunRefLit (FunRef qBnd mFunID _type))) = case qBnd of
-        (QualifiedBinding [] bnd) -> wrapSubExpr (Sub.Var bnd)
+        (QualifiedBinding (NSRef []) bnd) -> wrapSubExpr (Sub.Var bnd)
         (QualifiedBinding refNames bnd)  -> wrapSubExpr $ Sub.Var $ dotConcat refNames bnd
 
     convertExpr arch (Apply (Stateless bnd args)) = convertFunCall arch bnd args
@@ -169,7 +169,7 @@ instance Integration (Language 'Python) where
 
 
 pattern FunRepresentationOf :: Binding -> QualifiedBinding
-pattern FunRepresentationOf bnd <- QualifiedBinding [] bnd
+pattern FunRepresentationOf bnd <- QualifiedBinding (NSRef []) bnd
 
 convertFunCall ::(Architecture arch, Lang arch ~ Language 'Python) =>
         arch -> QualifiedBinding -> [TCLang.TaskExpr PythonTypeAnno] -> Sub.Stmt
@@ -297,13 +297,13 @@ unwrapSubStmt any = error $ "Tried to unwrap a statment other than StmtExpr " <>
 
 
 pattern ListConstructor :: QualifiedBinding
-pattern ListConstructor <- QualifiedBinding [] "list"
+pattern ListConstructor <- QualifiedBinding (NSRef []) "list"
 
 pattern DictConstructor :: QualifiedBinding
-pattern DictConstructor <- QualifiedBinding [] "dict"
+pattern DictConstructor <- QualifiedBinding (NSRef []) "dict"
 
 pattern TupleConstructor::QualifiedBinding
-pattern TupleConstructor <- QualifiedBinding [] "tuple"
+pattern TupleConstructor <- QualifiedBinding (NSRef []) "tuple"
 
 pattern SetConstructor::QualifiedBinding
-pattern SetConstructor <- QualifiedBinding [] "set"
+pattern SetConstructor <- QualifiedBinding (NSRef []) "set"

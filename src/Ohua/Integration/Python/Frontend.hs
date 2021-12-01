@@ -106,7 +106,7 @@ instance Integration (Language 'Python) where
         let filesAndPaths' = map (first convertOwn) filesAndPaths
         fun_types <- typesFromNS $ concatMap fst filesAndPaths'
         types' <- HM.fromList <$> mapM (verifyAndRegister fun_types) filesAndPaths'-}
-        updateExprs ohuaNS (transformM (assignTypes []))
+        updateExprs ohuaNS (transformM (assignTypes HM.empty))
         where
             {-funsForAlgo :: CompM m => Algo (FrLang.Expr PythonArgType) (Py.Statement SrcSpan)
                     -> m [([NSRef], QualifiedBinding)]
@@ -293,7 +293,7 @@ mappingToTuple ::ConvertM m => (Sub.Expr, Sub.Expr) -> m (FrLang.Expr PythonArgT
 mappingToTuple (key, value) = do
     key' <- subExprToIR key
     val' <- subExprToIR value
-    return [key', val']
+    return $ FrLang.TupE [key', val']
 
 subArgToIR :: ConvertM m => Sub.Argument -> m ( FrLang.Expr PythonArgType)
 subArgToIR (Sub.Arg expr) = subExprToIR expr
