@@ -1,5 +1,6 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE ExistentialQuantification #-}
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 module Ohua.Integration where
 
 import Ohua.Prelude
@@ -10,12 +11,20 @@ import qualified Ohua.Core.Compile.Configuration as CConfig
 import Ohua.Integration.Config (Config(..))
 import Ohua.Integration.Lang
 import Ohua.Integration.Architecture
-import Ohua.Integration.Rust.Backend.Passes (passes)
+import qualified Ohua.Integration.Rust.Backend.Passes as RustPasses
 import Ohua.Integration.Rust.Architecture.SharedMemory ()
 import Ohua.Integration.Rust.Architecture.SharedMemory.Transform ()
 import Ohua.Integration.Rust.Architecture.M3 ()
 import Ohua.Integration.Rust.Frontend ()
 import Ohua.Integration.Rust.Backend ()
+
+import qualified Ohua.Integration.Python.Backend.Passes as PyPasses
+import Ohua.Integration.Python.MultiProcessing ()
+-- import Ohua.Integration.Python.Transform ()
+import Ohua.Integration.Python.Frontend ()
+import Ohua.Integration.Python.NewBackend ()
+
+import qualified Data.Text as T
 
 
 type FileExtension = Text
@@ -60,7 +69,9 @@ runIntegration :: CompM m
 runIntegration ext (Config arch options) comp = do
   integration <- case ext of
     ".rs" -> case arch of
-               SharedMemory -> return $ I SRust SSharedMemory $ Just $ passes options
+               SharedMemory -> return $ I SRust SSharedMemory $ Just $ RustPasses.passes options
                M3 -> return $ I SRust SM3 Nothing
+    ".py" -> case arch of
+               MultiProcessing-> return $ I SPython SMultiProc Nothing 
     _ -> throwError $ "No language integration defined for files with extension '" <> ext <> "'"
   apply integration comp
