@@ -53,13 +53,6 @@ generateFunctionCode = \case
            dataOut
            (SChan <$> sOut)
     where
-      pureOut _ (Direct out) = return ((Ops.SendResult $ SChan (unwrapABnd out)) :| [])
-      pureOut _ (Destruct (Direct out1 :| [Direct out2])) =
-        return ((Ops.SendResult $ SChan (unwrapABnd out1)) :| [Ops.SendResult $ SChan $ unwrapABnd out2])
-      pureOut _ (Dispatch outs) = return $ (Ops.DispatchResult $ map (SChan . unwrapABnd) outs) :| []
-      -- TODO support nested dispatch output for destruct (and limit it in DFLang. see issue ohua-core#28)
-      pureOut fn e = throwError $ "Unsupported output configuration on function " <> show fn <> ": " <> show e
-
       stateOut fn (sOut, dout) = do
         sOut' <- toDirect fn sOut
         dout' <- case dout of
@@ -70,6 +63,15 @@ generateFunctionCode = \case
       toDirect _ (Just (Direct bnd)) = return $ Just $ unwrapABnd bnd
       toDirect _ Nothing = return Nothing
       toDirect fn e = throwError $ "Unsupported multiple outputs for state on stateful function " <> show fn <> ": " <> show e
+
+pureOut :: (CompM m, Show a) => a -> OutData semTy -> LoweringM m (NonEmpty (Ops.Result ty))
+pureOut _ (Direct out) = return ((Ops.SendResult $ SChan (unwrapABnd out)) :| [])
+pureOut _ (Destruct (Direct out1 :| [Direct out2])) =
+  return ((Ops.SendResult $ SChan (unwrapABnd out1)) :| [Ops.SendResult $ SChan $ unwrapABnd out2])
+pureOut _ (Dispatch outs) = return $ (Ops.DispatchResult $ map (SChan . unwrapABnd) outs) :| []
+-- TODO support nested dispatch output for destruct (and limit it in DFLang. see issue ohua-core#28)
+pureOut fn e = throwError $ "Unsupported output configuration on function " <> show fn <> ": " <> show e
+
 
 generateReceive :: DFVar semTy ty -> Ops.CallArg ty
 generateReceive (DFVar t bnd) = Ops.Arg $ SRecv t $ SChan $ unwrapABnd bnd
@@ -228,20 +230,18 @@ generateNodeCode e@(PureDFFun out (FunRef fun _ _) inp) | fun == Refs.seqFun = d
             "Seq must have two inputs where the second is a literal:\n" <> show e
 
 generateNodeCode e@(PureDFFun out (FunRef fun _ _) inp) | fun == Refs.unitFun = do
-  out' <- case out of
-           Direct x -> return $ SChan $ unwrapABnd x
-           _ -> invariantBroken $ "unitFun must only have one output:\n" <> show e
+  out' <- pureOut fun out
   case inp of
    DFEnvVar _t (FunRefLit (FunRef p _ _)) :| [v] | p == Refs.id ->
      case v of
         (DFVar t bnd) ->
           return $
             Fusion.Fun $
-            Ops.IdFusable (Ops.Arg $ SRecv t $ SChan $ unwrapABnd bnd) $ Ops.SendResult out' :| []
+            Ops.IdFusable (Ops.Arg $ SRecv t $ SChan $ unwrapABnd bnd) out'
         (DFEnvVar _ l) ->
           return $
             Fusion.Fun $
-            Ops.IdFusable (Ops.Converted $ Lit l) $ Ops.SendResult out' :| []
+            Ops.IdFusable (Ops.Converted $ Lit l) out'
    (DFEnvVar _t (FunRefLit pr@FunRef{}) :| [v]) -> -- FIXME this feels like a bug to me. why do we take this detour via unitFun???
      generateFunctionCode $ PureDFFun out pr (v:|[])
    _ -> invariantBroken $ "unknown function as first argument or wrong number of arguments (expetced 2) to unitFun:\n" <> show e
