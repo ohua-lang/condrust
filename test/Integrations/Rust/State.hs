@@ -737,4 +737,159 @@ fn test(i: i32) -> () {
 }
                     |]
                 compiled `shouldBe` expected)
+        it "raw state out" $
+            (showCode "Compiled: " =<< compileCode [sourceFile|
+                use funs::*;
+
+                 fn test(i:i32) -> S {
+                    let s = S::new_state(i);
+                    let sp = s.clone();
+                    let stream = iter_i32();
+                    for e in stream {
+                        let x = f_s(sp,e);
+                        s.gs(x);
+                    }
+                    s
+                }
+                |]) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:"
+                    [sourceFile|
+use funs::*;
+
+fn test(i: i32) -> S {
+  #[derive(Debug)]
+  enum RunError {
+    SendFailed,
+    RecvFailed,
+  }
+  impl<  T: Send,> From<  std::sync::mpsc::SendError<  T,>,> for RunError {
+    fn from(_err: std::sync::mpsc::SendError<  T,>) -> Self {
+      RunError::SendFailed
+    }
+  }
+  impl From<  std::sync::mpsc::RecvError,> for RunError {
+    fn from(_err: std::sync::mpsc::RecvError) -> Self {
+      RunError::RecvFailed
+    }
+  }
+  let (s_0_1_0_tx, s_0_1_0_rx) = std::sync::mpsc::channel();
+  let (s_0_0_2_tx, s_0_0_2_rx) = std::sync::mpsc::channel::<  S,>();
+  let (s_0_0_1_0_tx, s_0_0_1_0_rx) = std::sync::mpsc::channel::<  S,>();
+  let (ctrl_0_0_tx, ctrl_0_0_rx) = std::sync::mpsc::channel::<  (_, _),>();
+  let (sp_0_0_0_tx, sp_0_0_0_rx) = std::sync::mpsc::channel::<  &S,>();
+  let (ctrl_0_1_tx, ctrl_0_1_rx) = std::sync::mpsc::channel::<  (_, _),>();
+  let (d_1_tx, d_1_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
+    Vec::new();
+  tasks
+    .push(Box::new(move || -> _ {
+      let mut stream_0_0_0 = iter_i32();
+      loop {
+        let hasSize =
+          {
+            let tmp_has_size = stream_0_0_0.iter().size_hint();
+            tmp_has_size.1.is_some()
+          };
+        if hasSize {
+          let size = stream_0_0_0.len();
+          let ctrl = (true, size);
+          ctrl_0_0_tx.send(ctrl)?;
+          let ctrl = (true, size);
+          ctrl_0_1_tx.send(ctrl)?;
+          for d in stream_0_0_0 { d_1_tx.send(d)?; () }
+        } else {
+          let mut size = 0;
+          for d in stream_0_0_0 {
+            d_1_tx.send(d)?;
+            let ctrl = (false, 1);
+            ctrl_0_0_tx.send(ctrl)?;
+            let ctrl = (false, 1);
+            ctrl_0_1_tx.send(ctrl)?;
+            size = size + 1;
+            ()
+          };
+          let ctrl = (true, 0);
+          ctrl_0_0_tx.send(ctrl)?;
+          let ctrl = (true, 0);
+          ctrl_0_1_tx.send(ctrl)?;
+          ()
+        }
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
+        let mut var_0 = s_0_0_2_rx.recv()?;
+        let sp_0_0_0 = var_0.clone();
+        sp_0_0_0_tx.send(sp_0_0_0)?;
+        s_0_0_1_0_tx.send(var_0)?
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      let s_0_0_2 = S::new_state(i);
+      s_0_0_2_tx.send(s_0_0_2)?;
+      Ok(())
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
+        let mut renew = false;
+        let sp_0_0_0_0 = sp_0_0_0_rx.recv()?;
+        while !renew {
+          let sig = ctrl_0_1_rx.recv()?;
+          let count = sig.1;
+          for _ in 0 .. count {
+            let var_1 = d_1_rx.recv()?;
+            let x_0_0_0 = f_s(sp_0_0_0_0, var_1);
+            x_0_0_0_tx.send(x_0_0_0)?;
+            ()
+          };
+          let renew_next_time = sig.0;
+          renew = renew_next_time;
+          ()
+        };
+        ()
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
+        let mut renew = false;
+        let mut s_0_0_1_0_0 = s_0_0_1_0_rx.recv()?;
+        while !renew {
+          let sig = ctrl_0_0_rx.recv()?;
+          let count = sig.1;
+          for _ in 0 .. count {
+            let var_1 = x_0_0_0_rx.recv()?;
+            s_0_0_1_0_0.gs(var_1);
+            ()
+          };
+          let renew_next_time = sig.0;
+          renew = renew_next_time;
+          ()
+        };
+        s_0_1_0_tx.send(s_0_0_1_0_0)?;
+        ()
+      }
+    }));
+  let handles: Vec<  std::thread::JoinHandle<  _,>,> =
+    tasks
+      .into_iter()
+      .map(|t| { std::thread::spawn(move || { let _ = t(); }) })
+      .collect();
+  for h in handles {
+    if let Err(_) = h.join() {
+      eprintln!("[Error] A worker thread of an Ohua algorithm has panicked!");
+    }
+  }
+  match s_0_1_0_rx.recv() {
+    Ok(res) => res,
+    Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
+  }
+}
+                    |]
+                compiled `shouldBe` expected)
         )
