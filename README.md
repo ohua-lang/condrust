@@ -1,10 +1,6 @@
 # The standalone Ohua compiler: `ohuac`
 
-<!-- [![Build Status](https://travis-ci.org/ohua-dev/ohuac.svg?branch=master)](https://travis-ci.org/ohua-dev/ohuac) -->
-
-For the complete documentation of the `ohuac` compiler see the [standalone
-compiler section of the ohua
-documentation](https://ohua.readthedocs.org/en/latest/ohuac.html)
+[![Build Status](https://travis-ci.org/ohua-lang/ohuac.svg?branch=master)](https://travis-ci.org/ohua-lang/ohuac)
 
 ## Usage
 
