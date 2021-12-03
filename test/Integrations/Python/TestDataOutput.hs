@@ -97,20 +97,17 @@ y_0_0_0_sender, y_0_0_0_receiver = mp.Pipe()
 z_0_0_0_sender, z_0_0_0_receiver = mp.Pipe()
 x_0_0_0_sender, x_0_0_0_receiver = mp.Pipe()
 def task_1():
-    x_0_0_0 = f()
-    x_0_0_0_sender.send(x_0_0_0)
-    
-def task_2():
     while True:
         var_0 = x_0_0_0_receiver.recv()
         var_1 = z_0_0_0_receiver.recv()
         y_0_0_0 = var_0 + var_1
         y_0_0_0_sender.send(y_0_0_0)
-        
+def task_2():
+    x_0_0_0 = f()
+    x_0_0_0_sender.send(x_0_0_0)
 def task_3():
     z_0_0_0 = g()
     z_0_0_0_sender.send(z_0_0_0)
-    
 from testLib import *
 def main():
     tasks = [task_1, task_2, task_3]
@@ -326,17 +323,14 @@ def task_1():
         var_0 = x_0_0_0_receiver.recv()
         z_0_0_0 = g(var_0)
         z_0_0_0_sender.send(z_0_0_0)
-        
 def task_2():
+    a_0_0_0 = f(42)
+    a_0_0_0_sender.send(a_0_0_0)
+def task_3():
     while True:
         var_0 = a_0_0_0_receiver.recv()
         x_0_0_0 = f(var_0)
         x_0_0_0_sender.send(x_0_0_0)
-        
-def task_3():
-    a_0_0_0 = f(42)
-    a_0_0_0_sender.send(a_0_0_0)
-    
 from testLib import *
 def main():
     tasks = [task_1, task_2, task_3]
@@ -389,17 +383,14 @@ def task_1():
         var_0 = x_0_0_0_receiver.recv()
         z_0_0_0 = f(var_0)
         z_0_0_0_sender.send(z_0_0_0)
-        
 def task_2():
+    a_0_0_0 = f(42)
+    a_0_0_0_sender.send(a_0_0_0)
+def task_3():
     while True:
         var_0 = a_0_0_0_receiver.recv()
         x_0_0_0 = f(var_0)
         x_0_0_0_sender.send(x_0_0_0)
-        
-def task_3():
-    a_0_0_0 = f(42)
-    a_0_0_0_sender.send(a_0_0_0)
-    
 from testLib import *
 def main():
     tasks = [task_1, task_2, task_3]
@@ -490,20 +481,17 @@ c_0_0_sender, c_0_0_receiver = mp.Pipe()
 y_0_0_0_sender, y_0_0_0_receiver = mp.Pipe()
 x_0_0_0_sender, x_0_0_0_receiver = mp.Pipe()
 def task_1():
-    y_0_0_0 = g1(b)
-    y_0_0_0_sender.send(y_0_0_0)
-    
-def task_2():
     while True:
         var_0 = x_0_0_0_receiver.recv()
         var_1 = y_0_0_0_receiver.recv()
         c_0_0 = var_0 + var_1
         c_0_0_sender.send(c_0_0)
-        
+def task_2():
+    y_0_0_0 = g1(b)
+    y_0_0_0_sender.send(y_0_0_0)
 def task_3():
     x_0_0_0 = f(a)
     x_0_0_0_sender.send(x_0_0_0)
-    
 from testLib import *
 def main(a_1, b_1):
     global a, b
@@ -644,11 +632,11 @@ def task_1():
         x_0_0_0 = {var_0[0]: var_0[1], var_1[0]: var_1[1]}
         x_0_0_0_sender.send(x_0_0_0)
 def task_2():
-    d_0_0 = a, 1
-    d_0_0_sender.send(d_0_0)
-def task_3():
     c_0_0 = b, 2
     c_0_0_sender.send(c_0_0)
+def task_3():
+    d_0_0 = a, 1
+    d_0_0_sender.send(d_0_0)
 from testLib import *
 def main(a_1, b_1):
     global a, b
@@ -885,9 +873,174 @@ from testLib import *
 
 
 condExpr2 = [pythonModule|
+import multiprocessing as mp
+g_0_0_sender, g_0_0_receiver = mp.Pipe()
+a_0_0_0_0_sender, a_0_0_0_0_receiver = mp.Pipe()
+b_0_0_0_sender, b_0_0_0_receiver = mp.Pipe()
+ctrlTrue_0_sender, ctrlTrue_0_receiver = mp.Pipe()
+c_0_0_0_sender, c_0_0_0_receiver = mp.Pipe()
+ctrlFalse_0_sender, ctrlFalse_0_receiver = mp.Pipe()
+f_0_0_sender, f_0_0_receiver = mp.Pipe()
+e_0_0_sender, e_0_0_receiver = mp.Pipe()
+a_0_0_0_1_sender, a_0_0_0_1_receiver = mp.Pipe()
+result_0_sender, result_0_receiver = mp.Pipe()
+def task_1():
+    while True:
+        var_0 = result_0_receiver.recv()
+        g_0_0 = oneArg(var_0)
+        g_0_0_sender.send(g_0_0)
+def task_2():
+    c_0_0_0 = f2(3)
+    c_0_0_0_sender.send(c_0_0_0)
+def task_3():
+    while True:
+        branchSelection = a_0_0_0_1_receiver.recv()
+        if branchSelection:
+            result = e_0_0_receiver.recv()
+            result_0_sender.send(result)
+        else:
+            result = f_0_0_receiver.recv()
+            result_0_sender.send(result)
+def task_4():
+    while True:
+        branchSelection = a_0_0_0_0_receiver.recv()
+        if branchSelection:
+            ctrlTrue = True, 1
+            ctrlFalse = True, 0
+            ctrlTrue_0_sender.send(ctrlTrue)
+            ctrlFalse_0_sender.send(ctrlFalse)
+        else:
+            ctrlTrue = True, 0
+            ctrlFalse = True, 1
+            ctrlTrue_0_sender.send(ctrlTrue)
+            ctrlFalse_0_sender.send(ctrlFalse)
+def task_5():
+    res = f()
+    a_0_0_0_0_sender.send(res)
+    a_0_0_0_1_sender.send(res)
+def task_6():
+    b_0_0_0 = f1(2)
+    b_0_0_0_sender.send(b_0_0_0)
+def task_7():
+    while True:
+        renew = False
+        c_0_0_0_0 = c_0_0_0_receiver.recv()
+        while not renew:
+            sig = ctrlFalse_0_receiver.recv()
+            count = sig[1]
+            for _ in range(0, count):
+                f_0_0 = g1(c_0_0_0_0)
+                f_0_0_sender.send(f_0_0)
+            renew_next_time = sig[0]
+            renew = renew_next_time
+def task_8():
+    while True:
+        renew = False
+        b_0_0_0_0 = b_0_0_0_receiver.recv()
+        while not renew:
+            sig = ctrlTrue_0_receiver.recv()
+            count = sig[1]
+            for _ in range(0, count):
+                e_0_0 = g0(b_0_0_0_0)
+                e_0_0_sender.send(e_0_0)
+            renew_next_time = sig[0]
+            renew = renew_next_time
 from testLib import *
-# ToDo
+def main(i_1):
+    global i
+    i, = i_1,
+    tasks = [task_1, task_2, task_3, task_4, task_5, task_6, task_7, task_8]
+    processes = []
+    for task in tasks:
+        process = mp.Process(target=task)
+        processes.append(process)
+    list(map(mp.Process.start, processes))
+    result = g_0_0_receiver.recv()
+    list(map(mp.Process.terminate, processes))
+    list(map(mp.Process.join, processes))
+    return result 
 |]
+
+
+condContextFunction = [pythonModule|
+import multiprocessing as mp
+e_0_0_sender, e_0_0_receiver = mp.Pipe()
+a_0_0_0_0_sender, a_0_0_0_0_receiver = mp.Pipe()
+ctrlTrue_0_sender, ctrlTrue_0_receiver = mp.Pipe()
+ctrlFalse_0_sender, ctrlFalse_0_receiver = mp.Pipe()
+c_0_0_sender, c_0_0_receiver = mp.Pipe()
+b_0_0_sender, b_0_0_receiver = mp.Pipe()
+a_0_0_0_1_sender, a_0_0_0_1_receiver = mp.Pipe()
+result_0_sender, result_0_receiver = mp.Pipe()
+def task_1():
+    while True:
+        renew = False
+        while not renew:
+            sig = ctrlTrue_0_receiver.recv()
+            count = sig[1]
+            for _ in range(0, count):
+                b_0_0 = g0(5)
+                b_0_0_sender.send(b_0_0)
+            renew_next_time = sig[0]
+            renew = renew_next_time
+def task_2():
+    while True:
+        var_0 = result_0_receiver.recv()
+        e_0_0 = oneArg(var_0)
+        e_0_0_sender.send(e_0_0)
+def task_3():
+    res = f1(i)
+    a_0_0_0_0_sender.send(res)
+    a_0_0_0_1_sender.send(res)
+def task_4():
+    while True:
+        branchSelection = a_0_0_0_0_receiver.recv()
+        if branchSelection:
+            ctrlTrue = True, 1
+            ctrlFalse = True, 0
+            ctrlTrue_0_sender.send(ctrlTrue)
+            ctrlFalse_0_sender.send(ctrlFalse)
+        else:
+            ctrlTrue = True, 0
+            ctrlFalse = True, 1
+            ctrlTrue_0_sender.send(ctrlTrue)
+            ctrlFalse_0_sender.send(ctrlFalse)
+def task_5():
+    while True:
+        branchSelection = a_0_0_0_1_receiver.recv()
+        if branchSelection:
+            result = b_0_0_receiver.recv()
+            result_0_sender.send(result)
+        else:
+            result = c_0_0_receiver.recv()
+            result_0_sender.send(result)
+def task_6():
+    while True:
+        renew = False
+        while not renew:
+            sig = ctrlFalse_0_receiver.recv()
+            count = sig[1]
+            for _ in range(0, count):
+                c_0_0 = f()
+                c_0_0_sender.send(c_0_0)
+            renew_next_time = sig[0]
+            renew = renew_next_time
+from testLib import *
+def main(i_1):
+    global i
+    i, = i_1,
+    tasks = [task_1, task_2, task_3, task_4, task_5, task_6]
+    processes = []
+    for task in tasks:
+        process = mp.Process(target=task)
+        processes.append(process)
+    list(map(mp.Process.start, processes))
+    result = e_0_0_receiver.recv()
+    list(map(mp.Process.terminate, processes))
+    list(map(mp.Process.join, processes))
+    return result
+|]
+
 
 --Test cases for TailRec.hs --------------------------------------------
 tailRec= [pythonModule|

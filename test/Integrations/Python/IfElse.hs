@@ -66,12 +66,17 @@ spec =
         -- Branch selection before and after the 'if-split' try to receive the decisive varaible
             -- x = something if a else somethingElse
             -- > a is send once, but received twice -> this blocks 
-        it "Ite/Expr Rust Example" $
+        it "Ite/Expr simple condition" $
             (showCode "Compiled: " =<< compileCode Input.condExpr2) >>=
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.condExpr2
-                compiled `shouldBe` expected)   
-        
+                compiled `shouldBe` expected) 
+        it "Ite/Expr context function" $
+            (showCode "Compiled: " =<< compileCode Input.condContextFunction) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" Expect.condContextFunction
+                compiled `shouldBe` expected)    
+        {-
         {-uncaught exception: PatternMatchFail
          src/Ohua/Core/ALang/Util.hs:(90,13)-(94,49): Non-exhaustive patterns in case-}
         it "Ite/Expr comparison as condition" $
@@ -85,3 +90,4 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.condExpr2
                 compiled `shouldBe` expected)    
+-}

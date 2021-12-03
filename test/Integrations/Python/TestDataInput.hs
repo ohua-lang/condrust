@@ -491,6 +491,16 @@ def algo(i):
 |]
 
 
+condContextFunction = [pythonModule|
+from testLib import *
+
+def algo(i):
+    a = f1(i)
+    d = g0(5) if a else f()
+    return oneArg(d) 
+|]
+
+
 
 
 --Test cases for State.hs --------------------------------------------
