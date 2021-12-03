@@ -132,6 +132,28 @@ def algo():
     x += 42
 |]
 
+assignSet  = [pythonModule|
+import multiprocessing as mp
+x_0_0_0_sender, x_0_0_0_receiver = mp.Pipe()
+def task_1():
+    x_0_0_0 = {a, b, 1, 2, 3}
+    x_0_0_0_sender.send(x_0_0_0)
+from testLib import *
+def main(a_1, b_1):
+    global a, b
+    a, b = a_1, b_1
+    tasks = [task_1]
+    processes = []
+    for task in tasks:
+        process = mp.Process(target=task)
+        processes.append(process)
+    list(map(mp.Process.start, processes))
+    result = x_0_0_0_receiver.recv()
+    list(map(mp.Process.terminate, processes))
+    list(map(mp.Process.join, processes))
+    return result
+|]
+
 noReturn = [pythonModule|
 import multiprocessing as mp
 a_0_sender, a_0_receiver = mp.Pipe()

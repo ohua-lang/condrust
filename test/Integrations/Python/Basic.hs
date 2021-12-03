@@ -106,7 +106,7 @@ spec =
         it "Assign set with elements" $
             (showCode "Compiled: " =<< compileCode Input.assignSet) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" Expect.tupleArgumentCall
+                expected <- showCode "Expected:" Expect.assignSet
                 compiled `shouldBe` expected) 
         
         it "Tuple as argument" $

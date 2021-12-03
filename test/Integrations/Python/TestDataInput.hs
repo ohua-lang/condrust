@@ -348,7 +348,7 @@ def algo(a):
 loopTuplePattern= [pythonModule|
 from testLib import *
 def algo(a):
-    g = dict()
+    g = {1:2, 3:4}
     mOb = MObs(42)
     for (i,j) in g.items():
         n = f(i)
@@ -358,12 +358,14 @@ def algo(a):
 
 loopCommaPattern= [pythonModule|
 from testLib import *
+
 def algo(a):
-    g = dict()
+    g = {1:2, 3:4}
     mOb = MObs(42)
     for i,j in g.items():
         n = f(i)
         mOb.addNum(n)
+        mOb.addNum(3)
     return mOb
 |]
 
@@ -373,9 +375,11 @@ from testLib import *
 
 def algo(a):
     i = something()
+    l = []
     while testfun(i):
-        i = manipulate(i)
-    return i
+        n = manipulate(a)
+        l.append(n)
+    return l
 |]
 
 
