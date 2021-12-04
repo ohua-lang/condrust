@@ -376,17 +376,96 @@ def algo(a):
 
 
 --Test cases for IfElse.hs --------------------------------------------
-iteLiteralArgs = [pythonModule|
+condExpr = [pythonModule|
 from testLib import *
 
-def algo(a): 
-    b = f(a)
-    if b:
-        x = f(13)
-    else:
-        x = g(14)
+def algo(i):
+    a = f()
+    b = f1(2)
+    c = f2(3)
+    d = g0(b) if a else g1(c)
+    return oneArg(d) 
+|]
+
+condExprState = [pythonModule|
+from testLib import *
+
+def algo(i):
+    mob = MObs(3)
+    b, c = double(i)
+    d = g0(b) if mob.getNum() else g1(c)
+    return oneArg(d) 
+|]
+
+condContextFunction = [pythonModule|
+from testLib import *
+
+def algo(i):
+    a = f1(i)
+    d = g0(5) if a else f()
+    return oneArg(d) 
+|]
+
+condExprComCond = [pythonModule|
+from testLib import *
+
+def algo(i):
+    a = f()
+    d = True if (a < 3) else False
+    return d 
+|]
+
+
+condExprFunCond = [pythonModule|
+from testLib import *
+
+def algo(i):
+    d = g() if f() else h()
+    return d 
+|]
+
+condExprLit = [pythonModule|
+from testLib import *
+
+def algo(i):
+    cond = f(i)
+    x = 1 if cond else 0
     return x
 |]
+
+condExprStateRet = [pythonModule|
+from testLib import *
+
+def algo(i):
+    mob1 = MObs(3)
+    mob2 = MObs(23)
+    b = f()
+    d = mob1.getNum() if b else mob2.getNum()
+    return oneArg(d) 
+|]
+
+iteOnlyIf = [pythonModule|
+from testLib import *
+
+def algo(i):
+    a = f(i)
+    b = f()
+    if a:
+        b = g()
+    return b 
+|]
+
+iteOnlyIfState = [pythonModule|
+from testLib import *
+
+def algo(i):
+    a = f(i)
+    mob = MObs(7)
+    if a:
+        mob.addNum(16)
+    return mob
+|]
+
 
 branchReturn = [pythonModule|
 from testLib import *
@@ -398,6 +477,19 @@ def algo(a,b):
         return
     return oneArg(d) 
 |] 
+
+
+iteLiteralArgs = [pythonModule|
+from testLib import *
+
+def algo(a): 
+    b = f(a)
+    if b:
+        x = f(13)
+    else:
+        x = g(14)
+    return x
+|]
 
 iteRustExample = [pythonModule|
 from testLib import *
@@ -425,73 +517,6 @@ def algo(i):
         mob.addNum(23)
     return mob
 |]
-
-condExprLit = [pythonModule|
-from testLib import *
-
-def algo(i):
-    cond = f(i)
-    x = 1 if cond else 0
-    return x
-|]
-
-condExprLitOnly = [pythonModule|
-from testLib import *
-
-def algo():
-    x = 1 if True else 2 
-    return x
-|]
-
-
-condExprComCond = [pythonModule|
-from testLib import *
-
-def algo(i):
-    a = f()
-    d = True if (a < 3) else False
-    return d 
-|]
-
-
-condExprFunCond = [pythonModule|
-from testLib import *
-
-def algo(i):
-    d = g() if f() else h()
-    return d 
-|]
-
-condExpr2 = [pythonModule|
-from testLib import *
-
-def algo(i):
-    a = f()
-    b = f1(2)
-    c = f2(3)
-    d = g0(b) if a else g1(c)
-    return oneArg(d) 
-|]
-
-condExpr3 = [pythonModule|
-from testLib import *
-
-def algo(i):
-    a = f()
-    d = g0(b) if (a < 3) else g1(c)
-    return oneArg(d) 
-|]
-
-
-condContextFunction = [pythonModule|
-from testLib import *
-
-def algo(i):
-    a = f1(i)
-    d = g0(5) if a else f()
-    return oneArg(d) 
-|]
-
 
 --Test cases for State.hs --------------------------------------------
 callMethod = [pythonModule|

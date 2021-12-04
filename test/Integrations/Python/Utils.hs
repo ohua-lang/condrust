@@ -44,7 +44,7 @@ type ParseResult = Either ParseError (ModuleSpan, [Token])
 -- TODO turn this into a parameter for a particular test
 -- TODO: remove redundancy among rust.utils and python.utils
 debug :: Bool
-debug = True -- False
+debug = False
 
 withDebug :: Options -> Options
 withDebug d = d & stageHandling .~ debugStageHandling
@@ -111,15 +111,15 @@ compileCode' inCode opts =
                         LevelWarn
                         $ compile inFile compScope options integrationOptions outDir
                     (caller:modules) <- listDirectory outDir
-                    putStr filesHint
-                    mapM_ putStr (caller:modules)
+                    -- putStr filesHint
+                    -- mapM_ putStr (caller:modules)
                     -- files <- mapM (\name -> readFile (outDir </> name)) (caller:modules)
                     producedFile <-readFile (outDir </> "algo.py")
                     {-- newMain <-readFile (outDir </> "test.py")
                     putStr newMainStr
-                    putStr $ newMain  <> "\n"
-                    putStr algoModStr 
-                    putStr $ producedFile  <> "\n"--}
+                    putStr $ newMain  <> "\n"--}
+                    -- putStr algoModStr 
+                    -- putStr $ producedFile  <> "\n"
                     return $ wrappedParsing  (T.unpack producedFile) (takeFileName inFile)
                    
 
