@@ -661,15 +661,13 @@ import multiprocessing as mp
 x_0_0_0_sender, x_0_0_0_receiver = mp.Pipe()
 mob_0_0_1_sender, mob_0_0_1_receiver = mp.Pipe()
 def task_1():
-    mob_0_0_1 = MObs(22)
-    mob_0_0_1_sender.send(mob_0_0_1)
-    
-def task_2():
     while True:
         var_0 = mob_0_0_1_receiver.recv()
         x_0_0_0 = var_0.getNum()
         x_0_0_0_sender.send(x_0_0_0)
-        
+def task_2():
+    mob_0_0_1 = MObs(22)
+    mob_0_0_1_sender.send(mob_0_0_1)
 from testLib import *
 def main():
     tasks = [task_1, task_2]
@@ -683,6 +681,119 @@ def main():
     list(map(mp.Process.join, processes))
     return result
 |]
+
+flat= [pythonModule|
+import multiprocessing as mp
+a_0_0_sender, a_0_0_receiver = mp.Pipe()
+mob_0_0_1_sender, mob_0_0_1_receiver = mp.Pipe()
+result_0_0_0_sender, result_0_0_0_receiver = mp.Pipe()
+def task_1():
+    mob_0_0_1 = MObs(i)
+    mob_0_0_1_sender.send(mob_0_0_1)
+def task_2():
+    while True:
+        var_0 = result_0_0_0_receiver.recv()
+        a_0_0 = oneArg(var_0)
+        a_0_0_sender.send(a_0_0)
+def task_3():
+    while True:
+        var_0 = mob_0_0_1_receiver.recv()
+        result_0_0_0 = var_0.getNum()
+        result_0_0_0_sender.send(result_0_0_0)
+from testLib import *
+def main(i_1):
+    global i
+    i, = i_1,
+    tasks = [task_1, task_2, task_3]
+    processes = []
+    for task in tasks:
+        process = mp.Process(target=task)
+        processes.append(process)
+    list(map(mp.Process.start, processes))
+    result = a_0_0_receiver.recv()
+    list(map(mp.Process.terminate, processes))
+    list(map(mp.Process.join, processes))
+    return result
+|]
+
+thread = [pythonModule|
+import multiprocessing as mp
+result_0_0_0_sender, result_0_0_0_receiver = mp.Pipe()
+mob_0_0_2_sender, mob_0_0_2_receiver = mp.Pipe()
+mob_0_0_1_0_sender, mob_0_0_1_0_receiver = mp.Pipe()
+def task_1():
+    while True:
+        var_0 = mob_0_0_1_0_receiver.recv()
+        result_0_0_0 = var_0.getNum()
+        result_0_0_0_sender.send(result_0_0_0)
+def task_2():
+    while True:
+        var_0 = mob_0_0_2_receiver.recv()
+        var_0.addNum(23)
+        mob_0_0_1_0_sender.send(var_0)
+def task_3():
+    mob_0_0_2 = MObs(i)
+    mob_0_0_2_sender.send(mob_0_0_2)
+from testLib import *
+def main(i_1):
+    global i
+    i, = i_1,
+    tasks = [task_1, task_2, task_3]
+    processes = []
+    for task in tasks:
+        process = mp.Process(target=task)
+        processes.append(process)
+    list(map(mp.Process.start, processes))
+    result = result_0_0_0_receiver.recv()
+    list(map(mp.Process.terminate, processes))
+    list(map(mp.Process.join, processes))
+    return result
+|]
+
+loop = [pythonModule|
+from testLib import *
+
+def algo(a):
+    g = listOfMObs(a)
+    for e in g:
+        e.addNum(7)
+|]
+
+singleIO = [pythonModule|
+from testLib import *
+
+def algo(a):
+    mob = MObs(a)
+    g = some_invented_iter_function()
+    for e in g:
+        mob.addNum(e)
+|]
+
+singleState = [pythonModule|
+from testLib import *
+
+def algo(a):
+    mob = MObs(a)
+    g = some_invented_iter_function()
+    for e in g:
+        mob.addNum(e)
+    return mob.getNum()
+|]
+
+stateOut = [pythonModule|
+from testLib import *
+
+def algo(a):
+    mob = MObs(a)
+    mob2 = mob.clone()
+    g = some_invented_iter_function()
+    for e in g:
+        x = mobFun(mob2, e) 
+        mob.addNum(x)
+    return mob
+|]
+
+
 
 --Test cases for Loops.hs ---------------------------------------------
 loopIterator= [pythonModule|
@@ -1044,9 +1155,56 @@ def main(i_1):
 
 --Test cases for TailRec.hs --------------------------------------------
 tailRec= [pythonModule|
+import multiprocessing as mp
+d_0_0_sender, d_0_0_receiver = mp.Pipe()
+returnV_0_0_0_sender, returnV_0_0_0_receiver = mp.Pipe()
+b_0_0_sender, b_0_0_receiver = mp.Pipe()
+i_0_0_0_sender, i_0_0_0_receiver = mp.Pipe()
+j_0_0_0_sender, j_0_0_0_receiver = mp.Pipe()
+k_0_0_0_sender, k_0_0_0_receiver = mp.Pipe()
+recursionFlag_0_0_0_sender, recursionFlag_0_0_0_receiver = mp.Pipe()
+def task_1():
+    while True:
+        var_0 = i_0_0_0_receiver.recv()
+        res = double(var_0)
+        j_0_0_0 = res[0]
+        j_0_0_0_sender.send(j_0_0_0)
+        k_0_0_0 = res[1]
+        k_0_0_0_sender.send(k_0_0_0)
+def task_2():
+    while True:
+        var_0 = k_0_0_0_receiver.recv()
+        returnV_0_0_0 = g0(var_0)
+        returnV_0_0_0_sender.send(returnV_0_0_0)
+def task_3():
+    while True:
+        var_0 = recursionFlag_0_0_0_receiver.recv()
+        b_0_0 = check(var_0)
+        b_0_0_sender.send(b_0_0)
+def task_4():
+    while True:
+        var_0 = j_0_0_0_receiver.recv()
+        recursionFlag_0_0_0 = g0(var_0)
+        recursionFlag_0_0_0_sender.send(recursionFlag_0_0_0)
+def task_5():
+    i_0_0_0_sender.send(1)
+    while b_0_0_receiver.recv():
+        loop_res_0 = returnV_0_0_0_receiver.recv()
+        i_0_0_0_sender.send(loop_res_0)
+    finalResult = returnV_0_0_0_receiver.recv()
+    d_0_0_sender.send(finalResult)
 from testLib import *
-
-# TODO
+def main():
+    tasks = [task_1, task_2, task_3, task_4, task_5]
+    processes = []
+    for task in tasks:
+        process = mp.Process(target=task)
+        processes.append(process)
+    list(map(mp.Process.start, processes))
+    result = d_0_0_receiver.recv()
+    list(map(mp.Process.terminate, processes))
+    list(map(mp.Process.join, processes))
+    return result
 |]
 
 tailRecMultiArg= [pythonModule|

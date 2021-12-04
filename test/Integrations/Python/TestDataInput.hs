@@ -310,15 +310,7 @@ def algo(a, b):
 |]
 
 --Test cases for State.hs ---------------------------------------------
-callMethod = [pythonModule|
-from testLib import *
 
-def algo():
-    mob = MObs(22)
-    # mob.addNum(21)
-    x = mob.getNum()
-    return x
-|]
 
 
 
@@ -501,35 +493,116 @@ def algo(i):
 |]
 
 
-
-
 --Test cases for State.hs --------------------------------------------
+callMethod = [pythonModule|
+from testLib import *
+
+def algo():
+    mob = MObs(22)
+    # mob.addNum(21)
+    x = mob.getNum()
+    return x
+|]
+
+flat= [pythonModule|
+from testLib import *
+
+def algo(i):
+    mob = MObs(i)
+    result = mob.getNum()
+    return oneArg(result) 
+|]
+
+thread = [pythonModule|
+from testLib import *
+
+def algo(i):
+    mob = MObs(i)
+    mob.addNum(23)
+    result = mob.getNum()
+    return result 
+|]
+
+loop = [pythonModule|
+from testLib import *
+
+def algo(a):
+    g = listOfMObs(a)
+    for e in g:
+        e.addNum(7)
+|]
+
+singleIO = [pythonModule|
+from testLib import *
+
+def algo(a):
+    mob = MObs(a)
+    g = some_invented_iter_function()
+    for e in g:
+        mob.addNum(e)
+|]
+
+singleState = [pythonModule|
+from testLib import *
+
+def algo(a):
+    mob = MObs(a)
+    g = some_invented_iter_function()
+    for e in g:
+        mob.addNum(e)
+    return mob.getNum()
+|]
+
+stateOut = [pythonModule|
+from testLib import *
+
+def algo(a):
+    mob = MObs(a)
+    mob2 = mob.clone()
+    g = some_invented_iter_function()
+    for e in g:
+        x = mobFun(mob2, e) 
+        mob.addNum(x)
+    return mob
+|]
+
 
 
 --Test cases for TailRec.hs --------------------------------------------
 tailRecExpr= [pythonModule|
 from testLib import *
 def algo2(i):
-    j = g0(i)
-    
-    returnV = j.id()
-    recursionFlag = j.id()
-
-    k = algo2(returnV) if check(recursionFlag) else returnV
-    return k
+    j,k = double(i)
+    recursionFlag = g0(j)
+    returnV = g0(k)
+    return  algo2(returnV) if check(recursionFlag) else returnV
 
 def algo():
     return algo2(1)
 |]
 
+tailRecExpr2= [pythonModule|
+from testLib import *
+def algo2(a,b):
+    i = g0(a)
+    j = g0(b)
+    k = twoArgs(i,j)
+    k2 = twoArgs(i,j)
+    return algo2(i, j) if check(k) else k2
+
+def algo(a, b):
+    return algo2(a, b)
+|]
+
 tailRecStmt= [pythonModule|
 from testLib import *
 def algo2(i):
-    j = g0(i)
-    if check(j):
-        return algo2(j)
+    recursionFlag = g0(i)
+    returnV = g0(i)
+    if check(recursionFlag):
+        return algo2(returnV)
     else: 
-        return j 
+        return returnV 
 
 def algo():
     return algo2(1)
