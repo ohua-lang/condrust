@@ -7,6 +7,7 @@ import Ohua.Prelude
 
 import Test.Hspec
 
+import TestOptions
 import Ohua.Core.Types.Environment (stageHandling, Options, transformRecursiveFunctions)
 import Ohua.Core.Types.Stage (DumpCode(..), StageHandling)
 import Ohua.Core.Stage
@@ -41,36 +42,6 @@ import qualified Data.HashMap.Lazy as HM
 
 type ParseResult = Either ParseError (ModuleSpan, [Token])
 
--- TODO turn this into a parameter for a particular test
--- TODO: remove redundancy among rust.utils and python.utils
-debug :: Bool
-debug = False
-
-withDebug :: Options -> Options
-withDebug d = d & stageHandling .~ debugStageHandling
-
-withRec :: Options -> Options
-withRec d = d & transformRecursiveFunctions .~ True
-
-debugStageHandling :: StageHandling
-debugStageHandling =
-    intoStageHandling DumpStdOut
-        $ Just
-            [ Stage resolvedAlang True False
-            , Stage normalizedAlang True False
-            , Stage coreDflang True False
-            , Stage coreAlang True False
-            , Stage initialDflang True False
-            , Stage preControlSTCLangALang True False
-            , Stage smapTransformationALang True False
-            , Stage conditionalsTransformationALang True False
-            , Stage seqTransformationALang True False
-            , Stage postControlSTCLangALang True False
-            , Stage normalizeAfterCorePasses True False
-            , Stage customDflang True False
-            , Stage finalDflang True False
-            ]
-
 renderPython:: (PyPretty.Pretty a)=> a -> Text
 renderPython = T.pack . prettyText
 
@@ -78,10 +49,10 @@ integrationOptions :: IC.Config
 integrationOptions = IC.Config Arch.MultiProcessing $ IC.Options Nothing Nothing
 
 compileCodeWithRec :: Module SrcSpan -> IO (Module SrcSpan)
-compileCodeWithRec inCode = compileCode' inCode $ withRec def
+compileCodeWithRec inCode = runReaderT (compileCode' inCode $ withRec def) def
 
 compileCode ::  Module SrcSpan -> IO (Module SrcSpan)
-compileCode inCode = compileCode' inCode def
+compileCode inCode = runReaderT (compileCode' inCode def) def
 
 wrappedParsing:: String -> String -> Module SrcSpan
 wrappedParsing pyCode filename = do
@@ -90,9 +61,12 @@ wrappedParsing pyCode filename = do
         Left parse_error -> error $ T.pack $ prettyText parse_error
         Right (mod_span, _comments) -> mod_span
 
+
 --TODO: Change return types once compiling is implemented 
-compileCode' ::  Module SrcSpan -> Options -> IO (Module SrcSpan)
-compileCode' inCode opts =
+compileCode' ::  Module SrcSpan -> Options -> ReaderT DebugOptions IO (Module SrcSpan)
+compileCode' inCode opts = do 
+    debug <- asks printIRs
+    lift $
      withSystemTempDirectory "testDir"
         $ \testDir -> do
             setCurrentDirectory testDir
@@ -122,13 +96,19 @@ compileCode' inCode opts =
                     -- putStr $ producedFile  <> "\n"
                     return $ wrappedParsing  (T.unpack producedFile) (takeFileName inFile)
                    
-
 showCode :: T.Text -> Module SrcSpan -> IO T.Text
-showCode msg ast =
+showCode msg code = runReaderT (showCode' msg code) def
+
+showCodeWithDiff :: T.Text -> Module SrcSpan -> IO T.Text
+showCodeWithDiff msg code = runReaderT (showCode' msg code) $ DebugOptions False True
+
+showCode' :: T.Text -> Module SrcSpan -> ReaderT DebugOptions IO T.Text
+showCode' msg ast =
     let
         c = renderPython ast
     in do
-        when debug $ printCode c
+        showDiff <- asks showCodeDiff
+        lift $ when showDiff $ printCode c
         return c
     where
         printCode c = putStr $ boundary <> header <> c <> boundary

@@ -21,10 +21,6 @@ import Language.Rust.Pretty (pretty')
 import Language.Rust.Quote
 import Language.Rust.Syntax
 import Ohua.Compile.Compiler
-import Ohua.Compile.Config (Stage (..), intoStageHandling)
-import Ohua.Core.Stage
-import Ohua.Core.Types.Environment (Options, stageHandling, transformRecursiveFunctions)
-import Ohua.Core.Types.Stage (DumpCode (..), StageHandling)
 import qualified Ohua.Integration.Architecture as Arch
 import qualified Ohua.Integration.Config as IC
 import Ohua.Prelude
@@ -32,15 +28,9 @@ import System.Directory (setCurrentDirectory)
 import System.FilePath
 import System.IO.Temp
 import Test.Hspec
+import TestOptions
+import Ohua.Core.Types (Options)
 
-
-data DebugOptions = DebugOptions
-  { printIRs :: Bool,
-    showCodeDiff :: Bool
-  }
-
-instance Default DebugOptions where
-  def = DebugOptions False False
 
 renderRustCode :: SourceFile Span -> L.ByteString
 renderRustCode =
@@ -50,30 +40,6 @@ renderRustCode =
     . layoutSmart defaultLayoutOptions
     . pretty'
 
-withDebug :: Options -> Options
-withDebug d = d & stageHandling .~ debugStageHandling
-
-withRec :: Options -> Options
-withRec d = d & transformRecursiveFunctions .~ True
-
-debugStageHandling :: StageHandling
-debugStageHandling =
-  intoStageHandling DumpStdOut $
-    Just
-      [ Stage resolvedAlang True False,
-        Stage normalizedAlang True False,
-        Stage coreDflang True False,
-        Stage coreAlang True False,
-        Stage initialDflang True False,
-        Stage preControlSTCLangALang True False,
-        Stage smapTransformationALang True False,
-        Stage conditionalsTransformationALang True False,
-        Stage seqTransformationALang True False,
-        Stage postControlSTCLangALang True False,
-        Stage normalizeAfterCorePasses True False,
-        Stage customDflang True False,
-        Stage finalDflang True False
-      ]
 
 integrationOptions :: IC.Config
 integrationOptions = IC.Config Arch.SharedMemory $ IC.Options Nothing Nothing
@@ -163,6 +129,7 @@ funs =
   \   type Item=S; \
   \   fn next(&mut self) -> Option<S> { unimplemented!{} } \
   \   fn size_hint(&self) -> (usize, Option<usize>) { unimplemented!{} } \
+  \   fn has_next(&self) -> bool { unimplemented!{} } \
   \ } \
   \ impl Clone for S { \
   \   fn clone(&self) -> Self { unimplemented!() } \
