@@ -1,4 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 
 module Ohua.Integration.Transform.DataPar where
 
@@ -218,15 +219,15 @@ liftFunction (PureDFFun out fun inp) cont = do
   return $ DFL.Let spawned outBound
   where
     handleOutputSide :: ABinding 'Data -> OhuaM (NormalizedDFExpr ty)
-    handleOutputSide futuresBnd = do
+    handleOutputSide futuresBnd =
       return $
-        DFL.Let
-          ( PureDFFun
-              out
-              (FunRef joinFuture Nothing (FunType $ Right $ TypeVar :| []))
-              (DFVar TypeVar futuresBnd :| [])
-          )
-          cont
+      DFL.Let
+        ( PureDFFun
+            out
+            (FunRef joinFuture Nothing (FunType $ Right $ TypeVar :| []))
+            (DFVar TypeVar futuresBnd :| [])
+        )
+        cont
 
     handleFun :: ABinding 'Data -> DFApp 'Fun ty
     handleFun futuresBnd =
@@ -315,8 +316,7 @@ concatLit = Lit $ FunRefLit $ FunRef concat Nothing $ FunType $ Right $ TypeVar 
 --             else state'
 -- @
 amorphous :: Integer -> AL.Expr ty -> OhuaM (AL.Expr ty)
-amorphous numRetries targetExpr = do
---  traceM $ "Trying to check expression:\n" <> quickRender targetExpr
+amorphous numRetries targetExpr =
   transformM go targetExpr
   where
     -- TODO: Verify the correctness of the whole transformation
@@ -327,68 +327,64 @@ amorphous numRetries targetExpr = do
     rewriteIrregularApp lam =
       let (ctxt, body) = lambdaArgsAndBody lam
        in case ctxt of
-            ctxt' | length ctxt' < 2 -> do
---              traceM $ "Detected only context with length < 2: " <> show ctxt'
+            ctxt' | length ctxt' < 2 ->
               pure lam
             ctxt' -> do
 --              traceM $ "Found lambda body with sufficient length"
               result <- case findResult body of
-                [r] -> do
---                  traceM $ "Found result " <> show r
+                [r] ->
                   pure r
                 _ ->
                   throwError $
                     "apparently, the recursion is not well-formed."
                       <> " invariant broken."
               let ctxtHS = HS.fromList ctxt'
-              case HS.member result ctxtHS
-                && isUsedState result body of
-                False -> pure lam
-                _ -> do
+              if HS.member result ctxtHS
+                && isUsedState result body then (do
 --                  traceM $ "result is in ctxt and used in body"
-                  case findLoops body of
-                    [] -> pure lam
-                    loops -> do
+                case findLoops body of
+                  [] -> pure lam
+                  loops -> do
 --                      traceM $ "Detected loops: " <> show loops
-                      case filter ((`HS.member` ctxtHS) . snd3) loops of
-                        [] -> pure lam
-                        loops' -> do
+                    case filter ((`HS.member` ctxtHS) . snd3) loops of
+                      [] -> pure lam
+                      loops' -> do
 --                          traceM $ "Result after filtering with ctxtHS: " <> show loops'
-                          case filter (isUsedState result . fst3) loops' of
-                            -- TODO this only checks for calls to the state but it should
-                            --      really also check that the result of the loop is input to the same call
-                            [] -> case filter (isUsedState result . third3) loops' of
-                                    [] -> pure lam
-                                    -- FIXME cleanup this code and merge it with the below version
-                                    [(_, inp,_)] -> do
-                                      recArgs <- findRecursionArgs body
-                                      workResult <-
-                                        findWorked body inp result recArgs
-                                      rest <- generateBindingWith "rest"
+                        case filter (isUsedState result . fst3) loops' of
+                          -- TODO this only checks for calls to the state but it should
+                          --      really also check that the result of the loop is input to the same call
+                          [] -> case filter (isUsedState result . third3) loops' of
+                                  [] -> pure lam
+                                  -- FIXME cleanup this code and merge it with the below version
+                                  [(_, inp,_)] -> do
+                                    recArgs <- findRecursionArgs body
+                                    workResult <-
+                                      findWorked body inp result recArgs
+                                    rest <- generateBindingWith "rest"
 --                                      traceM $ "state: " <> show result
 --                                      traceM $ "wl: " <> show workResult
-                                      case workResult of
-                                        Just workResult' -> do
-                                          lam' <- transformM (takeNRewrite' inp workResult' rest) lam
-                                          transformM (concatRewrite result workResult' rest) lam'
-                                        _ -> pure lam
+                                    case workResult of
+                                      Just workResult' -> do
+                                        lam' <- transformM (takeNRewrite' inp workResult' rest) lam
+                                        transformM (concatRewrite result workResult' rest) lam'
+                                      _ -> pure lam
 
-                                    --FIXME I don't think we should error here but just not perform the transfomation.
-                                    _ -> throwError $ "invariant broken: "
-                                         <> "more than a single loop over the worklist found."
-                            [(_, inp,_)] -> do
+                                  --FIXME I don't think we should error here but just not perform the transfomation.
+                                  _ -> throwError $ "invariant broken: "
+                                       <> "more than a single loop over the worklist found."
+                          [(_, inp,_)] -> do
 --                              traceM $ "Detected State usage: " <> show inp
-                              recArgs <- findRecursionArgs body
-                              workResult <-
-                                findWorked body inp result recArgs
-                              case workResult of
-                                Just workResult' ->
-                                  transformM (doRewrite inp workResult') lam
-                                _ -> pure lam
-                            _ ->
-                              throwError $
-                                "invariant broken: "
-                                  <> "state inside a context can only be used once!"
+                            recArgs <- findRecursionArgs body
+                            workResult <-
+                              findWorked body inp result recArgs
+                            case workResult of
+                              Just workResult' ->
+                                transformM (doRewrite inp workResult') lam
+                              _ -> pure lam
+                          _ ->
+                            throwError $
+                              "invariant broken: "
+                                <> "state inside a context can only be used once!") else pure lam
 
     findResult body =
       [ s | (AL.Let _ cond (AL.Var _)) <- universe body, ( Apply
@@ -455,7 +451,7 @@ amorphous numRetries targetExpr = do
                       [b'] -> case getWLPrime cont b' result of
                                 [b''] | HS.member b'' recArgs -> return $ Just b'
                                 _ -> return Nothing
-                      bs -> do
+                      bs ->
                         throwError $ "I was unable to detect the work variable: " <> show bs
     --return Nothing
 

@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskell #-}
 module Ohua.Integration.Python.Backend.Subset where
 
 import Ohua.Prelude 
@@ -14,9 +15,12 @@ data Stmt =
     WhileStmt Expr Suite -- original: While Expr Suite Suite, we dont't have the 'else-suite'
     | ForStmt [Expr] Expr Suite -- original: For [Expr] Suite Suite, we dont't have the 'else-suite'
     | CondStmt (Expr, Suite) Suite -- original: Conditional [(Expr, Suite)] Suite, we dont't have a list of elifs but only if -suite- suite
-    | StmtExpr Expr
     -- TODO: Check what kinds of target actually arrive here
     | Assign [Expr] Expr 
+    -- Actually there never is a StmtExpr, we just need it as an intermediate 
+    -- wrapper for expressions because convertExpr 
+    -- may not return statments OR exprs
+    | StmtExpr Expr
     deriving (Eq, Generic, Show)
 
 data Expr = 
@@ -54,3 +58,33 @@ data BinOp =
 data UnOp =  Not | Invert  deriving (Show, Eq, Generic)
 
 data Argument = Arg Expr deriving (Eq, Show) -- StarArg Expr | StarKwArg Expr | KwArg Expr Ident
+
+-------------------- Recursion schemes support --------------------
+
+makeBaseFunctor ''Expr
+makeBaseFunctor ''Stmt
+instance Plated Expr where plate = gplate
+instance Plated Stmt where plate = gplate
+
+transformExprInSuite :: (Stmt -> Stmt) -> Suite -> Suite
+transformExprInSuite func  = runIdentity . transformExprInSuiteM (pure . func)
+
+transformExprInSuiteM :: (Monad m) => (Stmt -> m Stmt) -> Suite -> m Suite
+transformExprInSuiteM func = transfSuite
+    where
+        transfSuite stmts = reverse <$> mapM (transformM (func <=< transfStmt)) (reverse stmts)
+
+        transfStmt (WhileStmt expr suite) = WhileStmt expr <$> transfSuite suite
+        transfStmt (ForStmt exprs expr suite) = ForStmt exprs expr <$> transfSuite suite
+        -- TODO: Check why the backend else in Rust is not transformed
+        transfStmt (CondStmt (ife, ifsuite) elsesuite) = 
+            (\suite -> CondStmt (ife, suite) elsesuite) <$> transfSuite ifsuite
+        -- In Rust, assignments can contain blocks, 
+        -- in Python the assigned expression can really only be one expression
+        transfStmt (Assign exprs expr) = pure $ Assign exprs expr
+        transfStmt (StmtExpr expr) = pure $ StmtExpr expr
+
+    
+        
+
+

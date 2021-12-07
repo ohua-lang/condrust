@@ -1,10 +1,11 @@
 module Ohua.Integration.Python.Backend.Passes where
 
-import qualified Data.HashSet as HS
+import Ohua.Prelude
+import Ohua.Integration.Config (Options)
+import Ohua.Core.Compile.Configuration (CustomPasses)
 import qualified Ohua.Core.DFLang.Passes.State as StateDFL
 import Ohua.Integration.Transform.DataPar (dataPar)
-import Ohua.Prelude
 
 
-
+passes :: Options -> CustomPasses
 passes = StateDFL.load . dataPar

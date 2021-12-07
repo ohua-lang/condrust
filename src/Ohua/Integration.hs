@@ -20,7 +20,7 @@ import Ohua.Integration.Rust.Backend ()
 
 import qualified Ohua.Integration.Python.Backend.Passes as PyPasses
 import Ohua.Integration.Python.MultiProcessing ()
--- import Ohua.Integration.Python.Transform ()
+import Ohua.Integration.Python.Transform ()
 import Ohua.Integration.Python.Frontend ()
 import Ohua.Integration.Python.NewBackend ()
 
@@ -72,6 +72,6 @@ runIntegration ext (Config arch options) comp = do
                SharedMemory -> return $ I SRust SSharedMemory $ Just $ RustPasses.passes options
                M3 -> return $ I SRust SM3 Nothing
     ".py" -> case arch of
-               MultiProcessing-> return $ I SPython SMultiProc Nothing 
+               MultiProcessing-> return $ I SPython SMultiProc $ Just $ PyPasses.passes options
     _ -> throwError $ "No language integration defined for files with extension '" <> ext <> "'"
   apply integration comp

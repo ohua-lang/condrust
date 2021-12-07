@@ -30,7 +30,7 @@ import Language.Python.Common (ImportRelative(import_relative_dots))
 type FullyPyProgram = Program (Py.Statement SrcSpan) (Py.Expr SrcSpan) (Py.Statement SrcSpan) PythonArgType
 
 
-instance Transform (Architectures 'MultiProcessing)
+-- instance Transform (Architectures 'MultiProcessing)
 instance Architecture (Architectures 'MultiProcessing) where
     type Lang (Architectures 'MultiProcessing) = Language 'Python
     type Chan (Architectures 'MultiProcessing) = Sub.Stmt
