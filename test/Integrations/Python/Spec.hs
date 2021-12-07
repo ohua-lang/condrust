@@ -19,7 +19,7 @@ spec :: Spec
 spec = 
     Basic.spec  >> 
     IfElse.spec  >>
-    Loops.spec  >>
+    Loops.spec >>
     TailRec.spec >>
     State.spec --  >>
     -- BMs.spec -- >>

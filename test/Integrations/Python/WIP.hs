@@ -45,10 +45,18 @@ spec =
                 expected <- showCode "Expected:" Expect.multiAssignment
                 compiled `shouldBe` expected)
          -}
-    -}  it "Ite/Stmt- Stateful function" $
-                (showCode "Compiled: " =<< compileCode Input.iteStateful) >>=
-                (\compiled -> do
-                    expected <- showCode "Expected:" Expect.iteRustExample
-                    compiled `shouldBe` expected)
+        it "While loop" $
+            (showCode "Compiled: " =<< compileCodeWithRec Input.whileLoop) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" Expect.whileLoop
+                compiled `shouldBe` expected)
             
+        
+         -} 
+        it "ForLoop over iterator" $
+            (showCode "Compiled: " =<< compileCode Input.loopIterator) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" Expect.loopIterator
+                compiled `shouldBe` expected)
+
         

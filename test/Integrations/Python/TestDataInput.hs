@@ -7,42 +7,55 @@ import Integrations.Python.SimpleQuoter
 
 testLib = [pythonModule|
 from typing import List
-import time
 
 def hello_world():
     return "Hello World"
+
+def check(v):
+   return v < 10
+
+def double(x):
+    return x, x
+
 
 def funInt():
     return 42
 
 def f(arg = None):
+    # print("f called")
     if arg:
-        return arg
+        return arg + 2
     return 7
 
 def f1(x):
+    # print("f1 called")
     return x+2
 
 def f2(x):
+    print("f2 called")
     return x+3
 
 def g(arg= None):
     return 4
 
 def g0(x):
-    return x-1
+    print("g0 called")
+    return x+7
 
 def g1(x):
+    print("g1 called")
     return x+8
 
-def check(x):
-    return True if x>0 else False
+def h(x = None):
+    return 23
 
 def oneArg(x):
+    print("oneArg called")
     return x
 
-def twoArgs(x,y):
-    return x + y
+def listOfMObs(a):
+    mobs = [MObs(i) for i in range(a)]
+    return mobs
 
 def moreArgs(x,y,z):
     return x+y
@@ -53,21 +66,15 @@ def changeRef(x:int):
 def changeRefType(x:int):
     x = "Not an int anymore"
 
-def return3():
-    return 1,2,3
-
 def mutateValues(intList:List[int]):
     intList = [i+1 for i in intList]
 
 def mutateType(intList:List[int]):
     intList = tuple(intList)
 
+
 def some_invented_iter_function():
     return list(range(0, 11))
-
-def takeAWhile(n):
-    time.sleep(5)
-    return n
 
 class MObs(object):
     def __init__(self, num):
@@ -76,6 +83,12 @@ class MObs(object):
         self.num += num
     def getNum(self):
         return self.num
+    def clone(self):
+        return MObs(self.getNum())
+
+def mobFun(mob, num):
+    mob.addNum(num)
+    return mob.getNum()
 |]
 
 -- Test cases for Basic.hs ------------------------------
@@ -317,13 +330,13 @@ def algo(a, b):
 --Test cases for Loops.hs ---------------------------------------------
 loopIterator= [pythonModule|
 from testLib import *
-def algo(a):
-    g = some_invented_iter_function()
-    mOb = MObs(42)
-    for i in g:
-        n = f(i)
-        mOb.addNum(n)
-    return mOb
+def algo():
+    s = MObs(42)
+    stream = some_invented_iter_function()
+    for e in stream:
+        r = h(e)
+        s.addNum(r)
+    return s
 |]
 
 loopIterObj= [pythonModule|
@@ -366,12 +379,12 @@ whileLoop = [pythonModule|
 from testLib import *
 
 def algo(a):
-    i = something()
-    l = []
-    while testfun(i):
-        n = manipulate(a)
-        l.append(n)
-    return l
+    n = iter_32()
+    s = newState()
+    while n.has_next():
+        e = n.next()
+        s.gs(e)
+    return s
 |]
 
 
@@ -420,7 +433,7 @@ condExprFunCond = [pythonModule|
 from testLib import *
 
 def algo(i):
-    d = g() if f() else h()
+    d = g() if f() else f1(4)
     return d 
 |]
 
@@ -433,7 +446,7 @@ def algo(i):
     return x
 |]
 
-condExprStateRet = [pythonModule|
+condExprStateFunRet = [pythonModule|
 from testLib import *
 
 def algo(i):
@@ -441,7 +454,7 @@ def algo(i):
     mob2 = MObs(23)
     b = f()
     d = mob1.getNum() if b else mob2.getNum()
-    return oneArg(d) 
+    return d 
 |]
 
 iteOnlyIf = [pythonModule|

@@ -228,5 +228,28 @@ spec =
     Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
   }
 }
+
                     |]
                 compiled `shouldBe` expected)
+{-       it "imperative while " $
+            (showCode "Compiled: " =<< compileCode [sourceFile|
+                use funs::*;
+
+                fn test() -> std::Vec<i32> {
+                    let n = iter_i32();
+                    let s = S::new_state();
+                    while n.has_next() {
+                        let e = n.next();
+                        s.gs(n);                       
+                    }
+                    s
+                }
+                |]) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:"
+                    [sourceFile|
+ use funs::*;
+ //ToDo
+                    |]
+                compiled `shouldBe` expected)
+-}
