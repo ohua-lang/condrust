@@ -109,7 +109,6 @@ runTargetCompiler inDir outDir outFile = do
   createDirectory srcDir
   setCurrentDirectory outDir
   writeFile (outDir </> "Cargo.toml") cargoFile
-  writeFile "/home/felix/tmp/Cargo.toml" cargoFile
   writeFile (srcDir </> "main.rs") libFile
   writeFile (srcDir </> "funs.rs") funs
   writeFile (srcDir </> "benchs.rs") benchs
