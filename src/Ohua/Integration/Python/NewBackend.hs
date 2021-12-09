@@ -10,6 +10,7 @@ import Ohua.Integration.Python.Types
 import Ohua.Integration.Python.Util
 import Ohua.Integration.Python.TypeExtraction
 import qualified Ohua.Integration.Python.Backend.Subset as Sub
+import qualified Ohua.Integration.Python.SpecialFunctions as SF
 
 
 import qualified Language.Python.Common.AST as Py
@@ -76,9 +77,11 @@ instance Integration (Language 'Python) where
         (QualifiedBinding refNames bnd)  -> wrapSubExpr $ Sub.Var $ dotConcat refNames bnd
 
     convertExpr arch (Apply (Stateless bnd args)) = convertFunCall arch bnd args
-    convertExpr arch (Apply (Stateful stateBnd funBnd args)) =
-        wrapSubExpr $
-            Sub.Call
+    convertExpr arch (Apply sOp@(Stateful stateBnd funBnd args)) = case funBnd of
+        SF.SetItemFunction -> transformToSubscript arch sOp
+        SF.GetItemFunction -> transformToSubscript arch sOp 
+        any_statefull_function ->  wrapSubExpr $
+             Sub.Call
                 (Sub.DotExpr (unwrapSubStmt $ convertExpr arch stateBnd) funBnd)
                 (map (convertArgument arch) args)
 
@@ -153,9 +156,9 @@ instance Integration (Language 'Python) where
         in  wrapSubExpr $ Sub.Tuple [conv one, conv two]
 
     convertExpr arch (TCLang.First bnd) =  wrapSubExpr $
-        Sub.TplSubscript  bnd  0
+        Sub.Subscript  (Sub.Var bnd) (Sub.Int 0)
     convertExpr arch (TCLang.Second bnd) = wrapSubExpr $
-        Sub.TplSubscript bnd 1
+        Sub.Subscript (Sub.Var bnd) (Sub.Int 1)
 
     convertExpr arch (TCLang.Increment bnd) =
         convertExpr arch $
@@ -168,8 +171,25 @@ instance Integration (Language 'Python) where
 
 
 
-pattern FunRepresentationOf :: Binding -> QualifiedBinding
-pattern FunRepresentationOf bnd <- QualifiedBinding (NSRef []) bnd
+transformToSubscript :: (Integration (Lang arch), Architecture arch, Expr (Lang arch) ~ Sub.Stmt) =>
+                        arch -> App (TaskExpr (B.Type (Lang arch))) -> Sub.Stmt
+
+-- | l.__getitem__(0) => l[0]
+transformToSubscript arch (Stateful stateBnd SF.GetItemFunction [indexArg]) = 
+    let subscriptee = unwrapSubStmt $ convertExpr arch stateBnd
+        index = unwrapSubStmt $ convertExpr arch indexArg
+    in wrapSubExpr $ Sub.Subscript subscriptee index
+
+-- | l.__setitem(0, x) => l[0] = x
+transformToSubscript arch (Stateful stateBnd SF.SetItemFunction [indexArg, itemExpr]) =
+    let subscriptee = unwrapSubStmt $ convertExpr arch stateBnd
+        index = unwrapSubStmt $ convertExpr arch indexArg
+        assignedExpr = unwrapSubStmt $ convertExpr arch itemExpr
+    in Sub.Assign [Sub.Subscript subscriptee index] assignedExpr
+transformToSubscript arch _ = error "Try to transform a function other than __getitem__ , or __setitem__ to subscripting operation"
+
+
+
 
 convertFunCall ::(Architecture arch, Lang arch ~ Language 'Python) =>
         arch -> QualifiedBinding -> [TCLang.TaskExpr PythonTypeAnno] -> Sub.Stmt
@@ -210,19 +230,19 @@ convertFunCall arch op [arg1, arg2] | isJust $ binOp op =
             _ -> Nothing
 
 
-convertFunCall arch ListConstructor args = 
+convertFunCall arch SF.ListConstructor args = 
     wrapSubExpr $ Sub.List items
     where items = map (unwrapSubStmt . convertExpr arch) args
 
-convertFunCall arch DictConstructor args = 
+convertFunCall arch SF.DictConstructor args = 
     wrapSubExpr $ Sub.Dict items
     where items = map (convertDictItem arch) args
 
-convertFunCall arch TupleConstructor args = 
+convertFunCall arch SF.TupleConstructor args = 
     wrapSubExpr $ Sub.Tuple items
     where items = map (unwrapSubStmt . convertExpr arch) args
 
-convertFunCall arch SetConstructor args = 
+convertFunCall arch SF.SetConstructor args = 
     wrapSubExpr $ Sub.Set items
     where items = map (unwrapSubStmt . convertExpr arch) args
 
@@ -263,7 +283,7 @@ convertDictItem arch item =
     let item' = unwrapSubStmt $ convertExpr arch item 
     in 
         case item' of
-            Sub.Var bnd -> (Sub.TplSubscript  bnd  0, Sub.TplSubscript  bnd  1)
+            Sub.Var bnd -> (Sub.Subscript (Sub.Var bnd) (Sub.Int 0), Sub.Subscript (Sub.Var bnd) (Sub.Int 1))
             any -> error $ "dict item was not received variable but" <> show any
 
 
@@ -296,14 +316,7 @@ unwrapSubStmt (Sub.StmtExpr expr) = expr
 unwrapSubStmt any = error $ "Tried to unwrap a statment other than StmtExpr " <> show any
 
 
-pattern ListConstructor :: QualifiedBinding
-pattern ListConstructor <- QualifiedBinding (NSRef []) "list"
 
-pattern DictConstructor :: QualifiedBinding
-pattern DictConstructor <- QualifiedBinding (NSRef []) "dict"
+pattern FunRepresentationOf :: Binding -> QualifiedBinding
+pattern FunRepresentationOf bnd <- QualifiedBinding (NSRef []) bnd
 
-pattern TupleConstructor::QualifiedBinding
-pattern TupleConstructor <- QualifiedBinding (NSRef []) "tuple"
-
-pattern SetConstructor::QualifiedBinding
-pattern SetConstructor <- QualifiedBinding (NSRef []) "set"

@@ -2,7 +2,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
--- {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 
 module Ohua.Integration.Python.Frontend where
 
@@ -17,6 +16,7 @@ import Ohua.Integration.Python.Types
 import Ohua.Integration.Python.TypeExtraction
 import Ohua.Integration.Python.Frontend.Convert (suiteToSub, paramToSub)
 import qualified Ohua.Integration.Python.Frontend.Subset as Sub
+import qualified Ohua.Integration.Python.SpecialFunctions as SF
 
 import Language.Python.Common (SrcSpan (SpanEmpty), Pretty (pretty))
 import qualified Language.Python.Common.AST as Py
@@ -92,7 +92,7 @@ instance Integration (Language 'Python) where
                             -- incompatible python paths (or dark magic :-/)
                         Nothing -> throwError  "Currently we do not support relative import paths"
 
-    -- | This function assignes types to the functions called inside an algorithm. In Rust, it 
+    -- | This function assigns types to the functions called inside an algorithm. In Rust, it 
     -- | would do so, by checking the given namespace for definitions of those functions.
     -- | As we currently do not 'type' any of the arguments in Python and the number of
     -- | (explicit) arguments may vary for each function due to default values, we just assign
@@ -176,9 +176,13 @@ subSuiteToIR (Sub.PySuite stmts) =
             case target of
                 (Sub.Single bnd) -> modify (HM.insert bnd Sub.PythonType)
                 _ ->return ()
-            pat' <- subTargetToIR target
-            expr' <- subExprToIR expr
-            return $ LetE pat' expr'
+            case target of
+                (Sub.Subscr expr) -> stmtToIR (subscriptToCall assign)
+                _ -> do
+                        pat' <- subTargetToIR target
+                        expr' <- subExprToIR expr
+                        return $ LetE pat' expr'
+
         stmtToIR stmt = StmtE <$> subStmtToIR stmt
         lastStmtToIR :: (ConvertM m) => Sub.Stmt -> m (FrLang.Expr PythonArgType)
         lastStmtToIR ret@(Sub.Return maybeExpr) =
@@ -186,6 +190,19 @@ subSuiteToIR (Sub.PySuite stmts) =
                     Just expr -> subExprToIR expr
                     Nothing -> return $ LitE UnitLit
         lastStmtToIR stmt = (\e -> e $ LitE UnitLit) <$> stmtToIR stmt
+
+-- ToDo: This gives valid Python code automatically because subscripting is syntactic sugar
+-- for those function. BUT: If we retranslate this in the backend, can we accidentally transoform 
+-- more than intended
+-- when we use real function names here ?
+subscriptToCall :: Sub.Stmt -> Sub.Stmt
+subscriptToCall (Sub.Assign (Sub.Subscr (Sub.Subscript bnd keyExpr)) expr)  =
+    let funRef = Sub.Dotted bnd (toQualBinding SF.setItemFunction)
+    in Sub.StmtExpr (Sub.Call funRef [Sub.Arg keyExpr, Sub.Arg expr])
+subscriptToCall (Sub.StmtExpr (Sub.Subscript bnd keyExpr)) =
+    let funRef = Sub.Dotted bnd (toQualBinding SF.getItemFunction)
+    in Sub.StmtExpr (Sub.Call funRef [Sub.Arg keyExpr])
+
 
 subStmtToIR :: ConvertM m=> Sub.Stmt -> m (FrLang.Expr PythonArgType)
 subStmtToIR (Sub.WhileStmt expr suite) = do
@@ -204,9 +221,9 @@ subStmtToIR (Sub.ForStmt target generator suite) = do
 subStmtToIR (Sub.CondStmt [(cond, suite)] elseSuite) = do
     cond' <- subExprToIR cond
     suite' <- subSuiteToIR (Sub.PySuite suite)
-    elseSuite' <- do 
+    elseSuite' <- do
         case elseSuite of
-            Nothing -> return $ LitE UnitLit 
+            Nothing -> return $ LitE UnitLit
             Just block -> subSuiteToIR (Sub.PySuite block)
     return $ IfE cond' suite' elseSuite'
 
@@ -270,24 +287,28 @@ subExprToIR (Sub.Lambda params expr) = do
 
 subExprToIR (Sub.Tuple exprs) = do
     exprs' <- mapM subExprToIR exprs
-    tupleCall <- toFunRefLit "tuple"
+    tupleCall <- toFunRefLit SF.tupleConstructor
     return $ AppE tupleCall exprs'
 
 subExprToIR (Sub.List exprs) = do
     exprs' <- mapM subExprToIR exprs
-    listCall <- toFunRefLit "list"
+    listCall <- toFunRefLit SF.listConstructor
     return $ AppE listCall exprs'
 
 -- | Mapping d = {1:2, 3:4} to d = dict(((1,2), (3,4)))
 subExprToIR (Sub.Dict mappings) = do
     exprs' <- mapM (\(k,v) -> subExprToIR $ Sub.Tuple [k,v]) mappings
-    dictCall <- toFunRefLit "dict"
+    dictCall <- toFunRefLit SF.dictConstructor
     return $ AppE dictCall exprs'
 
 subExprToIR (Sub.Set  exprs) = do
     exprs' <- mapM subExprToIR exprs
-    setCall <- toFunRefLit "set"
+    setCall <- toFunRefLit SF.setConstructor
     return $ AppE setCall exprs'
+
+subExprToIR subExpr@(Sub.Subscript bnd expr) = do
+    let (Sub.StmtExpr call) = subscriptToCall (Sub.StmtExpr subExpr)
+    subExprToIR call
 
 mappingToTuple ::ConvertM m => (Sub.Expr, Sub.Expr) -> m (FrLang.Expr PythonArgType)
 mappingToTuple (key, value) = do
@@ -354,8 +375,10 @@ listofPyType (a:args') = Right $ map (const $ Type PythonObject) (a:|args')
      'unscoped' (the empty list in as Binding argument) function reference 
 -}
 toFunRefLit :: Monad m => Binding -> m (FrLang.Expr PythonArgType)
-toFunRefLit string_repr = return $
+toFunRefLit funBind = return $
                         LitE $ FunRefLit $
-                        FunRef (QualifiedBinding (makeThrow []) string_repr) Nothing Untyped
+                        FunRef (QualifiedBinding (makeThrow []) funBind) Nothing Untyped
+
 
 toBindings = map toBinding
+

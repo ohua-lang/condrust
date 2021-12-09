@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 {-|
 Module      : Python.Frontend.Convert
 Description : Convert AST to supported python subset
@@ -154,6 +153,14 @@ exprToSubExpr (Py.Set exprs annot) = do
     exprs' <- mapM exprToSubExpr exprs
     return $ Sub.Set exprs'
 
+exprToSubExpr subSc@(Py.Subscript subscripted subscript annot) = do 
+    bnd <- exprToSubExpr subscripted
+    key <- exprToSubExpr subscript
+    case bnd of
+        Sub.Var bnd' ->  return $ Sub.Subscript bnd' key
+        _ -> unsupError "subscripting epressions on anything but a variable name" subSc
+
+
 exprToSubExpr lL@Py.LongInt{} = unsupError "LongInts" lL
 exprToSubExpr fL@(Py.Float valDbl strRepr annot) = unsupError "Floats" fL
 exprToSubExpr imL@(Py.Imaginary valDbl strRepr annot) = unsupError "Imaginaries" imL
@@ -161,7 +168,7 @@ exprToSubExpr ellL@(Py.Ellipsis annot) = unsupError "Ellipsis Literals" ellL
 exprToSubExpr bsL@(Py.ByteStrings bStrings annot) = unsupError "ByteString Literals" bsL
 exprToSubExpr strsL@(Py.Strings strings annot) = unsupError "Strings Literals" strsL
 exprToSubExpr ustrL@(Py.UnicodeStrings strings annot) = unsupError "UnicodeStrings Literals" ustrL
-exprToSubExpr subSc@(Py.Subscript subscripted subscript annot) = unsupError "Subscript Expressions" subSc
+
 exprToSubExpr slice@(Py.SlicedExpr sliced slices annot) = unsupError "Slicing Expressions" slice
 exprToSubExpr dot@(Py.Dot object attribute annot) = unsupError "Attribute references" dot
 exprToSubExpr yield@(Py.Yield mayBeArg annot) = unsupError "Yield Expressions" yield
@@ -181,7 +188,7 @@ exprToSubExpr strConv@(Py.StringConversion expr annot) = py2Error strConv
 exprToFRef:: (Monad m, MonadError Error m) => Py.Expr SrcSpan -> m Sub.FRef
 exprToFRef Py.Var{var_ident=ident} = return $ Sub.Pure (toBinding ident)
 exprToFRef Py.Dot{dot_expr= dots,dot_attribute = ident}  = do
-    let funBinding  = toQualBinding $ Py.ident_string ident
+    let funBinding  = toQualBinding . fromString $ Py.ident_string ident
         objBinding = fromString $ chainBindings "" dots
     return $ Sub.Dotted objBinding funBinding
 exprToFRef (Py.Paren expr annot) = exprToFRef expr
@@ -214,12 +221,13 @@ exprToTarget:: (Monad m, MonadError Error m) => Py.Expr SrcSpan -> m Sub.Target
 exprToTarget Py.Var {var_ident=ident} = return $ Sub.Single $ toBinding ident
 exprToTarget (Py.Tuple exprs annot) = Sub.Tpl <$> mapM (varOrFail <=< exprToTarget) exprs
 exprToTarget (Py.Paren (Py.Tuple exprs an) ann) = Sub.Tpl <$> mapM (varOrFail <=< exprToTarget) exprs
+exprToTarget subScr@(Py.Subscript subscriptee indexExpr annot) = Sub.Subscr <$> exprToSubExpr subScr
+
 -- Question: Can we have list patterns?
 exprToTarget lst@(Py.List exprs annot) = unsupError "lists as patterns" lst
 exprToTarget dot@(Py.Dot exprs termVar annot) = unsupError "attribute assignment" dot
 -- Question: I assume it's troublesome for some reason to translate this (probably because in haskell 
 -- we do not modify things but return new ones)...Why exactly?
-exprToTarget subScr@(Py.Subscript subscriptee indexExpr annot) = unsupError "indexed patterns" subScr
 exprToTarget slice@(Py.SlicedExpr subscriptee slices annot) = unsupError "slice patterns" slice
 exprToTarget starred@(Py.Starred expr annot) = unsupError "starred expression patterns" starred
 exprToTarget any = throwError $ "Encountered " <> show any <> " while trying to convert patterns. This is a bug"

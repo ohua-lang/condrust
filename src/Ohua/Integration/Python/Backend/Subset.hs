@@ -43,7 +43,7 @@ data Expr =
     -- So actually I use the 'universal' subscript expr,
     -- but only for the first and second element of tuples falling out 
     -- of the compiler backend  
-    | TplSubscript Binding Integer 
+    | Subscript Expr Expr 
     | BinaryOp BinOp Expr Expr
     | UnaryOp UnOp Expr
     deriving (Eq, Generic , Show)

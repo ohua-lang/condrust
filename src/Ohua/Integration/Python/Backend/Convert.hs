@@ -68,10 +68,10 @@ subToExpr (Sub.List exprs) = Py.List (map subToExpr exprs) noSpan
 subToExpr (Sub.Dict tuples) = Py.Dictionary (map subToDictItem tuples) noSpan
 subToExpr (Sub.Set exprs) = Py.Set (map subToExpr exprs) noSpan 
 
-subToExpr (Sub.TplSubscript bnd pos) =
+subToExpr (Sub.Subscript bnd expr) =
     Py.Subscript
-        (toPyVar. fromBinding $ bnd)
-        (Py.Int pos (show pos) noSpan)
+        (subToExpr bnd)
+        (subToExpr expr)
         noSpan
 subToExpr (Sub.BinaryOp op expr1 expr2) =
     Py.BinaryOp (subToBinOp op) (subToExpr expr1) (subToExpr expr2) noSpan

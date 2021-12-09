@@ -48,10 +48,13 @@ data Expr =
     | UnaryOp UnOp Expr
     | Lambda [Param] Expr
     | Tuple [Expr]
+    -- for the following expressions, there's no buildin equivalent in Ohua's frontend 
+    -- so we will map them to fuction calls (because also in Python they are actually syntax sugar)
     | List [Expr]
     -- | ListComp Context Expr Target Expr -- ^ x = [f(t) for t in ts] gives ListComp x f(t) t ts 
     | Dict [(Expr, Expr)]
     | Set [Expr]
+    | Subscript Binding Expr
     -- TODO: test this bevor it's included
     -- \| ParenExpr
     deriving (Eq, Show)
@@ -86,7 +89,9 @@ type Context = Binding -- ^ We need to keep track of the variable name a coprehe
     -- TODO: Check if Rust now supports subscriptions to attributes or slices
     -- TODO: Should I introduce a separate symbol for '_' Bindings?
     -- TODO: Dots can also be patterns but we currently do not support attribute access
-data Target = Single Binding | Tpl [Binding]   deriving (Show, Eq, Generic)
+
+-- Problem : this is actually a lie, because Subcr are only supported for Assignment, not for ForLoop
+data Target = Single Binding | Tpl [Binding] | Subscr Expr  deriving (Show, Eq, Generic)
 
 -- TODO: Comment in when I have augmented assignments
 {-data AssignOps = 

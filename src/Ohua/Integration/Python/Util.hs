@@ -22,8 +22,8 @@ fromBinding bnd = Ident{ident_string= bndToStr bnd, ident_annot= noSpan}
 bndToStr :: Binding -> String 
 bndToStr = T.unpack . unwrap 
 
-toQualBinding:: String -> QualifiedBinding
-toQualBinding = QualifiedBinding (makeThrow []) .fromString
+toQualBinding:: Binding -> QualifiedBinding
+toQualBinding = QualifiedBinding (makeThrow []) 
 
 mkIdent::String -> Ident SrcSpan
 mkIdent name = Ident{ident_string=name, ident_annot=SpanEmpty}
