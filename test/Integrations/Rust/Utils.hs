@@ -24,12 +24,14 @@ import Ohua.Compile.Compiler
 import qualified Ohua.Integration.Architecture as Arch
 import qualified Ohua.Integration.Config as IC
 import Ohua.Prelude
-import System.Directory (setCurrentDirectory)
+import System.Directory (copyFile, createDirectory, setCurrentDirectory)
+import System.Exit (ExitCode (..))
 import System.FilePath
 import System.IO.Temp
 import Test.Hspec
 import TestOptions
 import Ohua.Core.Types (Options)
+import System.Process.Extra (readProcessWithExitCode)
 
 
 renderRustCode :: SourceFile Span -> L.ByteString
@@ -75,8 +77,12 @@ compileCode' inCode opts = do
           runCompM
             LevelWarn
             $ compile inFile compScope options integrationOptions outDir
+          let outFile = outDir </> takeFileName inFile
+          -- run the target compiler (i.e., rustc) on the input
+          runTargetCompiler testDir outDir outFile
+          -- parse & return the generated output file
           outCode :: SourceFile Span <-
-            parse' <$> readInputStream (outDir </> takeFileName inFile)
+            parse' <$> readInputStream outFile
           return outCode
 
 showCode :: T.Text -> SourceFile Span -> IO T.Text
@@ -96,6 +102,46 @@ showCode' msg code =
     printCode c = putStr $ boundary <> header <> c <> boundary
     boundary = "\n" <> T.concat (replicate 20 ("-" :: T.Text)) <> "\n"
     header = msg <> "\n\n"
+
+runTargetCompiler :: FilePath -> FilePath -> FilePath -> IO ()
+runTargetCompiler inDir outDir outFile = do
+  let srcDir = outDir </> "src"
+  createDirectory srcDir
+  setCurrentDirectory outDir
+  writeFile (outDir </> "Cargo.toml") cargoFile
+  writeFile "/home/felix/tmp/Cargo.toml" cargoFile
+  writeFile (srcDir </> "main.rs") libFile
+  writeFile (srcDir </> "funs.rs") funs
+  writeFile (srcDir </> "benchs.rs") benchs
+  copyFile outFile (srcDir </> "test.rs")
+
+  -- actually run the compiler
+  compilationResult <- readProcessWithExitCode "cargo" ["check"] ""
+  case compilationResult of
+    (ExitSuccess, _, _) -> return ()
+    (ExitFailure exitCode, stdOut, stdErr) -> error $ toText $ "Target Compiler Compilation Failed: " <> stdErr
+
+cargoFile :: Text
+cargoFile =
+  " [package] \n\
+  \ name = \"ohua-test\" \n\
+  \ version = \"0.1.0\" \n\
+  \ edition = \"2021\" \n\
+  \ \n\
+  \ [dependencies] \n\
+  \ "
+
+libFile :: Text
+libFile =
+  " \
+  \ mod funs; \
+  \ mod benchs; \
+  \ mod test; \
+  \ \
+  \ fn main() { \
+  \     test::test(); \
+  \ } \
+  \ "
 
 funs :: Text
 funs =
