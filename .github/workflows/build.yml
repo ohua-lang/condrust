@@ -12,42 +12,42 @@ jobs:
       - name: Checkout ohuac
         uses: actions/checkout@v2
         with:
-          repository: 'sertel/ohuac'
+          repository: 'ohua-lang/ohuac'
           token: ${{ secrets.PULL_TOKEN }}
           fetch-depth: 0
           path: 'ohuac'
       - name: Checkout ohuac-commons
         uses: actions/checkout@v2
         with:
-          repository: 'sertel/ohuac-commons'
+          repository: 'ohua-lang/ohuac-commons'
           token: ${{ secrets.PULL_TOKEN }}
           fetch-depth: 0
           path: 'ohuac-commons'
       - name: Checkout ohua-frontend
         uses: actions/checkout@v2
         with:
-          repository: 'sertel/ohua-frontend'
+          repository: 'ohua-lang/ohua-frontend'
           token: ${{ secrets.PULL_TOKEN }}
           fetch-depth: 0
           path: 'ohua-frontend'
       - name: Checkout ohua-backend
         uses: actions/checkout@v2
         with:
-          repository: 'sertel/ohua-backend'
+          repository: 'ohua-lang/ohua-backend'
           token: ${{ secrets.PULL_TOKEN }}
           fetch-depth: 0
           path: 'ohua-backend'
       - name: Checkout ohua-core
         uses: actions/checkout@v2
         with:
-          repository: 'sertel/ohua-core'
+          repository: 'ohua-lang/ohua-core'
           token: ${{ secrets.PULL_TOKEN }}
           fetch-depth: 0
           path: 'ohua-core'
       - name: Checkout ohuac-integrations
         uses: actions/checkout@v2
         with:
-          repository: 'sertel/ohuac-integrations'
+          repository: 'ohua-lang/ohuac-integrations'
           token: ${{ secrets.PULL_TOKEN }}
           fetch-depth: 0
           path: 'ohuac-integrations'
@@ -70,8 +70,6 @@ jobs:
           done
         shell: bash
 
-      - name: Setup Haskell
-        uses: haskell/actions/setup@v1
       # set up nix
       - name: Install nix
         uses: cachix/install-nix-action@v13
@@ -89,9 +87,8 @@ jobs:
       - name: Build ohuac
         run: |
           cd ohuac
-          stack build
+          nix-shell --run "stack build"
       - name: Run tests
         run: |
           cd ohuac
-          stack test
-      # TODO: cache results???
+          nix-shell --run "stack test"
