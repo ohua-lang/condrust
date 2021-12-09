@@ -1,14 +1,15 @@
+{-# OPTIONS_GHC -Wno-deferred-out-of-scope-variables #-}
 module Ohua.Integration.Python.Util where
 
 import Ohua.Prelude
+import Language.Python.Common hiding ((<>))
+import Language.Python.Common.AST (Ident(..))
+import qualified Language.Python.Version3 as V3
 
-import qualified Data.Text as T
 
 import System.FilePath
-import Language.Python.Common hiding ((<>))
-import qualified Language.Python.Version3 as V3
-import Language.Python.Common.AST (Ident(..))
-
+import qualified Data.Text as T
+import qualified Data.ByteString.Lazy as L
 
 noSpan :: SrcSpan
 noSpan = SpanEmpty
@@ -19,17 +20,34 @@ toBinding Ident{ident_string=n, ident_annot=annot} = fromString n
 fromBinding :: Binding -> Ident SrcSpan
 fromBinding bnd = Ident{ident_string= bndToStr bnd, ident_annot= noSpan}
 
-bndToStr :: Binding -> String 
-bndToStr = T.unpack . unwrap 
+bndToStr :: Binding -> String
+bndToStr = T.unpack . unwrap
 
+-- | Turn an unqualified binding (just a name) 
+--   into a qualified binding (name with [import] context) with just no context
 toQualBinding:: Binding -> QualifiedBinding
-toQualBinding = QualifiedBinding (makeThrow []) 
+toQualBinding = QualifiedBinding (makeThrow [])
 
 mkIdent::String -> Ident SrcSpan
 mkIdent name = Ident{ident_string=name, ident_annot=SpanEmpty}
 
 toPyVar :: Ident SrcSpan -> Expr SrcSpan
 toPyVar ident = Var ident noSpan
+
+convertQBind :: QualifiedBinding -> Ident SrcSpan
+convertQBind (QualifiedBinding _ bnd) = fromBinding bnd
+
+
+
+unsupPyError :: (MonadError Text m, Pretty a1) => Text -> a1 -> m a2
+unsupPyError text expr = throwError $ "Currently we do not support "<> text <>" used in: "<> (T.pack. prettyText $ expr)
+
+py2Error expr = throwError $ "For whatever reason you managed to get the exclusively version 2 expression "
+                                <> show expr <> " through the python3 parser of language-python."
+
+
+encodePretty :: Module SrcSpan -> L.ByteString
+encodePretty = encodeUtf8 . prettyText
 
 filePathToNsRef :: FilePath -> NSRef
 filePathToNsRef = makeThrow . map fromString . splitDirectories . dropExtension
@@ -45,7 +63,7 @@ wrappedParsing pyCode filename = do
 wrapExpr :: Expr SrcSpan -> Statement SrcSpan
 wrapExpr expr = StmtExpr expr noSpan
 
-unwrapStmt :: Statement SrcSpan  -> Expr SrcSpan
+unwrapStmt :: Statement SrcSpan -> Expr SrcSpan
 unwrapStmt StmtExpr{stmt_expr=expr, stmt_annot=annot}= expr
 unwrapStmt s = error $ "unwrapStmt is not supposed to be used on " <> show s
 
@@ -57,23 +75,67 @@ load srcFile =  do
 
 -- Todo: Remove when QQ is available
 --import multiprocessing as mp
-importMPStmt = Import {import_items = [ImportItem {import_item_name = [Ident {ident_string = "multiprocessing", ident_annot = noSpan}], import_as_name = Just (Ident {ident_string = "mp", ident_annot = noSpan}), import_item_annot = noSpan}], stmt_annot = noSpan}
+importMPStmt = Import [ImportItem [Ident  "multiprocessing" noSpan]   (Just (Ident "mp" noSpan)) noSpan] noSpan
 -- tasks = []
-initTasksStmt = Assign {assign_to = [Var {var_ident = Ident {ident_string = "tasks", ident_annot = noSpan}, expr_annot = noSpan}], assign_expr = List {list_exprs = [], expr_annot = noSpan}, stmt_annot = noSpan}
+initTasksStmt = Assign [Var ( Ident "tasks" noSpan) noSpan]
+                       (List [] noSpan)
+                       noSpan
 -- processes = []
-initProcs = Assign {assign_to = [Var {var_ident = Ident {ident_string = "processes", ident_annot = SpanEmpty}, expr_annot = SpanEmpty}], assign_expr = List {list_exprs = [], expr_annot = SpanEmpty}, stmt_annot = SpanEmpty}
+initProcs = Assign  [Var (Ident "processes" noSpan) noSpan ]
+                    (List [] noSpan)
+                    noSpan
+
 {- for task in tasks:
     process = mp.Process(target=task)
     processes.append(process)-}
-assignTasks = For {for_targets = [Var {var_ident = Ident {ident_string = "task", ident_annot = SpanEmpty}, expr_annot = SpanEmpty}], for_generator = Var {var_ident = Ident {ident_string = "tasks", ident_annot = SpanEmpty}, expr_annot = SpanEmpty}, for_body = [Assign {assign_to = [Var {var_ident = Ident {ident_string = "process", ident_annot = SpanEmpty}, expr_annot = SpanEmpty}], assign_expr = Call {call_fun = Dot {dot_expr = Var {var_ident = Ident {ident_string = "mp", ident_annot = SpanEmpty}, expr_annot = SpanEmpty}, dot_attribute = Ident {ident_string = "Process", ident_annot = SpanEmpty}, expr_annot = SpanEmpty}, call_args = [ArgKeyword {arg_keyword = Ident {ident_string = "target", ident_annot = SpanEmpty}, arg_expr = Var {var_ident = Ident {ident_string = "task", ident_annot = SpanEmpty}, expr_annot = SpanEmpty}, arg_annot = SpanEmpty}], expr_annot = SpanEmpty}, stmt_annot = SpanEmpty},StmtExpr {stmt_expr = Call {call_fun = Dot {dot_expr = Var {var_ident = Ident {ident_string = "processes", ident_annot = SpanEmpty}, expr_annot = SpanEmpty}, dot_attribute = Ident {ident_string = "append", ident_annot = SpanEmpty}, expr_annot = SpanEmpty}, call_args = [ArgExpr {arg_expr = Var {var_ident = Ident {ident_string = "process", ident_annot = SpanEmpty}, expr_annot = SpanEmpty}, arg_annot = SpanEmpty}], expr_annot = SpanEmpty}, stmt_annot = SpanEmpty}], for_else = [], stmt_annot = SpanEmpty}
+assignTasks = For   [Var ( Ident  "task" noSpan) noSpan]
+                    (Var ( Ident "tasks"noSpan) noSpan)
+                    [
+                        Assign   [Var (Ident "process" noSpan) noSpan ]
+                              (Call ( Dot (Var (Ident "mp" noSpan) noSpan) (Ident "Process" noSpan) noSpan)
+                                    [ArgKeyword (Ident "target" noSpan) (Var (Ident "task" noSpan) noSpan) noSpan]
+                                    noSpan)
+                              noSpan,
+
+                        StmtExpr ( Call ( Dot (Var ( Ident "processes" noSpan) noSpan) (Ident "append" noSpan) noSpan)
+                                            [ArgExpr ( Var ( Ident "process"noSpan) noSpan) noSpan ]
+                                             noSpan )
+                                    noSpan
+                    ] [] noSpan
+
 -- list(map(mp.Process.start, processes))
-startProcs = StmtExpr {stmt_expr = Call {call_fun = Var {var_ident = Ident {ident_string = "list", ident_annot = SpanEmpty}, expr_annot = SpanEmpty}, call_args = [ArgExpr {arg_expr = Call {call_fun = Var {var_ident = Ident {ident_string = "map", ident_annot = SpanEmpty}, expr_annot = SpanEmpty}, call_args = [ArgExpr {arg_expr = Dot {dot_expr = Dot {dot_expr = Var {var_ident = Ident {ident_string = "mp", ident_annot = SpanEmpty}, expr_annot = SpanEmpty}, dot_attribute = Ident {ident_string = "Process", ident_annot = SpanEmpty}, expr_annot = SpanEmpty}, dot_attribute = Ident {ident_string = "start", ident_annot = SpanEmpty}, expr_annot = SpanEmpty}, arg_annot = SpanEmpty},ArgExpr {arg_expr = Var {var_ident = Ident {ident_string = "processes", ident_annot = SpanEmpty}, expr_annot = SpanEmpty}, arg_annot = SpanEmpty}], expr_annot = SpanEmpty}, arg_annot = SpanEmpty}], expr_annot = SpanEmpty}, stmt_annot = SpanEmpty}
+startProcs = StmtExpr   (Call ( Var ( Ident "list"  noSpan )  noSpan )  
+                                [ArgExpr ( Call ( Var ( Ident  "map" noSpan )  noSpan )
+                                                [ArgExpr ( Dot ( Dot (Var (Ident "mp" noSpan )  noSpan ) (Ident  "Process" noSpan )  noSpan ) (Ident "start" noSpan )  noSpan ) noSpan,
+                                                 ArgExpr ( Var ( Ident  "processes" noSpan )  noSpan ) noSpan 
+                                                ]
+                                                noSpan ) noSpan
+                                ]
+                                noSpan )
+                        noSpan
 
 -- list(map(mp.Process.terminate, processes))
-terminateProcs = StmtExpr {stmt_expr = Call {call_fun = Var {var_ident = Ident {ident_string = "list", ident_annot = SpanEmpty}, expr_annot = SpanEmpty}, call_args = [ArgExpr {arg_expr = Call {call_fun = Var {var_ident = Ident {ident_string = "map", ident_annot = SpanEmpty}, expr_annot = SpanEmpty}, call_args = [ArgExpr {arg_expr = Dot {dot_expr = Dot {dot_expr = Var {var_ident = Ident {ident_string = "mp", ident_annot = SpanEmpty}, expr_annot = SpanEmpty}, dot_attribute = Ident {ident_string = "Process", ident_annot = SpanEmpty}, expr_annot = SpanEmpty}, dot_attribute = Ident {ident_string = "terminate", ident_annot = SpanEmpty}, expr_annot = SpanEmpty}, arg_annot = SpanEmpty},ArgExpr {arg_expr = Var {var_ident = Ident {ident_string = "processes", ident_annot = SpanEmpty}, expr_annot = SpanEmpty}, arg_annot = SpanEmpty}], expr_annot = SpanEmpty}, arg_annot = SpanEmpty}], expr_annot = SpanEmpty}, stmt_annot = SpanEmpty}
+terminateProcs = StmtExpr   (Call ( Var ( Ident "list"  noSpan )  noSpan )  
+                                [ArgExpr ( Call ( Var ( Ident  "map" noSpan )  noSpan ) 
+                                                [ArgExpr ( Dot ( Dot (Var (Ident "mp" noSpan )  noSpan ) (Ident  "Process" noSpan )  noSpan ) (Ident "terminate" noSpan )  noSpan ) noSpan,
+                                                 ArgExpr ( Var ( Ident  "processes" noSpan )  noSpan ) noSpan 
+                                                ]
+                                                noSpan ) noSpan
+                                ]
+                                noSpan )
+                        noSpan
 -- list(map(mp.Process.join, processes))
-joinProcs = StmtExpr {stmt_expr = Call {call_fun = Var {var_ident = Ident {ident_string = "list", ident_annot = SpanEmpty}, expr_annot = SpanEmpty}, call_args = [ArgExpr {arg_expr = Call {call_fun = Var {var_ident = Ident {ident_string = "map", ident_annot = SpanEmpty}, expr_annot = SpanEmpty}, call_args = [ArgExpr {arg_expr = Dot {dot_expr = Dot {dot_expr = Var {var_ident = Ident {ident_string = "mp", ident_annot = SpanEmpty}, expr_annot = SpanEmpty}, dot_attribute = Ident {ident_string = "Process", ident_annot = SpanEmpty}, expr_annot = SpanEmpty}, dot_attribute = Ident {ident_string = "join", ident_annot = SpanEmpty}, expr_annot = SpanEmpty}, arg_annot = SpanEmpty},ArgExpr {arg_expr = Var {var_ident = Ident {ident_string = "processes", ident_annot = SpanEmpty}, expr_annot = SpanEmpty}, arg_annot = SpanEmpty}], expr_annot = SpanEmpty}, arg_annot = SpanEmpty}], expr_annot = SpanEmpty}, stmt_annot = SpanEmpty}
+joinProcs = StmtExpr   (Call ( Var ( Ident "list"  noSpan )  noSpan )  
+                                [ArgExpr ( Call ( Var ( Ident  "map" noSpan )  noSpan ) 
+                                                [ArgExpr ( Dot ( Dot (Var (Ident "mp" noSpan )  noSpan ) (Ident  "Process" noSpan )  noSpan ) (Ident "join" noSpan )  noSpan ) noSpan,
+                                                 ArgExpr ( Var ( Ident  "processes" noSpan )  noSpan ) noSpan 
+                                                ]
+                                                noSpan ) noSpan
+                                ]
+                                noSpan )
+                        noSpan
+
 -- return result
 returnResult :: Statement SrcSpan
-returnResult= Return {return_expr = Just (Var {var_ident = Ident {ident_string = "result", ident_annot = SpanEmpty}, expr_annot = SpanEmpty}), stmt_annot = SpanEmpty}
+returnResult= Return (Just (Var ( Ident "result" noSpan) noSpan)) noSpan
 

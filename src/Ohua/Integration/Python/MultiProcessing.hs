@@ -54,7 +54,7 @@ instance Architecture (Architectures 'MultiProcessing) where
     convertRecv SMultiProc  (SRecv _type (SChan channel)) =
      -- currently this will yield $channel_reciever.recv()           
         convertExpr SMultiProc $
-            Apply $ Stateful (TCLang.Var $ channel <> "_receiver") (mkFunRefUnqual "recv") []
+            Apply $ Stateful (TCLang.Var $ channel <> "_receiver") (toQualBinding "recv") []
 
     {- | Converts the 'outgoing edge' of a backend channel into an expression of the target architecture
          to send the result of the node computation to a process communication channel 
@@ -67,7 +67,7 @@ instance Architecture (Architectures 'MultiProcessing) where
                 Left varBnd -> TCLang.Var varBnd
                 Right literal -> TCLang.Lit literal
         in convertExpr SMultiProc $
-            Apply $ Stateful (TCLang.Var $ chnlName <> "_sender") (mkFunRefUnqual "send") [sendItem]
+            Apply $ Stateful (TCLang.Var $ chnlName <> "_sender") (toQualBinding "send") [sendItem]
 
 
     {- | Wraps the tasks i.e. codeblocks of host language function calls and 'wiring' to send and
@@ -244,12 +244,9 @@ modName :: Py.Parameter annot -> [Char] -> Py.Ident SrcSpan
 modName (Py.Param (Py.Ident name _) mTyp mDef anno) modV = Py.Ident (name++modV) noSpan
 
 
-subToPython :: Program Stmt Stmt (Py.Statement SrcSpan) PythonArgType
-    -> FullyPyProgram
+subToPython :: Program Stmt Stmt (Py.Statement SrcSpan) PythonArgType -> FullyPyProgram
 subToPython (Program c r t ) =  Program (map subToStmt c) (subToExpr . unwrapSubStmt $ r) t
 
 enumeratedTasks :: [FullTask PythonArgType (Py.Statement SrcSpan)] -> [String]
 enumeratedTasks  tasks =  zipWith (\ task i -> "task_" ++ show i) tasks [1..]
 
-encodePretty :: Py.Module SrcSpan -> L.ByteString
-encodePretty = encodeUtf8 . prettyText

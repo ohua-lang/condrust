@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-deferred-out-of-scope-variables #-}
 {-|
 Module      : Python.Frontend.Convert
 Description : Convert AST to supported python subset
@@ -9,12 +10,11 @@ module Ohua.Integration.Python.Frontend.Convert where
 
 import Ohua.Prelude
 
-import qualified Ohua.Integration.Python.Frontend.Subset as Sub
 import Ohua.Integration.Python.Util
+import qualified Ohua.Integration.Python.Frontend.Subset as Sub
 
-
+import Language.Python.Common (SrcSpan)
 import qualified Language.Python.Common.AST as Py
-import Language.Python.Common (SrcSpan (SpanEmpty))
 
 
 suiteToSub:: (Monad m, MonadError Error m) => Py.Suite SrcSpan -> m Sub.Suite
@@ -24,25 +24,25 @@ suiteToBlock::(Monad m, MonadError Error m) => Py.Suite SrcSpan -> m Sub.Block
 suiteToBlock = mapM (stmtToSub <=< isNoReturn)
 
 stmtToSub::(Monad m, MonadError Error m) => Py.Statement SrcSpan -> m Sub.Stmt
-stmtToSub stmt@Py.Import{import_items=items} = unsupError "local imports" stmt
-stmtToSub stmt@Py.FromImport{from_module= mod, from_items=items} =  unsupError "local imports" stmt
+stmtToSub stmt@Py.Import{import_items=items} = unsupPyError "local imports" stmt
+stmtToSub stmt@Py.FromImport{from_module= mod, from_items=items} =  unsupPyError "local imports" stmt
 stmtToSub assign@(Py.Assign [target] expr annot) = do
     targets' <- exprToTarget target
     expr' <- exprToSubExpr expr
     return $ Sub.Assign targets' expr'
-stmtToSub assign@(Py.Assign targets expr annot) = unsupError "multiple variables in assignment. You may use a tuple instead" assign
+stmtToSub assign@(Py.Assign targets expr annot) = unsupPyError "multiple variables in assignment. You may use a tuple instead" assign
 stmtToSub whileE@(Py.While cond do_block [] annE) = do
     cond' <- exprToSubExpr cond
     block' <- suiteToBlock do_block
     return $ Sub.WhileStmt cond' block'
 
-stmtToSub whileE@(Py.While cond do_block elseBlock annE) = unsupError "else blocks in while expressions" whileE
+stmtToSub whileE@(Py.While cond do_block elseBlock annE) = unsupPyError "else blocks in while expressions" whileE
 stmtToSub forE@(Py.For targets generator body [] annot) = do
     targets' <- targetsToSub targets
     generator' <- exprToSubExpr generator
     body' <- suiteToBlock body
     return $ Sub.ForStmt targets' generator' body'
-stmtToSub forE@(Py.For _ _ _ elseBlock _) = unsupError "else blocks in for expressions" forE
+stmtToSub forE@(Py.For _ _ _ elseBlock _) = unsupPyError "else blocks in for expressions" forE
 
 {-Note: there's 2 complications with if-Statements in python 
     1st: there's elIfs -> this probably not hard, it just means i have to nest translation
@@ -80,28 +80,28 @@ stmtToSub ret@(Py.Return (Just expr) annot) = do
 -}
 stmtToSub Py.Pass{} = return Sub.Pass
 
-stmtToSub asyncFor@(Py.AsyncFor stmt annot) = unsupError "async for loops" asyncFor
-stmtToSub funDef@Py.Fun{} = unsupError "inner function defintions" funDef
-stmtToSub asyncFun@Py.AsyncFun{} = unsupError "async function definitions" asyncFun
-stmtToSub classDef@Py.Class{} = unsupError "class defintions inside functions" classDef
-stmtToSub augmAs@(Py.AugmentedAssign target operation expr annot) = unsupError "augmented assignments" augmAs
-stmtToSub annotAs@(Py.AnnotatedAssign targetAnnot target expr stmtAnnot) = unsupError "annotated assignments" annotAs
-stmtToSub dec@(Py.Decorated decorators funOrClass annot) = unsupError "decorators" dec
+stmtToSub asyncFor@(Py.AsyncFor stmt annot) = unsupPyError "async for loops" asyncFor
+stmtToSub funDef@Py.Fun{} = unsupPyError "inner function defintions" funDef
+stmtToSub asyncFun@Py.AsyncFun{} = unsupPyError "async function definitions" asyncFun
+stmtToSub classDef@Py.Class{} = unsupPyError "class defintions inside functions" classDef
+stmtToSub augmAs@(Py.AugmentedAssign target operation expr annot) = unsupPyError "augmented assignments" augmAs
+stmtToSub annotAs@(Py.AnnotatedAssign targetAnnot target expr stmtAnnot) = unsupPyError "annotated assignments" annotAs
+stmtToSub dec@(Py.Decorated decorators funOrClass annot) = unsupPyError "decorators" dec
 
 
-stmtToSub try@(Py.Try block excepts elseBlock finallyBlock annot)= unsupError "try except statement" try
-stmtToSub raise@(Py.Raise raiseExor annot) = unsupError "exception raising statements" raise
-stmtToSub with@(Py.With contextTuples block annot) = unsupError "with statements" with
-stmtToSub asyncWith@(Py.AsyncWith stmt annot) = unsupError "async with statements" asyncWith
-stmtToSub stmt@Py.Break{} = unsupError "break statements" stmt
-stmtToSub stmt@Py.Continue{} = unsupError "continue statements" stmt
-stmtToSub stmt@Py.Delete{} = unsupError "delete statements" stmt
+stmtToSub try@(Py.Try block excepts elseBlock finallyBlock annot)= unsupPyError "try except statement" try
+stmtToSub raise@(Py.Raise raiseExor annot) = unsupPyError "exception raising statements" raise
+stmtToSub with@(Py.With contextTuples block annot) = unsupPyError "with statements" with
+stmtToSub asyncWith@(Py.AsyncWith stmt annot) = unsupPyError "async with statements" asyncWith
+stmtToSub stmt@Py.Break{} = unsupPyError "break statements" stmt
+stmtToSub stmt@Py.Continue{} = unsupPyError "continue statements" stmt
+stmtToSub stmt@Py.Delete{} = unsupPyError "delete statements" stmt
 
-stmtToSub stmt@Py.Global{} = unsupError "global keyword"stmt
-stmtToSub stmt@Py.NonLocal{} = unsupError "nonlocal keyword"stmt
-stmtToSub stmt@Py.Assert{} = unsupError "assertions"stmt
+stmtToSub stmt@Py.Global{} = unsupPyError "global keyword"stmt
+stmtToSub stmt@Py.NonLocal{} = unsupPyError "nonlocal keyword"stmt
+stmtToSub stmt@Py.Assert{} = unsupPyError "assertions"stmt
 stmtToSub stmt@Py.Print{} = py2Error stmt
-stmtToSub stmt@Py.Exec{} = unsupError "exec statements"stmt
+stmtToSub stmt@Py.Exec{} = unsupPyError "exec statements"stmt
 
 
 exprToSubExpr :: (Monad m, MonadError Error m) => Py.Expr SrcSpan -> m Sub.Expr
@@ -158,27 +158,27 @@ exprToSubExpr subSc@(Py.Subscript subscripted subscript annot) = do
     key <- exprToSubExpr subscript
     case bnd of
         Sub.Var bnd' ->  return $ Sub.Subscript bnd' key
-        _ -> unsupError "subscripting epressions on anything but a variable name" subSc
+        _ -> unsupPyError "subscripting epressions on anything but a variable name" subSc
 
 
-exprToSubExpr lL@Py.LongInt{} = unsupError "LongInts" lL
-exprToSubExpr fL@(Py.Float valDbl strRepr annot) = unsupError "Floats" fL
-exprToSubExpr imL@(Py.Imaginary valDbl strRepr annot) = unsupError "Imaginaries" imL
-exprToSubExpr ellL@(Py.Ellipsis annot) = unsupError "Ellipsis Literals" ellL
-exprToSubExpr bsL@(Py.ByteStrings bStrings annot) = unsupError "ByteString Literals" bsL
-exprToSubExpr strsL@(Py.Strings strings annot) = unsupError "Strings Literals" strsL
-exprToSubExpr ustrL@(Py.UnicodeStrings strings annot) = unsupError "UnicodeStrings Literals" ustrL
+exprToSubExpr lL@Py.LongInt{} = unsupPyError "LongInts" lL
+exprToSubExpr fL@(Py.Float valDbl strRepr annot) = unsupPyError "Floats" fL
+exprToSubExpr imL@(Py.Imaginary valDbl strRepr annot) = unsupPyError "Imaginaries" imL
+exprToSubExpr ellL@(Py.Ellipsis annot) = unsupPyError "Ellipsis Literals" ellL
+exprToSubExpr bsL@(Py.ByteStrings bStrings annot) = unsupPyError "ByteString Literals" bsL
+exprToSubExpr strsL@(Py.Strings strings annot) = unsupPyError "Strings Literals" strsL
+exprToSubExpr ustrL@(Py.UnicodeStrings strings annot) = unsupPyError "UnicodeStrings Literals" ustrL
 
-exprToSubExpr slice@(Py.SlicedExpr sliced slices annot) = unsupError "Slicing Expressions" slice
-exprToSubExpr dot@(Py.Dot object attribute annot) = unsupError "Attribute references" dot
-exprToSubExpr yield@(Py.Yield mayBeArg annot) = unsupError "Yield Expressions" yield
-exprToSubExpr gen@(Py.Generator comprehension annot) = unsupError "generator expression " gen
-exprToSubExpr await@(Py.Await expr annot) = unsupError "await expression" await
+exprToSubExpr slice@(Py.SlicedExpr sliced slices annot) = unsupPyError "Slicing Expressions" slice
+exprToSubExpr dot@(Py.Dot object attribute annot) = unsupPyError "Attribute references" dot
+exprToSubExpr yield@(Py.Yield mayBeArg annot) = unsupPyError "Yield Expressions" yield
+exprToSubExpr gen@(Py.Generator comprehension annot) = unsupPyError "generator expression " gen
+exprToSubExpr await@(Py.Await expr annot) = unsupPyError "await expression" await
 
-exprToSubExpr listComp@(Py.ListComp comprehension annot) = unsupError "list comprehensions" listComp
-exprToSubExpr dictComp@(Py.DictComp compehension annot) = unsupError "dict comprehensions" dictComp
-exprToSubExpr setComp@(Py.SetComp comprehension annot) =  unsupError "set comprehensions" setComp
-exprToSubExpr starred@(Py.Starred expr annot) = unsupError "Starred Expressions" starred
+exprToSubExpr listComp@(Py.ListComp comprehension annot) = unsupPyError "list comprehensions" listComp
+exprToSubExpr dictComp@(Py.DictComp compehension annot) = unsupPyError "dict comprehensions" dictComp
+exprToSubExpr setComp@(Py.SetComp comprehension annot) =  unsupPyError "set comprehensions" setComp
+exprToSubExpr starred@(Py.Starred expr annot) = unsupPyError "Starred Expressions" starred
 -- TODO/Question: I need to know all possible occurences of parenthesized expressionss and 
 -- in how far there can be precedence or other semantic issues arrising from just using the inner expression
 exprToSubExpr paren@(Py.Paren expr annot) = exprToSubExpr expr
@@ -188,14 +188,14 @@ exprToSubExpr strConv@(Py.StringConversion expr annot) = py2Error strConv
 exprToFRef:: (Monad m, MonadError Error m) => Py.Expr SrcSpan -> m Sub.FRef
 exprToFRef Py.Var{var_ident=ident} = return $ Sub.Pure (toBinding ident)
 exprToFRef Py.Dot{dot_expr= dots,dot_attribute = ident}  = do
-    let funBinding  = toQualBinding . fromString $ Py.ident_string ident
+    let funBinding  = toQualBinding .fromString $ Py.ident_string ident
         objBinding = fromString $ chainBindings "" dots
     return $ Sub.Dotted objBinding funBinding
 exprToFRef (Py.Paren expr annot) = exprToFRef expr
 exprToFRef lE@Py.Lambda{} = do
     lE' <- exprToSubExpr lE
     return $ Sub.Direct lE'
-exprToFRef anyOther = unsupError "this kind of expression as function reference: " anyOther
+exprToFRef anyOther = unsupPyError "this kind of expression as function reference: " anyOther
 
 
 
@@ -224,24 +224,24 @@ exprToTarget (Py.Paren (Py.Tuple exprs an) ann) = Sub.Tpl <$> mapM (varOrFail <=
 exprToTarget subScr@(Py.Subscript subscriptee indexExpr annot) = Sub.Subscr <$> exprToSubExpr subScr
 
 -- Question: Can we have list patterns?
-exprToTarget lst@(Py.List exprs annot) = unsupError "lists as patterns" lst
-exprToTarget dot@(Py.Dot exprs termVar annot) = unsupError "attribute assignment" dot
+exprToTarget lst@(Py.List exprs annot) = unsupPyError "lists as patterns" lst
+exprToTarget dot@(Py.Dot exprs termVar annot) = unsupPyError "attribute assignment" dot
 -- Question: I assume it's troublesome for some reason to translate this (probably because in haskell 
 -- we do not modify things but return new ones)...Why exactly?
-exprToTarget slice@(Py.SlicedExpr subscriptee slices annot) = unsupError "slice patterns" slice
-exprToTarget starred@(Py.Starred expr annot) = unsupError "starred expression patterns" starred
+exprToTarget slice@(Py.SlicedExpr subscriptee slices annot) = unsupPyError "slice patterns" slice
+exprToTarget starred@(Py.Starred expr annot) = unsupPyError "starred expression patterns" starred
 exprToTarget any = throwError $ "Encountered " <> show any <> " while trying to convert patterns. This is a bug"
 
 argToSub :: (Monad m, MonadError Error m) => Py.Argument SrcSpan -> m Sub.Argument
 argToSub (Py.ArgExpr expr annot) = do
     argExpr <- exprToSubExpr expr
     return $ Sub.Arg argExpr
-argToSub arg = unsupError "args and kwars" arg
+argToSub arg = unsupPyError "args and kwars" arg
 
 paramToSub ::  (Monad m, MonadError Error m) => Py.Parameter SrcSpan -> m Sub.Param
 paramToSub (Py.Param ident typeAnno Nothing anno)  = return $ Sub.Param (toBinding ident)
-paramToSub dflt@(Py.Param ident typeAnno deflt anno) = unsupError "default values for paramters" dflt
-paramToSub prm = unsupError "args, kwargs or keyword only parameters" prm
+paramToSub dflt@(Py.Param ident typeAnno deflt anno) = unsupPyError "default values for paramters" dflt
+paramToSub prm = unsupPyError "args, kwargs or keyword only parameters" prm
 
 -- | Convert items of the iterable argument to dict creation. Those items can be (key, value) pairs or
 -- | *dict i.e. copies of other dicts. 
@@ -250,7 +250,7 @@ dictMapToSub (Py.DictMappingPair key value) = do
     k' <- exprToSubExpr key
     v' <- exprToSubExpr value
     return (k', v')
-dictMapToSub dU@(Py.DictUnpacking dict) = unsupError "dict unpacking" dU
+dictMapToSub dU@(Py.DictUnpacking dict) = unsupPyError "dict unpacking" dU
 
 
 binOpToSub :: (Monad m, MonadError Error m) => Py.Op SrcSpan -> m Sub.BinOp
@@ -290,7 +290,7 @@ unOpToSub Py.Invert{} = return Sub.Invert
 
 
 isNoReturn:: (Monad m, MonadError Error m) => Py.Statement SrcSpan -> m (Py.Statement SrcSpan)
-isNoReturn ret@Py.Return{} = unsupError "'return' anywhere but at the end of a function. Please use an assignment" ret
+isNoReturn ret@Py.Return{} = unsupPyError "'return' anywhere but at the end of a function. Please use an assignment" ret
 isNoReturn notAReturn = return notAReturn
 
 
@@ -298,7 +298,7 @@ varOrFail :: (Monad m, MonadError Error m) => Sub.Target -> m Binding
 varOrFail pat =
          case pat of
             Sub.Single bnd -> return bnd
-            _ -> unsupError "nested targets in for loops or assignments" pat
+            _ -> throwError $ "Currently we do not support nested targets in for loops or assignments used in: "<> show pat
 
 
 chainBindings:: String -> Py.Expr SrcSpan -> String
@@ -306,12 +306,6 @@ chainBindings lst (Py.Var ident anno) = Py.ident_string ident
 chainBindings lst (Py.Dot expr ident annot) =
     chainBindings (Py.ident_string ident++"."++ lst) expr
 
-
-unsupError :: (MonadError e m, Semigroup e, IsString e, Show a1) => e -> a1 -> m a2
-unsupError text expr = throwError $ "Currently we do not support "<> text <>" used in: "<> show expr
-
-py2Error expr = throwError $ "For whatever reason you managed to get the exclusively version 2 expression "
-                                <> show expr <> " through the python3 parser of language-python."
 
 makeLoopRef :: String -> SrcSpan -> String
 makeLoopRef loopKind loc = loopKind ++ "_"
@@ -321,3 +315,4 @@ instance Error (UnsupportedSyntaxError a) where
     noMsg = UnsupportedSyntax ""
     strMsg s = UnsupportedSyntax s
 -}
+

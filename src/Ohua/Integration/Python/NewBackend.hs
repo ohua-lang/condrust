@@ -143,13 +143,13 @@ instance Integration (Language 'Python) where
                 (Sub.Bool False)
 
     convertExpr arch (TCLang.Size bnd) =
-        convertFunCall arch (mkFunRefUnqual "len") [Var bnd]
+        convertFunCall arch (toQualBinding "len") [Var bnd]
 
     convertExpr arch (TCLang.ListOp Create) =
-        convertFunCall arch (mkFunRefUnqual "list") []
+        convertFunCall arch (toQualBinding SF.listConstructor) []
 
     convertExpr arch (TCLang.ListOp (Append bnd expr)) =
-        convertExpr arch $ Apply $ Stateful (Var bnd) (mkFunRefUnqual "append") [expr]
+        convertExpr arch $ Apply $ Stateful (Var bnd) (toQualBinding "append") [expr]
     
     convertExpr arch (TCLang.Tuple one two) =
         let conv =  unwrapSubStmt . convertExpr arch . either TCLang.Var TCLang.Lit
@@ -162,10 +162,10 @@ instance Integration (Language 'Python) where
 
     convertExpr arch (TCLang.Increment bnd) =
         convertExpr arch $
-            Apply $ Stateless (mkFunRefUnqual "+") [Var bnd, TCLang.Lit $ NumericLit 1]
+            Apply $ Stateless (toQualBinding "+") [Var bnd, TCLang.Lit $ NumericLit 1]
     convertExpr arch (TCLang.Decrement bnd) =
         convertExpr arch $
-            Apply $ Stateless (mkFunRefUnqual "-") [Var bnd, TCLang.Lit $ NumericLit 1]
+            Apply $ Stateless (toQualBinding "-") [Var bnd, TCLang.Lit $ NumericLit 1]
     convertExpr arch (TCLang.Not expr) =  wrapSubExpr $
         Sub.UnaryOp  Sub.Not ( unwrapSubStmt $ convertExpr arch expr)
 
@@ -289,20 +289,12 @@ convertDictItem arch item =
 
 dotConcat :: NSRef -> Binding -> Binding
 dotConcat (NSRef refs) bind =
-    let concatName = foldr (\ref name -> bToString ref ++ "." ++ name) (bToString bind) refs
+    let concatName = foldr (\ref name -> bndToStr ref ++ "." ++ name) (bndToStr bind) refs
     in fromString concatName
-
-
-bToString:: Binding -> String
-bToString = unpack . unwrap
 
 
 asUntypedFunctionLiteral qBinding = TCLang.Lit $ FunRefLit $ FunRef qBinding Nothing Untyped
 
--- | Turn an unqualified binding (just a name) 
---   into a qualified binding (name with [import] context) with just no context
-mkFunRefUnqual :: Binding -> QualifiedBinding
-mkFunRefUnqual = QualifiedBinding (makeThrow [])
 
 hasAttrArgs :: Binding -> [Sub.Argument]
 hasAttrArgs bnd = [Sub.Arg (Sub.Var bnd) , Sub.Arg (Sub.Strings ["'__len__'"] )]
