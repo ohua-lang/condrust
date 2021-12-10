@@ -46,4 +46,16 @@ spec =
                 expected <- showCode "Expected:" Expect.whileLoop
                 compiled `shouldBe` expected)
             -}
+        it "Assign list comprehension" $
+            (showCode "Compiled: " =<< compileCode Input.assignListCompr) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" Expect.assignListCompr
+                compiled `shouldBe` expected)
+
+        it "list comprehension equal to for " $
+            (showCode "Compiled: " =<< compileCode Input.justListCompr) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:"  =<< compileCode Input.justListComprComp
+                compiled `shouldBe` expected)
+
 
