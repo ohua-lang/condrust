@@ -222,21 +222,8 @@ from testLib import *
 def algo():
     a = f(42)
     x = f(a)
-    g(x)
     return x
 |]
-
-assignCallAssignReturn = [pythonModule|
-from testLib import *
-
-def algo():
-    a = f(42)
-    x = f(a)
-    g(x)
-    z = f(x)
-    return z
-|]
-
 
 nestedCompose = [pythonModule|
 from testLib import *
@@ -321,6 +308,74 @@ def algo(a, b):
     x = {a,b,1,2,3}
     return x
 |]
+
+
+assignSubscript = [pythonModule|
+from testLib import *
+
+def algo(a, b):
+    l = [1,2,3]
+    x = l[0]
+    return x
+|]
+
+assignToSubscript = [pythonModule|
+from testLib import *
+
+def algo(a, b):
+    l = [1,2,3]
+    l[1] = f()
+    return l
+|]
+
+
+assignFromDictKey = [pythonModule|
+from testLib import *
+
+def algo(a, b):
+    d = {"x":2, "b":4}
+    i = function_that_returns_a_string_literal_because_we_dont_support_them()
+    x = d[i]
+    return x
+|]
+
+assignToDictKey = [pythonModule|
+from testLib import *
+
+def algo(a, b):
+    d = {"a":2, "b":4}
+    i = function_that_returns_a_string_literal_because_we_dont_support_them()
+    d[i] = 42
+    return d
+|]
+
+
+assignListCompr = [pythonModule|
+from testLib import *
+
+def algo(a, b):
+    l = [1,2,3]
+    x = [2*i for i in l]
+    return x
+|]
+
+justListCompr = [pythonModule|
+from testLib import *
+
+def algo(a, b):
+    [sideEffect(i) for i in range(10)]
+|]
+
+justListComprComp = [pythonModule|
+from testLib import *
+
+def algo(a, b):
+    tempList = []
+    for i in range(10):
+        temp = sideEffect(i)
+        tempList.append(temp)
+|]
+
 
 --Test cases for State.hs ---------------------------------------------
 
