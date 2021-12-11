@@ -9,10 +9,14 @@ import qualified Ohua.Backend.Operators.State as S (Fuse(Fusable))
 import Ohua.Backend.Lang
 import Ohua.Backend.Types
 
-import qualified Data.HashSet as HS
-import qualified Data.HashMap.Lazy as HM
-import qualified Data.List.NonEmpty as NE
+-- import qualified Data.HashSet as HS
+-- import qualified Data.HashMap.Lazy as HM
+import qualified Data.Set.Ordered as OrdSet
+import qualified Data.Map.Ordered as OrdMap
 
+import qualified Data.List.NonEmpty as NE
+import qualified Data.Foldable as DF 
+import Data.Set.Ordered ((\\))
 
 data Fusable ty ctrl0 ctrl1
     = Fun (FusableFunction ty)
@@ -63,65 +67,65 @@ concludeFusion (TCProgram chans resultChan exprs) = TCProgram chans resultChan $
         go (Unfusable e) = e
 
 -- invariant length in >= length out -- TODO use length-indexed vectors
-evictUnusedChannels :: TCProgram (Channel ty) (Com 'Recv ty) (TaskExpr ty) 
+evictUnusedChannels :: TCProgram (Channel ty) (Com 'Recv ty) (TaskExpr ty)
                     -> TCProgram (Channel ty) (Com 'Recv ty) (TaskExpr ty)
-evictUnusedChannels (TCProgram chans resultChan exprs) = 
+evictUnusedChannels (TCProgram chans resultChan exprs) =
     let findChannels e = [ chan | ReceiveData chan <- universe e]
-        usedChans = HS.fromList $ concatMap findChannels exprs
-        chans' = NE.filter (`HS.member` usedChans) chans
+        usedChans = OrdSet.fromList $ concatMap findChannels exprs
+        chans' = NE.filter (`OrdSet.member` usedChans) chans
     in TCProgram (resultChan :| chans') resultChan exprs
 
-fuseStateThreads :: TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (VarCtrl ty) (LitCtrl ty)) 
+fuseStateThreads :: TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (VarCtrl ty) (LitCtrl ty))
                  -> TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty))
 fuseStateThreads = fuseSTCLang . fuseCtrls . mergeCtrls
 
 mergeCtrls :: forall ty.
-              TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (VarCtrl ty) (LitCtrl ty)) 
+              TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (VarCtrl ty) (LitCtrl ty))
            -> TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (FunCtrl ty) (LitCtrl ty))
 mergeCtrls (TCProgram chans resultChan exprs) =
-    let (ctrls',mergedCtrls) = mergeLevel funReceives (HM.fromList ctrls) [f | (Fun f) <- exprs]
-        mergedCtrls' = 
+    let (ctrls',mergedCtrls) = mergeLevel funReceives (OrdMap.fromList ctrls) [f | (Fun f) <- exprs]
+        mergedCtrls' =
             mergedCtrls ++ mergeNextLevel (NE.toList . ctrlReceives) ctrls' mergedCtrls
         mergedCtrls'' = map (Control . Left) mergedCtrls' :: [Fusable ty (FunCtrl ty) (LitCtrl ty)]
         noCtrlExprs = filter (isNothing . findCtrl) exprs
-    in TCProgram chans resultChan $ 
-        foldl 
+    in TCProgram chans resultChan $
+        foldl
             (\cs c -> first toFunCtrl c : cs)  -- There is no ctrl here but this converts actually from Fusable VarCtrl to Fusable FunCtrl
-            mergedCtrls'' 
+            mergedCtrls''
             noCtrlExprs
     where
-        mergeNextLevel :: (FunCtrl ty -> [Com 'Recv ty]) 
-                        -> HashMap (OutputChannel ty) (VarCtrl ty)
-                        -> [FunCtrl ty] 
+        mergeNextLevel :: (FunCtrl ty -> [Com 'Recv ty])
+                        -> OrdMap.OMap (OutputChannel ty) (VarCtrl ty)
                         -> [FunCtrl ty]
-        mergeNextLevel receives cs mcs = 
+                        -> [FunCtrl ty]
+        mergeNextLevel receives cs mcs =
             let (cs',mcs') = mergeLevel receives cs mcs
             in if null mcs'
-                then map (toFunCtrl . snd) $ HM.toList cs'
+                then map (toFunCtrl . snd) $ OrdMap.assocs cs'
                 else mcs' <> mergeNextLevel receives cs' mcs'
 
         -- TODO: refactor to use a state monad instead for better readability
         mergeLevel :: (b -> [Com 'Recv ty])
-                    -> HashMap (OutputChannel ty) (VarCtrl ty)
-                    -> [b] 
-                    -> (HashMap (OutputChannel ty) (VarCtrl ty), [FunCtrl ty])
-        mergeLevel receives ctrls level = 
-            let (ctrls', ctrlsPerFun) = 
-                    foldl 
-                        (\(ctrls, fs) f -> 
+                    -> OrdMap.OMap (OutputChannel ty) (VarCtrl ty)
+                    -> [b]
+                    -> (OrdMap.OMap (OutputChannel ty) (VarCtrl ty), [FunCtrl ty])
+        mergeLevel receives ctrls level =
+            let (ctrls', ctrlsPerFun) =
+                    foldl
+                        (\(ctrls, fs) f ->
                             let rs = map (\(SRecv _ c) -> OutputChannel c) $ receives f
-                                fs' = mapMaybe (`HM.lookup` ctrls) rs
-                                ctrls' = foldl (flip HM.delete) ctrls rs
+                                fs' = mapMaybe (`OrdMap.lookup` ctrls) rs
+                                ctrls' = foldl (flip OrdMap.delete) ctrls rs
                             in (ctrls', fs':fs))
                         (ctrls, [])
                         level
                 ctrlsPerFun' = map erroringNE $ filter (not . null) ctrlsPerFun
-                mergedCtrls = 
-                    map (\cs -> 
-                        foldl 
-                            (\fc vc -> merge vc $ Right fc) 
-                            (toFunCtrl $ NE.head cs) 
-                            $ NE.tail cs) 
+                mergedCtrls =
+                    map (\cs ->
+                        foldl
+                            (\fc vc -> merge vc $ Right fc)
+                            (toFunCtrl $ NE.head cs)
+                            $ NE.tail cs)
                         ctrlsPerFun'
             in (ctrls', mergedCtrls)
         erroringNE = fromMaybe (error "Invariant broken: No controls for function!") . nonEmpty
@@ -129,12 +133,12 @@ mergeCtrls (TCProgram chans resultChan exprs) =
         -- assumptions: LitCtrls never need to be merged by their very nature!
         findCtrl :: Fusable ty (VarCtrl ty) a -> Maybe (OutputChannel ty, VarCtrl ty)
         findCtrl (Control (Left c@(VarCtrl _ (out,_)))) = Just (out, c)
-        findCtrl _ = Nothing 
+        findCtrl _ = Nothing
         ctrls :: [(OutputChannel ty, VarCtrl ty)]
         ctrls = mapMaybe findCtrl exprs
 
 fuseCtrls :: forall ty.
-             TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (FunCtrl ty) (LitCtrl ty)) 
+             TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (FunCtrl ty) (LitCtrl ty))
           -> TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty))
 fuseCtrls (TCProgram chans resultChan exprs) =
     let (ctrls, noFunCtrls) = split exprs
@@ -143,21 +147,21 @@ fuseCtrls (TCProgram chans resultChan exprs) =
         go funCtrls noFunCtrls =
             let sAndT = srcsAndTgts noFunCtrls funCtrls
                 fused = map (uncurry fuseIt) sAndT
-                orphans = HS.fromList $
+                orphans = OrdSet.fromList $
                     map ((\case Left f -> Fun f; Right c -> Control $ Left c) . snd)
                         sAndT
-                noFunCtrls' = filter (not . (`HS.member` orphans)) noFunCtrls
+                noFunCtrls' = filter (not . (`OrdSet.member` orphans)) noFunCtrls
                 noFunCtrls'' = fused ++ noFunCtrls'
                 pendingFunCtrls =
-                    HS.toList $ foldr (HS.delete . fst) (HS.fromList funCtrls) sAndT
+                    DF.toList $ foldr (OrdSet.delete . fst) (OrdSet.fromList funCtrls) sAndT
             in if null pendingFunCtrls
                 then noFunCtrls''
                 else
-                 if HS.fromList pendingFunCtrls == HS.fromList funCtrls
+                 if OrdSet.fromList pendingFunCtrls == OrdSet.fromList funCtrls
                  then error $
                       " There are controls that can not be fused." <>
-                      "\nNumber of pending controls: " <> (show $ length pendingFunCtrls) <>
-                      "\nPending controls: " <> (show pendingFunCtrls)
+                      "\nNumber of pending controls: " <> show (length pendingFunCtrls) <>
+                      "\nPending controls: " <> show pendingFunCtrls
                  else go pendingFunCtrls noFunCtrls''
 
         split :: [Fusable ty (FunCtrl ty) (LitCtrl ty)]
@@ -202,10 +206,10 @@ fuseCtrls (TCProgram chans resultChan exprs) =
                 _ -> error $ "Invariant broken: a control always has exactly one target!\nI was looking for a target for channel: " <> show chan
         isTarget :: Com 'Channel ty -> Fusable ty (FusedCtrl anno ty) ctrl1 -> Bool
         isTarget bnd (Control (Left (FusedFunCtrl _ vars _ _))) =
-            HS.member bnd $ HS.fromList $
+            OrdSet.member bnd $ OrdSet.fromList $
             map ((\(SRecv _ c) -> c) . snd . fromVarReceive) vars
         isTarget bnd (Fun f) =
-            HS.member bnd $ HS.fromList $ map (\(SRecv _ c) -> c) $ funReceives f
+            OrdSet.member bnd $ OrdSet.fromList $ map (\(SRecv _ c) -> c) $ funReceives f
         isTarget _ _ = False
 
 fuseSTCLang :: forall ty.
@@ -218,16 +222,17 @@ fuseSTCLang (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ go
                 sourceAndTarget = map (\stc -> (findSource all stc, stc)) stcs
                 (toFuse, unfusable) = split sourceAndTarget
                 fused = map (Control . Left . uncurry fuseIt) toFuse
+                second = concatMap (\(x,y) -> [x,STC y]) sourceAndTarget
                 noFused =
                   --sort $ -- for deterministic order
-                  HS.toList $
-                  HS.difference
-                    (HS.fromList all)
-                    $ HS.fromList $ concatMap (\(x,y) -> [x,STC y]) sourceAndTarget
+                  DF.toList $
+                  (\\) 
+                    (OrdSet.fromList all)
+                    $ OrdSet.fromList $ concatMap (\(x,y) -> [x,STC y]) sourceAndTarget
                 all' = noFused ++ fused
             in case unfusable of
                  [] -> all'
-                 _  -> if HS.fromList all == HS.fromList all'
+                 _  -> if OrdSet.fromList all == OrdSet.fromList all'
                  then error "endless loop detected. there are ctxtExits that can not be fused."
                  else go all'
 
@@ -245,13 +250,13 @@ fuseSTCLang (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ go
         fuseIt (Unfusable _) _ = error "Invariant broken: Trying to fuse unfusable!"
 
         split xs =
-            --let tgts = HS.fromList $ map snd xs
+            --let tgts = OrdSet.fromList $ map snd xs
             --in
           partitionEithers $
           map
             (\e@(source, target) ->
                 case source of
-                  STC s -> --if not $ HS.member s tgts
+                  STC s -> --if not $ OrdSet.member s tgts
                            -- then Left e
                            -- else Right target
                     Right target
@@ -263,9 +268,9 @@ fuseSTCLang (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ go
             case filter (isSource inp) noneSTCs of
                     [src] -> src
                     s -> error  $ "Invariant broken: every STC has exactly one source by definition!"
-                      <> "\nlength: " <> (show $ length s)
-                      <> "\ninp: " <> (show inp)
-                      <> "\n num exprs: " <> (show $ length exprs)
+                      <> "\nlength: " <> show (length s)
+                      <> "\ninp: " <> show inp
+                      <> "\n num exprs: " <> show (length exprs)
 
         findSTCLangs = mapMaybe findSTCLang
 
@@ -275,7 +280,7 @@ fuseSTCLang (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ go
         isSource :: Com 'Channel ty -> Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty) -> Bool
         isSource inp (STC (FusableSTCLangSMap _ outp)) = outp == inp
         isSource inp (Control (Left (FusedFunCtrl _ _ _ outs))) =
-          HS.member inp $ HS.fromList $ map (\(SSend c _) -> c) outs
+          OrdSet.member inp $ OrdSet.fromList $ map (\(SSend c _) -> c) outs
         isSource inp (Control (Right (FusedLitCtrl _ _ (Left l)))) =
           isSource inp $ Control $ Left l
         isSource inp (Control (Right (FusedLitCtrl _ _ (Right r)))) = isSource inp $ Fun r

@@ -7,3 +7,4 @@ extra-deps:
   # - git: https://github.com/sertel/ohuac-commons
   # commit: ???
   - ../ohuac-commons # debugging
+  - ordered-containers-0.2.2

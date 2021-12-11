@@ -11,6 +11,8 @@ import qualified Data.HashSet as HS
 
 newtype OutputChannel ty = OutputChannel (Com 'Channel ty) deriving (Eq, Show, Generic)
 instance Hashable (OutputChannel ty)
+instance Ord (OutputChannel ty) where
+    compare = compare `on` unwrapBnd
 
 -- FIXME Should use annotations ST and Data from BindingType
 data VarReceive ty
