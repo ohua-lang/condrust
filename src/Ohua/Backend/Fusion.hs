@@ -9,9 +9,7 @@ import qualified Ohua.Backend.Operators.State as S (Fuse(Fusable))
 import Ohua.Backend.Lang
 import Ohua.Backend.Types
 
--- import qualified Data.HashSet as HS
--- import qualified Data.HashMap.Lazy as HM
-import qualified Data.Set.Ordered as OrdSet
+import qualified Data.HashSet as HS
 import qualified Data.Map.Ordered as OrdMap
 
 import qualified Data.List.NonEmpty as NE
@@ -71,8 +69,8 @@ evictUnusedChannels :: TCProgram (Channel ty) (Com 'Recv ty) (TaskExpr ty)
                     -> TCProgram (Channel ty) (Com 'Recv ty) (TaskExpr ty)
 evictUnusedChannels (TCProgram chans resultChan exprs) =
     let findChannels e = [ chan | ReceiveData chan <- universe e]
-        usedChans = OrdSet.fromList $ concatMap findChannels exprs
-        chans' = NE.filter (`OrdSet.member` usedChans) chans
+        usedChans = HS.fromList $ concatMap findChannels exprs      -- Order?: We don't need order here as the set is just a filter
+        chans' = NE.filter (`HS.member` usedChans) chans
     in TCProgram (resultChan :| chans') resultChan exprs
 
 fuseStateThreads :: TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (VarCtrl ty) (LitCtrl ty))
@@ -147,17 +145,20 @@ fuseCtrls (TCProgram chans resultChan exprs) =
         go funCtrls noFunCtrls =
             let sAndT = srcsAndTgts noFunCtrls funCtrls
                 fused = map (uncurry fuseIt) sAndT
-                orphans = OrdSet.fromList $
-                    map ((\case Left f -> Fun f; Right c -> Control $ Left c) . snd)
+                orphans = HS.fromList $ 
+                    map ((\case Left f -> Fun f; Right c -> Control $ Left c) . snd)    -- Order?: This also need not be sorted, likewise just a ffilter
                         sAndT
-                noFunCtrls' = filter (not . (`OrdSet.member` orphans)) noFunCtrls
+                noFunCtrls' = filter (not . (`HS.member` orphans)) noFunCtrls
                 noFunCtrls'' = fused ++ noFunCtrls'
-                pendingFunCtrls =
-                    DF.toList $ foldr (OrdSet.delete . fst) (OrdSet.fromList funCtrls) sAndT
+                -- pendingFunCtrls = 
+                   -- turn funCtrls into a set and delete all items s' that are in sAndT::[(s, T)], than turn it into a list again
+                   -- DF.toList $ foldr (HS.delete . fst) (HS.fromList funCtrls) sAndT
+                ss' = HS.fromList . map fst $ sAndT 
+                pendingFunCtrls = filter (not . (`HS.member` ss')) funCtrls
             in if null pendingFunCtrls
                 then noFunCtrls''
                 else
-                 if OrdSet.fromList pendingFunCtrls == OrdSet.fromList funCtrls
+                 if HS.fromList pendingFunCtrls == HS.fromList funCtrls
                  then error $
                       " There are controls that can not be fused." <>
                       "\nNumber of pending controls: " <> show (length pendingFunCtrls) <>
@@ -206,10 +207,10 @@ fuseCtrls (TCProgram chans resultChan exprs) =
                 _ -> error $ "Invariant broken: a control always has exactly one target!\nI was looking for a target for channel: " <> show chan
         isTarget :: Com 'Channel ty -> Fusable ty (FusedCtrl anno ty) ctrl1 -> Bool
         isTarget bnd (Control (Left (FusedFunCtrl _ vars _ _))) =
-            OrdSet.member bnd $ OrdSet.fromList $
+            HS.member bnd $ HS.fromList $
             map ((\(SRecv _ c) -> c) . snd . fromVarReceive) vars
         isTarget bnd (Fun f) =
-            OrdSet.member bnd $ OrdSet.fromList $ map (\(SRecv _ c) -> c) $ funReceives f
+            HS.member bnd $ HS.fromList $ map (\(SRecv _ c) -> c) $ funReceives f
         isTarget _ _ = False
 
 fuseSTCLang :: forall ty.
@@ -222,17 +223,18 @@ fuseSTCLang (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ go
                 sourceAndTarget = map (\stc -> (findSource all stc, stc)) stcs
                 (toFuse, unfusable) = split sourceAndTarget
                 fused = map (Control . Left . uncurry fuseIt) toFuse
-                second = concatMap (\(x,y) -> [x,STC y]) sourceAndTarget
-                noFused =
+                sTfilter = HS.fromList $ concatMap (\(x,y) -> [x,STC y]) sourceAndTarget
+                noFused = filter (not . (`HS.member` sTfilter)) all
                   --sort $ -- for deterministic order
+                  {-
                   DF.toList $
-                  (\\) 
-                    (OrdSet.fromList all)
-                    $ OrdSet.fromList $ concatMap (\(x,y) -> [x,STC y]) sourceAndTarget
+                  HS.difference
+                    (HS.fromList all)
+                    $ HS.fromList $ concatMap (\(x,y) -> [x,STC y]) sourceAndTarget-}
                 all' = noFused ++ fused
             in case unfusable of
                  [] -> all'
-                 _  -> if OrdSet.fromList all == OrdSet.fromList all'
+                 _  -> if HS.fromList all == HS.fromList all'
                  then error "endless loop detected. there are ctxtExits that can not be fused."
                  else go all'
 
@@ -280,7 +282,7 @@ fuseSTCLang (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ go
         isSource :: Com 'Channel ty -> Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty) -> Bool
         isSource inp (STC (FusableSTCLangSMap _ outp)) = outp == inp
         isSource inp (Control (Left (FusedFunCtrl _ _ _ outs))) =
-          OrdSet.member inp $ OrdSet.fromList $ map (\(SSend c _) -> c) outs
+          HS.member inp $ HS.fromList $ map (\(SSend c _) -> c) outs
         isSource inp (Control (Right (FusedLitCtrl _ _ (Left l)))) =
           isSource inp $ Control $ Left l
         isSource inp (Control (Right (FusedLitCtrl _ _ (Right r)))) = isSource inp $ Fun r
