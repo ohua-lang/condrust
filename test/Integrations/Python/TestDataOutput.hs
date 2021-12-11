@@ -152,7 +152,6 @@ def main(a_1, b_1):
 
 noReturn = [pythonModule|
 import multiprocessing as mp
-import multiprocessing as mp
 a_0_0_sender, a_0_0_receiver = mp.Pipe()
 x_0_0_0_sender, x_0_0_0_receiver = mp.Pipe()
 def task_1():
