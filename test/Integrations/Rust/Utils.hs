@@ -2,6 +2,7 @@ module Integrations.Rust.Utils
   ( renderRustCode,
     showCode,
     showCodeWithDiff,
+    CompilationType (..),
     compileCode,
     compileCodeWithDebug,
     compileCodeWithRec,
@@ -33,6 +34,10 @@ import TestOptions
 import Ohua.Core.Types (Options)
 import System.Process.Extra (readProcessWithExitCode)
 
+data CompilationType
+  = OhuaOnly
+  | BuildTarget
+  | RunTarget
 
 renderRustCode :: SourceFile Span -> L.ByteString
 renderRustCode =
@@ -46,20 +51,20 @@ renderRustCode =
 integrationOptions :: IC.Config
 integrationOptions = IC.Config Arch.SharedMemory $ IC.Options Nothing Nothing
 
-compileCodeWithRec :: SourceFile Span -> IO (SourceFile Span)
-compileCodeWithRec inCode = runReaderT (compileCode' inCode $ withRec def) def
+compileCodeWithRec :: CompilationType -> SourceFile Span -> IO (SourceFile Span)
+compileCodeWithRec cty inCode = runReaderT (compileCode' inCode (withRec def) cty) def
 
-compileCodeWithRecWithDebug :: SourceFile Span -> IO (SourceFile Span)
-compileCodeWithRecWithDebug inCode = runReaderT (compileCode' inCode $ withRec def) $ DebugOptions True False
+compileCodeWithRecWithDebug :: CompilationType -> SourceFile Span -> IO (SourceFile Span)
+compileCodeWithRecWithDebug cty inCode = runReaderT (compileCode' inCode (withRec def) cty) $ DebugOptions True False
 
-compileCode :: SourceFile Span -> IO (SourceFile Span)
-compileCode inCode = runReaderT (compileCode' inCode def) def
+compileCode :: CompilationType -> SourceFile Span -> IO (SourceFile Span)
+compileCode cty inCode = runReaderT (compileCode' inCode def cty) def
 
-compileCodeWithDebug :: SourceFile Span -> IO (SourceFile Span)
-compileCodeWithDebug inCode = runReaderT (compileCode' inCode def) $ DebugOptions True False
+compileCodeWithDebug :: CompilationType -> SourceFile Span -> IO (SourceFile Span)
+compileCodeWithDebug cty inCode = runReaderT (compileCode' inCode def cty) $ DebugOptions True False
 
-compileCode' :: SourceFile Span -> Options -> ReaderT DebugOptions IO (SourceFile Span)
-compileCode' inCode opts = do
+compileCode' :: SourceFile Span -> Options -> CompilationType -> ReaderT DebugOptions IO (SourceFile Span)
+compileCode' inCode opts cty = do
   debug <- asks printIRs
   lift $ withSystemTempDirectory
     "testDir"
@@ -79,7 +84,10 @@ compileCode' inCode opts = do
             $ compile inFile compScope options integrationOptions outDir
           let outFile = outDir </> takeFileName inFile
           -- run the target compiler (i.e., rustc) on the input
-          runTargetCompiler testDir outDir outFile
+          case cty of
+            OhuaOnly -> pure ()
+            BuildTarget -> runTargetCompiler testDir outDir outFile
+            RunTarget -> error "Error: Running target code not implemented yet"
           -- parse & return the generated output file
           outCode :: SourceFile Span <-
             parse' <$> readInputStream outFile
