@@ -5,6 +5,7 @@ module Integrations.Python.TestDataInput where
 
 import Integrations.Python.SimpleQuoter
 
+
 testLib = [pythonModule|
 from typing import List
 
@@ -22,35 +23,29 @@ def funInt():
     return 42
 
 def f(arg = None):
-    # print("f called")
     if arg:
         return arg + 2
     return 7
 
 def f1(x):
-    # print("f1 called")
     return x+2
 
 def f2(x):
-    print("f2 called")
     return x+3
 
 def g(arg= None):
     return 4
 
 def g0(x):
-    print("g0 called")
     return x+7
 
 def g1(x):
-    print("g1 called")
     return x+8
 
 def h(x = None):
     return 23
 
 def oneArg(x):
-    print("oneArg called")
     return x
 
 def listOfMObs(a):
@@ -97,6 +92,14 @@ from testLib import *
 
 def algo():
     hello_world()
+|]
+
+exprArg = [pythonModule|
+from testLib import *
+
+def algo():
+    x = oneArg((lambda x : x+2)(4))
+    return x
 |]
 
 assignNumLit = [pythonModule|

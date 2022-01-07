@@ -5,6 +5,11 @@ import Ohua.Prelude ( ($), Monad((>>=)), (=<<), Either(..))
 import Integrations.Python.Utils
 import qualified Integrations.Python.TestDataInput as Input
 import qualified Integrations.Python.TestDataOutput as Expect
+-- import qualified Integrations.Python.TestOutOrder as Expect
+
+import qualified Integrations.Python.BenchInput as BIn
+import qualified Integrations.Python.BenchOutput as BExpect
+
 
 
 
@@ -45,18 +50,21 @@ spec =
                 expected <- showCode "Expected:" Expect.multiAssignment
                 compiled `shouldBe` expected)
          -}
-        it "While loop" $
-            (showCode "Compiled: " =<< compileCodeWithRec Input.whileLoop) >>=
+        
+    -}
+        it "test args" $
+            (showCode "Compiled: " =<< compileCode Input.exprArg) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" Expect.whileLoop
+                expected <- showCode "Expected:" Expect.callAFunction
+                compiled `shouldBe` expected)
+                
+
+              
+        it "While loop" $
+            (showCode "Compiled: " =<< compileCodeWithRec BIn.nBodies) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" BExpect.nBodies
                 compiled `shouldBe` expected)
             
         
-         -} 
-        it "ForLoop over iterator" $
-            (showCode "Compiled: " =<< compileCode Input.loopIterator) >>=
-            (\compiled -> do
-                expected <- showCode "Expected:" Expect.loopIterator
-                compiled `shouldBe` expected)
-
         
