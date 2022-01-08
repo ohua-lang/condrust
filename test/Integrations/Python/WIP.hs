@@ -2,7 +2,7 @@ module Integrations.Python.WIP where
 
 import Ohua.Prelude ( ($), Monad((>>=)), (=<<), Either(..))
 
-import Integrations.Python.Utils
+import Integrations.Python.PythonSetup
 import qualified Integrations.Python.TestDataInput as Input
 import qualified Integrations.Python.TestDataOutput as Expect
 
@@ -11,6 +11,11 @@ import qualified Integrations.Python.TestDataOutput as Expect
 spec :: Spec
 spec =
     describe "WIP Tests" $ do
+        it "Assignment binary Operation of integer literals" $
+            (showCode "Compiled: " =<< compileCode Input.assignBinOp) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" Expect.assignBinOp
+                compiled `shouldBe` expected)
         {-
         it "Two Algos" $
             (showCode "Compiled: " =<< compileCode Input.twoAlgos) >>=
@@ -52,11 +57,12 @@ spec =
                 compiled `shouldBe` expected)
             
         
-         -} 
+         
         it "ForLoop over iterator" $
             (showCode "Compiled: " =<< compileCode Input.loopIterator) >>=
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.loopIterator
                 compiled `shouldBe` expected)
+        -} 
 
         

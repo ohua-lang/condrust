@@ -2,7 +2,7 @@
 module Integrations.Rust.Benchmark where
 
 import Ohua.Prelude  ( ($), Monad((>>=)), (=<<) )
-import Integrations.Rust.Utils
+import Integrations.Rust.RustSetup
 
 spec :: Spec
 spec =
@@ -12,7 +12,7 @@ spec =
             -- the function below is closely resembling the naive sequential implementation: 
             -- https://github.com/Feliix42/ohua-rust-benchmarks/blob/master/labyrinth/src/bin/simple_sequential.rs#L122-L133
             -- upon writing the snippet below I realized that we might need to alter the code a bit for the "retry" semantics introduced with the batching transformation
-            (showCode "Compiled: " =<< compileCode OhuaOnly [sourceFile|
+            (showCode "Compiled: " =<< compileCode  [sourceFile|
                 use funs::*;
 
                 fn route_paths(mut maze: Maze, to_map: Vec<(Point, Point)>) -> Maze {
@@ -46,7 +46,7 @@ spec =
         it "no conditionals - amorphous" $
           -- this is the version that we promise in the paper
           -- FIXME mutability is missing until the according issue was addressed. see sertel/ohuac-integrations#4
-            (showCode "Compiled: " =<< compileCodeWithRec OhuaOnly [sourceFile|
+            (showCode "Compiled: " =<< compileCodeWithRec  [sourceFile|
                 use benchs::*;
                 use std::*;
 
@@ -93,7 +93,7 @@ spec =
         it "no conditionals" $
           -- this is the version that we promise in the paper
           -- FIXME mutability is missing until the according issue was addressed. see sertel/ohuac-integrations#4
-            (showCode "Compiled: " =<< compileCodeWithRec OhuaOnly [sourceFile|
+            (showCode "Compiled: " =<< compileCodeWithRec  [sourceFile|
                 use benchs::*;
                 use std::*;
 
@@ -136,7 +136,7 @@ spec =
                     |]
                 compiled `shouldBe` expected)
     it "blackscholes" $
-        (showCode "Compiled: " =<< compileCode OhuaOnly [sourceFile|
+        (showCode "Compiled: " =<< compileCode  [sourceFile|
             use benchs::*;
             use std::*;
 
@@ -166,7 +166,7 @@ spec =
                 |]
             compiled `shouldBe` expected)
     it "kmeans" $
-        (showCode "Compiled: " =<< compileCodeWithRec OhuaOnly [sourceFile|
+        (showCode "Compiled: " =<< compileCodeWithRec  [sourceFile|
             use benchs::*;
             use std::*;
 
@@ -204,7 +204,7 @@ spec =
                 |]
             compiled `shouldBe` expected)
 --    it "canneal" $
---        (showCode "Compiled: " =<< compileCodeWithRec OhuaOnly [sourceFile|
+--        (showCode "Compiled: " =<< compileCodeWithRec  [sourceFile|
 --            use benchs::*;
 --            use std::*;
 --
@@ -263,7 +263,7 @@ spec =
 --                |]
 --            compiled `shouldBe` expected)
     it "canneal2" $
-        (showCode "Compiled: " =<< compileCodeWithRec OhuaOnly [sourceFile|
+        (showCode "Compiled: " =<< compileCodeWithRec  [sourceFile|
             use benchs::*;
             use std::*;
 

@@ -2,7 +2,7 @@ module Integrations.Python.Benchmarks where
 
 import Ohua.Prelude ( ($), Monad((>>=)), (=<<), Either(..))
 
-import Integrations.Python.Utils
+import Integrations.Python.PythonSetup
 import qualified Integrations.Python.BenchInput as Input
 import qualified Integrations.Python.BenchOutput as Expect
 

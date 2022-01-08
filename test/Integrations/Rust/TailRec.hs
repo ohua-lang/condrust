@@ -2,14 +2,14 @@
 module Integrations.Rust.TailRec where
 
 import Ohua.Prelude ( ($), Monad((>>=)), (=<<) )
-import Integrations.Rust.Utils
+import Integrations.Rust.RustSetup
 
 
 spec :: Spec
 spec =
     describe "TailRec" $ do
         it "simple one argument" $
-            (showCode "Compiled: " =<< compileCodeWithRec OhuaOnly [sourceFile|
+            (showCode "Compiled: " =<< compileCodeWithRec  [sourceFile|
                 use funs::*;
 
                 fn rec(i:i32) -> i32 {
@@ -104,7 +104,7 @@ fn test() -> i32 {
 |]
                 compiled `shouldBe` expected)
         it "multi-argument" $
-            (showCode "Compiled: " =<< compileCodeWithRec OhuaOnly [sourceFile|
+            (showCode "Compiled: " =<< compileCodeWithRec  [sourceFile|
                 use funs::*;
 
                 fn rec(one:i32, two:i32) -> i32 {
@@ -231,7 +231,7 @@ fn test() -> i32 {
                     |]
                 compiled `shouldBe` expected)
         it "contexted function" $
-            (showCode "Compiled: " =<< compileCodeWithRec OhuaOnly [sourceFile|
+            (showCode "Compiled: " =<< compileCodeWithRec  [sourceFile|
                 use funs::*;
 
                 fn rec(one: i32) -> i32 {

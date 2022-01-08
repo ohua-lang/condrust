@@ -2,7 +2,7 @@
 module Integrations.Rust.Control where
 
 import Ohua.Prelude ( ($), Monad((>>=)), (=<<) )
-import Integrations.Rust.Utils
+import Integrations.Rust.RustSetup
 
 
 spec :: Spec
@@ -11,7 +11,7 @@ spec =
     describe "var reuse" $ do
         -- FIXME see issue sertel/ohua-core#16
         it "simple" $
-            (showCode "Compiled: " =<< compileCodeWithRec OhuaOnly [sourceFile|
+            (showCode "Compiled: " =<< compileCodeWithRec  [sourceFile|
                 use funs::*;
 
                 fn rec(one:i32) -> i32 {
@@ -159,7 +159,7 @@ fn test() -> i32 {
                 compiled `shouldBe` expected)
         it "dep" $
           -- fusion is more tricky here because `one` and `two` are used by data dependent calls!
-          (showCode "Compiled: " =<< compileCodeWithRec OhuaOnly [sourceFile|
+          (showCode "Compiled: " =<< compileCodeWithRec  [sourceFile|
                 use funs::*;
 
                 fn rec(one:i32, two:i32) -> i32 {

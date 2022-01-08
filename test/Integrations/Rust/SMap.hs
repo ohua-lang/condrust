@@ -3,7 +3,7 @@ module Integrations.Rust.SMap where
 
 import Ohua.Prelude
 
-import Integrations.Rust.Utils
+import Integrations.Rust.RustSetup
 
 
 spec :: Spec
@@ -14,7 +14,7 @@ spec =
         -- TODO in fact this whole computation is dead code and our
         --      compiler should detect that!
 --        it "stream" $
---            (showCode "Compiled: " =<< compileCode OhuaOnly [sourceFile|
+--            (showCode "Compiled: " =<< compileCode  [sourceFile|
 --                use funs::*;
 --
 --                fn test() -> () {
@@ -107,7 +107,7 @@ spec =
 --                    |]
 --                compiled `shouldBe` expected)
         it "imperative" $
-            (showCode "Compiled: " =<< compileCode OhuaOnly [sourceFile|
+            (showCode "Compiled: " =<< compileCode  [sourceFile|
                 use funs::*;
 
                 fn test() -> std::Vec<i32> {
@@ -232,7 +232,7 @@ spec =
                     |]
                 compiled `shouldBe` expected)
 {-       it "imperative while " $
-            (showCode "Compiled: " =<< compileCode OhuaOnly [sourceFile|
+            (showCode "Compiled: " =<< compileCode  [sourceFile|
                 use funs::*;
 
                 fn test() -> std::Vec<i32> {
