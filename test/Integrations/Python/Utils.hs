@@ -26,6 +26,7 @@ import Language.Python.Common.ParserMonad (ParseError)
 import Language.Python.Common.SrcLocation (SrcSpan)
 import qualified Language.Python.Common.Pretty as PyPretty
 
+import Integrations.IntegrationSetup (Testable(..), CompilationType(..))
 import qualified Integrations.Python.TestDataInput as Input
 import qualified Integrations.Python.TestDataOutput as Output
 
@@ -42,29 +43,22 @@ import qualified Data.HashMap.Lazy as HM
 
 type ParseResult = Either ParseError (ModuleSpan, [Token])
 
-renderPython:: (PyPretty.Pretty a)=> a -> Text
+instance Testable (Module SrcSpan) where
+    type CodeFormat (Module SrcSpan) = (Module SrcSpan)
+
+    compileFormat = compileModule
+    showFormat = showCode'
+
+renderPython:: (PyPretty.Pretty a) => a -> Text
 renderPython = T.pack . prettyText
 
 integrationOptions :: IC.Config
 integrationOptions = IC.Config Arch.MultiProcessing $ IC.Options Nothing Nothing
 
-compileCodeWithRec :: Module SrcSpan -> IO (Module SrcSpan)
-compileCodeWithRec inCode = runReaderT (compileCode' inCode $ withRec def) def
-
-compileCode ::  Module SrcSpan -> IO (Module SrcSpan)
-compileCode inCode = runReaderT (compileCode' inCode def) def
-
-wrappedParsing:: String -> String -> Module SrcSpan
-wrappedParsing pyCode filename = do
-    let parseresult = V3.parseModule pyCode filename
-    case parseresult of
-        Left parse_error -> error $ T.pack $ prettyText parse_error
-        Right (mod_span, _comments) -> mod_span
 
 
---TODO: Change return types once compiling is implemented 
-compileCode' ::  Module SrcSpan -> Options -> ReaderT DebugOptions IO (Module SrcSpan)
-compileCode' inCode opts = do 
+compileModule ::  Module SrcSpan -> Options -> CompilationType -> ReaderT DebugOptions IO (Module SrcSpan)
+compileModule inCode opts compType = do 
     debug <- asks printIRs
     lift $
      withSystemTempDirectory "testDir"
@@ -89,18 +83,27 @@ compileCode' inCode opts = do
                     -- mapM_ putStr (caller:modules)
                     -- files <- mapM (\name -> readFile (outDir </> name)) (caller:modules)
                     producedFile <-readFile (outDir </> "algo.py")
-                    {-- newMain <-readFile (outDir </> "test.py")
+                {-- newMain <-readFile (outDir </> "test.py")
                     putStr newMainStr
-                    putStr $ newMain  <> "\n"--}
-                    -- putStr algoModStr 
-                    -- putStr $ producedFile  <> "\n"
+                    putStr $ newMain  <> "\n"
+                    putStr algoModStr 
+                    putStr $ producedFile  <> "\n"--}
+                    -- test the produced code by compiling it, runnning it or just compare it
+                    case compType of
+                        OhuaOnly -> pure ()
+                        BuildTarget -> error "Error: Running target code not implemented yet"
+                        RunTarget -> error "Error: Running target code not implemented yet"
                     return $ wrappedParsing  (T.unpack producedFile) (takeFileName inFile)
-                   
-showCode :: T.Text -> Module SrcSpan -> IO T.Text
-showCode msg code = runReaderT (showCode' msg code) def
 
-showCodeWithDiff :: T.Text -> Module SrcSpan -> IO T.Text
-showCodeWithDiff msg code = runReaderT (showCode' msg code) $ DebugOptions False True
+
+
+wrappedParsing:: String -> String -> Module SrcSpan
+wrappedParsing pyCode filename = do
+    let parseresult = V3.parseModule pyCode filename
+    case parseresult of
+        Left parse_error -> error $ T.pack $ prettyText parse_error
+        Right (mod_span, _comments) -> mod_span
+
 
 showCode' :: T.Text -> Module SrcSpan -> ReaderT DebugOptions IO T.Text
 showCode' msg ast =
