@@ -14,6 +14,12 @@ data DebugOptions = DebugOptions
     showCodeDiff :: Bool
   }
 
+data CompilationType
+  = OhuaOnly
+  | BuildTarget
+  | RunTarget
+
+
 instance Default DebugOptions where
   def = DebugOptions False False
 

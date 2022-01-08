@@ -1,4 +1,4 @@
-module Integrations.Python.Utils (
+module Integrations.Python.PythonSetup (
     renderPython, showCode, compileCode, compileCodeWithRec,
     module Test.Hspec,
 ) where
@@ -6,14 +6,10 @@ module Integrations.Python.Utils (
 import Ohua.Prelude
 
 import Test.Hspec
-
 import TestOptions
-import Ohua.Core.Types.Environment (stageHandling, Options, transformRecursiveFunctions)
-import Ohua.Core.Types.Stage (DumpCode(..), StageHandling)
-import Ohua.Core.Stage
+import Ohua.Core.Types.Environment (Options)
 
-import Ohua.Compile.Compiler
-import Ohua.Compile.Config (intoStageHandling, Stage(..))
+import Ohua.Compile.Compiler (compile)
 
 import qualified Ohua.Integration.Config as IC
 import qualified Ohua.Integration.Architecture as Arch
@@ -26,7 +22,7 @@ import Language.Python.Common.ParserMonad (ParseError)
 import Language.Python.Common.SrcLocation (SrcSpan)
 import qualified Language.Python.Common.Pretty as PyPretty
 
-import Integrations.IntegrationSetup (Testable(..), CompilationType(..))
+import Integrations.TestSetup (Testable(..))
 import qualified Integrations.Python.TestDataInput as Input
 import qualified Integrations.Python.TestDataOutput as Output
 
@@ -34,10 +30,7 @@ import System.FilePath
 import System.IO.Temp
 import System.Directory (setCurrentDirectory, listDirectory, getCurrentDirectory)
 
-import Data.Text.Prettyprint.Doc as PP
-import Data.Text.Prettyprint.Doc.Render.Text as PP
-import Data.Text as T (concat, Text, span, pack, unpack)
-import qualified Data.ByteString.Lazy.Char8 as L
+import Data.Text as T (Text, pack, unpack)
 import qualified Data.HashMap.Lazy as HM
 
 
@@ -47,14 +40,13 @@ instance Testable (Module SrcSpan) where
     type CodeFormat (Module SrcSpan) = (Module SrcSpan)
 
     compileFormat = compileModule
-    showFormat = showCode'
+    renderFormat = renderPython
 
 renderPython:: (PyPretty.Pretty a) => a -> Text
 renderPython = T.pack . prettyText
 
 integrationOptions :: IC.Config
 integrationOptions = IC.Config Arch.MultiProcessing $ IC.Options Nothing Nothing
-
 
 
 compileModule ::  Module SrcSpan -> Options -> CompilationType -> ReaderT DebugOptions IO (Module SrcSpan)
@@ -104,19 +96,6 @@ wrappedParsing pyCode filename = do
         Left parse_error -> error $ T.pack $ prettyText parse_error
         Right (mod_span, _comments) -> mod_span
 
-
-showCode' :: T.Text -> Module SrcSpan -> ReaderT DebugOptions IO T.Text
-showCode' msg ast =
-    let
-        c = renderPython ast
-    in do
-        showDiff <- asks showCodeDiff
-        lift $ when showDiff $ printCode c
-        return c
-    where
-        printCode c = putStr $ boundary <> header <> c <> boundary
-        boundary = "\n" <> T.concat (replicate 20 ("-"::T.Text)) <> "\n"
-        header = msg <> "\n\n"
 
 newMainStr :: String
 newMainStr = "\nNew__MainModule_____________\n"

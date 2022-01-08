@@ -1,20 +1,15 @@
-module Integrations.IntegrationSetup where
+module Integrations.TestSetup where
 
 import Ohua.Prelude 
 import Ohua.Core.Types.Environment (Options)
-import TestOptions (withRec, DebugOptions (DebugOptions))
+import TestOptions (withRec, DebugOptions (..), CompilationType(..))
 
-import Data.Text as T (Text)
+import Data.Text as T (Text, concat)
 -- TO be testable, we need for all integrations 
 -- a) a function to render/show produced source code
 -- b) a function to parse source code from QQ or file
 -- d) a 'core' compileCode'function
 -- Specific for all integrations are 
-
-data CompilationType
-  = OhuaOnly
-  | BuildTarget
-  | RunTarget
 
 
 class Testable codeFormat where
@@ -22,10 +17,11 @@ class Testable codeFormat where
     type CodeFormat codeFormat :: Type
 
     compileFormat:: codeFormat -> Options -> CompilationType -> ReaderT DebugOptions IO codeFormat
-    showFormat:: T.Text -> codeFormat -> ReaderT DebugOptions IO T.Text
-    renderFormat:: 
+    renderFormat:: codeFormat -> T.Text
 
-    -- I don't think we want to add a CompileType to every single test by default
+
+    -- I don't think we want to add a CompileType to every single test 
+    -- I suggest wrapping that into a method and adding it to Optipns instead
     -- and in case we do for any reason, we can still directly use compileFormat
 
     -- TODO: Using def twice seems weard ... Can we clean that up?
@@ -46,3 +42,16 @@ class Testable codeFormat where
 
     showCodeWithDiff :: T.Text -> codeFormat -> IO T.Text
     showCodeWithDiff msg code = runReaderT (showFormat msg code) $ DebugOptions False True
+
+    showFormat:: T.Text -> codeFormat -> ReaderT DebugOptions IO T.Text
+    showFormat msg ast =
+        let
+            c = renderFormat ast
+        in do
+            showDiff <- asks showCodeDiff
+            lift $ when showDiff $ printCode c
+            return c
+        where
+            printCode c = putStr $ boundary <> header <> c <> boundary
+            boundary = "\n" <> T.concat (replicate 20 ("-"::T.Text)) <> "\n"
+            header = msg <> "\n\n"
