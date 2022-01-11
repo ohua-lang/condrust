@@ -36,6 +36,6 @@ flags:
 
 nix:
   enable: true
-  packages: [zlib.dev, zlib.out]
+  packages: [zlib.dev, zlib.out, cargo]
 
 extra-package-dbs: []

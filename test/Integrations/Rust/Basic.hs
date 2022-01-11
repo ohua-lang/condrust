@@ -9,7 +9,7 @@ spec :: Spec
 spec =
     describe "Basics" $ do
         it "a function" $
-            (showCode "Compiled: " =<< compileCode [sourceFile|
+            (showCode "Compiled: " =<< compileCode OhuaOnly [sourceFile|
                 use funs::hello_world;
 
                 fn test() -> String {
@@ -65,7 +65,7 @@ spec =
                     |]
                 compiled `shouldBe` expected)
         it "simple composition" $
-            (showCode "Compiled: " =<< compileCode [sourceFile|
+            (showCode "Compiled: " =<< compileCode OhuaOnly [sourceFile|
                 use funs::*;
 
                 fn test() -> String {
@@ -133,7 +133,7 @@ spec =
 -- FIXME see issue ohua-lang/ohua-frontend#8
 --        it "var multi fail" $
 --            -- enforce Arc construction via type-check
---            (showCode "Compiled: " =<< compileCode [sourceFile|
+--            (showCode "Compiled: " =<< compileCode OhuaOnly [sourceFile|
 --                use funs::*;
 --
 --                fn test() -> String {
@@ -151,7 +151,7 @@ spec =
           -- h2(x2,y)
           -- where no variable is used more than once!
           -- FIXME(feliix42): At some point we'll have to adjust the data types of the functions used here in `Util.hs` because they currently do not make sense as they don't account for the `Arc`
-          (showCode "Compiled: " =<< compileCode [sourceFile|
+          (showCode "Compiled: " =<< compileCode OhuaOnly [sourceFile|
                 use funs::*;
 
                 fn test() -> String {
@@ -258,7 +258,7 @@ fn test() -> String {
           -- let y = h(x');
           -- h2(x1,y)
           -- where no variable is used more than once!
-          (showCode "Compiled: " =<< compileCode [sourceFile|
+          (showCode "Compiled: " =<< compileCode OhuaOnly [sourceFile|
                 use funs::*;
 
                 fn test() -> String {
@@ -346,7 +346,7 @@ fn test() -> String {
                     |]
                 compiled `shouldBe` expected)
         it "env vars" $
-            (showCode "Compiled: " =<< compileCode [sourceFile|
+            (showCode "Compiled: " =<< compileCode OhuaOnly [sourceFile|
                 use funs;
 
                 fn test(i: i32) -> String {
@@ -411,7 +411,7 @@ fn test() -> String {
                     |]
                 compiled `shouldBe` expected)
         it "algo loading" $
-            (showCode "Compiled: " =<< compileCode [sourceFile|
+            (showCode "Compiled: " =<< compileCode OhuaOnly [sourceFile|
                 use funs;
 
                 fn algo(i: i32) -> String {
@@ -532,7 +532,7 @@ fn test() -> String {
                     |]
                 compiled `shouldBe` expected)
         it "algo loading (globs)" $
-            (showCode "Compiled: " =<< compileCode [sourceFile|
+            (showCode "Compiled: " =<< compileCode OhuaOnly [sourceFile|
                 use funs::*;
 
                 fn algo(i: i32) -> String {
@@ -656,7 +656,7 @@ fn test() -> String {
                 compiled `shouldBe` expected)
         describe "tuples" $ do
           it "different targets" $
-            (showCode "Compiled: " =<< compileCode [sourceFile|
+            (showCode "Compiled: " =<< compileCode OhuaOnly [sourceFile|
                 use funs::*;
 
                 fn test(i:i32) -> i32 {
@@ -749,7 +749,7 @@ fn test(i: i32) -> i32 {
                     |]
                 compiled `shouldBe` expected)
           it "unit fun" $
-            (showCode "Compiled: " =<< compileCode [sourceFile|
+            (showCode "Compiled: " =<< compileCode OhuaOnly [sourceFile|
                 use funs::*;
 
                 fn test() -> i32 {

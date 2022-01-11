@@ -10,7 +10,7 @@ spec :: Spec
 spec =
     describe "Conditionals" $ do
         it "simple condition" $ -- in most languages, a condition is not a function!
-            (showCode "Compiled: " =<< compileCode [sourceFile|
+            (showCode "Compiled: " =<< compileCode OhuaOnly [sourceFile|
                 use funs::*;
 
                 fn test(i: i32) -> i32 {
@@ -172,7 +172,7 @@ fn test(i: i32) -> i32 {
                     |]
                 compiled `shouldBe` expected)
         it "context functions" $
-            (showCode "Compiled: " =<< compileCode [sourceFile|
+            (showCode "Compiled: " =<< compileCode OhuaOnly [sourceFile|
                 use funs::*;
 
                 fn test(i: i32) -> i32 {

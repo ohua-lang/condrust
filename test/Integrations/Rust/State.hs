@@ -9,7 +9,7 @@ spec =
   describe "State" $ do
     describe "flat" ( do
       it "simple" $
-        (showCode "Compiled: " =<< compileCode [sourceFile|
+        (showCode "Compiled: " =<< compileCode OhuaOnly [sourceFile|
           use funs::*;
 
           fn test(i: i32) -> i32 {
@@ -86,7 +86,7 @@ fn test(i: i32) -> i32 {
             |]
           compiled `shouldBe` expected)
       it "thread" $
-        (showCode "Compiled: " =<< compileCode [sourceFile|
+        (showCode "Compiled: " =<< compileCode OhuaOnly [sourceFile|
           use funs::*;
 
           fn test(i: i32) -> String {
@@ -165,7 +165,7 @@ fn test(i: i32) -> String {
          )
     describe "loop" ( do
         it "deep state simple" $
-            (showCode "Compiled: " =<< compileCode [sourceFile|
+            (showCode "Compiled: " =<< compileCode OhuaOnly [sourceFile|
                 use funs::*;
 
                  fn test(i:i32) -> () {
@@ -294,7 +294,7 @@ fn test(i: i32) -> () {
                 compiled `shouldBe` expected)
         it "single io" $
             -- FIXME sertel/ohua-core#11
-            (showCode "Compiled: " =<< compileCode [sourceFile|
+            (showCode "Compiled: " =<< compileCode OhuaOnly [sourceFile|
                 use funs::*;
 
                  fn test(i:i32) -> () {
@@ -448,7 +448,7 @@ fn test(i: i32) -> () {
                    |]
                 compiled `shouldBe` expected)
         it "single state" $
-            (showCode "Compiled: " =<< compileCode [sourceFile|
+            (showCode "Compiled: " =<< compileCode OhuaOnly [sourceFile|
                 use funs::*;
 
                  fn test(i:i32) -> () {
@@ -573,7 +573,7 @@ fn test(i: i32) -> () {
          )
     describe "combo" (do
         it "thread + loop" $
-            (showCode "Compiled: " =<< compileCode [sourceFile|
+            (showCode "Compiled: " =<< compileCode OhuaOnly [sourceFile|
                 use funs::*;
 
                  fn test(i:i32) -> () {
@@ -738,7 +738,7 @@ fn test(i: i32) -> () {
                     |]
                 compiled `shouldBe` expected)
         it "raw state out" $
-            (showCode "Compiled: " =<< compileCode [sourceFile|
+            (showCode "Compiled: " =<< compileCode OhuaOnly [sourceFile|
                 use funs::*;
 
                  fn test(i:i32) -> S {

@@ -2,6 +2,7 @@ module Integrations.Rust.Utils
   ( renderRustCode,
     showCode,
     showCodeWithDiff,
+    CompilationType (..),
     compileCode,
     compileCodeWithDebug,
     compileCodeWithRec,
@@ -24,13 +25,19 @@ import Ohua.Compile.Compiler
 import qualified Ohua.Integration.Architecture as Arch
 import qualified Ohua.Integration.Config as IC
 import Ohua.Prelude
-import System.Directory (setCurrentDirectory)
+import System.Directory (copyFile, createDirectory, setCurrentDirectory)
+import System.Exit (ExitCode (..))
 import System.FilePath
 import System.IO.Temp
 import Test.Hspec
 import TestOptions
 import Ohua.Core.Types (Options)
+import System.Process.Extra (readProcessWithExitCode)
 
+data CompilationType
+  = OhuaOnly
+  | BuildTarget
+  | RunTarget
 
 renderRustCode :: SourceFile Span -> L.ByteString
 renderRustCode =
@@ -44,20 +51,20 @@ renderRustCode =
 integrationOptions :: IC.Config
 integrationOptions = IC.Config Arch.SharedMemory $ IC.Options Nothing Nothing
 
-compileCodeWithRec :: SourceFile Span -> IO (SourceFile Span)
-compileCodeWithRec inCode = runReaderT (compileCode' inCode $ withRec def) def
+compileCodeWithRec :: CompilationType -> SourceFile Span -> IO (SourceFile Span)
+compileCodeWithRec cty inCode = runReaderT (compileCode' inCode (withRec def) cty) def
 
-compileCodeWithRecWithDebug :: SourceFile Span -> IO (SourceFile Span)
-compileCodeWithRecWithDebug inCode = runReaderT (compileCode' inCode $ withRec def) $ DebugOptions True False
+compileCodeWithRecWithDebug :: CompilationType -> SourceFile Span -> IO (SourceFile Span)
+compileCodeWithRecWithDebug cty inCode = runReaderT (compileCode' inCode (withRec def) cty) $ DebugOptions True False
 
-compileCode :: SourceFile Span -> IO (SourceFile Span)
-compileCode inCode = runReaderT (compileCode' inCode def) def
+compileCode :: CompilationType -> SourceFile Span -> IO (SourceFile Span)
+compileCode cty inCode = runReaderT (compileCode' inCode def cty) def
 
-compileCodeWithDebug :: SourceFile Span -> IO (SourceFile Span)
-compileCodeWithDebug inCode = runReaderT (compileCode' inCode def) $ DebugOptions True False
+compileCodeWithDebug :: CompilationType -> SourceFile Span -> IO (SourceFile Span)
+compileCodeWithDebug cty inCode = runReaderT (compileCode' inCode def cty) $ DebugOptions True False
 
-compileCode' :: SourceFile Span -> Options -> ReaderT DebugOptions IO (SourceFile Span)
-compileCode' inCode opts = do
+compileCode' :: SourceFile Span -> Options -> CompilationType -> ReaderT DebugOptions IO (SourceFile Span)
+compileCode' inCode opts cty = do
   debug <- asks printIRs
   lift $ withSystemTempDirectory
     "testDir"
@@ -75,8 +82,15 @@ compileCode' inCode opts = do
           runCompM
             LevelWarn
             $ compile inFile compScope options integrationOptions outDir
+          let outFile = outDir </> takeFileName inFile
+          -- run the target compiler (i.e., rustc) on the input
+          case cty of
+            OhuaOnly -> pure ()
+            BuildTarget -> runTargetCompiler testDir outDir outFile
+            RunTarget -> error "Error: Running target code not implemented yet"
+          -- parse & return the generated output file
           outCode :: SourceFile Span <-
-            parse' <$> readInputStream (outDir </> takeFileName inFile)
+            parse' <$> readInputStream outFile
           return outCode
 
 showCode :: T.Text -> SourceFile Span -> IO T.Text
@@ -96,6 +110,45 @@ showCode' msg code =
     printCode c = putStr $ boundary <> header <> c <> boundary
     boundary = "\n" <> T.concat (replicate 20 ("-" :: T.Text)) <> "\n"
     header = msg <> "\n\n"
+
+runTargetCompiler :: FilePath -> FilePath -> FilePath -> IO ()
+runTargetCompiler inDir outDir outFile = do
+  let srcDir = outDir </> "src"
+  createDirectory srcDir
+  setCurrentDirectory outDir
+  writeFile (outDir </> "Cargo.toml") cargoFile
+  writeFile (srcDir </> "main.rs") libFile
+  writeFile (srcDir </> "funs.rs") funs
+  writeFile (srcDir </> "benchs.rs") benchs
+  copyFile outFile (srcDir </> "test.rs")
+
+  -- actually run the compiler
+  compilationResult <- readProcessWithExitCode "cargo" ["check"] ""
+  case compilationResult of
+    (ExitSuccess, _, _) -> return ()
+    (ExitFailure exitCode, stdOut, stdErr) -> error $ toText $ "Target Compiler Compilation Failed: " <> stdErr
+
+cargoFile :: Text
+cargoFile =
+  " [package] \n\
+  \ name = \"ohua-test\" \n\
+  \ version = \"0.1.0\" \n\
+  \ edition = \"2021\" \n\
+  \ \n\
+  \ [dependencies] \n\
+  \ "
+
+libFile :: Text
+libFile =
+  " \
+  \ mod funs; \
+  \ mod benchs; \
+  \ mod test; \
+  \ \
+  \ fn main() { \
+  \     test::test(); \
+  \ } \
+  \ "
 
 funs :: Text
 funs =
