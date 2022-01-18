@@ -239,8 +239,9 @@ argToSub (Py.ArgExpr expr annot) = do
 argToSub arg = unsupPyError "args and kwars" arg
 
 paramToSub ::  (Monad m, MonadError Error m) => Py.Parameter SrcSpan -> m Sub.Param
-paramToSub (Py.Param ident typeAnno Nothing anno)  = return $ Sub.Param (toBinding ident)
-paramToSub dflt@(Py.Param ident typeAnno deflt anno) = unsupPyError "default values for paramters" dflt
+paramToSub (Py.Param ident typeAnno deflt anno)  = return $ Sub.Param (toBinding ident)
+-- paramToSub (Py.Param ident typeAnno Nothing anno)  = return $ Sub.Param (toBinding ident)
+-- paramToSub dflt@(Py.Param ident typeAnno deflt anno) = unsupPyError "default values for paramters" dflt
 paramToSub prm = unsupPyError "args, kwargs or keyword only parameters" prm
 
 -- | Convert items of the iterable argument to dict creation. Those items can be (key, value) pairs or
