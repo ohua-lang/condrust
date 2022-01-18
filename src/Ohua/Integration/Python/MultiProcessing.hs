@@ -26,6 +26,7 @@ import qualified Data.List.NonEmpty as NE
 
 import System.FilePath (takeFileName)
 import Language.Python.Common (ImportRelative(import_relative_dots))
+import Data.List (nub)
 
 type FullyPyProgram = Program (Py.Statement SrcSpan) (Py.Expr SrcSpan) (Py.Statement SrcSpan) PythonArgType
 
@@ -62,7 +63,7 @@ instance Architecture (Architectures 'MultiProcessing) where
     -- Todo: Sending is only valid for picklable objects, i.e. basic Types, things def'd at TL of a module
         -- and ADTs thereof. Restriction on the Frontend should actualy prohibit non-TL def's. Also objects 
         -- must not exceed ~ 32MiB. I might need to catch PickleError's or ValueError's here
-    convertSend SMultiProc  (SSend (SChan chnlName) toSend) = 
+    convertSend SMultiProc  (SSend (SChan chnlName) toSend) =
         let sendItem = case toSend of
                 Left varBnd -> TCLang.Var varBnd
                 Right literal -> TCLang.Lit literal
@@ -75,22 +76,27 @@ instance Architecture (Architectures 'MultiProcessing) where
     -}
     build SMultiProc (Module fPath (Py.Module stmts)) ns =
         return $ ns & algos %~ map (\algo -> algo & algoCode %~ createTasksAndChannels)
-    -- TODO: At this point 
-        where 
-            createTasksAndChannels (Program chans retChan tasks)  =
-                Program chans retChan (zipWith (curry taskFromSuite) [1..] tasks) 
-
+        where
             -- ^ Tasks are enumerated to create named functions task_1, task_2 ...
+            createTasksAndChannels (Program chans retChan tasks)  =
+                Program chans retChan (zipWith (curry taskFromSuite) [1..] tasks)
+
+
             taskFromSuite:: (Int, FullTask ty Sub.Suite)
                  ->  FullTask ty (Py.Statement SrcSpan)
             taskFromSuite (num, FullTask ins out suite) = FullTask ins out fun
-                where fun=
+                where
+                    fun=
                         Py.Fun
                             (Py.Ident ("task_"++show num) noSpan)
-                            []
+                            (nub (inputChnls ++ outChnl))
                             Nothing
                             (subToSuite suite)
                             noSpan
+
+                    inputChnls = map chnlToParameter ins
+                    outChnl = map chnlToParameter out
+
 
     {- | Build the process management arround the tasks for each algorith i.e. produce algoModules,
          and build a new caller module to replace the input libraray that i) imports those algo algoModules
@@ -108,19 +114,35 @@ instance Architecture (Architectures 'MultiProcessing) where
             algoModules = map (makeAlgoModule srcModule) convertedAlgoInfos
             callerModule = makeParallelLib srcModule algoNames
 
+chnlToParameter :: Com comTy argTy  -> Py.Parameter SrcSpan
+chnlToParameter chnl = Py.Param (chnlToIdent chnl) Nothing Nothing noSpan
+
+chnlToVar :: Com comTy argTy  -> Py.Expr SrcSpan
+chnlToVar chnl = Py.Var (chnlToIdent chnl) noSpan
+
+chnlToIdent :: Com comTy argTy  -> Py.Ident SrcSpan
+chnlToIdent (SRecv t (SChan chnlName)) = fromBinding (chnlName <> "_receiver")
+chnlToIdent (SSend (SChan chnlName) toSend) = fromBinding (chnlName <> "_sender")
+
 {- | This function generates a new python module for every parallelized function from the input. 
      Statements and imports from the original code are included in the new file
 -}
 makeAlgoModule :: Module -> (String, FullyPyProgram, [Py.Parameter SrcSpan]) -> (FilePath , L.ByteString)
-makeAlgoModule (Module path (Py.Module inputCode)) (algoName, prgrm@(Program _ _ tasks), params )=
+makeAlgoModule (Module path (Py.Module inputCode)) (algoName, prgrm@(Program _ _ tasks), params)=
     let taskList = enumeratedTasks tasks
-        newMainFun = buildMain taskList prgrm params
+        chnlsPerTask = map channelsFromTask tasks
+        newMainFun = buildMain taskList chnlsPerTask prgrm params
         funFreeStmts = filter (not. funOrMainCall) inputCode
         combinedStmts = combineStatements funFreeStmts prgrm newMainFun
         modName = algoName <> ".py"
         printableCode = encodePretty combinedStmts
     in (modName, printableCode)
 
+
+-- | Task functions are called with a list of (unique -> nub) channels they use as arguments.
+-- | Here we extract them.
+channelsFromTask :: FullTask PythonArgType (Py.Statement SrcSpan) -> [Py.Expr SrcSpan]
+channelsFromTask (FullTask ins outs fun) = nub (map chnlToVar ins ++ map chnlToVar outs)
 
 {- | This function produces a parallelized version of the input module that 
         a) imports the modules generated from each function declaration
@@ -145,7 +167,7 @@ replaceFunCode stmt = case stmt of
             let funId = name <> "_parallel.main"
                 calledFun =  Py.Var (mkIdent funId) noSpan
                 args = map paramToArg params
-            in [Py.Return 
+            in [Py.Return
                 (Just (Py.Call calledFun args noSpan ))
                 noSpan]
 
@@ -154,7 +176,7 @@ makeImport :: Binding -> Py.Statement SrcSpan
 makeImport algoBnd =
     let modName = bndToStr algoBnd
         alias = modName <> "_parallel"
-    in Py.Import [ 
+    in Py.Import [
             Py.ImportItem [mkIdent modName]  -- import algo
             (Just (mkIdent alias))              -- as algo_parallel
             noSpan]
@@ -168,19 +190,18 @@ makeImport algoBnd =
                                     (Just (mkIdent alias))
                                     noSpan
                       ] noSpan)
-        noSpan -} 
+        noSpan -}
 
 combineStatements ::
     [Py.Statement SrcSpan]
-    -> FullyPyProgram 
+    -> FullyPyProgram
     -> Py.Statement SrcSpan
     -> Py.Module SrcSpan
 combineStatements originalStmts (Program channelInits _ nodeFuns) multiMain = Py.Module combinedStatements
     where
         taskFunDefs = map taskExpression nodeFuns
         combinedStatements = importMPStmt
-                             : toList channelInits
-                             ++ taskFunDefs
+                             : taskFunDefs
                              -- ToDo: I should separate import statements from the rest 
                              -- insert them before the other 'originalStmts'
                              ++ originalStmts
@@ -195,20 +216,23 @@ combineStatements originalStmts (Program channelInits _ nodeFuns) multiMain = Py
 -- | v) close and cleanup process ressources
 -- | vi) return the overall result
 
-buildMain:: [String] -> FullyPyProgram -> [Py.Parameter SrcSpan]-> Py.Statement SrcSpan
-buildMain taskNames (Program chnls resExpr tasks) params =  Py.Fun (mkIdent "main") params' resAnno mainBlock noSpan
+buildMain:: [String]-> [[Py.Expr SrcSpan]] -> FullyPyProgram -> [Py.Parameter SrcSpan]-> Py.Statement SrcSpan
+buildMain taskNames chnlsPerTask (Program chnls resExpr tasks) params =  Py.Fun (mkIdent "main") params' resAnno mainBlock noSpan
         where
             taskList = Py.List (map (toPyVar . mkIdent) taskNames) noSpan
             initTasksStmt = Py.Assign [(toPyVar .mkIdent) "tasks"] taskList noSpan
+            chnlsList = Py.List (map (`Py.List` noSpan) chnlsPerTask) noSpan 
+            initChnlsList = Py.Assign [(toPyVar .mkIdent) "channels"] chnlsList noSpan
             assignRes = Py.Assign [toPyVar . mkIdent $ "result"] resExpr noSpan
             mainBasic = [
                 initTasksStmt,
+                initChnlsList,
                 initProcs, assignTasks,
                 startProcs, assignRes,
                 terminateProcs, joinProcs,
                 returnResult]
             (params', glob_decls) = paramsAndGlobals params
-            mainBlock = glob_decls ++ mainBasic
+            mainBlock = glob_decls ++ toList chnls ++ mainBasic
             resAnno = Nothing
 
 -- | A call to the main of an algo module must contain the original parameters of the algo. In the main, those 
@@ -234,9 +258,9 @@ replaceId:: (Py.ParameterSpan, Py.IdentSpan) -> Py.ParameterSpan
 replaceId (Py.Param id mTyp mDef anno, newId) = Py.Param newId mTyp mDef anno
 
 funOrMainCall:: Py.Statement SrcSpan -> Bool
-funOrMainCall stmt = case stmt of 
+funOrMainCall stmt = case stmt of
     Py.Fun{} -> True
-    Py.Conditional{cond_guards=[(ifNameIsMain, _)]} -> True 
+    Py.Conditional{cond_guards=[(ifNameIsMain, _)]} -> True
     _ -> False
 
 

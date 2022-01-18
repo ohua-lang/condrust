@@ -76,24 +76,25 @@ load srcFile =  do
 -- Todo: Remove when QQ is available
 --import multiprocessing as mp
 importMPStmt = Import [ImportItem [Ident  "multiprocessing" noSpan]   (Just (Ident "mp" noSpan)) noSpan] noSpan
--- tasks = []
-initTasksStmt = Assign [Var ( Ident "tasks" noSpan) noSpan]
-                       (List [] noSpan)
-                       noSpan
+
 -- processes = []
 initProcs = Assign  [Var (Ident "processes" noSpan) noSpan ]
                     (List [] noSpan)
                     noSpan
 
-{- for task in tasks:
-    process = mp.Process(target=task)
+{- for task, channels in zip(tasks, channels):
+    process = mp.Process(target=task, args=channels)
     processes.append(process)-}
-assignTasks = For   [Var ( Ident  "task" noSpan) noSpan]
-                    (Var ( Ident "tasks"noSpan) noSpan)
+assignTasks = For   [Var ( Ident  "task" noSpan) noSpan, Var ( Ident  "channels" noSpan) noSpan]
+                    (Call ( Var (Ident "zip" noSpan) noSpan) 
+                            [ArgExpr ( Var ( Ident "tasks"noSpan) noSpan) noSpan,
+                             ArgExpr ( Var ( Ident "channels"noSpan) noSpan) noSpan ] 
+                             noSpan)
                     [
                         Assign   [Var (Ident "process" noSpan) noSpan ]
                               (Call ( Dot (Var (Ident "mp" noSpan) noSpan) (Ident "Process" noSpan) noSpan)
-                                    [ArgKeyword (Ident "target" noSpan) (Var (Ident "task" noSpan) noSpan) noSpan]
+                                    [ ArgKeyword (Ident "target" noSpan) (Var (Ident "task" noSpan) noSpan) noSpan,
+                                      ArgKeyword (Ident "args" noSpan) (Var (Ident "channels" noSpan) noSpan) noSpan]
                                     noSpan)
                               noSpan,
 
