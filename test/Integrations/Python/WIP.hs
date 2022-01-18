@@ -16,6 +16,18 @@ import qualified Integrations.Python.BenchOutput as BExpect
 spec :: Spec
 spec =
     describe "WIP Tests" $ do
+        it "Assignment binary Operation of integer literals" $
+            (showCode "Compiled: " =<< compileCode Input.assignBinOp) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" Expect.assignBinOp
+                compiled `shouldBe` expected)
+        it "Accept keyword and default args" $
+            (showCode "Compiled: " =<< compileCode Input.argsAndKwargs) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" Expect.argsAndKwargs
+                compiled `shouldBe` expected)
+        
+
         {-
         it "Two Algos" $
             (showCode "Compiled: " =<< compileCode Input.twoAlgos) >>=

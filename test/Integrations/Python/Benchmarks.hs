@@ -37,3 +37,16 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.natPar31
                 compiled `shouldBe` expected)
+        {-  Can't do this without 'input-reuse'
+        it "For loop 3 parallel Tasks" $
+            (showCode "Compiled: " =<< compileCode Input.loop3') >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" Expect.loop3
+                compiled `shouldBe` expected)
+        -}
+
+        it "For loop 3 pipelined Tasks" $
+            (showCode "Compiled: " =<< compileCode Input.loop3) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" Expect.loop3
+                compiled `shouldBe` expected)

@@ -89,11 +89,11 @@ compileCode' inCode opts = do
                     -- mapM_ putStr (caller:modules)
                     -- files <- mapM (\name -> readFile (outDir </> name)) (caller:modules)
                     producedFile <-readFile (outDir </> "algo.py")
-                    -- newMain <-readFile (outDir </> "test.py")
-                    -- putStr newMainStr
-                    -- putStr $ newMain  <> "\n"
-                    -- putStr algoModStr 
-                    -- putStr $ producedFile  <> "\n"
+                    newMain <-readFile (outDir </> "test.py")
+                    putStr newMainStr
+                    putStr $ newMain  <> "\n"
+                    putStr algoModStr 
+                    putStr $ producedFile  <> "\n"
                     return $ wrappedParsing  (T.unpack producedFile) (takeFileName inFile)
                    
 showCode :: T.Text -> Module SrcSpan -> IO T.Text

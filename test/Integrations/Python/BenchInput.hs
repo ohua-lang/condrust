@@ -116,3 +116,32 @@ def algo(i):
     result = combine(i, a,b,c,d,e,f,g, h, other_i, j, k, l, m, n, o, a1,b1,c1,d1,e1,f1,g1, h1, i1, j1, k1, l1, m1, n1, o1)
     return result
 |]
+
+loop3' = [pythonModule|
+from helpers.library_proxy import *
+
+
+def algo(i):
+    result = []
+    for j in range(0, i):
+        j1, j2, j3 = triple(j)
+        x = fun1(j1)
+        y = fun2(j2)
+        z = fun3(j3)
+        result.append(combine(j, x, y, z))
+    return result
+|]
+
+loop3 = [pythonModule|
+from helpers.library_proxy import *
+
+
+def algo(i):
+    result = []
+    for j in range(0, i):
+        x = fun1(j)
+        y = fun2(x)
+        z = fun3(y)
+        result.append(z)
+    return result
+|]

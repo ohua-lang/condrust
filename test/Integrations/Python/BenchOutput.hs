@@ -77,34 +77,35 @@ from lib import *
 
 natPar = [pythonModule|
 import multiprocessing as mp
-result_0_0_0_sender, result_0_0_0_receiver = mp.Pipe()
-c_0_0_0_sender, c_0_0_0_receiver = mp.Pipe()
-b_0_0_0_sender, b_0_0_0_receiver = mp.Pipe()
-a_0_0_0_sender, a_0_0_0_receiver = mp.Pipe()
-def task_1():
+def task_1(result_0_0_0_sender, a_0_0_0_receiver, b_0_0_0_receiver, c_0_0_0_receiver):
     while True:
         var_1 = a_0_0_0_receiver.recv()
         var_2 = b_0_0_0_receiver.recv()
         var_3 = c_0_0_0_receiver.recv()
         result_0_0_0 = combine(i, var_1, var_2, var_3)
         result_0_0_0_sender.send(result_0_0_0)
-def task_2():
+def task_2(b_0_0_0_sender):
     b_0_0_0 = fun2(i)
     b_0_0_0_sender.send(b_0_0_0)
-def task_3():
+def task_3(c_0_0_0_sender):
     c_0_0_0 = fun3(i)
     c_0_0_0_sender.send(c_0_0_0)
-def task_4():
+def task_4(a_0_0_0_sender):
     a_0_0_0 = fun1(i)
     a_0_0_0_sender.send(a_0_0_0)
 from lib import *
 def main(i_1):
     global i
     i, = i_1,
+    result_0_0_0_sender, result_0_0_0_receiver = mp.Pipe()
+    c_0_0_0_sender, c_0_0_0_receiver = mp.Pipe()
+    b_0_0_0_sender, b_0_0_0_receiver = mp.Pipe()
+    a_0_0_0_sender, a_0_0_0_receiver = mp.Pipe()
     tasks = [task_1, task_2, task_3, task_4]
+    channels = [[result_0_0_0_sender, a_0_0_0_receiver, b_0_0_0_receiver, c_0_0_0_receiver], [b_0_0_0_sender], [c_0_0_0_sender], [a_0_0_0_sender]]
     processes = []
-    for task in tasks:
-        process = mp.Process(target=task)
+    for task, channels in zip(tasks, channels):
+        process = mp.Process(target=task, args=channels)
         processes.append(process)
     list(map(mp.Process.start, processes))
     result = result_0_0_0_receiver.recv()
@@ -115,24 +116,16 @@ def main(i_1):
 
 natPar7 = [pythonModule|
 import multiprocessing as mp
-result_0_0_0_sender, result_0_0_0_receiver = mp.Pipe()
-g_0_0_0_sender, g_0_0_0_receiver = mp.Pipe()
-f_0_0_0_sender, f_0_0_0_receiver = mp.Pipe()
-e_0_0_0_sender, e_0_0_0_receiver = mp.Pipe()
-d_0_0_0_sender, d_0_0_0_receiver = mp.Pipe()
-c_0_0_0_sender, c_0_0_0_receiver = mp.Pipe()
-b_0_0_0_sender, b_0_0_0_receiver = mp.Pipe()
-a_0_0_0_sender, a_0_0_0_receiver = mp.Pipe()
-def task_1():
+def task_1(d_0_0_0_sender):
     d_0_0_0 = fun4(i)
     d_0_0_0_sender.send(d_0_0_0)
-def task_2():
+def task_2(f_0_0_0_sender):
     f_0_0_0 = fun6(i)
     f_0_0_0_sender.send(f_0_0_0)
-def task_3():
+def task_3(b_0_0_0_sender):
     b_0_0_0 = fun2(i)
     b_0_0_0_sender.send(b_0_0_0)
-def task_4():
+def task_4(result_0_0_0_sender, a_0_0_0_receiver, b_0_0_0_receiver, c_0_0_0_receiver, d_0_0_0_receiver, e_0_0_0_receiver, f_0_0_0_receiver, g_0_0_0_receiver):
     while True:
         var_1 = a_0_0_0_receiver.recv()
         var_2 = b_0_0_0_receiver.recv()
@@ -143,26 +136,35 @@ def task_4():
         var_7 = g_0_0_0_receiver.recv()
         result_0_0_0 = combine(i, var_1, var_2, var_3, var_4, var_5, var_6, var_7)
         result_0_0_0_sender.send(result_0_0_0)
-def task_5():
+def task_5(c_0_0_0_sender):
     c_0_0_0 = fun3(i)
     c_0_0_0_sender.send(c_0_0_0)
-def task_6():
+def task_6(a_0_0_0_sender):
     a_0_0_0 = fun1(i)
     a_0_0_0_sender.send(a_0_0_0)
-def task_7():
+def task_7(e_0_0_0_sender):
     e_0_0_0 = fun5(i)
     e_0_0_0_sender.send(e_0_0_0)
-def task_8():
+def task_8(g_0_0_0_sender):
     g_0_0_0 = fun7(i)
     g_0_0_0_sender.send(g_0_0_0)
 from lib import *
 def main(i_1):
     global i
     i, = i_1,
+    result_0_0_0_sender, result_0_0_0_receiver = mp.Pipe()
+    g_0_0_0_sender, g_0_0_0_receiver = mp.Pipe()
+    f_0_0_0_sender, f_0_0_0_receiver = mp.Pipe()
+    e_0_0_0_sender, e_0_0_0_receiver = mp.Pipe()
+    d_0_0_0_sender, d_0_0_0_receiver = mp.Pipe()
+    c_0_0_0_sender, c_0_0_0_receiver = mp.Pipe()
+    b_0_0_0_sender, b_0_0_0_receiver = mp.Pipe()
+    a_0_0_0_sender, a_0_0_0_receiver = mp.Pipe()
     tasks = [task_1, task_2, task_3, task_4, task_5, task_6, task_7, task_8]
+    channels = [[d_0_0_0_sender], [f_0_0_0_sender], [b_0_0_0_sender], [result_0_0_0_sender, a_0_0_0_receiver, b_0_0_0_receiver, c_0_0_0_receiver, d_0_0_0_receiver, e_0_0_0_receiver, f_0_0_0_receiver, g_0_0_0_receiver], [c_0_0_0_sender], [a_0_0_0_sender], [e_0_0_0_sender], [g_0_0_0_sender]]
     processes = []
-    for task in tasks:
-        process = mp.Process(target=task)
+    for task, channels in zip(tasks, channels):
+        process = mp.Process(target=task, args=channels)
         processes.append(process)
     list(map(mp.Process.start, processes))
     result = result_0_0_0_receiver.recv()
@@ -173,56 +175,40 @@ def main(i_1):
 
 natPar15 = [pythonModule|
 import multiprocessing as mp
-result_0_0_0_sender, result_0_0_0_receiver = mp.Pipe()
-o_0_0_0_sender, o_0_0_0_receiver = mp.Pipe()
-n_0_0_0_sender, n_0_0_0_receiver = mp.Pipe()
-m_0_0_0_sender, m_0_0_0_receiver = mp.Pipe()
-l_0_0_0_sender, l_0_0_0_receiver = mp.Pipe()
-k_0_0_0_sender, k_0_0_0_receiver = mp.Pipe()
-j_0_0_0_sender, j_0_0_0_receiver = mp.Pipe()
-other_i_0_0_0_sender, other_i_0_0_0_receiver = mp.Pipe()
-h_0_0_0_sender, h_0_0_0_receiver = mp.Pipe()
-g_0_0_0_sender, g_0_0_0_receiver = mp.Pipe()
-f_0_0_0_sender, f_0_0_0_receiver = mp.Pipe()
-e_0_0_0_sender, e_0_0_0_receiver = mp.Pipe()
-d_0_0_0_sender, d_0_0_0_receiver = mp.Pipe()
-c_0_0_0_sender, c_0_0_0_receiver = mp.Pipe()
-b_0_0_0_sender, b_0_0_0_receiver = mp.Pipe()
-a_0_0_0_sender, a_0_0_0_receiver = mp.Pipe()
-def task_1():
+def task_1(d_0_0_0_sender):
     d_0_0_0 = fun4(i)
     d_0_0_0_sender.send(d_0_0_0)
-def task_2():
+def task_2(m_0_0_0_sender):
     m_0_0_0 = fun13(i)
     m_0_0_0_sender.send(m_0_0_0)
-def task_3():
+def task_3(o_0_0_0_sender):
     o_0_0_0 = fun15(i)
     o_0_0_0_sender.send(o_0_0_0)
-def task_4():
+def task_4(f_0_0_0_sender):
     f_0_0_0 = fun6(i)
     f_0_0_0_sender.send(f_0_0_0)
-def task_5():
+def task_5(b_0_0_0_sender):
     b_0_0_0 = fun2(i)
     b_0_0_0_sender.send(b_0_0_0)
-def task_6():
+def task_6(h_0_0_0_sender):
     h_0_0_0 = fun8(i)
     h_0_0_0_sender.send(h_0_0_0)
-def task_7():
+def task_7(l_0_0_0_sender):
     l_0_0_0 = fun12(i)
     l_0_0_0_sender.send(l_0_0_0)
-def task_8():
+def task_8(k_0_0_0_sender):
     k_0_0_0 = fun11(i)
     k_0_0_0_sender.send(k_0_0_0)
-def task_9():
+def task_9(n_0_0_0_sender):
     n_0_0_0 = fun14(i)
     n_0_0_0_sender.send(n_0_0_0)
-def task_10():
+def task_10(other_i_0_0_0_sender):
     other_i_0_0_0 = fun9(i)
     other_i_0_0_0_sender.send(other_i_0_0_0)
-def task_11():
+def task_11(j_0_0_0_sender):
     j_0_0_0 = fun10(i)
     j_0_0_0_sender.send(j_0_0_0)
-def task_12():
+def task_12(result_0_0_0_sender, a_0_0_0_receiver, b_0_0_0_receiver, c_0_0_0_receiver, d_0_0_0_receiver, e_0_0_0_receiver, f_0_0_0_receiver, g_0_0_0_receiver, h_0_0_0_receiver, other_i_0_0_0_receiver, j_0_0_0_receiver, k_0_0_0_receiver, l_0_0_0_receiver, m_0_0_0_receiver, n_0_0_0_receiver, o_0_0_0_receiver):
     while True:
         var_1 = a_0_0_0_receiver.recv()
         var_2 = b_0_0_0_receiver.recv()
@@ -241,26 +227,43 @@ def task_12():
         var_15 = o_0_0_0_receiver.recv()
         result_0_0_0 = combine(i, var_1, var_2, var_3, var_4, var_5, var_6, var_7, var_8, var_9, var_10, var_11, var_12, var_13, var_14, var_15)
         result_0_0_0_sender.send(result_0_0_0)
-def task_13():
+def task_13(c_0_0_0_sender):
     c_0_0_0 = fun3(i)
     c_0_0_0_sender.send(c_0_0_0)
-def task_14():
+def task_14(a_0_0_0_sender):
     a_0_0_0 = fun1(i)
     a_0_0_0_sender.send(a_0_0_0)
-def task_15():
+def task_15(e_0_0_0_sender):
     e_0_0_0 = fun5(i)
     e_0_0_0_sender.send(e_0_0_0)
-def task_16():
+def task_16(g_0_0_0_sender):
     g_0_0_0 = fun7(i)
     g_0_0_0_sender.send(g_0_0_0)
 from lib import *
 def main(i_1):
     global i
     i, = i_1,
+    result_0_0_0_sender, result_0_0_0_receiver = mp.Pipe()
+    o_0_0_0_sender, o_0_0_0_receiver = mp.Pipe()
+    n_0_0_0_sender, n_0_0_0_receiver = mp.Pipe()
+    m_0_0_0_sender, m_0_0_0_receiver = mp.Pipe()
+    l_0_0_0_sender, l_0_0_0_receiver = mp.Pipe()
+    k_0_0_0_sender, k_0_0_0_receiver = mp.Pipe()
+    j_0_0_0_sender, j_0_0_0_receiver = mp.Pipe()
+    other_i_0_0_0_sender, other_i_0_0_0_receiver = mp.Pipe()
+    h_0_0_0_sender, h_0_0_0_receiver = mp.Pipe()
+    g_0_0_0_sender, g_0_0_0_receiver = mp.Pipe()
+    f_0_0_0_sender, f_0_0_0_receiver = mp.Pipe()
+    e_0_0_0_sender, e_0_0_0_receiver = mp.Pipe()
+    d_0_0_0_sender, d_0_0_0_receiver = mp.Pipe()
+    c_0_0_0_sender, c_0_0_0_receiver = mp.Pipe()
+    b_0_0_0_sender, b_0_0_0_receiver = mp.Pipe()
+    a_0_0_0_sender, a_0_0_0_receiver = mp.Pipe()
     tasks = [task_1, task_2, task_3, task_4, task_5, task_6, task_7, task_8, task_9, task_10, task_11, task_12, task_13, task_14, task_15, task_16]
+    channels = [[d_0_0_0_sender], [m_0_0_0_sender], [o_0_0_0_sender], [f_0_0_0_sender], [b_0_0_0_sender], [h_0_0_0_sender], [l_0_0_0_sender], [k_0_0_0_sender], [n_0_0_0_sender], [other_i_0_0_0_sender], [j_0_0_0_sender], [result_0_0_0_sender, a_0_0_0_receiver, b_0_0_0_receiver, c_0_0_0_receiver, d_0_0_0_receiver, e_0_0_0_receiver, f_0_0_0_receiver, g_0_0_0_receiver, h_0_0_0_receiver, other_i_0_0_0_receiver, j_0_0_0_receiver, k_0_0_0_receiver, l_0_0_0_receiver, m_0_0_0_receiver, n_0_0_0_receiver, o_0_0_0_receiver], [c_0_0_0_sender], [a_0_0_0_sender], [e_0_0_0_sender], [g_0_0_0_sender]]
     processes = []
-    for task in tasks:
-        process = mp.Process(target=task)
+    for task, channels in zip(tasks, channels):
+        process = mp.Process(target=task, args=channels)
         processes.append(process)
     list(map(mp.Process.start, processes))
     result = result_0_0_0_receiver.recv()
@@ -271,68 +274,37 @@ def main(i_1):
 
 natPar31 = [pythonModule|
 import multiprocessing as mp
-result_0_0_0_sender, result_0_0_0_receiver = mp.Pipe()
-o1_0_0_0_sender, o1_0_0_0_receiver = mp.Pipe()
-n1_0_0_0_sender, n1_0_0_0_receiver = mp.Pipe()
-m1_0_0_0_sender, m1_0_0_0_receiver = mp.Pipe()
-l1_0_0_0_sender, l1_0_0_0_receiver = mp.Pipe()
-k1_0_0_0_sender, k1_0_0_0_receiver = mp.Pipe()
-j1_0_0_0_sender, j1_0_0_0_receiver = mp.Pipe()
-i1_0_0_0_sender, i1_0_0_0_receiver = mp.Pipe()
-h1_0_0_0_sender, h1_0_0_0_receiver = mp.Pipe()
-g1_0_0_0_sender, g1_0_0_0_receiver = mp.Pipe()
-f1_0_0_0_sender, f1_0_0_0_receiver = mp.Pipe()
-e1_0_0_0_sender, e1_0_0_0_receiver = mp.Pipe()
-d1_0_0_0_sender, d1_0_0_0_receiver = mp.Pipe()
-c1_0_0_0_sender, c1_0_0_0_receiver = mp.Pipe()
-b1_0_0_0_sender, b1_0_0_0_receiver = mp.Pipe()
-a1_0_0_0_sender, a1_0_0_0_receiver = mp.Pipe()
-o_0_0_0_sender, o_0_0_0_receiver = mp.Pipe()
-n_0_0_0_sender, n_0_0_0_receiver = mp.Pipe()
-m_0_0_0_sender, m_0_0_0_receiver = mp.Pipe()
-l_0_0_0_sender, l_0_0_0_receiver = mp.Pipe()
-k_0_0_0_sender, k_0_0_0_receiver = mp.Pipe()
-j_0_0_0_sender, j_0_0_0_receiver = mp.Pipe()
-other_i_0_0_0_sender, other_i_0_0_0_receiver = mp.Pipe()
-h_0_0_0_sender, h_0_0_0_receiver = mp.Pipe()
-g_0_0_0_sender, g_0_0_0_receiver = mp.Pipe()
-f_0_0_0_sender, f_0_0_0_receiver = mp.Pipe()
-e_0_0_0_sender, e_0_0_0_receiver = mp.Pipe()
-d_0_0_0_sender, d_0_0_0_receiver = mp.Pipe()
-c_0_0_0_sender, c_0_0_0_receiver = mp.Pipe()
-b_0_0_0_sender, b_0_0_0_receiver = mp.Pipe()
-a_0_0_0_sender, a_0_0_0_receiver = mp.Pipe()
-def task_1():
+def task_1(l1_0_0_0_sender):
     l1_0_0_0 = fun12(i)
     l1_0_0_0_sender.send(l1_0_0_0)
-def task_2():
+def task_2(d_0_0_0_sender):
     d_0_0_0 = fun4(i)
     d_0_0_0_sender.send(d_0_0_0)
-def task_3():
+def task_3(d1_0_0_0_sender):
     d1_0_0_0 = fun4(i)
     d1_0_0_0_sender.send(d1_0_0_0)
-def task_4():
+def task_4(k1_0_0_0_sender):
     k1_0_0_0 = fun11(i)
     k1_0_0_0_sender.send(k1_0_0_0)
-def task_5():
+def task_5(m_0_0_0_sender):
     m_0_0_0 = fun13(i)
     m_0_0_0_sender.send(m_0_0_0)
-def task_6():
+def task_6(o_0_0_0_sender):
     o_0_0_0 = fun15(i)
     o_0_0_0_sender.send(o_0_0_0)
-def task_7():
+def task_7(j1_0_0_0_sender):
     j1_0_0_0 = fun10(i)
     j1_0_0_0_sender.send(j1_0_0_0)
-def task_8():
+def task_8(n1_0_0_0_sender):
     n1_0_0_0 = fun14(i)
     n1_0_0_0_sender.send(n1_0_0_0)
-def task_9():
+def task_9(f_0_0_0_sender):
     f_0_0_0 = fun6(i)
     f_0_0_0_sender.send(f_0_0_0)
-def task_10():
+def task_10(b_0_0_0_sender):
     b_0_0_0 = fun2(i)
     b_0_0_0_sender.send(b_0_0_0)
-def task_11():
+def task_11(result_0_0_0_sender, a_0_0_0_receiver, b_0_0_0_receiver, c_0_0_0_receiver, d_0_0_0_receiver, e_0_0_0_receiver, f_0_0_0_receiver, g_0_0_0_receiver, h_0_0_0_receiver, other_i_0_0_0_receiver, j_0_0_0_receiver, k_0_0_0_receiver, l_0_0_0_receiver, m_0_0_0_receiver, n_0_0_0_receiver, o_0_0_0_receiver, a1_0_0_0_receiver, b1_0_0_0_receiver, c1_0_0_0_receiver, d1_0_0_0_receiver, e1_0_0_0_receiver, f1_0_0_0_receiver, g1_0_0_0_receiver, h1_0_0_0_receiver, i1_0_0_0_receiver, j1_0_0_0_receiver, k1_0_0_0_receiver, l1_0_0_0_receiver, m1_0_0_0_receiver, n1_0_0_0_receiver, o1_0_0_0_receiver):
     while True:
         var_1 = a_0_0_0_receiver.recv()
         var_2 = b_0_0_0_receiver.recv()
@@ -366,74 +338,106 @@ def task_11():
         var_30 = o1_0_0_0_receiver.recv()
         result_0_0_0 = combine(i, var_1, var_2, var_3, var_4, var_5, var_6, var_7, var_8, var_9, var_10, var_11, var_12, var_13, var_14, var_15, var_16, var_17, var_18, var_19, var_20, var_21, var_22, var_23, var_24, var_25, var_26, var_27, var_28, var_29, var_30)
         result_0_0_0_sender.send(result_0_0_0)
-def task_12():
+def task_12(f1_0_0_0_sender):
     f1_0_0_0 = fun6(i)
     f1_0_0_0_sender.send(f1_0_0_0)
-def task_13():
+def task_13(b1_0_0_0_sender):
     b1_0_0_0 = fun2(i)
     b1_0_0_0_sender.send(b1_0_0_0)
-def task_14():
+def task_14(h_0_0_0_sender):
     h_0_0_0 = fun8(i)
     h_0_0_0_sender.send(h_0_0_0)
-def task_15():
+def task_15(h1_0_0_0_sender):
     h1_0_0_0 = fun8(i)
     h1_0_0_0_sender.send(h1_0_0_0)
-def task_16():
+def task_16(l_0_0_0_sender):
     l_0_0_0 = fun12(i)
     l_0_0_0_sender.send(l_0_0_0)
-def task_17():
+def task_17(o1_0_0_0_sender):
     o1_0_0_0 = fun15(i)
     o1_0_0_0_sender.send(o1_0_0_0)
-def task_18():
+def task_18(m1_0_0_0_sender):
     m1_0_0_0 = fun13(i)
     m1_0_0_0_sender.send(m1_0_0_0)
-def task_19():
+def task_19(k_0_0_0_sender):
     k_0_0_0 = fun11(i)
     k_0_0_0_sender.send(k_0_0_0)
-def task_20():
+def task_20(n_0_0_0_sender):
     n_0_0_0 = fun14(i)
     n_0_0_0_sender.send(n_0_0_0)
-def task_21():
+def task_21(other_i_0_0_0_sender):
     other_i_0_0_0 = fun9(i)
     other_i_0_0_0_sender.send(other_i_0_0_0)
-def task_22():
+def task_22(j_0_0_0_sender):
     j_0_0_0 = fun10(i)
     j_0_0_0_sender.send(j_0_0_0)
-def task_23():
+def task_23(c_0_0_0_sender):
     c_0_0_0 = fun3(i)
     c_0_0_0_sender.send(c_0_0_0)
-def task_24():
+def task_24(a_0_0_0_sender):
     a_0_0_0 = fun1(i)
     a_0_0_0_sender.send(a_0_0_0)
-def task_25():
+def task_25(e_0_0_0_sender):
     e_0_0_0 = fun5(i)
     e_0_0_0_sender.send(e_0_0_0)
-def task_26():
+def task_26(g_0_0_0_sender):
     g_0_0_0 = fun7(i)
     g_0_0_0_sender.send(g_0_0_0)
-def task_27():
+def task_27(a1_0_0_0_sender):
     a1_0_0_0 = fun1(i)
     a1_0_0_0_sender.send(a1_0_0_0)
-def task_28():
+def task_28(c1_0_0_0_sender):
     c1_0_0_0 = fun3(i)
     c1_0_0_0_sender.send(c1_0_0_0)
-def task_29():
+def task_29(g1_0_0_0_sender):
     g1_0_0_0 = fun7(i)
     g1_0_0_0_sender.send(g1_0_0_0)
-def task_30():
+def task_30(i1_0_0_0_sender):
     i1_0_0_0 = fun9(i)
     i1_0_0_0_sender.send(i1_0_0_0)
-def task_31():
+def task_31(e1_0_0_0_sender):
     e1_0_0_0 = fun5(i)
     e1_0_0_0_sender.send(e1_0_0_0)
 from lib import *
 def main(i_1):
     global i
     i, = i_1,
+    result_0_0_0_sender, result_0_0_0_receiver = mp.Pipe()
+    o1_0_0_0_sender, o1_0_0_0_receiver = mp.Pipe()
+    n1_0_0_0_sender, n1_0_0_0_receiver = mp.Pipe()
+    m1_0_0_0_sender, m1_0_0_0_receiver = mp.Pipe()
+    l1_0_0_0_sender, l1_0_0_0_receiver = mp.Pipe()
+    k1_0_0_0_sender, k1_0_0_0_receiver = mp.Pipe()
+    j1_0_0_0_sender, j1_0_0_0_receiver = mp.Pipe()
+    i1_0_0_0_sender, i1_0_0_0_receiver = mp.Pipe()
+    h1_0_0_0_sender, h1_0_0_0_receiver = mp.Pipe()
+    g1_0_0_0_sender, g1_0_0_0_receiver = mp.Pipe()
+    f1_0_0_0_sender, f1_0_0_0_receiver = mp.Pipe()
+    e1_0_0_0_sender, e1_0_0_0_receiver = mp.Pipe()
+    d1_0_0_0_sender, d1_0_0_0_receiver = mp.Pipe()
+    c1_0_0_0_sender, c1_0_0_0_receiver = mp.Pipe()
+    b1_0_0_0_sender, b1_0_0_0_receiver = mp.Pipe()
+    a1_0_0_0_sender, a1_0_0_0_receiver = mp.Pipe()
+    o_0_0_0_sender, o_0_0_0_receiver = mp.Pipe()
+    n_0_0_0_sender, n_0_0_0_receiver = mp.Pipe()
+    m_0_0_0_sender, m_0_0_0_receiver = mp.Pipe()
+    l_0_0_0_sender, l_0_0_0_receiver = mp.Pipe()
+    k_0_0_0_sender, k_0_0_0_receiver = mp.Pipe()
+    j_0_0_0_sender, j_0_0_0_receiver = mp.Pipe()
+    other_i_0_0_0_sender, other_i_0_0_0_receiver = mp.Pipe()
+    h_0_0_0_sender, h_0_0_0_receiver = mp.Pipe()
+    g_0_0_0_sender, g_0_0_0_receiver = mp.Pipe()
+    f_0_0_0_sender, f_0_0_0_receiver = mp.Pipe()
+    e_0_0_0_sender, e_0_0_0_receiver = mp.Pipe()
+    d_0_0_0_sender, d_0_0_0_receiver = mp.Pipe()
+    c_0_0_0_sender, c_0_0_0_receiver = mp.Pipe()
+    b_0_0_0_sender, b_0_0_0_receiver = mp.Pipe()
+    a_0_0_0_sender, a_0_0_0_receiver = mp.Pipe()
     tasks = [task_1, task_2, task_3, task_4, task_5, task_6, task_7, task_8, task_9, task_10, task_11, task_12, task_13, task_14, task_15, task_16, task_17, task_18, task_19, task_20, task_21, task_22, task_23, task_24, task_25, task_26, task_27, task_28, task_29, task_30, task_31]
+    channels = [[l1_0_0_0_sender], [d_0_0_0_sender], [d1_0_0_0_sender], [k1_0_0_0_sender], [m_0_0_0_sender], [o_0_0_0_sender], [j1_0_0_0_sender], [n1_0_0_0_sender], [f_0_0_0_sender], [b_0_0_0_sender], [result_0_0_0_sender, a_0_0_0_receiver, b_0_0_0_receiver, c_0_0_0_receiver, d_0_0_0_receiver, e_0_0_0_receiver, f_0_0_0_receiver, g_0_0_0_receiver, h_0_0_0_receiver, other_i_0_0_0_receiver, j_0_0_0_receiver, k_0_0_0_receiver, l_0_0_0_receiver, m_0_0_0_receiver, n_0_0_0_receiver, o_0_0_0_receiver, a1_0_0_0_receiver, b1_0_0_0_receiver, c1_0_0_0_receiver, d1_0_0_0_receiver, e1_0_0_0_receiver, f1_0_0_0_receiver, g1_0_0_0_receiver, h1_0_0_0_receiver, i1_0_0_0_receiver, j1_0_0_0_receiver, k1_0_0_0_receiver, l1_0_0_0_receiver, m1_0_0_0_receiver, n1_0_0_0_receiver, o1_0_0_0_receiver], [f1_0_0_0_sender], [b1_0_0_0_sender], [h_0_0_0_sender], [h1_0_0_0_sender], [l_0_0_0_sender], [o1_0_0_0_sender], [m1_0_0_0_sender], [k_0_0_0_sender], [n_0_0_0_sender], [other_i_0_0_0_sender], [j_0_0_0_sender], [c_0_0_0_sender], [a_0_0_0_sender], [e_0_0_0_sender], [g_0_0_0_sender], [a1_0_0_0_sender], [c1_0_0_0_sender], [g1_0_0_0_sender], [i1_0_0_0_sender], [e1_0_0_0_sender]]
     processes = []
-    for task in tasks:
-        process = mp.Process(target=task)
+    for task, channels in zip(tasks, channels):
+        process = mp.Process(target=task, args=channels)
         processes.append(process)
     list(map(mp.Process.start, processes))
     result = result_0_0_0_receiver.recv()
@@ -441,4 +445,82 @@ def main(i_1):
     list(map(mp.Process.join, processes))
     return result
 
+|]
+
+
+
+loop3 = [pythonModule|
+import multiprocessing as mp
+def task_1(x_0_0_0_sender, d_1_receiver):
+    while True:
+        var_0 = d_1_receiver.recv()
+        x_0_0_0 = fun1(var_0)
+        x_0_0_0_sender.send(x_0_0_0)
+def task_2(z_0_0_0_sender, y_0_0_0_receiver):
+    while True:
+        var_0 = y_0_0_0_receiver.recv()
+        z_0_0_0 = fun3(var_0)
+        z_0_0_0_sender.send(z_0_0_0)
+def task_3(y_0_0_0_sender, x_0_0_0_receiver):
+    while True:
+        var_0 = x_0_0_0_receiver.recv()
+        y_0_0_0 = fun2(var_0)
+        y_0_0_0_sender.send(y_0_0_0)
+def task_4(ctrl_0_0_sender, d_1_sender):
+    a_0_0 = range(0, i)
+    while True:
+        hasSize = True if hasattr(a_0_0, '__len__') else False
+        if hasSize:
+            size = len(a_0_0)
+            ctrl = True, size
+            ctrl_0_0_sender.send(ctrl)
+            for d in a_0_0:
+                d_1_sender.send(d)
+        else:
+            size = 0
+            for d in a_0_0:
+                d_1_sender.send(d)
+                ctrl = False, 1
+                ctrl_0_0_sender.send(ctrl)
+                size = size + 1
+            ctrl = True, 0
+            ctrl_0_0_sender.send(ctrl)
+def task_5(result_0_0_1_sender):
+    result_0_0_1 = []
+    result_0_0_1_sender.send(result_0_0_1)
+def task_6(result_0_1_0_sender, result_0_0_1_receiver, ctrl_0_0_receiver, z_0_0_0_receiver):
+    while True:
+        renew = False
+        result_0_0_1_0 = result_0_0_1_receiver.recv()
+        while not renew:
+            sig = ctrl_0_0_receiver.recv()
+            count = sig[1]
+            for _ in range(0, count):
+                var_1 = z_0_0_0_receiver.recv()
+                result_0_0_1_0.append(var_1)
+            renew_next_time = sig[0]
+            renew = renew_next_time
+        result_0_1_0_sender.send(result_0_0_1_0)
+from helpers.library_proxy import *
+def main(i_1):
+    global i
+    i, = i_1,
+    result_0_1_0_sender, result_0_1_0_receiver = mp.Pipe()
+    result_0_0_1_sender, result_0_0_1_receiver = mp.Pipe()
+    ctrl_0_0_sender, ctrl_0_0_receiver = mp.Pipe()
+    d_1_sender, d_1_receiver = mp.Pipe()
+    x_0_0_0_sender, x_0_0_0_receiver = mp.Pipe()
+    y_0_0_0_sender, y_0_0_0_receiver = mp.Pipe()
+    z_0_0_0_sender, z_0_0_0_receiver = mp.Pipe()
+    tasks = [task_1, task_2, task_3, task_4, task_5, task_6]
+    channels = [[x_0_0_0_sender, d_1_receiver], [z_0_0_0_sender, y_0_0_0_receiver], [y_0_0_0_sender, x_0_0_0_receiver], [ctrl_0_0_sender, d_1_sender], [result_0_0_1_sender], [result_0_1_0_sender, result_0_0_1_receiver, ctrl_0_0_receiver, z_0_0_0_receiver]]
+    processes = []
+    for task, channels in zip(tasks, channels):
+        process = mp.Process(target=task, args=channels)
+        processes.append(process)
+    list(map(mp.Process.start, processes))
+    result = result_0_1_0_receiver.recv()
+    list(map(mp.Process.terminate, processes))
+    list(map(mp.Process.join, processes))
+    return result
 |]

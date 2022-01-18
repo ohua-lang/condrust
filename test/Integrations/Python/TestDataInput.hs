@@ -18,6 +18,8 @@ def check(v):
 def double(x):
     return x, x
 
+def triple(x):
+    return x, x, x
 
 def funInt():
     return 42
@@ -382,7 +384,14 @@ def algo(a, b):
 
 --Test cases for State.hs ---------------------------------------------
 
+argsAndKwargs = [pythonModule|
+from testLib import *
 
+
+def algo(a:str= "hihi", b:int=0):
+    x = f(a,b)
+    return x
+|]
 
 
 --Test cases for Loops.hs ---------------------------------------------
