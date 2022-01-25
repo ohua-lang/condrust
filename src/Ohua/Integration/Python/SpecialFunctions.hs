@@ -17,29 +17,29 @@ getItemFunction::Binding
 getItemFunction = fromString "__getitem__"
 
 listConstructor::Binding
-listConstructor = fromString "list"
+listConstructor = fromString "list_internal"
 
 dictConstructor::Binding
-dictConstructor = fromString "dict"
+dictConstructor = fromString "dict_internal"
 
 tupleConstructor::Binding
-tupleConstructor = fromString "tuple"
+tupleConstructor = fromString "tuple_internal"
 
 setConstructor:: Binding
-setConstructor = fromString "set"
+setConstructor = fromString "set_internal"
 
 
 pattern ListConstructor :: QualifiedBinding
-pattern ListConstructor <- QualifiedBinding (NSRef []) "list"
+pattern ListConstructor <- QualifiedBinding (NSRef []) "list_internal"
 
 pattern DictConstructor :: QualifiedBinding
-pattern DictConstructor <- QualifiedBinding (NSRef []) "dict"
+pattern DictConstructor <- QualifiedBinding (NSRef []) "dict_internal"
 
 pattern TupleConstructor::QualifiedBinding
-pattern TupleConstructor <- QualifiedBinding (NSRef []) "tuple"
+pattern TupleConstructor <- QualifiedBinding (NSRef []) "tuple_internal"
 
 pattern SetConstructor::QualifiedBinding
-pattern SetConstructor <- QualifiedBinding (NSRef []) "set"
+pattern SetConstructor <- QualifiedBinding (NSRef []) "set_internal"
 
 pattern SetItemFunction::QualifiedBinding
 pattern SetItemFunction <- QualifiedBinding (NSRef []) "__setitem__"
