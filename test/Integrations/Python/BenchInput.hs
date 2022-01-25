@@ -558,7 +558,8 @@ def inner(i):
 
 def algo(i):
     result = []
-    for j in range(i):
+    # we actually input an iterable, but need to wrap it for Ohua
+    for j in list(i):
         d = inner(j)
         result.append(d)
     return result

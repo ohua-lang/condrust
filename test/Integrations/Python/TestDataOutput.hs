@@ -629,18 +629,18 @@ def main(a_1, b_1):
 
 assignToSubscript = [pythonModule|
 import multiprocessing as mp
-def task_1(l_0_0_1_sender):
-    l_0_0_1 = [1, 2, 3]
-    l_0_0_1_sender.send(l_0_0_1)
-def task_2(l_0_0_0_0_sender, l_0_0_1_receiver, a_1_0_receiver):
+def task_1(l_0_0_0_0_sender, l_0_0_1_receiver, a_1_0_receiver):
     while True:
         var_0 = l_0_0_1_receiver.recv()
         var_2 = a_1_0_receiver.recv()
         var_0[1] = var_2
         l_0_0_0_0_sender.send(var_0)
-def task_3(a_1_0_sender):
+def task_2(a_1_0_sender):
     a_1_0 = f()
     a_1_0_sender.send(a_1_0)
+def task_3(l_0_0_1_sender):
+    l_0_0_1 = [1, 2, 3]
+    l_0_0_1_sender.send(l_0_0_1)
 from testLib import *
 def main(a_1, b_1):
     global a, b
@@ -649,7 +649,7 @@ def main(a_1, b_1):
     a_1_0_sender, a_1_0_receiver = mp.Pipe()
     l_0_0_1_sender, l_0_0_1_receiver = mp.Pipe()
     tasks = [task_1, task_2, task_3]
-    channels = [[l_0_0_1_sender], [l_0_0_0_0_sender, l_0_0_1_receiver, a_1_0_receiver], [a_1_0_sender]]
+    channels = [[l_0_0_0_0_sender, l_0_0_1_receiver, a_1_0_receiver], [a_1_0_sender], [l_0_0_1_sender]]
     processes = []
     for task, channels in zip(tasks, channels):
         process = mp.Process(target=task, args=channels)
@@ -663,14 +663,14 @@ def main(a_1, b_1):
 
 assignSubscript = [pythonModule|
 import multiprocessing as mp
-def task_1(l_0_0_1_sender):
-    l_0_0_1 = [1, 2, 3]
-    l_0_0_1_sender.send(l_0_0_1)
-def task_2(x_0_0_0_sender, l_0_0_1_receiver):
+def task_1(x_0_0_0_sender, l_0_0_1_receiver):
     while True:
         var_0 = l_0_0_1_receiver.recv()
         x_0_0_0 = var_0[0]
         x_0_0_0_sender.send(x_0_0_0)
+def task_2(l_0_0_1_sender):
+    l_0_0_1 = [1, 2, 3]
+    l_0_0_1_sender.send(l_0_0_1)
 from testLib import *
 def main(a_1, b_1):
     global a, b
@@ -678,7 +678,7 @@ def main(a_1, b_1):
     x_0_0_0_sender, x_0_0_0_receiver = mp.Pipe()
     l_0_0_1_sender, l_0_0_1_receiver = mp.Pipe()
     tasks = [task_1, task_2]
-    channels = [[l_0_0_1_sender], [x_0_0_0_sender, l_0_0_1_receiver]]
+    channels = [[x_0_0_0_sender, l_0_0_1_receiver], [l_0_0_1_sender]]
     processes = []
     for task, channels in zip(tasks, channels):
         process = mp.Process(target=task, args=channels)
@@ -1118,7 +1118,7 @@ def task_1(n_0_0_0_sender, d_1_receiver):
         n_0_0_0 = f(var_0)
         n_0_0_0_sender.send(n_0_0_0)
 def task_2(g_0_0_1_sender):
-    g_0_0_1 = {}
+    g_0_0_1 = dict()
     g_0_0_1_sender.send(g_0_0_1)
 def task_3(ctrl_0_0_sender, d_1_sender, g_0_0_1_receiver):
     var_0 = g_0_0_1_receiver.recv()
