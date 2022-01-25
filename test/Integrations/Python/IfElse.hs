@@ -47,7 +47,7 @@ spec =
                 expected <- showCode "Expected:" Expect.condContextFunction
                 compiled `shouldBe` expected)
         {-
-        Can literals be returned as reult i.e. if a then 1 else 0
+        Can literals be returned as result i.e. if a then 1 else 0
         -}
 
         it "ERROR: Ite/Expr literal return values " $

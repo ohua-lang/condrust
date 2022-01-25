@@ -21,7 +21,7 @@ spec =
     IfElse.spec  >>
     Loops.spec >>
     TailRec.spec >>
-    State.spec  >>
-    BMs.spec -- >>
+    State.spec  -- >>
+    -- BMs.spec -- >>
     -- WIP.spec
 
