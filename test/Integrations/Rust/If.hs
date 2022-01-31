@@ -3,14 +3,14 @@ module Integrations.Rust.If where
 
 import Ohua.Prelude
 
-import Integrations.Rust.Utils
+import Integrations.Rust.RustSetup
 
 
 spec :: Spec
 spec =
     describe "Conditionals" $ do
         it "simple condition" $ -- in most languages, a condition is not a function!
-            (showCode "Compiled: " =<< compileCode OhuaOnly [sourceFile|
+            (showCode "Compiled: " =<< compileCode  [sourceFile|
                 use funs::*;
 
                 fn test(i: i32) -> i32 {
@@ -172,7 +172,7 @@ fn test(i: i32) -> i32 {
                     |]
                 compiled `shouldBe` expected)
         it "context functions" $
-            (showCode "Compiled: " =<< compileCode OhuaOnly [sourceFile|
+            (showCode "Compiled: " =<< compileCode  [sourceFile|
                 use funs::*;
 
                 fn test(i: i32) -> i32 {

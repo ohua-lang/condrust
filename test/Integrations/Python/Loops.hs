@@ -3,7 +3,7 @@ module Integrations.Python.Loops where
 
 import Ohua.Prelude ( ($), Monad((>>=)), (=<<), Either(..))
 
-import Integrations.Python.Utils
+import Integrations.Python.PythonSetup
 import qualified Integrations.Python.TestDataInput as Input
 import qualified Integrations.Python.TestDataOutput as Expect
 

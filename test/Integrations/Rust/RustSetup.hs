@@ -1,8 +1,7 @@
-module Integrations.Rust.Utils
+module Integrations.Rust.RustSetup
   ( renderRustCode,
     showCode,
     showCodeWithDiff,
-    CompilationType (..),
     compileCode,
     compileCodeWithDebug,
     compileCodeWithRec,
@@ -18,10 +17,10 @@ import Data.Text as T (Text, concat)
 import Data.Text.Prettyprint.Doc
 import Data.Text.Prettyprint.Doc.Render.Text
 import Language.Rust.Parser (Span, parse', readInputStream)
-import Language.Rust.Pretty (pretty')
+import Language.Rust.Pretty ( pretty')
 import Language.Rust.Quote
 import Language.Rust.Syntax
-import Ohua.Compile.Compiler
+import Ohua.Compile.Compiler (compile)
 import qualified Ohua.Integration.Architecture as Arch
 import qualified Ohua.Integration.Config as IC
 import Ohua.Prelude
@@ -30,14 +29,22 @@ import System.Exit (ExitCode (..))
 import System.FilePath
 import System.IO.Temp
 import Test.Hspec
-import TestOptions
+import TestOptions 
+import Integrations.TestSetup (Testable(..))
 import Ohua.Core.Types (Options)
 import System.Process.Extra (readProcessWithExitCode)
 
-data CompilationType
-  = OhuaOnly
-  | BuildTarget
-  | RunTarget
+
+
+instance Testable (SourceFile Span) where
+  -- Todo: replace by Lang' when I'm done messing with the types :-)
+  type CodeFormat (SourceFile Span) = (SourceFile Span)
+
+  compileFormat = compileModule
+  renderFormat = renderRust
+
+renderRust :: SourceFile Span -> Text
+renderRust code =  renderStrict $ layoutSmart defaultLayoutOptions $ pretty' code 
 
 renderRustCode :: SourceFile Span -> L.ByteString
 renderRustCode =
@@ -51,20 +58,9 @@ renderRustCode =
 integrationOptions :: IC.Config
 integrationOptions = IC.Config Arch.SharedMemory $ IC.Options Nothing Nothing
 
-compileCodeWithRec :: CompilationType -> SourceFile Span -> IO (SourceFile Span)
-compileCodeWithRec cty inCode = runReaderT (compileCode' inCode (withRec def) cty) def
 
-compileCodeWithRecWithDebug :: CompilationType -> SourceFile Span -> IO (SourceFile Span)
-compileCodeWithRecWithDebug cty inCode = runReaderT (compileCode' inCode (withRec def) cty) $ DebugOptions True False
-
-compileCode :: CompilationType -> SourceFile Span -> IO (SourceFile Span)
-compileCode cty inCode = runReaderT (compileCode' inCode def cty) def
-
-compileCodeWithDebug :: CompilationType -> SourceFile Span -> IO (SourceFile Span)
-compileCodeWithDebug cty inCode = runReaderT (compileCode' inCode def cty) $ DebugOptions True False
-
-compileCode' :: SourceFile Span -> Options -> CompilationType -> ReaderT DebugOptions IO (SourceFile Span)
-compileCode' inCode opts cty = do
+compileModule :: SourceFile Span -> Options -> CompilationType -> ReaderT DebugOptions IO (SourceFile Span)
+compileModule inCode opts cty = do
   debug <- asks printIRs
   lift $ withSystemTempDirectory
     "testDir"
@@ -93,23 +89,6 @@ compileCode' inCode opts cty = do
             parse' <$> readInputStream outFile
           return outCode
 
-showCode :: T.Text -> SourceFile Span -> IO T.Text
-showCode msg code = runReaderT (showCode' msg code) def
-
-showCodeWithDiff :: T.Text -> SourceFile Span -> IO T.Text
-showCodeWithDiff msg code = runReaderT (showCode' msg code) $ DebugOptions False True
-
-showCode' :: T.Text -> SourceFile Span -> ReaderT DebugOptions IO T.Text
-showCode' msg code =
-  let c = renderStrict $ layoutSmart defaultLayoutOptions $ pretty' code
-   in do
-        showDiff <- asks showCodeDiff
-        lift $ when showDiff $ printCode c
-        return c
-  where
-    printCode c = putStr $ boundary <> header <> c <> boundary
-    boundary = "\n" <> T.concat (replicate 20 ("-" :: T.Text)) <> "\n"
-    header = msg <> "\n\n"
 
 runTargetCompiler :: FilePath -> FilePath -> FilePath -> IO ()
 runTargetCompiler inDir outDir outFile = do

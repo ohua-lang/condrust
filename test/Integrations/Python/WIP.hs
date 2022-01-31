@@ -2,7 +2,7 @@ module Integrations.Python.WIP where
 
 import Ohua.Prelude ( ($), Monad((>>=)), (=<<), Either(..))
 
-import Integrations.Python.Utils
+import Integrations.Python.PythonSetup
 import qualified Integrations.Python.TestDataInput as Input
 import qualified Integrations.Python.TestDataOutput as Expect
 -- import qualified Integrations.Python.TestOutOrder as Expect
@@ -79,4 +79,12 @@ spec =
                 compiled `shouldBe` expected)
             
         
+         
+        it "ForLoop over iterator" $
+            (showCode "Compiled: " =<< compileCode Input.loopIterator) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" Expect.loopIterator
+                compiled `shouldBe` expected)
+        -} 
+
         
