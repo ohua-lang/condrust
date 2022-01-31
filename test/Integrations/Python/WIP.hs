@@ -85,6 +85,6 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.loopIterator
                 compiled `shouldBe` expected)
-        -} 
+        
 
         

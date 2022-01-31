@@ -6,7 +6,7 @@ import Integrations.Python.PythonSetup
 import qualified Integrations.Python.BenchInput as Input
 import qualified Integrations.Python.BenchOutput as Expect
 import qualified Integrations.Python.NatParOutput as NPExpect
-import Integrations.Rust.Utils (compileCodeWithRec)
+
 
 
 spec :: Spec
