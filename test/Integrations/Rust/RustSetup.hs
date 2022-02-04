@@ -69,6 +69,7 @@ compileModule inCode opts cty = do
       writeFile (testDir </> "funs.rs") funs
       writeFile (testDir </> "benchs.rs") benchs
       writeFile (testDir </> "std.rs") std
+      writeFile (testDir </> "ptdr.rs") ptdr
       let inFile = testDir </> "test.rs"
       L.writeFile inFile $ renderRustCode inCode
       withSystemTempDirectory "output" $
@@ -184,14 +185,6 @@ benchs =
   \ \
   \ struct Path {} \
   \ \
-  \ struct Arc<T> {} \
-  \ impl<T> Arc<T> { \
-  \   fn new(i: T) -> Self { unimplemented!() } \
-  \ } \
-  \ impl<T> Clone for Arc<T> { \
-  \   fn clone(&self) -> Self { unimplemented!() } \
-  \ } \
-  \ \
   \ struct Point {} \
   \ \
   \ fn find_path(m: Arc<Maze>, pair: (Point, Point)) -> Option<Path> \
@@ -288,7 +281,6 @@ benchs =
   \\
   \ } \
   \ \
-  \ pub fn id<T>(item: T) -> T { unimplemented!() } \
   \ pub fn dup<T>(item: T) -> (T, T) { unimplemented!() } \
   \ pub fn extract(item: Arc<Netlist>) -> Netlist { unimplemented!() } \
   \ "
@@ -307,6 +299,74 @@ std =
   \ } \
   \ \
   \ enum Option<T> {} \
+  \ \
+  \ struct Arc<T> {} \
+  \ impl<T> Arc<T> { \
+  \   fn new(i: T) -> Self { unimplemented!() } \
+  \ } \
+  \ impl<T> Clone for Arc<T> { \
+  \   fn clone(&self) -> Self { unimplemented!() } \
+  \ } \
+  \ \
+  \ pub fn id<T>(item: T) -> T { unimplemented!() } \
   \ "
 
 -- We'd normally have this in the impl block: pub const fn new() -> Self { unimplemented!() }
+
+ptdr :: Text
+ptdr =
+  " \
+  \ pub fn sub(a: Duration, b: Duration) -> Duration { unimplemented!() } \
+  \ struct TimeRange {} \
+  \ \
+  \ impl TimeRange { \
+  \     pub fn new1(start: DateTime<Utc>, duration: Duration) -> TimeRange { unimplemented!() } \
+  \     pub fn step_by(&self, duration: Duration) -> TimeRangeStepIterator { unimplemented!() } \
+  \ } \
+  \ \
+  \ struct TimeRangeStepIterator {} \
+  \ \
+  \ struct DateTime<T> {} \
+  \ \
+  \ struct Duration {} \
+  \ \
+  \ struct Utc {} \
+  \ \
+  \ struct Simulation {} \
+  \ \
+  \ impl Simulation { \
+  \     pub fn new2(p: &str) -> Simulation { unimplemented!() } \
+  \     pub fn add(&mut self, simulation: SingleSimulation) -> Simulation { unimplemented!() } \
+  \ } \
+  \ \
+  \ struct SingleSimulation {} \
+  \ \
+  \ impl SingleSimulation { \
+  \     pub fn new3(departure_time: DateTime<Utc>, samples: usize) -> SingleSimulation { unimplemented!() } \
+  \     pub fn set_samples(&mut self, samples: Vec<Duration>) { unimplemented!() } \
+  \ } \
+  \ \
+  \ struct Route {} \
+  \ \
+  \ impl Route { \
+  \     pub fn drive(&self, departure_time: DateTime<Utc>, prob_profiles: Arc<P>) -> Duration { unimplemented!() } \
+  \ } \
+  \ \
+  \ struct Quartiles {} \
+  \ \
+  \ struct NoLimitProbProfile {} \
+  \ \
+  \ impl NoLimitProbProfile { \
+  \     pub fn new4() -> NoLimitProbProfile { unimplemented!() } \
+  \ } \
+  \ \
+  \ struct SegmentsHistoryProbProfile {} \
+  \ \
+  \ pub fn sample_range(upper: usize) -> Range<usize> { unimplemented!() } \
+  \ \
+  \ struct Range<T> {} \
+  \ \
+  \ impl String { \
+  \     fn as_str(&self) -> &str { unimplemented!() } \
+  \ } \
+  \ "

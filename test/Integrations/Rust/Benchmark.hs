@@ -263,7 +263,7 @@ spec =
 --                |]
 --            compiled `shouldBe` expected)
     it "canneal2" $
-        (showCode "Compiled: " =<< compileCodeWithRec  [sourceFile|
+        (showCode "Compiled: " =<< compileCodeWithRec [sourceFile|
             use benchs::*;
             use std::*;
 
@@ -290,6 +290,86 @@ spec =
 
             pub fn annealer(netlist: NetlistAndInternal, worklist:Vec<Result<MoveDecision, (usize, usize)>>, temperature: f64) -> NetlistAndInternal {
                 run(netlist, worklist, temperature)
+            }
+            |]) >>=
+        (\compiled -> do
+            expected <- showCode "Expected:"
+                [sourceFile|
+                    use funs::*;
+
+                    fn test(i: i32) -> i32 {
+                        TODO
+                    }
+                |]
+            compiled `shouldBe` expected)
+    it "ptdr" $
+        (showCode "Compiled: " =<< compileCodeWithDebug [sourceFile|
+            // use crate::{
+            //     losprobprofile::{NoLimitProbProfile, SegmentsHistoryProbProfile},
+            //     probprofile::quartiles::Quartiles,
+            // };
+            // use crate::{
+            //     //delay::delay_profile,
+            //     route::Route,
+            //     simulation::{Simulation, SingleSimulation},
+            // };
+            // use crate::helpers;
+            // use chrono::{DateTime, Duration, Utc};
+            // use datatimebox::timerange::TimeRange;
+            // use std::sync::Arc;
+            use std::*;
+            use ptdr::*;
+
+            fn delay_profile(
+                s: Arc<Route<String>>,
+                departure_time: DateTime<Utc>,
+                p: Arc<SegmentsHistoryProbProfile<String, Quartiles>>,
+                samples: usize,
+            ) -> Vec<Duration> {
+                let no_limit = Arc::new(NoLimitProbProfile::new4());
+                let route: Arc<Route<String>> = id(s);
+                let prob_profile: Arc<SegmentsHistoryProbProfile<String, Quartiles>> = id(p);
+                let free_flow_duration = route.drive(departure_time, no_limit);
+
+                // delay for each sample -> parallelism would normally be gained by mapping in parallel (using
+                // rayon)
+                let mut res = Vec::new();
+                let r = sample_range(samples);
+                for _ in r {
+                    let duration = route.drive(departure_time, prob_profile.clone());
+                    // let delta: Duration = duration - free_flow_duration;
+                    let delta: Duration = sub(duration, free_flow_duration);
+
+                    res.push(delta);
+                }
+
+                res
+            }
+
+            pub fn run(
+                rp: String,
+                departure_time: DateTime<Utc>,
+                time_span: Duration,
+                step_size: Duration,
+                s: Arc<Route<String>>,
+                p: Arc<SegmentsHistoryProbProfile<String, Quartiles>>,
+                sam: usize,
+            ) -> Simulation {
+                // TODO: Why can't I use `route` or `prob_profile` etc directly?
+                let route: Arc<Route<String>> = id(s);
+                let route_path: String = id(rp);
+                let prob_profile: Arc<SegmentsHistoryProbProfile<String, Quartiles>> = id(p);
+                let samples: usize = id(sam);
+                let mut simulations = Simulation::new2(route_path.as_str());
+                let tr = TimeRange::new1(departure_time, time_span);
+                for dt in tr.step_by(step_size) {
+                    let mut sim = SingleSimulation::new3(dt, samples.clone());
+                    let delays = delay_profile(route.clone(), dt, prob_profile.clone(), samples);
+                    sim.set_samples(delays);
+                    simulations.add(sim);
+                }
+
+                simulations
             }
             |]) >>=
         (\compiled -> do
