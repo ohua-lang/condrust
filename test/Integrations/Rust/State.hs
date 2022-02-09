@@ -2,7 +2,7 @@
 module Integrations.Rust.State where
 
 import Ohua.Prelude  ( ($), Monad((>>=)), (=<<) )
-import Integrations.Rust.Utils
+import Integrations.Rust.RustSetup
 
 spec :: Spec
 spec =

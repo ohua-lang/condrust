@@ -54,11 +54,21 @@ def listOfMObs(a):
     mobs = [MObs(i) for i in range(a)]
     return mobs
 
-def kwargfun(a, b, c=7):
-    return a*2 + b + c
-
 def moreArgs(x,y,z):
     return x+y
+
+def changeRef(x:int):
+    x = x+23
+
+def changeRefType(x:int):
+    x = "Not an int anymore"
+
+def mutateValues(intList:List[int]):
+    intList = [i+1 for i in intList]
+
+def mutateType(intList:List[int]):
+    intList = tuple(intList)
+
 
 def some_invented_iter_function():
     return list(range(0, 11))
@@ -372,6 +382,8 @@ def algo(a, b):
 |]
 
 
+--Test cases for State.hs ---------------------------------------------
+
 argsAndKwargs = [pythonModule|
 from testLib import *
 
@@ -380,17 +392,6 @@ def algo(a:str= "hihi", b:int=0):
     x = f(a,b)
     return x
 |]
-
-argsAndKwargsInner = [pythonModule|
-from testLib import *
-
-
-def algo(a:str= "hihi", b:int=0):
-    x = kwargfun(b=b, a=1)
-    y = kwargfun(a=b, b=11, c=9)
-    return x
-|]
-
 
 
 --Test cases for Loops.hs ---------------------------------------------

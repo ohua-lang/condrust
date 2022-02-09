@@ -1,4 +1,4 @@
-module Integrations.Rust.Utils
+module Integrations.Rust.RustSetup
   ( renderRustCode,
     showCode,
     showCodeWithDiff,

@@ -2,7 +2,7 @@
 module Integrations.Rust.Control where
 
 import Ohua.Prelude ( ($), Monad((>>=)), (=<<) )
-import Integrations.Rust.Utils
+import Integrations.Rust.RustSetup
 
 
 spec :: Spec
