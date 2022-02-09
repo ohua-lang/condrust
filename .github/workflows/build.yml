@@ -77,13 +77,13 @@ jobs:
           nix_path: nixpkgs=channel:nixos-unstable
         ## TODO: Actually pin nixpkgs??
       
-      - name: Cache Haskell build artifacts for dependencies
-        uses: actions/cache@v2
-        with:
-          path: |
-            ohuac/.stack_work
-            ~/.stack
-          key: ohuac-${{ runner.os }}-${{ hashFiles('ohuac/stack.yaml') }}
+      #- name: Cache Haskell build artifacts for dependencies
+        #uses: actions/cache@v2
+        #with:
+          #path: |
+            #ohuac/.stack_work
+            #~/.stack
+          #key: ohuac-${{ runner.os }}-${{ hashFiles('ohuac/stack.yaml') }}
       - name: Build ohuac
         run: |
           cd ohuac
