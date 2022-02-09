@@ -17,11 +17,11 @@ import qualified Integrations.Python.Benchmarks as BMs
 
 spec :: Spec
 spec = 
-    Basic.spec  >> 
-    IfElse.spec  >>
-    Loops.spec >>
-    TailRec.spec >>
-    State.spec  -- >>
-    -- BMs.spec -- >>
-    -- WIP.spec
+     Basic.spec  >> 
+     IfElse.spec  >>
+     Loops.spec >>
+     TailRec.spec >>
+     State.spec--   >>
+     --BMs.spec  >>
+     --WIP.spec
 

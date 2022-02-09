@@ -1,7 +1,7 @@
 module Integrations.Python.TailRec where
 
 import Ohua.Prelude ( ($), Monad((>>=)), (=<<) )
-import Integrations.Python.PythonSetup
+import Integrations.Python.Utils
 
 import qualified Integrations.Python.TestDataInput as Input
 import qualified Integrations.Python.TestDataOutput as Expect

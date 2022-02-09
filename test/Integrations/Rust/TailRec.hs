@@ -2,7 +2,7 @@
 module Integrations.Rust.TailRec where
 
 import Ohua.Prelude ( ($), Monad((>>=)), (=<<) )
-import Integrations.Rust.RustSetup
+import Integrations.Rust.Utils
 
 
 spec :: Spec

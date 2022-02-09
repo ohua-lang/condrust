@@ -1,4 +1,4 @@
-module Integrations.Python.PythonSetup (
+module Integrations.Python.Utils (
     renderPython, showCode, compileCode, compileCodeWithRec,
     module Test.Hspec,
 ) where
@@ -75,11 +75,11 @@ compileModule inCode opts compType = do
                     -- mapM_ putStr (caller:modules)
                     -- files <- mapM (\name -> readFile (outDir </> name)) (caller:modules)
                     producedFile <-readFile (outDir </> "algo.py")
-                {-- newMain <-readFile (outDir </> "test.py")
-                    putStr newMainStr
-                    putStr $ newMain  <> "\n"
-                    putStr algoModStr 
-                    putStr $ producedFile  <> "\n"--}
+                    -- newMain <-readFile (outDir </> "test.py")
+                    --putStr newMainStr
+                    --putStr $ newMain  <> "\n"
+                    -- putStr algoModStr 
+                    -- putStr $ producedFile  <> "\n"--
                     -- test the produced code by compiling it, runnning it or just compare it
                     case compType of
                         OhuaOnly -> pure ()

@@ -3,7 +3,7 @@ module Integrations.Rust.SMap where
 
 import Ohua.Prelude
 
-import Integrations.Rust.RustSetup
+import Integrations.Rust.Utils
 
 
 spec :: Spec

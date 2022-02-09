@@ -10,13 +10,13 @@ import Integrations.Python.SimpleQuoter
 -- Test cases for Basic.hs
 callAFunction = [pythonModule|
 import multiprocessing as mp
+from testLib import *
 def task_1(x_0_0_0_sender):
     x_0_0_0 = hello_world()
     x_0_0_0_sender.send(x_0_0_0)
 def task_2(a_0_0_sender, x_0_0_0_receiver):
     x_0_0_0_receiver.recv()
     a_0_0_sender.send(None)
-from testLib import *
 def main():
     a_0_0_sender, a_0_0_receiver = mp.Pipe()
     x_0_0_0_sender, x_0_0_0_receiver = mp.Pipe()
@@ -50,10 +50,10 @@ def algo():
 
 assignBinOp = [pythonModule|
 import multiprocessing as mp
+from testLib import *
 def task_1(x_0_0_0_sender):
     x_0_0_0 = 42 + 23
     x_0_0_0_sender.send(x_0_0_0)
-from testLib import *
 def main():
     x_0_0_0_sender, x_0_0_0_receiver = mp.Pipe()
     tasks = [task_1]
@@ -72,10 +72,10 @@ def main():
 
 assignBools = [pythonModule|
 import multiprocessing as mp
+from testLib import *
 def task_1(c_0_0_0_sender):
     c_0_0_0 = True and False
     c_0_0_0_sender.send(c_0_0_0)
-from testLib import *
 def main():
     c_0_0_0_sender, c_0_0_0_receiver = mp.Pipe()
     tasks = [task_1]
@@ -93,6 +93,7 @@ def main():
 
 assignBinOpChained = [pythonModule|
 import multiprocessing as mp
+from testLib import *
 def task_1(y_0_0_0_sender, x_0_0_0_receiver, z_0_0_0_receiver):
     while True:
         var_0 = x_0_0_0_receiver.recv()
@@ -105,7 +106,6 @@ def task_2(x_0_0_0_sender):
 def task_3(z_0_0_0_sender):
     z_0_0_0 = g()
     z_0_0_0_sender.send(z_0_0_0)
-from testLib import *
 def main():
     y_0_0_0_sender, y_0_0_0_receiver = mp.Pipe()
     z_0_0_0_sender, z_0_0_0_receiver = mp.Pipe()
@@ -132,10 +132,10 @@ def algo():
 
 assignSet  = [pythonModule|
 import multiprocessing as mp
+from testLib import *
 def task_1(x_0_0_0_sender):
     x_0_0_0 = {a, b, 1, 2, 3}
     x_0_0_0_sender.send(x_0_0_0)
-from testLib import *
 def main(a_1, b_1):
     global a, b
     a, b = a_1, b_1
@@ -155,13 +155,13 @@ def main(a_1, b_1):
 
 noReturn = [pythonModule|
 import multiprocessing as mp
+from testLib import *
 def task_1(x_0_0_0_sender):
     x_0_0_0 = funInt()
     x_0_0_0_sender.send(x_0_0_0)
 def task_2(a_0_0_sender, x_0_0_0_receiver):
     x_0_0_0_receiver.recv()
     a_0_0_sender.send(None)
-from testLib import *
 def main():
     a_0_0_sender, a_0_0_receiver = mp.Pipe()
     x_0_0_0_sender, x_0_0_0_receiver = mp.Pipe()
@@ -189,6 +189,7 @@ def algo():
 
 emptyReturn = [pythonModule|
 import multiprocessing as mp
+from testLib import *
 a_0_sender, a_0_receiver = mp.Pipe()
 x_0_0_sender, x_0_0_receiver = mp.Pipe()
 def task_1():
@@ -198,7 +199,6 @@ def task_1():
 def task_2():
     x_0_0 = funInt()
     x_0_0_sender.send(x_0_0)
-from testLib import *
 def main():
     tasks = [task_1, task_2]
     processes = []
@@ -214,6 +214,7 @@ def main():
 
 noneReturn = [pythonModule|
 import multiprocessing as mp
+from testLib import *
 a_0_sender, a_0_receiver = mp.Pipe()
 x_0_0_sender, x_0_0_receiver = mp.Pipe()
 def task_1():
@@ -223,7 +224,6 @@ def task_1():
 def task_2():
     x_0_0 = funInt()
     x_0_0_sender.send(x_0_0)
-from testLib import *
 def main():
     tasks = [task_1, task_2]
     processes = []
@@ -239,6 +239,7 @@ def main():
 
 exprNoReturn = [pythonModule|
 import multiprocessing as mp
+from testLib import *
 a_0_sender, a_0_receiver = mp.Pipe()
 x_0_0_sender, x_0_0_receiver = mp.Pipe()
 def task_1():
@@ -248,7 +249,6 @@ def task_1():
 def task_2():
     x_0_0 = funInt()
     x_0_0_sender.send(x_0_0)
-from testLib import *
 def main():
     tasks = [task_1, task_2]
     processes = []
@@ -264,10 +264,10 @@ def main():
 
 varReturn = [pythonModule|
 import multiprocessing as mp
+from testLib import *
 def task_1(x_0_0_0_sender):
     x_0_0_0 = oneArg(7)
     x_0_0_0_sender.send(x_0_0_0)
-from testLib import *
 def main():
     x_0_0_0_sender, x_0_0_0_receiver = mp.Pipe()
     tasks = [task_1]
@@ -295,10 +295,10 @@ def algo():
 
 onlyReturnFunCall  = [pythonModule|
 import multiprocessing as mp
+from testLib import *
 def task_1(a_0_0_sender):
     a_0_0 = f()
     a_0_0_sender.send(a_0_0)
-from testLib import *
 def main():
     a_0_0_sender, a_0_0_receiver = mp.Pipe()
     tasks = [task_1]
@@ -317,6 +317,7 @@ def main():
 
 chainedAssignment = [pythonModule|
 import multiprocessing as mp
+from testLib import *
 def task_1(z_0_0_0_sender, x_0_0_0_receiver):
     while True:
         var_0 = x_0_0_0_receiver.recv()
@@ -330,7 +331,6 @@ def task_3(x_0_0_0_sender, a_0_0_0_receiver):
         var_0 = a_0_0_0_receiver.recv()
         x_0_0_0 = f(var_0)
         x_0_0_0_sender.send(x_0_0_0)
-from testLib import *
 def main():
     z_0_0_0_sender, z_0_0_0_receiver = mp.Pipe()
     a_0_0_0_sender, a_0_0_0_receiver = mp.Pipe()
@@ -350,6 +350,7 @@ def main():
 
 assignmentCallReturn = [pythonModule|
 import multiprocessing as mp
+from testLib import *
 x_0_0_0_sender, x_0_0_0_receiver = mp.Pipe()
 a_0_0_0_sender, a_0_0_0_receiver = mp.Pipe()
 def task_1():
@@ -362,7 +363,6 @@ def task_2():
     a_0_0_0 = f(42)
     a_0_0_0_sender.send(a_0_0_0)
     
-from testLib import *
 def main():
     tasks = [task_1, task_2]
     processes = []
@@ -378,6 +378,7 @@ def main():
 
 nestedCompose = [pythonModule|
 import multiprocessing as mp
+from testLib import *
 def task_1(x_0_0_0_sender, c_0_0_receiver, a_0_0_receiver):
     while True:
         var_0 = c_0_0_receiver.recv()
@@ -395,7 +396,6 @@ def task_3(a_0_0_sender, b_0_0_receiver):
 def task_4(c_0_0_sender):
     c_0_0 = funInt()
     c_0_0_sender.send(c_0_0)
-from testLib import *
 def main():
     x_0_0_0_sender, x_0_0_0_receiver = mp.Pipe()
     b_0_0_sender, b_0_0_receiver = mp.Pipe()
@@ -416,6 +416,7 @@ def main():
 
 tupleArgumentCall= [pythonModule|
 import multiprocessing as mp
+from testLib import *
 def task_1(x_0_0_0_sender, tpl_0_0_0_receiver):
     while True:
         var_0 = tpl_0_0_0_receiver.recv()
@@ -424,7 +425,6 @@ def task_1(x_0_0_0_sender, tpl_0_0_0_receiver):
 def task_2(tpl_0_0_0_sender):
     tpl_0_0_0 = a, b
     tpl_0_0_0_sender.send(tpl_0_0_0)
-from testLib import *
 def main(a_1, b_1):
     global a, b
     a, b = a_1, b_1
@@ -445,6 +445,7 @@ def main(a_1, b_1):
 
 algoWithParams = [pythonModule|
 import multiprocessing as mp
+from testLib import *
 def task_1(c_0_0_sender, x_0_0_0_receiver, y_0_0_0_receiver):
     while True:
         var_0 = x_0_0_0_receiver.recv()
@@ -457,7 +458,6 @@ def task_2(y_0_0_0_sender):
 def task_3(x_0_0_0_sender):
     x_0_0_0 = f(a)
     x_0_0_0_sender.send(x_0_0_0)
-from testLib import *
 def main(a_1, b_1):
     global a, b
     a, b = a_1, b_1
@@ -479,10 +479,10 @@ def main(a_1, b_1):
 
 applyLambdaExpr = [pythonModule|
 import multiprocessing as mp
+from testLib import *
 def task_1(x_0_0_0_sender):
     x_0_0_0 = 2 * 3
     x_0_0_0_sender.send(x_0_0_0)
-from testLib import *
 def main(a_1, b_1):
     global a, b
     a, b = a_1, b_1
@@ -502,10 +502,10 @@ def main(a_1, b_1):
 
 assignLambdaExpr = [pythonModule|
 import multiprocessing as mp
+from testLib import *
 def task_1(y_0_0_0_sender):
     y_0_0_0 = 2 * 3
     y_0_0_0_sender.send(y_0_0_0)
-from testLib import *
 def main(a_1, b_1):
     global a, b
     a, b = a_1, b_1
@@ -525,10 +525,10 @@ def main(a_1, b_1):
 
 assignEmptyList = [pythonModule|
 import multiprocessing as mp
+from testLib import *
 def task_1(x_0_0_0_sender):
     x_0_0_0 = []
     x_0_0_0_sender.send(x_0_0_0)
-from testLib import *
 def main(a_1, b_1):
     global a, b
     a, b = a_1, b_1
@@ -548,10 +548,10 @@ def main(a_1, b_1):
 
 assignList = [pythonModule|
 import multiprocessing as mp
+from testLib import *
 def task_1(x_0_0_0_sender):
     x_0_0_0 = [a, b]
     x_0_0_0_sender.send(x_0_0_0)
-from testLib import *
 def main(a_1, b_1):
     global a, b
     a, b = a_1, b_1
@@ -571,10 +571,10 @@ def main(a_1, b_1):
 
 assignEmptyDict = [pythonModule|
 import multiprocessing as mp
+from testLib import *
 def task_1(x_0_0_0_sender):
     x_0_0_0 = {}
     x_0_0_0_sender.send(x_0_0_0)
-from testLib import *
 def main(a_1, b_1):
     global a, b
     a, b = a_1, b_1
@@ -594,6 +594,7 @@ def main(a_1, b_1):
 
 assignDict = [pythonModule|
 import multiprocessing as mp
+from testLib import *
 def task_1(x_0_0_0_sender, d_0_0_receiver, c_0_0_receiver):
     while True:
         var_0 = d_0_0_receiver.recv()
@@ -606,7 +607,6 @@ def task_2(c_0_0_sender):
 def task_3(d_0_0_sender):
     d_0_0 = a, 1
     d_0_0_sender.send(d_0_0)
-from testLib import *
 def main(a_1, b_1):
     global a, b
     a, b = a_1, b_1
@@ -629,6 +629,7 @@ def main(a_1, b_1):
 
 assignToSubscript = [pythonModule|
 import multiprocessing as mp
+from testLib import *
 def task_1(l_0_0_0_0_sender, l_0_0_1_receiver, a_1_0_receiver):
     while True:
         var_0 = l_0_0_1_receiver.recv()
@@ -641,7 +642,6 @@ def task_2(a_1_0_sender):
 def task_3(l_0_0_1_sender):
     l_0_0_1 = [1, 2, 3]
     l_0_0_1_sender.send(l_0_0_1)
-from testLib import *
 def main(a_1, b_1):
     global a, b
     a, b = a_1, b_1
@@ -663,6 +663,7 @@ def main(a_1, b_1):
 
 assignSubscript = [pythonModule|
 import multiprocessing as mp
+from testLib import *
 def task_1(x_0_0_0_sender, l_0_0_1_receiver):
     while True:
         var_0 = l_0_0_1_receiver.recv()
@@ -671,7 +672,6 @@ def task_1(x_0_0_0_sender, l_0_0_1_receiver):
 def task_2(l_0_0_1_sender):
     l_0_0_1 = [1, 2, 3]
     l_0_0_1_sender.send(l_0_0_1)
-from testLib import *
 def main(a_1, b_1):
     global a, b
     a, b = a_1, b_1
@@ -692,11 +692,11 @@ def main(a_1, b_1):
 
 argsAndKwargs = [pythonModule|
 import multiprocessing as mp
+from testLib import *
 x_0_0_0_sender, x_0_0_0_receiver = mp.Pipe()
 def task_1():
     x_0_0_0 = f(a, b)
     x_0_0_0_sender.send(x_0_0_0)
-from testLib import *
 def main(a_1:str ="hihi", b_1:int =0):
     global a, b
     a, b = a_1, b_1
@@ -715,6 +715,7 @@ def main(a_1:str ="hihi", b_1:int =0):
 
 assignListCompr = [pythonModule|
 import multiprocessing as mp
+from testLib import *
 tempList_0_1_0_sender, tempList_0_1_0_receiver = mp.Pipe()
 tempList_0_0_1_sender, tempList_0_0_1_receiver = mp.Pipe()
 ctrl_0_0_sender, ctrl_0_0_receiver = mp.Pipe()
@@ -760,7 +761,6 @@ def task_4():
             renew_next_time = sig[0]
             renew = renew_next_time
         tempList_0_1_0_sender.send(tempList_0_0_1_0)
-from testLib import *
 def main(a_1, b_1):
     global a, b
     a, b = a_1, b_1
@@ -779,6 +779,7 @@ def main(a_1, b_1):
 --Test cases for State.hs ---------------------------------------------
 callMethod = [pythonModule|
 import multiprocessing as mp
+from testLib import *
 def task_1(x_0_0_0_sender, mob_0_0_1_receiver):
     while True:
         var_0 = mob_0_0_1_receiver.recv()
@@ -787,7 +788,6 @@ def task_1(x_0_0_0_sender, mob_0_0_1_receiver):
 def task_2(mob_0_0_1_sender):
     mob_0_0_1 = MObs(22)
     mob_0_0_1_sender.send(mob_0_0_1)
-from testLib import *
 def main():
     x_0_0_0_sender, x_0_0_0_receiver = mp.Pipe()
     mob_0_0_1_sender, mob_0_0_1_receiver = mp.Pipe()
@@ -806,6 +806,7 @@ def main():
 
 flat= [pythonModule|
 import multiprocessing as mp
+from testLib import *
 def task_1(mob_0_0_1_sender):
     mob_0_0_1 = MObs(i)
     mob_0_0_1_sender.send(mob_0_0_1)
@@ -819,7 +820,6 @@ def task_3(result_0_0_0_sender, mob_0_0_1_receiver):
         var_0 = mob_0_0_1_receiver.recv()
         result_0_0_0 = var_0.getNum()
         result_0_0_0_sender.send(result_0_0_0)
-from testLib import *
 def main(i_1):
     global i
     i, = i_1,
@@ -841,6 +841,7 @@ def main(i_1):
 
 thread = [pythonModule|
 import multiprocessing as mp
+from testLib import *
 def task_1(result_0_0_0_sender, mob_0_0_1_0_receiver):
     while True:
         var_0 = mob_0_0_1_0_receiver.recv()
@@ -854,7 +855,6 @@ def task_2(mob_0_0_1_0_sender, mob_0_0_2_receiver):
 def task_3(mob_0_0_2_sender):
     mob_0_0_2 = MObs(i)
     mob_0_0_2_sender.send(mob_0_0_2)
-from testLib import *
 def main(i_1):
     global i
     i, = i_1,
@@ -895,6 +895,7 @@ def algo(a):
 
 singleState = [pythonModule|
 import multiprocessing as mp
+from testLib import *
 def task_1(c_0_0_sender, mob_0_1_1_receiver):
     while True:
         var_0 = mob_0_1_1_receiver.recv()
@@ -935,7 +936,6 @@ def task_4(mob_0_1_1_sender, mob_0_0_1_receiver, ctrl_0_0_receiver, d_1_receiver
             renew_next_time = sig[0]
             renew = renew_next_time
         mob_0_1_1_sender.send(mob_0_0_1_0)
-from testLib import *
 def main(a_1):
     global a
     a, = a_1,
@@ -959,6 +959,7 @@ def main(a_1):
 
 stateOut = [pythonModule|
 import multiprocessing as mp
+from testLib import *
 def task_1(mob_0_0_2_sender):
     mob_0_0_2 = MObs(a)
     mob_0_0_2_sender.send(mob_0_0_2)
@@ -1019,7 +1020,6 @@ def task_5(mob_0_1_0_sender, mob_0_0_1_0_receiver, ctrl_0_1_receiver, x_0_0_0_re
             renew_next_time = sig[0]
             renew = renew_next_time
         mob_0_1_0_sender.send(mob_0_0_1_0_0)
-from testLib import *
 def main(a_1):
     global a
     a, = a_1,
@@ -1049,6 +1049,7 @@ def main(a_1):
 --Test cases for Loops.hs ---------------------------------------------
 loopIterator= [pythonModule|
 import multiprocessing as mp
+from testLib import *
 def task_1(r_0_0_0_sender, d_0_receiver):
     while True:
         var_0 = d_0_receiver.recv()
@@ -1089,7 +1090,6 @@ def task_4(s_0_1_0_sender, s_0_0_1_receiver, ctrl_0_0_receiver, r_0_0_0_receiver
             renew_next_time = sig[0]
             renew = renew_next_time
         s_0_1_0_sender.send(s_0_0_1_0)
-from testLib import *
 def main():
     s_0_1_0_sender, s_0_1_0_receiver = mp.Pipe()
     s_0_0_1_sender, s_0_0_1_receiver = mp.Pipe()
@@ -1112,6 +1112,7 @@ def main():
 
 loopIterObj= [pythonModule|
 import multiprocessing as mp
+from testLib import *
 def task_1(n_0_0_0_sender, d_1_receiver):
     while True:
         var_0 = d_1_receiver.recv()
@@ -1156,7 +1157,6 @@ def task_5(mOb_0_1_0_sender, mOb_0_0_1_receiver, ctrl_0_0_receiver, n_0_0_0_rece
             renew_next_time = sig[0]
             renew = renew_next_time
         mOb_0_1_0_sender.send(mOb_0_0_1_0)
-from testLib import *
 def main(a_1):
     global a
     a, = a_1,
@@ -1228,6 +1228,7 @@ def algo(i):
 
 condExpr = [pythonModule|
 import multiprocessing as mp
+from testLib import *
 def task_1(g_0_0_sender, result_0_receiver):
     while True:
         var_0 = result_0_receiver.recv()
@@ -1289,7 +1290,6 @@ def task_8(e_0_0_sender, b_0_0_0_receiver, ctrlTrue_0_receiver):
                 e_0_0_sender.send(e_0_0)
             renew_next_time = sig[0]
             renew = renew_next_time
-from testLib import *
 def main(i_1):
     global i
     i, = i_1,
@@ -1320,6 +1320,7 @@ def main(i_1):
 
 condExprState = [pythonModule|
 import multiprocessing as mp
+from testLib import *
 def task_1(g_0_0_sender, c_0_0_0_receiver, ctrlFalse_0_receiver):
     while True:
         renew = False
@@ -1386,7 +1387,6 @@ def task_8(e_0_0_0_sender, e_0_0_1_sender, mob_0_0_1_receiver):
         res = var_0.getNum()
         e_0_0_0_sender.send(res)
         e_0_0_1_sender.send(res)
-from testLib import *
 def main(i_1):
     global i
     i, = i_1,
@@ -1417,6 +1417,7 @@ def main(i_1):
 
 condContextFunction = [pythonModule|
 import multiprocessing as mp
+from testLib import *
 def task_1(b_0_0_sender, ctrlTrue_0_receiver):
     while True:
         renew = False
@@ -1470,7 +1471,6 @@ def task_6(c_0_0_sender, ctrlFalse_0_receiver):
                 c_0_0_sender.send(c_0_0)
             renew_next_time = sig[0]
             renew = renew_next_time
-from testLib import *
 def main(i_1):
     global i
     i, = i_1,
@@ -1497,6 +1497,7 @@ def main(i_1):
 
 condExprStateFunRet = [pythonModule|
 import multiprocessing as mp
+from testLib import *
 def task_1(result_0_sender, b_0_0_0_1_receiver, a_0_0_receiver, c_0_0_receiver):
     while True:
         branchSelection = b_0_0_0_1_receiver.recv()
@@ -1553,7 +1554,6 @@ def task_6(b_0_0_0_0_sender, b_0_0_0_1_sender):
 def task_7(mob1_0_0_1_sender):
     mob1_0_0_1 = MObs(3)
     mob1_0_0_1_sender.send(mob1_0_0_1)
-from testLib import *
 def main(i_1):
     global i
     i, = i_1,
@@ -1581,6 +1581,7 @@ def main(i_1):
 
 condExprFunCond = [pythonModule|
 import multiprocessing as mp
+from testLib import *
 def task_1(b_0_0_sender, ctrlTrue_0_receiver):
     while True:
         renew = False
@@ -1629,7 +1630,6 @@ def task_5(ctrlTrue_0_sender, ctrlFalse_0_sender, a_0_0_0_receiver):
             ctrlFalse = True, 1
             ctrlTrue_0_sender.send(ctrlTrue)
             ctrlFalse_0_sender.send(ctrlFalse)
-from testLib import *
 def main(i_1):
     global i
     i, = i_1,
@@ -1657,6 +1657,7 @@ def main(i_1):
 --Test cases for TailRec.hs --------------------------------------------
 tailRec= [pythonModule|
 import multiprocessing as mp
+from testLib import *
 def task_1(j_0_0_0_sender, k_0_0_0_sender, i_0_0_0_receiver):
     while True:
         var_0 = i_0_0_0_receiver.recv()
@@ -1687,7 +1688,6 @@ def task_5(i_0_0_0_sender, d_0_0_sender, b_0_0_receiver, returnV_0_0_0_receiver)
         i_0_0_0_sender.send(loop_res_0)
     finalResult = returnV_0_0_0_receiver.recv()
     d_0_0_sender.send(finalResult)
-from testLib import *
 def main():
     d_0_0_sender, d_0_0_receiver = mp.Pipe()
     returnV_0_0_0_sender, returnV_0_0_0_receiver = mp.Pipe()

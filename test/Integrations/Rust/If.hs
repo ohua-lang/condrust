@@ -3,7 +3,7 @@ module Integrations.Rust.If where
 
 import Ohua.Prelude
 
-import Integrations.Rust.RustSetup
+import Integrations.Rust.Utils
 
 
 spec :: Spec

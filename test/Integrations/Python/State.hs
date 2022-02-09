@@ -1,7 +1,7 @@
 module Integrations.Python.State where
 import Ohua.Prelude ( ($), Monad((>>=)), (=<<), Either(..))
 
-import Integrations.Python.PythonSetup
+import Integrations.Python.Utils
 import qualified Integrations.Python.TestDataInput as Input
 import qualified Integrations.Python.TestDataOutput as Expect
 
