@@ -13,7 +13,7 @@ import qualified Data.HashSet as HS
 import qualified Data.Map.Ordered as OrdMap
 
 import qualified Data.List.NonEmpty as NE
-import qualified Data.Foldable as DF 
+import qualified Data.Foldable as DF
 import Data.Set.Ordered ((\\))
 
 data Fusable ty ctrl0 ctrl1
@@ -50,7 +50,9 @@ fuse ns =
     where
         go :: TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (VarCtrl ty) (LitCtrl ty))
            -> TCProgram (Channel ty) (Com 'Recv ty) (TaskExpr ty)
-        go = evictUnusedChannels . concludeFusion . fuseStateThreads . fuseSMaps
+        go = sortByDependency . evictUnusedChannels . concludeFusion . fuseStateThreads . fuseSMaps
+
+
 
 concludeFusion :: TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty))
                -> TCProgram (Channel ty) (Com 'Recv ty) (TaskExpr ty)
@@ -145,7 +147,7 @@ fuseCtrls (TCProgram chans resultChan exprs) =
         go funCtrls noFunCtrls =
             let sAndT = srcsAndTgts noFunCtrls funCtrls
                 fused = map (uncurry fuseIt) sAndT
-                orphans = HS.fromList $ 
+                orphans = HS.fromList $
                     map ((\case Left f -> Fun f; Right c -> Control $ Left c) . snd)    -- Order?: This also need not be sorted, likewise just a ffilter
                         sAndT
                 noFunCtrls' = filter (not . (`HS.member` orphans)) noFunCtrls
@@ -153,7 +155,7 @@ fuseCtrls (TCProgram chans resultChan exprs) =
                 -- pendingFunCtrls = 
                    -- turn funCtrls into a set and delete all items s' that are in sAndT::[(s, T)], than turn it into a list again
                    -- DF.toList $ foldr (HS.delete . fst) (HS.fromList funCtrls) sAndT
-                ss' = HS.fromList . map fst $ sAndT 
+                ss' = HS.fromList . map fst $ sAndT
                 pendingFunCtrls = filter (not . (`HS.member` ss')) funCtrls
             in if null pendingFunCtrls
                 then noFunCtrls''
@@ -213,6 +215,7 @@ fuseCtrls (TCProgram chans resultChan exprs) =
             HS.member bnd $ HS.fromList $ map (\(SRecv _ c) -> c) $ funReceives f
         isTarget _ _ = False
 
+
 fuseSTCLang :: forall ty.
                TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty))
             -> TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty))
@@ -225,12 +228,6 @@ fuseSTCLang (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ go
                 fused = map (Control . Left . uncurry fuseIt) toFuse
                 sTfilter = HS.fromList $ concatMap (\(x,y) -> [x,STC y]) sourceAndTarget
                 noFused = filter (not . (`HS.member` sTfilter)) all
-                  --sort $ -- for deterministic order
-                  {-
-                  DF.toList $
-                  HS.difference
-                    (HS.fromList all)
-                    $ HS.fromList $ concatMap (\(x,y) -> [x,STC y]) sourceAndTarget-}
                 all' = noFused ++ fused
             in case unfusable of
                  [] -> all'
@@ -252,15 +249,11 @@ fuseSTCLang (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ go
         fuseIt (Unfusable _) _ = error "Invariant broken: Trying to fuse unfusable!"
 
         split xs =
-            --let tgts = OrdSet.fromList $ map snd xs
-            --in
           partitionEithers $
           map
             (\e@(source, target) ->
                 case source of
-                  STC s -> --if not $ OrdSet.member s tgts
-                           -- then Left e
-                           -- else Right target
+                  STC s ->
                     Right target
                   _ -> Left e)
             xs
@@ -349,4 +342,23 @@ fuseSMaps (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ go e
                 in Just $ genFun' (Stmt send' $ SMap.gen' $ SMap.fuse b smap) $ toFuseFun st
             _ -> Nothing
     getAndDrop _ _ _ = Nothing
+
+sortByDependency :: TCProgram (Channel ty1) (Com 'Recv ty1) (TaskExpr ty1) -> TCProgram (Channel ty1) (Com 'Recv ty1) (TaskExpr ty1)
+sortByDependency (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ orderTasks exprs HS.empty
+    where
+        orderTasks [] _ = []
+        orderTasks tasks fulfilledDependencies =
+            let taskInOut = map (\t -> (t, findInputs t, findReturns t)) tasks
+                -- TODO: replace intersection by isSubsetOf after updating our HashSet version
+                toBeScheduled = filter (\(t, ins, outs) -> ins `HS.intersection` fulfilledDependencies == ins) taskInOut
+                fulfilled = HS.fromList $ concatMap (\(t, ins, outs) -> outs) toBeScheduled
+                scheduled = map (\(t, ins, outs) -> t) toBeScheduled
+                remaining = filter (`notElem` scheduled) tasks
+            in scheduled ++ orderTasks remaining (fulfilledDependencies `HS.union` fulfilled)
+
+findInputs :: TaskExpr ty -> HashSet (Com 'Channel ty)
+findInputs expr = HS.fromList $  [ chan | ReceiveData (SRecv _ chan) <- universe expr]
+
+findReturns :: TaskExpr ty -> [Com 'Channel ty]
+findReturns expr =   [ chan | SendData (SSend chan _) <- universe expr]
 
