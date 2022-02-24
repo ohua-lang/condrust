@@ -128,15 +128,24 @@ chnlToIdent (SSend (SChan chnlName) toSend) = fromBinding (chnlName <> "_sender"
      Statements and imports from the original code are included in the new file
 -}
 makeAlgoModule :: Module -> (String, FullyPyProgram, [Py.Parameter SrcSpan]) -> (FilePath , L.ByteString)
-makeAlgoModule (Module path (Py.Module inputCode)) (algoName, prgrm@(Program _ _ tasks), params)=
+makeAlgoModule (Module path (Py.Module inputCode)) (algoName, prgrm@(Program _ _ tasks), params) =
     let taskList = enumeratedTasks tasks
         chnlsPerTask = map channelsFromTask tasks
         newMainFun = buildMain taskList chnlsPerTask prgrm params
-        funFreeStmts = filter (not. funOrMainCall) inputCode
-        combinedStmts = combineStatements funFreeStmts prgrm newMainFun
+        originalScope = scopeOfAlgo algoName inputCode
+        combinedStmts = combineStatements originalScope prgrm newMainFun
         modName = algoName <> ".py"
         printableCode = encodePretty combinedStmts
     in (modName, printableCode)
+
+
+
+scopeOfAlgo :: String -> [Py.Statement SrcSpan] -> [Py.Statement SrcSpan]
+scopeOfAlgo aName [] = []
+-- we ignore algos as they are spliced into our taks graph
+scopeOfAlgo aName (Py.Fun{} : stmts) = scopeOfAlgo aName stmts
+scopeOfAlgo aName (stmt: stmts) =  stmt : scopeOfAlgo aName stmts
+
 
 
 -- | Task functions are called with a list of (unique -> nub) channels they use as arguments.
@@ -201,20 +210,21 @@ combineStatements originalStmts (Program channelInits _ nodeFuns) multiMain = Py
     where
         taskFunDefs = map taskExpression nodeFuns
         combinedStatements = importMPStmt
-                             : taskFunDefs
                              -- ToDo: I should separate import statements from the rest 
                              -- insert them before the other 'originalStmts'
-                             ++ originalStmts
+                             : originalStmts
+                             ++ taskFunDefs
                              ++ [multiMain]
 
 -- | Algo modules need a main function to be called by the replaced function. This main contains statements to
 -- | 0) declare the parameters of the replaced function global 
 -- | i) initialize a tasks and a process list
--- | ii) assign a process to each task 
--- | iii) start processes 
--- | iv) receive the result
--- | v) close and cleanup process ressources
--- | vi) return the overall result
+-- | ii) intialize the comunication channels 
+-- | iii) assign a process to each task using channels as arguments
+-- | iv) start processes 
+-- | v) receive the result
+-- | vi) close and cleanup process ressources
+-- | vii) return the overall result
 
 buildMain:: [String]-> [[Py.Expr SrcSpan]] -> FullyPyProgram -> [Py.Parameter SrcSpan]-> Py.Statement SrcSpan
 buildMain taskNames chnlsPerTask (Program chnls resExpr tasks) params =  Py.Fun (mkIdent "main") params' resAnno mainBlock noSpan
@@ -256,12 +266,6 @@ paramToArg _ = error "unsupported parameter type. this should have been caught i
 
 replaceId:: (Py.ParameterSpan, Py.IdentSpan) -> Py.ParameterSpan
 replaceId (Py.Param id mTyp mDef anno, newId) = Py.Param newId mTyp mDef anno
-
-funOrMainCall:: Py.Statement SrcSpan -> Bool
-funOrMainCall stmt = case stmt of
-    Py.Fun{} -> True
-    Py.Conditional{cond_guards=[(ifNameIsMain, _)]} -> True
-    _ -> False
 
 
 modName :: Py.Parameter annot -> [Char] -> Py.Ident SrcSpan
