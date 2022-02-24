@@ -22,7 +22,16 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.loopIterObj
                 compiled `shouldBe` expected)
-     
+
+        it "ERROR: Nested For-Loop, updating State"$
+            compileCode Input.nested `shouldThrow` anyException
+            {-
+            (showCode "Compiled: " =<< compileCode Input.nested) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" Expect.loopIterObj
+                compiled `shouldBe` expected)
+            -}
+
         it "FAIL: ForLoop with tuple pattern - Tuple not send to looping task " $
             (showCode "Compiled: " =<< compileCode Input.loopTuplePattern) >>=
             (\compiled -> do

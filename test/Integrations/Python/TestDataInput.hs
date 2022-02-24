@@ -94,6 +94,7 @@ from testLib import *
 
 def algo():
     hello_world()
+
 |]
 
 exprArg = [pythonModule|
@@ -671,6 +672,17 @@ def algo(a):
     return mob
 |]
 
+nested = [pythonModule|
+from testLib import *
+
+def algo(n):
+  stream = Stream(n)
+  store = Store()
+  for worklist in stream:
+    for item in worklist:
+      update = handle_message(store.clone(), item)
+      store.update(res)
+|]
 
 
 --Test cases for TailRec.hs --------------------------------------------
@@ -744,33 +756,6 @@ def algo2():
     algo(2)
 |]
 
-----------------
-primeSums= [pythonModule|
-import math
-
-def isprime(n):
-    """Returns True if n is prime and False otherwise"""
-    # if not isinstance(n, int):
-    #     raise TypeError("argument passed to is_prime is not of 'int' type")
-    if n < 2:
-        return False
-    if n == 2:
-        return True
-    max = int(math.ceil(math.sqrt(n)))
-    i = 2
-    while i <= max:
-        if n % i == 0:
-            return False
-        i += 1
-    return True
-
-def sum_primes(n):
-    xs = list()
-    for x in range (2,n):
-        if isprime(x):
-            xs.append(x)
-    return sum(xs)
-|]
 
 twoFuns= [pythonModule|
 from testLib import *
@@ -802,4 +787,17 @@ def algo2():
     x = 5
     y = algo1() 
     return x + y
+|]
+
+testMod = [pythonModule|
+# from testLib import *
+print("Called test module")
+|]
+
+globalRef = [pythonModule|
+from testLib import *
+GLOB = 42
+
+def algo():
+    x = fun(GLOB)
 |]
