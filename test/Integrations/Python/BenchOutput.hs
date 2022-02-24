@@ -5,79 +5,9 @@ module Integrations.Python.BenchOutput where
 
 import Integrations.Python.SimpleQuoter
 
-
-blackScholes = [pythonModule|
-import multiprocessing as mp
-results_0_1_0_sender, results_0_1_0_receiver = mp.Pipe()
-results_0_0_1_sender, results_0_0_1_receiver = mp.Pipe()
-ctrl_0_0_sender, ctrl_0_0_receiver = mp.Pipe()
-d_0_sender, d_0_receiver = mp.Pipe()
-n_0_0_0_sender, n_0_0_0_receiver = mp.Pipe()
-def task_1():
-    results_0_0_1 = []
-    results_0_0_1_sender.send(results_0_0_1)
-def task_2():
-    while True:
-        var_0 = d_0_receiver.recv()
-        n_0_0_0 = calulateForOption(var_0)
-        n_0_0_0_sender.send(n_0_0_0)
-def task_3():
-    valOps_0_0_0 = refl(ops)
-    while True:
-        hasSize = True if hasattr(valOps_0_0_0, '__len__') else False
-        if hasSize:
-            size = len(valOps_0_0_0)
-            ctrl = True, size
-            ctrl_0_0_sender.send(ctrl)
-            for d in valOps_0_0_0:
-                d_0_sender.send(d)
-        else:
-            size = 0
-            for d in valOps_0_0_0:
-                d_0_sender.send(d)
-                ctrl = False, 1
-                ctrl_0_0_sender.send(ctrl)
-                size = size + 1
-            ctrl = True, 0
-            ctrl_0_0_sender.send(ctrl)
-def task_4():
-    while True:
-        renew = False
-        results_0_0_1_0 = results_0_0_1_receiver.recv()
-        while not renew:
-            sig = ctrl_0_0_receiver.recv()
-            count = sig[1]
-            for _ in range(0, count):
-                var_1 = n_0_0_0_receiver.recv()
-                results_0_0_1_0.append(var_1)
-            renew_next_time = sig[0]
-            renew = renew_next_time
-        results_0_1_0_sender.send(results_0_0_1_0)
-from bs_lib import (calulateForOption, refl)
-def main(ops_1):
-    global ops
-    ops, = ops_1,
-    tasks = [task_1, task_2, task_3, task_4]
-    processes = []
-    for task in tasks:
-        process = mp.Process(target=task)
-        processes.append(process)
-    list(map(mp.Process.start, processes))
-    result = results_0_1_0_receiver.recv()
-    list(map(mp.Process.terminate, processes))
-    list(map(mp.Process.join, processes))
-    return result
-|]
-
-nBodies = [pythonModule|
-from lib import *
-# Todo
-|]
-
-
-
 loop3 = [pythonModule|
 import multiprocessing as mp
+from helpers.library_proxy import *
 def task_1(x_0_0_0_sender, d_1_receiver):
     while True:
         var_0 = d_1_receiver.recv()
@@ -128,7 +58,7 @@ def task_6(result_0_1_0_sender, result_0_0_1_receiver, ctrl_0_0_receiver, z_0_0_
             renew_next_time = sig[0]
             renew = renew_next_time
         result_0_1_0_sender.send(result_0_0_1_0)
-from helpers.library_proxy import *
+
 def main(i_1):
     global i
     i, = i_1,
@@ -154,6 +84,7 @@ def main(i_1):
 
 ifElse =  [pythonModule|
 import multiprocessing as mp
+from helpers.library_proxy import *
 def task_1(c_0_0_sender, ctrlFalse_0_receiver):
     while True:
         renew = False
@@ -202,7 +133,7 @@ def task_5(a_0_0_0_sender, a_0_0_1_sender):
     res = check(i)
     a_0_0_0_sender.send(res)
     a_0_0_1_sender.send(res)
-from helpers.library_proxy import *
+
 def main(i_1):
     global i
     i, = i_1,
@@ -228,6 +159,7 @@ def main(i_1):
 
 ifElseLikeTailRec = [pythonModule|
 import multiprocessing as mp
+from helpers.library_proxy import *
 def task_1(e_0_0_sender, current_0_0_0_2_receiver, ctrlTrue_0_receiver):
     while True:
         renew = False
@@ -334,7 +266,7 @@ def task_11(result_0_1_0_sender, result_0_0_1_receiver, ctrl_0_0_receiver, resul
             renew_next_time = sig[0]
             renew = renew_next_time
         result_0_1_0_sender.send(result_0_0_1_0)
-from helpers.library_proxy import *
+
 def main(i_1):
     global i
     i, = i_1,
@@ -369,6 +301,7 @@ def main(i_1):
 
 ifElseLoopStates'' = [pythonModule|
 import multiprocessing as mp
+from helpers.library_proxy import *
 def task_1(c_0_0_sender, var_0_0_0_3_receiver, ctrlTrue_0_receiver):
     while True:
         renew = False
@@ -462,7 +395,7 @@ def task_9(result_0_1_0_sender, result_0_0_1_receiver, ctrl_0_0_receiver, result
             renew_next_time = sig[0]
             renew = renew_next_time
         result_0_1_0_sender.send(result_0_0_1_0)
-from helpers.library_proxy import *
+
 def main(statefulObjs_1):
     global statefulObjs
     statefulObjs, = statefulObjs_1,
@@ -495,6 +428,7 @@ def main(statefulObjs_1):
 
 ifElseLikeTailRec' = [pythonModule|
 import multiprocessing as mp
+from helpers.library_proxy import *
 def task_1(e_0_0_sender, current_0_0_0_2_receiver, ctrlTrue_0_receiver):
     while True:
         renew = False
@@ -601,7 +535,7 @@ def task_11(result_0_1_0_sender, result_0_0_1_receiver, ctrl_0_0_receiver, resul
             renew_next_time = sig[0]
             renew = renew_next_time
         result_0_1_0_sender.send(result_0_0_1_0)
-from helpers.library_proxy import *
+
 def main(i_1):
     global i
     i, = i_1,
