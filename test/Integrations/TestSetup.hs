@@ -37,6 +37,9 @@ class Testable codeFormat where
     compileCodeWithDebug :: codeFormat -> IO  codeFormat
     compileCodeWithDebug inCode = runReaderT (compileFormat inCode def OhuaOnly) $ DebugOptions True False
 
+    compileAndRun :: codeFormat -> IO codeFormat
+    compileAndRun inCode = runReaderT (compileFormat inCode def RunTarget) $ DebugOptions False False
+    
     showCode :: T.Text -> codeFormat -> IO T.Text
     showCode msg code = runReaderT (showFormat msg code) def
 
