@@ -11,24 +11,18 @@ import Language.Python.Common.SrcLocation
 import qualified Data.HashMap.Lazy as HM
 import Data.List.NonEmpty
 
---TODO: Provide definitions for function types and argument types
---TODO: Implement extraction of function types and argument types in a given NS (py-module)
---Note: OHUA functions types may be Untyped, FunType(d) or STFunType(d), last one being functions with self arg. 
---      in Rust
--- TODO: Fun.Parameters in AST are just Expr's. Define of Expr's eg. Immutables | Structures | Callables | Self??
--- Note: For whatever reason there is a separate Type Argument that is not used to define Fun :-/
+
 data PythonArgType = PythonObject
-type PythonTypeAnno  = PythonArgType   
+type PythonTypeAnno  = PythonArgType  
 type FunTypes = HM.HashMap QualifiedBinding (FunType PythonTypeAnno)
 
 
+-- We currently do none of this scope type extracction but 
+-- determine the type of functions only at call side 
+{--
 extractFromFile :: CompM m => FilePath -> m FunTypes
 extractFromFile srcFile = extract srcFile =<< liftIO (load srcFile)
 
--- TODO: Given a filepath and an AST, create a Hashmap of contextualized funtion names (qualified bindings) and function types
--- function types 
--- Note: in Rust 'self' funtions are separate items (Impl) -> in Python identify via context (in a Suite of Class items)
--- and expl. parse first arg as self is not a type in the parser 
 
 extract :: forall m a. (CompM m, Show a) => FilePath -> Module a -> m (HM.HashMap QualifiedBinding (FunType PythonArgType))
 extract srcFile (Module statements) = HM.fromList <$> extractTypes statements
@@ -73,3 +67,4 @@ extract srcFile (Module statements) = HM.fromList <$> extractTypes statements
         annotation_or_error param = case param_py_annotation param of
             Just Var{var_ident=typestring, expr_annot = a} -> PythonObject
             Nothing -> error $ "Some argment wasn't typed: " <> show (param_name param)
+-}
