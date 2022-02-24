@@ -10,12 +10,27 @@ import qualified Integrations.Python.TestDataOutput as Expect
 import qualified Integrations.Python.BenchInput as BIn
 import qualified Integrations.Python.BenchOutput as BExpect
 
+import qualified Integrations.Python.NatParOutput as NPExpect
+
 
 
 
 spec :: Spec
 spec =
     describe "WIP Tests" $ do
+        it "Simple function call" $
+            (showCode "Compiled: " =<< compileCode Input.callAFunction) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" Expect.callAFunction
+                compiled `shouldBe` expected)
+        it "GlobRef" $
+            (showCode "Compiled: " =<< compileCode Input.globalRef) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" Expect.callAFunction
+                compiled `shouldBe` expected)
+
+        {-
+
         it "Assignment binary Operation of integer literals" $
             (showCode "Compiled: " =<< compileCode Input.assignBinOp) >>=
             (\compiled -> do
@@ -28,7 +43,6 @@ spec =
                 compiled `shouldBe` expected)
         
 
-        {-
         it "Two Algos" $
             (showCode "Compiled: " =<< compileCode Input.twoAlgos) >>=
             (\compiled -> do
@@ -63,7 +77,7 @@ spec =
                 compiled `shouldBe` expected)
          -}
         
-    -}
+
         it "test args" $
             (showCode "Compiled: " =<< compileCode Input.exprArg) >>=
             (\compiled -> do
@@ -71,20 +85,11 @@ spec =
                 compiled `shouldBe` expected)
                 
 
-              
-        it "While loop" $
-            (showCode "Compiled: " =<< compileCodeWithRec BIn.nBodies) >>=
-            (\compiled -> do
-                expected <- showCode "Expected:" BExpect.nBodies
-                compiled `shouldBe` expected)
-            
-        
-         
-        it "ForLoop over iterator" $
+    it "ForLoop over iterator" $
             (showCode "Compiled: " =<< compileCode Input.loopIterator) >>=
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.loopIterator
                 compiled `shouldBe` expected)
         
 
-        
+            -}
