@@ -153,7 +153,7 @@ extractCoreOptions :: CompilerOptions -> Options
 extractCoreOptions CompilerOptions {..} =
     def
         & stageHandling .~ stageHandlingOpt debug
-        & transformRecursiveFunctions .~ True
+        & transformRecursiveFunctions .~ ("tail-recursion" `elem` extraFeatures)
 
 validateConfig :: (MonadIO m, MonadError Error m) => CompilerOptions -> m ()
 validateConfig conf =
