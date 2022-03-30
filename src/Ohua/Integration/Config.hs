@@ -1,6 +1,6 @@
 module Ohua.Integration.Config where
 
-import Ohua.Prelude ( Maybe (Nothing) , Integer, ($) )
+import Ohua.Prelude ( Maybe (Just) , Integer, ($) )
 
 import Ohua.Integration.Architecture
 
@@ -15,4 +15,4 @@ data Options = Options
   }
 
 defaultConfig :: Config
-defaultConfig = Config SharedMemory $ Options Nothing Nothing
+defaultConfig = Config SharedMemory $ Options (Just 420) (Just 421)
