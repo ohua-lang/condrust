@@ -26,7 +26,6 @@ spec =
     describe "config parsing" $ do
         it "parse full config" $
             parseConfig [r|
-                output-format: json-graph
                 compilation-scope:
                 - some/ns/module.go
                 - some/other/ns/module.go
@@ -59,31 +58,14 @@ spec =
             )
         it "debug is optional" $
             parseConfig [r|
-                output-format: json-graph
                 compilation-scope:
                 - some/ns/module.go
                 extra-features:
-                - tail-rec
+                - tail-recursion
             |] >>= (`shouldBe`
                 C.CompilerOptions
                 { compilationScope = HM.fromList [ (["some","ns","module"],".go") ]
-                , extraFeatures = ["tail-rec"]
-                , integrationFeatures = IC.defaultConfig
-                , debug = C.DebugOptions { logLevel = LevelWarn
-                                        , stageHandlingOpt = C.defaultStageHandling
-                                        }
-                }
-            )
-        it "output-format is optional" $
-            parseConfig [r|
-                compilation-scope:
-                - some/ns/module.go
-                extra-features:
-                - tail-rec
-            |] >>= (`shouldBe`
-                C.CompilerOptions
-                { compilationScope = HM.fromList [ (["some","ns","module"],".go") ]
-                , extraFeatures = ["tail-rec"]
+                , extraFeatures = ["tail-recursion"]
                 , integrationFeatures = IC.defaultConfig
                 , debug = C.DebugOptions { logLevel = LevelWarn
                                         , stageHandlingOpt = C.defaultStageHandling

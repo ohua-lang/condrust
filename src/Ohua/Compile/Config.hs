@@ -11,7 +11,6 @@ This source code is licensed under the terms described in the associated LICENSE
 
 A configuration has the following YAML form:
 
-output-format: JsonGraph
 compilation-scope:
 - some/ns/module.go
 - some/other/ns/module.go
