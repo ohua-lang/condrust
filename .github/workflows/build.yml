@@ -74,16 +74,22 @@ jobs:
       - name: Install nix
         uses: cachix/install-nix-action@v13
         with:
+          install_url: https://github.com/NixOS/nixpkgs/archive/b6966d911da89e5a7301aaef8b4f0a44c77e103c.tar.gz
           nix_path: nixpkgs=channel:nixos-unstable
-        ## TODO: Actually pin nixpkgs??
+
+      - name: Get nixpkgs hash
+        id: nixpkgs-hash
+        run: |
+          echo "::set-output name=hash::$(nix-instantiate --eval -E '(import <nixpkgs> {}).lib.version')"
+        shell: bash
       
-      #- name: Cache Haskell build artifacts for dependencies
-        #uses: actions/cache@v2
-        #with:
-          #path: |
-            #ohuac/.stack_work
-            #~/.stack
-          #key: ohuac-${{ runner.os }}-${{ hashFiles('ohuac/stack.yaml') }}
+      - name: Cache Haskell build artifacts for dependencies
+        uses: actions/cache@v2
+        with:
+          path: |
+            ohuac/.stack_work
+            ~/.stack
+          key: ohuac-${{ runner.os }}-${{ steps.nixpkgs-hash.outputs.hash }}-${{ hashFiles('ohuac/stack.yaml') }}
       - name: Build ohuac
         run: |
           cd ohuac
