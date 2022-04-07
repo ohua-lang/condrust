@@ -8,6 +8,10 @@ import Ohua.Prelude
 
 import Ohua.Compile.Config as C
 import Ohua.Compile.Compiler as Comp
+
+import Ohua.Integration.Config as IC
+import Ohua.Integration.Architecture as IA
+
 import qualified Data.Yaml as Y
 import qualified Data.HashMap.Strict as HM
 import Text.RawString.QQ (r)
@@ -27,7 +31,12 @@ spec =
                 - some/ns/module.go
                 - some/other/ns/module.go
                 extra-features:
-                - tail-rec
+                - tail-recursion
+                integration-features:
+                    arch: SharedMemory
+                    options:
+                        data-parallelism: 42
+                        amorphous: 13
                 debug:
                     log-level: verbose
                     core-stages:
@@ -41,7 +50,8 @@ spec =
                 C.CompilerOptions
                 { compilationScope = HM.fromList [ (["some","other","ns","module"],".go")
                                                 , (["some","ns","module"],".go")]
-                , extraFeatures = ["tail-rec"]
+                , extraFeatures = ["tail-recursion"]
+                , integrationFeatures = IC.Config IA.SharedMemory $ IC.Options (Just 42) (Just 13)
                 , debug = C.DebugOptions { logLevel = LevelOther "verbose"
                                         , stageHandlingOpt = C.defaultStageHandling
                                         }
@@ -58,6 +68,7 @@ spec =
                 C.CompilerOptions
                 { compilationScope = HM.fromList [ (["some","ns","module"],".go") ]
                 , extraFeatures = ["tail-rec"]
+                , integrationFeatures = IC.defaultConfig
                 , debug = C.DebugOptions { logLevel = LevelWarn
                                         , stageHandlingOpt = C.defaultStageHandling
                                         }
@@ -73,6 +84,7 @@ spec =
                 C.CompilerOptions
                 { compilationScope = HM.fromList [ (["some","ns","module"],".go") ]
                 , extraFeatures = ["tail-rec"]
+                , integrationFeatures = IC.defaultConfig
                 , debug = C.DebugOptions { logLevel = LevelWarn
                                         , stageHandlingOpt = C.defaultStageHandling
                                         }
@@ -86,6 +98,7 @@ spec =
                 C.CompilerOptions
                 { compilationScope = HM.fromList [ (["some","ns","module"],".go") ]
                 , extraFeatures = []
+                , integrationFeatures = IC.defaultConfig
                 , debug = C.DebugOptions { logLevel = LevelWarn
                                         , stageHandlingOpt = C.defaultStageHandling
                                         }
@@ -101,6 +114,7 @@ spec =
                 C.CompilerOptions
                 { compilationScope = HM.fromList [ (["some","ns","module"],".go") ]
                 , extraFeatures = []
+                , integrationFeatures = IC.defaultConfig
                 , debug = C.DebugOptions { logLevel = LevelDebug
                                         , stageHandlingOpt = C.defaultStageHandling
                                         }
@@ -115,6 +129,7 @@ spec =
                 C.CompilerOptions
                 { compilationScope = HM.empty
                 , extraFeatures = []
+                , integrationFeatures = IC.defaultConfig
                 , debug = C.DebugOptions { logLevel = LevelDebug
                                         , stageHandlingOpt = C.defaultStageHandling
                                         }
@@ -128,7 +143,69 @@ spec =
                 C.CompilerOptions
                 { compilationScope = HM.empty
                 , extraFeatures = []
+                , integrationFeatures = IC.defaultConfig
                 , debug = C.DebugOptions { logLevel = LevelDebug
+                                        , stageHandlingOpt = C.defaultStageHandling
+                                        }
+                }
+            )
+        it "integration: Only arch is specified" $
+            parseConfig [r|
+                integration-features:
+                    arch: M3
+            |] >>= (`shouldBe`
+                C.CompilerOptions
+                { compilationScope = HM.empty
+                , extraFeatures = []
+                , integrationFeatures = IC.Config IA.M3 $ IC.Options Nothing Nothing
+                , debug = C.DebugOptions { logLevel = LevelWarn
+                                        , stageHandlingOpt = C.defaultStageHandling
+                                        }
+                }
+            )
+        it "integration: empty options" $
+            parseConfig [r|
+                integration-features:
+                    arch: M3
+                    options:
+            |] >>= (`shouldBe`
+                C.CompilerOptions
+                { compilationScope = HM.empty
+                , extraFeatures = []
+                , integrationFeatures = IC.Config IA.M3 $ IC.Options Nothing Nothing
+                , debug = C.DebugOptions { logLevel = LevelWarn
+                                        , stageHandlingOpt = C.defaultStageHandling
+                                        }
+                }
+            )
+        it "integration: Only data-par is specified" $
+            parseConfig [r|
+                integration-features:
+                    arch: M3
+                    options:
+                        data-parallelism: 42
+            |] >>= (`shouldBe`
+                C.CompilerOptions
+                { compilationScope = HM.empty
+                , extraFeatures = []
+                , integrationFeatures = IC.Config IA.M3 $ IC.Options (Just 42) Nothing
+                , debug = C.DebugOptions { logLevel = LevelWarn
+                                        , stageHandlingOpt = C.defaultStageHandling
+                                        }
+                }
+            )
+        it "integration: Only amorphous is specified" $
+            parseConfig [r|
+                integration-features:
+                    arch: M3
+                    options:
+                        amorphous: 42
+            |] >>= (`shouldBe`
+                C.CompilerOptions
+                { compilationScope = HM.empty
+                , extraFeatures = []
+                , integrationFeatures = IC.Config IA.M3 $ IC.Options Nothing (Just 42)
+                , debug = C.DebugOptions { logLevel = LevelWarn
                                         , stageHandlingOpt = C.defaultStageHandling
                                         }
                 }

@@ -16,10 +16,10 @@ compilation-scope:
 - some/ns/module.go
 - some/other/ns/module.go
 extra-features:
-- tail-rec
+- tail-recursion
 debug:
     log-level: verbose
-    core-stages: 
+    core-stages:
         - stage: "before-normalization"
           dump: yes
           abort-after: no
@@ -36,6 +36,7 @@ import qualified Prelude as P (Show, show)
 import Ohua.Core.Types.Stage
 import Ohua.Core.Types.Environment (Options, stageHandling, transformRecursiveFunctions)
 import Ohua.Frontend.Types (CompilationScope)
+import qualified Ohua.Integration.Config as IC
 
 import qualified Data.Text as T (unpack, pack)
 import qualified Data.Yaml as Y
@@ -77,9 +78,10 @@ defaultDebug = DebugOptions
     , stageHandlingOpt = defaultStageHandling
     }
 
-data CompilerOptions = CompilerOptions 
+data CompilerOptions = CompilerOptions
     { compilationScope :: CompilationScope
     , extraFeatures :: [Feature]
+    , integrationFeatures :: IC.Config
     , debug :: DebugOptions
     } deriving (Show, Eq)
 
@@ -92,12 +94,11 @@ data Stage = Stage
     } deriving (Eq, Show)
 
 instance FromJSON Stage where
-    parseJSON (Y.Object v) =
+    parseJSON = Y.withObject "Stage" $ \v ->
         Stage <$>
         v .:  "stage" <*>
         (v .:? "dump" .!= True) <*>
         (v .:? "abort-after" .!= False)
-    parseJSON _ = fail "Expected Object for stage description."
 
 intoStageHandling :: DumpCode -> Maybe [Stage] -> StageHandling
 intoStageHandling _ Nothing   = defaultStageHandling
@@ -113,11 +114,10 @@ intoStageHandling dc (Just stages)  =
     in \stage -> HM.lookupDefault passStage stage registry
 
 instance FromJSON DebugOptions where
-    parseJSON (Y.Object v) =
+    parseJSON = Y.withObject "DebugOptions" $ \v ->
         DebugOptions <$>
         (intoLogLevel <$> v .:? "log-level" .!= "warn") <*>
         (intoStageHandling DumpPretty <$> v .:? "core-stages")
-    parseJSON _ = fail "Expected Object for DebugOptions description"
 
 intoCompilationScope :: [Text] -> CompilationScope
 intoCompilationScope filePaths =
@@ -135,15 +135,15 @@ intoCompilationScope filePaths =
         toBnds = map $ makeThrow . T.pack
 
 instance FromJSON CompilerOptions where
-    parseJSON (Y.Object v) =
+    parseJSON = Y.withObject "CompilerOptions" $ \v ->
         CompilerOptions <$>
         (intoCompilationScope <$> v .:?  "compilation-scope" .!= []) <*>
         v .:? "extra-features" .!= [] <*>
+        v .:? "integration-features" .!= IC.defaultConfig <*>
         v .:? "debug" .!= defaultDebug
-    parseJSON _ = fail "Expected Object for Config value"
 
 defaultCompilerOptions :: CompilerOptions
-defaultCompilerOptions = CompilerOptions HM.empty [] defaultDebug
+defaultCompilerOptions = CompilerOptions HM.empty [] IC.defaultConfig defaultDebug
 
 loadConfig :: (MonadIO m) => Maybe String -> m CompilerOptions
 loadConfig Nothing    = return defaultCompilerOptions
@@ -154,6 +154,9 @@ extractCoreOptions CompilerOptions {..} =
     def
         & stageHandling .~ stageHandlingOpt debug
         & transformRecursiveFunctions .~ ("tail-recursion" `elem` extraFeatures)
+
+extractIntegrationConfig :: CompilerOptions -> IC.Config
+extractIntegrationConfig CompilerOptions {..} = integrationFeatures
 
 validateConfig :: (MonadIO m, MonadError Error m) => CompilerOptions -> m ()
 validateConfig conf =
