@@ -72,10 +72,10 @@ jobs:
 
       # set up nix
       - name: Install nix
-        uses: cachix/install-nix-action@v13
+        uses: cachix/install-nix-action@v17
         with:
           install_url: https://github.com/NixOS/nixpkgs/archive/b6966d911da89e5a7301aaef8b4f0a44c77e103c.tar.gz
-          nix_path: nixpkgs=channel:nixos-unstable
+          #nix_path: nixpkgs=channel:nixos-unstable
 
       - name: Get nixpkgs hash
         id: nixpkgs-hash
