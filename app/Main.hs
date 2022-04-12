@@ -7,7 +7,6 @@ import Language.Haskell.TH (Exp (LitE), Lit (StringL))
 import Ohua.Compile.Compiler (compile)
 import Ohua.Compile.Config
 import Ohua.Integration.Lang
-import Ohua.Integration.Config (defaultConfig)
 import Ohua.Prelude
 import Options.Applicative as O
 import Options.Applicative.Help.Pretty as O
@@ -36,9 +35,10 @@ main = do
     Build CommonCmdOpts {..} -> do
       copts@CompilerOptions {..} <- runExceptM $ loadConfig config
       let coreOpts = extractCoreOptions copts
+      let targetConf = extractIntegrationConfig copts
       runCompM
         (logLevel debug)
-        $ compile inputModuleFile compilationScope coreOpts defaultConfig outputPath
+        $ compile inputModuleFile compilationScope coreOpts targetConf outputPath
   where
     odef =
       info
