@@ -64,6 +64,7 @@ dependencies:
 - recursion-schemes
 - template-haskell
 - lens
+- yaml
 
 library:
   source-dirs: src

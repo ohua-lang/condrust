@@ -78,7 +78,9 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
 
         extractFromImplItem :: (CompM m, Show a) => Ty a -> ImplItem a -> m (Maybe (QualifiedBinding, FunType RustArgType))
         extractFromImplItem selfType (MethodI _ _ _ ident _ (MethodSig _ decl) _ _) =
-            Just . (createFunRef ident, ) <$> extractFunType (extractFirstArg selfType) decl
+          case decl of
+            FnDecl [] _ _ _ -> return Nothing
+            _ -> Just . (createFunRef ident, ) <$> extractFunType (extractFirstArg selfType) decl
         extractFromImplItem _ _ = return Nothing
 
         extractFromTraitItem :: (CompM m, Show a) => Ty a -> TraitItem a -> m (Maybe (QualifiedBinding, FunType RustArgType ))
