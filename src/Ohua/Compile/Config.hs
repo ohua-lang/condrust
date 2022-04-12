@@ -16,6 +16,11 @@ compilation-scope:
 - some/other/ns/module.go
 extra-features:
 - tail-recursion
+integration-features:
+    arch: SharedMemory
+    options:
+        data-parallelism: 42
+        amorphous: 13
 debug:
     log-level: verbose
     core-stages:
