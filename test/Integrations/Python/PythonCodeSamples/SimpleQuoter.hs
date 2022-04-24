@@ -1,4 +1,4 @@
-module Integrations.Python.SimpleQuoter where
+module Integrations.Python.PythonCodeSamples.SimpleQuoter where
 
 import Ohua.Prelude
 

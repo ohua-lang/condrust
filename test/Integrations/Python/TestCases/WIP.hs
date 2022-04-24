@@ -1,16 +1,13 @@
-module Integrations.Python.WIP where
+module Integrations.Python.TestCases.WIP where
 
 import Ohua.Prelude ( ($), Monad((>>=)), (=<<), Either(..))
 
 import Integrations.Python.PythonSetup
-import qualified Integrations.Python.TestDataInput as Input
-import qualified Integrations.Python.TestDataOutput as Expect
--- import qualified Integrations.Python.TestOutOrder as Expect
+import qualified Integrations.Python.PythonCodeSamples.TestDataInput as Input
+import qualified Integrations.Python.PythonCodeSamples.TestDataOutput as Expect
 
-import qualified Integrations.Python.BenchInput as BIn
-import qualified Integrations.Python.BenchOutput as BExpect
-
-import qualified Integrations.Python.NatParOutput as NPExpect
+import qualified Integrations.Python.PythonCodeSamples.BenchInput as BIn
+import qualified Integrations.Python.PythonCodeSamples.BenchOutput as BExpect
 
 
 

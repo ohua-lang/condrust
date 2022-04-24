@@ -1,11 +1,11 @@
-module Integrations.Python.IfElse where
+module Integrations.Python.TestCases.IfElse where
 
 
 import Ohua.Prelude ( ($), Monad((>>=)), (=<<), Either(..))
 
 import Integrations.Python.PythonSetup
-import qualified Integrations.Python.TestDataInput as Input
-import qualified Integrations.Python.TestDataOutput as Expect
+import qualified Integrations.Python.PythonCodeSamples.TestDataInput as Input
+import qualified Integrations.Python.PythonCodeSamples.TestDataOutput as Expect
 
 
 spec :: Spec

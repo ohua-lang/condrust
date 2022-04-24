@@ -1,11 +1,11 @@
-module Integrations.Python.Loops where
+module Integrations.Python.TestCases.Loops where
 
 
 import Ohua.Prelude ( ($), Monad((>>=)), (=<<), Either(..))
 
 import Integrations.Python.PythonSetup
-import qualified Integrations.Python.TestDataInput as Input
-import qualified Integrations.Python.TestDataOutput as Expect
+import qualified Integrations.Python.PythonCodeSamples.TestDataInput as Input
+import qualified Integrations.Python.PythonCodeSamples.TestDataOutput as Expect
 
 
 spec :: Spec
@@ -21,6 +21,12 @@ spec =
             (showCode "Compiled: " =<< compileCode Input.loopIterObj) >>=
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.loopIterObj
+                compiled `shouldBe` expected)
+        
+        it "For loop 3 pipelined Tasks" $
+            (showCode "Compiled: " =<< compileCode Input.loop3) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" Expect.loop3
                 compiled `shouldBe` expected)
 
         it "ERROR: Nested For-Loop, updating State"$

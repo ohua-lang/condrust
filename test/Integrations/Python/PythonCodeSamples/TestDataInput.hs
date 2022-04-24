@@ -1,9 +1,9 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module Integrations.Python.TestDataInput where
+module Integrations.Python.PythonCodeSamples.TestDataInput where
 
-import Integrations.Python.SimpleQuoter
+import Integrations.Python.PythonCodeSamples.SimpleQuoter
 
 
 testLib = [pythonModule|
@@ -87,6 +87,7 @@ def mobFun(mob, num):
     mob.addNum(num)
     return mob.getNum()
 |]
+
 
 -- Test cases for Basic.hs ------------------------------
 callAFunction = [pythonModule|
@@ -416,6 +417,21 @@ def algo(a):
         n = f(i)
         mOb.addNum(n)
     return mOb
+|]
+
+
+loop3 = [pythonModule|
+from helpers.library_proxy import *
+
+
+def algo(i):
+    result = []
+    for j in range(0, i):
+        x = fun1(j)
+        y = fun2(x)
+        z = fun3(y)
+        result.append(z)
+    return result
 |]
 
 loopTuplePattern= [pythonModule|

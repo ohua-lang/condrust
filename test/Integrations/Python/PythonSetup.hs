@@ -23,8 +23,8 @@ import Language.Python.Common.SrcLocation (SrcSpan)
 import qualified Language.Python.Common.Pretty as PyPretty
 
 import Integrations.TestSetup (Testable(..))
-import qualified Integrations.Python.TestDataInput as Input
-import qualified Integrations.Python.TestDataOutput as Output
+import qualified Integrations.Python.PythonCodeSamples.TestDataInput as Input
+import qualified Integrations.Python.PythonCodeSamples.TestDataOutput as Output
 
 import System.FilePath
 import System.IO.Temp
@@ -100,16 +100,16 @@ wrappedParsing pyCode filename = do
 
 
 runCode:: FilePath -> FilePath -> IO()
--- TODO: This currently doesn't work -> file not founf error on "python"
--- Reasons tested : files not in directories, python not callable from tempdir -> both false
--- Assumend Cause : some nix-depency needs to be added to a) have python b) have multiprocessing 
+-- TODO: To make this approch work I'll need a caller Pyhton module, that calls the input
+-- and output code and prefereably compares results in Python. 
+-- It would communicate the outcome via exit code
 runCode testDir outDir = do
     (_ , seqStdOut, seqErr) <- readProcessWithExitCode "python" [testDir </> "test.py"] ""
     putStrLn $ seqStdOut <> seqErr
 
     writeFile
         ( outDir </> "testLib.py") 
-        (renderPython Input.testLib)
+        ( renderPython Input.testLib)
 
     compiledResult <- readProcessWithExitCode "timeout" ["5s", "python", outDir </> "test.py"] ""
 

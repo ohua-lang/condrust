@@ -1,18 +1,18 @@
-module Integrations.Python.Basic where
+module Integrations.Python.TestCases.Basic where
 
 
 import Ohua.Prelude ( ($), Monad((>>=)), (=<<), Either(..))
 
 import Integrations.Python.PythonSetup
-import qualified Integrations.Python.TestDataInput as Input
-import qualified Integrations.Python.TestDataOutput as Expect
+import qualified Integrations.Python.PythonCodeSamples.TestDataInput as Input
+import qualified Integrations.Python.PythonCodeSamples.TestDataOutput as Expect
 
 
 spec :: Spec
 spec =
     describe "Basics" $ do
         it "Simple function call" $
-            (showCode "Compiled: " =<< compileCode Input.callAFunction) >>=
+            (showCode "Compiled: " =<< compileAndRun Input.callAFunction) >>=
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.callAFunction
                 compiled `shouldBe` expected)
