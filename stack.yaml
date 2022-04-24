@@ -36,6 +36,6 @@ flags:
 
 nix:
   enable: true
-  packages: [zlib.dev, zlib.out, cargo]
+  packages: [zlib.dev, zlib.out, cargo, python3Minimal]
 
 extra-package-dbs: []
