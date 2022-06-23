@@ -76,6 +76,8 @@ compileModule inCode opts compType = do
                     -- putStr filesHint
                     -- mapM_ putStr (caller:modules)
                     -- files <- mapM (\name -> readFile (outDir </> name)) (caller:modules)
+                    placeholderFile <-readFile (outDir </> "placeholderlib.py")
+                    putStr placeholderFile
                     producedFile <-readFile (outDir </> "algo.py")
                     newMain <-readFile (outDir </> "test.py")
                     --putStr newMainStr
