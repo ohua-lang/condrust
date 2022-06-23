@@ -103,7 +103,7 @@ instance Architecture (Architectures 'MultiProcessing) where
          as 'algo_parallel' and b) contains all original function calls with function bodies replaced by a 
          call to the respective parallel module         
     -}
-    serialize  SMultiProc srcModule ns = return $ callerModule :| algoModules
+    serialize  SMultiProc srcModule placeholder ns  = return $ callerModule:| ([lib_from_frontend] ++ algoModules)
         where
 
             convertedAlgoInfos =
@@ -113,6 +113,7 @@ instance Architecture (Architectures 'MultiProcessing) where
             algoNames = map (^. algoName) $ ns^.algos
             algoModules = map (makeAlgoModule srcModule) convertedAlgoInfos
             callerModule = makeParallelLib srcModule algoNames
+            lib_from_frontend = ("placeholderlib.py", "# Hier koennnte Ihre Werbung stehen")
 
 chnlToParameter :: Com comTy argTy  -> Py.Parameter SrcSpan
 chnlToParameter chnl = Py.Param (chnlToIdent chnl) Nothing Nothing noSpan

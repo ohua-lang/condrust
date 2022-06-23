@@ -99,8 +99,8 @@ instance Architecture (Architectures 'SharedMemory) where
           (Rust.FnDecl [] (Just $ Rust.Infer noSpan) False noSpan)
           (Rust.BlockExpr [] (convertBlock code) Nothing noSpan)
           noSpan
-
-  serialize SSharedMemory mod ns = C.serialize mod ns createProgram
+  -- REMINDER: Replace placeholder
+  serialize SSharedMemory mod  placeholder ns  = C.serialize mod ns createProgram placeholder
     where
       createProgram (Program chans (Sub.Try resultExpr) tasks) =
         let taskInitStmt =

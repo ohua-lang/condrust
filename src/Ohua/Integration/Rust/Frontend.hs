@@ -44,11 +44,12 @@ instance Integration (Language 'Rust) where
     CompM m =>
     Language 'Rust ->
     FilePath ->
-    m (Module, Namespace (FrLang.Expr RustArgType) (Item Span))
+    m (Module, Namespace (FrLang.Expr RustArgType) (Item Span), Bool)
   loadNs _ srcFile = do
     mod <- liftIO $ load srcFile
     ns <- extractNs mod
-    return (Module srcFile mod, ns)
+    -- REMINDER Replace True by extracted module
+    return (Module srcFile mod, ns, True)
     where
       extractNs ::
         CompM m =>
