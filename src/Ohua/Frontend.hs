@@ -20,9 +20,9 @@ frontend :: forall m lang. (CompM m, Integration lang)
          => lang
          -> CompilationScope
          -> FilePath
-         -> m (NS lang, Namespace (FrLang.Expr (Type lang)) (AlgoSrc lang))
+         -> m ((NS lang, Namespace (FrLang.Expr (Type lang)) (AlgoSrc lang)), Bool)
 frontend lang compScope inFile = do
-        (langNs, (ns,reg)) <- load lang compScope inFile
+        (langNs, ns, reg, placeholder) <- load lang compScope inFile
         -- FIXME we should exclude recursive functions from stand-alone compilation.
         -- there is really no value in compiling them.
         ns'    <- updateExprs' ns trans
@@ -36,7 +36,7 @@ frontend lang compScope inFile = do
               , over algos (filter (not . isRecAlgo)) ns''''
               )
         _      <- updateExprs' fNs linearState
-        return finalNs
+        return (finalNs, placeholder)
     where
         trans :: CompM m => Binding -> FrLang.Expr ty -> m (FrLang.Expr ty)
         trans b e = prepareRootAlgoVars . transformFinalLiterals =<< wellScopedness b e

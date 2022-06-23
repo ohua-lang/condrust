@@ -16,7 +16,7 @@ class Integration lang where
     loadNs :: CompM m
            => lang
            -> FilePath
-           -> m (NS lang, Namespace (Expr (Type lang)) (AlgoSrc lang))
+           -> m (NS lang, Namespace (Expr (Type lang)) (AlgoSrc lang), Bool)
 
     loadTypes :: CompM m
               => lang -> NS lang
