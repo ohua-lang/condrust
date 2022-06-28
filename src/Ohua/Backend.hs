@@ -26,7 +26,8 @@ backend ::
         -> Namespace (TCProgram (Channel ty) (Com 'Recv ty) (FusableExpr ty)) anno
         -> NS lang
         -> arch
-        -> Bool
+        -- REMINDER: Replace type of placeholder when needed
+        -> NS lang
         -> m ()
 backend outDir compiled lang arch placeholder =
     fuse compiled >>=
