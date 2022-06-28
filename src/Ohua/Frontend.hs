@@ -15,12 +15,14 @@ import Ohua.Frontend.Transform.FinalLiterals ( transformFinalLiterals )
 
 import Control.Lens.Combinators ( over )
 
+-- REMINDER: Definition of the frontend interface needs to be 
+--           adapted when placeholder type changes
 
 frontend :: forall m lang. (CompM m, Integration lang)
          => lang
          -> CompilationScope
          -> FilePath
-         -> m ((NS lang, Namespace (FrLang.Expr (Type lang)) (AlgoSrc lang)), Bool)
+         -> m ((NS lang, Namespace (FrLang.Expr (Type lang)) (AlgoSrc lang)), NS lang)
 frontend lang compScope inFile = do
         (langNs, ns, reg, placeholder) <- load lang compScope inFile
         -- FIXME we should exclude recursive functions from stand-alone compilation.

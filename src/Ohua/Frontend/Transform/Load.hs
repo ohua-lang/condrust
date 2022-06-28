@@ -49,9 +49,10 @@ loadDeps lang scope (Namespace _ imps algs) = do
 load :: forall m lang.
     (CompM m, Integration lang) 
     => lang -> CompilationScope -> FilePath 
-    -> m (NS lang, Namespace (Expr (Type lang)) (AlgoSrc lang), NamespaceRegistry (Type lang), Bool)
+    -> m (NS lang, Namespace (Expr (Type lang)) (AlgoSrc lang), NamespaceRegistry (Type lang), NS lang)
 load lang scope inFile = do
     -- logDebugN $ "Loading module: " <> show inFile <> "..."
+    -- REMINDER: Tyype of placeholder is threaded through here
     (ctxt, ns, placeholder) <- loadNs lang inFile
     -- let ns' = Namespace (makeThrow []) imports algos -- references to functions contain an empty ref
     -- logDebugN $ "Loaded ns: " <> show (ns'^.nsName)
