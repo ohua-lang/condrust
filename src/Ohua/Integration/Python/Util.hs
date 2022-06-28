@@ -140,3 +140,6 @@ joinProcs = StmtExpr   (Call ( Var ( Ident "list"  noSpan )  noSpan )
 returnResult :: Statement SrcSpan
 returnResult= Return (Just (Var ( Ident "result" noSpan) noSpan)) noSpan
 
+-- REMINDER: Remove this when real function extraction is implemented
+placeholderModule :: Module SrcSpan
+placeholderModule = Module [importMPStmt] 

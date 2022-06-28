@@ -43,14 +43,15 @@ instance Integration (Language 'Python) where
          from a given source file. Any other top-level statements will be
          ignored for now. 
     -}
-    loadNs :: CompM m => Language 'Python -> FilePath -> m (Module, PythonNamespace, Bool)
+    -- REMINDER: Type of placeholder needs to be adapted here
+    loadNs :: CompM m => Language 'Python -> FilePath -> m (Module, PythonNamespace, Module)
     loadNs _ srcFile = do
             mod <- liftIO $ load srcFile
             ns <- extractNs mod
             -- REMINDER: Next Steps replace True by
             --  a) an empty Python module and 
             --  b) the python module consisting of the extracted functions
-            return (Module srcFile mod, ns, True)
+            return (Module srcFile mod, ns, Module "placeholderlib.py" placeholderModule)
             where
                 extractNs :: CompM m => Py.Module SrcSpan -> m PythonNamespace
                 extractNs (Py.Module statements) = do
@@ -388,4 +389,3 @@ toFunRefLit funBind = return $
 
 
 toBindings = map toBinding
-

@@ -113,7 +113,8 @@ instance Architecture (Architectures 'MultiProcessing) where
             algoNames = map (^. algoName) $ ns^.algos
             algoModules = map (makeAlgoModule srcModule) convertedAlgoInfos
             callerModule = makeParallelLib srcModule algoNames
-            lib_from_frontend = ("placeholderlib.py", "# Hier koennnte Ihre Werbung stehen")
+            (Module libname lib) = placeholder
+            lib_from_frontend = (libname, encodePretty lib)
 
 chnlToParameter :: Com comTy argTy  -> Py.Parameter SrcSpan
 chnlToParameter chnl = Py.Param (chnlToIdent chnl) Nothing Nothing noSpan
