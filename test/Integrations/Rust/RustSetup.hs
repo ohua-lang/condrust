@@ -80,6 +80,8 @@ compileModule inCode opts cty = do
             LevelWarn
             $ compile inFile compScope options integrationOptions outDir
           let outFile = outDir </> takeFileName inFile
+          placeholderFile <-readFile (outDir </> "placeholderlib.rs")
+          putStr placeholderFile
           -- run the target compiler (i.e., rustc) on the input
           case cty of
             OhuaOnly -> pure ()
