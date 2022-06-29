@@ -159,7 +159,8 @@ instance Architecture (Architectures 'M3) where
               []
               noSpan
 
-  serialize SM3 mod ns = C.serialize mod ns createProgram
+  -- REMINDER: Replace Placeholder
+  serialize SM3 mod placeholder ns = C.serialize mod ns createProgram placeholder
     where
       createProgram (Program chans (Try resultExpr) tasks) =
         let taskStmts = map (flip Rust.Semi noSpan . taskExpression) tasks

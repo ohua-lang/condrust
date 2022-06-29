@@ -18,8 +18,10 @@ serialize ::
   Module ->
   Namespace (Program chan expr (Rust.Expr ()) RustTypeAnno) anno ->
   (Program chan expr (Rust.Expr ()) RustTypeAnno -> Block ()) ->
+  Module -> 
   m (NonEmpty (FilePath, L.ByteString))
-serialize (Module path (SourceFile modName atts items)) ns createProgram =
+-- REMINDER: Replace Placeholder. Output new library file
+serialize (Module path (SourceFile modName atts items)) ns createProgram placeholder =
   let algos' = HM.fromList $ map (\(Algo name expr _) -> (name, expr)) $ ns ^. algos
       src = SourceFile modName atts $ map (replaceAlgo algos') items
       render =
@@ -29,7 +31,8 @@ serialize (Module path (SourceFile modName atts items)) ns createProgram =
           . layoutSmart defaultLayoutOptions
           . pretty'
       path' = takeFileName path -- TODO verify this!
-   in return $ (path', render src) :| []
+      (Module libname lib) = placeholder 
+   in return $ (path', render src) :| [(libname, render lib)]
   where
     -- FIXME now we can just insert instead of replacing them!
     replaceAlgo algos = \case
