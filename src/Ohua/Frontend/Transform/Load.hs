@@ -31,7 +31,7 @@ loadDeps :: forall m lang.
 loadDeps lang scope (Namespace _ imps algs) = do
     let currentNs = Namespace (makeThrow []) imps algs
     let registry' = registerAlgos HM.empty currentNs
-    modules <- mapM (\path -> snd <$> loadNs lang (toFilePath path)) $ HM.toList scope
+    modules <- mapM (\path -> (\(_,snd,_) -> snd) <$> loadNs lang (toFilePath path)) $ HM.toList scope
     let registry'' = foldl registerAlgos registry' modules
     return registry''
     where
@@ -49,14 +49,15 @@ loadDeps lang scope (Namespace _ imps algs) = do
 load :: forall m lang.
     (CompM m, Integration lang) 
     => lang -> CompilationScope -> FilePath 
-    -> m (NS lang, (Namespace (Expr (Type lang)) (AlgoSrc lang), NamespaceRegistry (Type lang)))
+    -> m (NS lang, Namespace (Expr (Type lang)) (AlgoSrc lang), NamespaceRegistry (Type lang), NS lang)
 load lang scope inFile = do
     -- logDebugN $ "Loading module: " <> show inFile <> "..."
-    (ctxt, ns) <- loadNs lang inFile
+    -- REMINDER: Tyype of placeholder is threaded through here
+    (ctxt, ns, placeholder) <- loadNs lang inFile
     -- let ns' = Namespace (makeThrow []) imports algos -- references to functions contain an empty ref
     -- logDebugN $ "Loaded ns: " <> show (ns'^.nsName)
     -- verify scope ns
     -- logDebugN "Loading dependencies ..."
     registry <- loadDeps lang scope ns
     -- logDebugN "compiled ns successfully."
-    return (ctxt, (ns, registry))
+    return (ctxt, ns, registry, placeholder)
