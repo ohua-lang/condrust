@@ -25,6 +25,7 @@ dependencies:
 - text
 - containers
 - unordered-containers
+- ordered-containers
 - ohuac-commons
 - extra
 - filepath
