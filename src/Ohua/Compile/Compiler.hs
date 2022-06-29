@@ -53,11 +53,12 @@ compilation :: forall (lang::Lang) (arch::Arch) m.
     -> Language lang -> Architectures arch -> m ()
 compilation inFile compScope coreOpts outDir optimizations integration arch = do
     -- frontend
-    (ctxt, n) <- Fr.frontend integration compScope inFile
+    -- REMINDER: I need to keep brackets around (ctxt, n) here because frontend returns an object 
+    ((ctxt, n), enc_module) <- Fr.frontend integration compScope inFile
     -- middle end
     n' <- updateExprs n $ toAlang >=> core >=> toTCLang
     -- backend
-    B.backend outDir n' ctxt arch
+    B.backend outDir n' ctxt arch enc_module
 
     where
         core = Core.compile coreOpts coreOptimizations
