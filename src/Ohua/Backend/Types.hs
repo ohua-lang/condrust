@@ -98,6 +98,8 @@ class Architecture arch where
         )
         => arch
         -> NS lang
+        -- REMINDER: Replace bool placeholder by appropriate type
+        -> NS lang
         -> Namespace (Program (Chan arch) expr (ATask arch) ty) (AlgoSrc lang)
         -> m (NonEmpty (FilePath, L.ByteString))
 

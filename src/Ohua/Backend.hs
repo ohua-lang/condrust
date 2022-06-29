@@ -26,8 +26,10 @@ backend ::
         -> Namespace (TCProgram (Channel ty) (Com 'Recv ty) (FusableExpr ty)) anno
         -> NS lang
         -> arch
+        -- REMINDER: Replace type of placeholder when needed
+        -> NS lang
         -> m ()
-backend outDir compiled lang arch =
+backend outDir compiled lang arch placeholder =
     fuse compiled >>=
     (pure . transformTaskExprs lang arch) >>=
     (pure . normalize) >>=
@@ -36,10 +38,21 @@ backend outDir compiled lang arch =
     (pure. transformTasks lang arch) >>=
     (pure . Com.lowerChannels arch . Com.lowerRetCom arch) >>=
     Types.build arch lang >>=
-    Types.serialize arch lang >>=
-    mapM_ writeFile
+    Types.serialize arch lang placeholder >>=
+    mapM_ writeFile -- >>= 
+    -- writePlaceholder 
+    -- REMINDER: Here I probably just need to write 
+    -- the module that placeholder holds the place for
+    -- REMINDER: Another option is passing it to the Implementation Backend i.e. 
+    -- to build or serialize such that the Inntegration can handle the import 
     where
         writeFile (file, code) = do
             let fullPath = outDir </> file
             liftIO $ L.writeFile fullPath code
             logInfoN $ "Code written to '" <> T.pack fullPath <> "'"
+        {-writePlaceholder _ = do
+            let pString = "Hier koennte Ihre Wernung stehen"
+            let path = outDir </> "placeholder_module"
+            liftIO $ L.writeFile path pString
+            logInfoN $ "Placeholder written to'" <> T.pack path <> "'"-}
+            
