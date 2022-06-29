@@ -62,6 +62,46 @@ fn test(i: i32) -> i32 {
   tasks
     .push(Box::new(move || -> _ {
       loop {
+        let mut renew = false;
+        let c_0_0_0_0 = c_0_0_0_rx.recv()?;
+        while !renew {
+          let sig = ctrlFalse_0_rx.recv()?;
+          let count = sig.1;
+          for _ in 0 .. count {
+            let f_0_0 = g1(c_0_0_0_0);
+            f_0_0_tx.send(f_0_0)?;
+            ()
+          };
+          let renew_next_time = sig.0;
+          renew = renew_next_time;
+          ()
+        };
+        ()
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
+        let mut renew = false;
+        let b_0_0_0_0 = b_0_0_0_rx.recv()?;
+        while !renew {
+          let sig = ctrlTrue_0_rx.recv()?;
+          let count = sig.1;
+          for _ in 0 .. count {
+            let e_0_0 = g0(b_0_0_0_0);
+            e_0_0_tx.send(e_0_0)?;
+            ()
+          };
+          let renew_next_time = sig.0;
+          renew = renew_next_time;
+          ()
+        };
+        ()
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
         let var_0 = result_0_rx.recv()?;
         let g_0_0 = h(var_0);
         g_0_0_tx.send(g_0_0)?;
@@ -100,46 +140,6 @@ fn test(i: i32) -> i32 {
       let c_0_0_0 = f2(i);
       c_0_0_0_tx.send(c_0_0_0)?;
       Ok(())
-    }));
-  tasks
-    .push(Box::new(move || -> _ {
-      loop {
-        let mut renew = false;
-        let c_0_0_0_0 = c_0_0_0_rx.recv()?;
-        while !renew {
-          let sig = ctrlFalse_0_rx.recv()?;
-          let count = sig.1;
-          for _ in 0 .. count {
-            let f_0_0 = g1(c_0_0_0_0);
-            f_0_0_tx.send(f_0_0)?;
-            ()
-          };
-          let renew_next_time = sig.0;
-          renew = renew_next_time;
-          ()
-        };
-        ()
-      }
-    }));
-  tasks
-    .push(Box::new(move || -> _ {
-      loop {
-        let mut renew = false;
-        let b_0_0_0_0 = b_0_0_0_rx.recv()?;
-        while !renew {
-          let sig = ctrlTrue_0_rx.recv()?;
-          let count = sig.1;
-          for _ in 0 .. count {
-            let e_0_0 = g0(b_0_0_0_0);
-            e_0_0_tx.send(e_0_0)?;
-            ()
-          };
-          let renew_next_time = sig.0;
-          renew = renew_next_time;
-          ()
-        };
-        ()
-      }
     }));
   tasks
     .push(Box::new(move || -> _ {
@@ -190,7 +190,7 @@ fn test(i: i32) -> i32 {
                     [sourceFile|
 use funs::*;
 
- fn test(i: i32) -> i32 {
+fn test(i: i32) -> i32 {
   #[derive(Debug)]
   enum RunError {
     SendFailed,
@@ -221,6 +221,20 @@ use funs::*;
       loop {
         let mut renew = false;
         while !renew {
+          let sig = ctrlFalse_0_rx.recv()?;
+          let count = sig.1;
+          for _ in 0 .. count { let c_0_0 = f(); c_0_0_tx.send(c_0_0)?; () };
+          let renew_next_time = sig.0;
+          renew = renew_next_time;
+          ()
+        }
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
+        let mut renew = false;
+        while !renew {
           let sig = ctrlTrue_0_rx.recv()?;
           let count = sig.1;
           for _ in 0 .. count { let b_0_0 = g0(5); b_0_0_tx.send(b_0_0)?; () };
@@ -242,6 +256,16 @@ use funs::*;
   tasks
     .push(Box::new(move || -> _ {
       loop {
+        let branchSelection = a_0_0_0_1_rx.recv()?;
+        if branchSelection {
+          let result = b_0_0_rx.recv()?;
+          result_0_tx.send(result)?
+        } else { let result = c_0_0_rx.recv()?; result_0_tx.send(result)? }
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
         let branchSelection = a_0_0_0_0_rx.recv()?;
         if branchSelection {
           let ctrlTrue = (true, 1);
@@ -253,30 +277,6 @@ use funs::*;
           let ctrlFalse = (true, 1);
           ctrlTrue_0_tx.send(ctrlTrue)?;
           ctrlFalse_0_tx.send(ctrlFalse)?
-        }
-      }
-    }));
-  tasks
-    .push(Box::new(move || -> _ {
-      loop {
-        let branchSelection = a_0_0_0_1_rx.recv()?;
-        if branchSelection {
-          let result = b_0_0_rx.recv()?;
-          result_0_tx.send(result)?
-        } else { let result = c_0_0_rx.recv()?; result_0_tx.send(result)? }
-      }
-    }));
-  tasks
-    .push(Box::new(move || -> _ {
-      loop {
-        let mut renew = false;
-        while !renew {
-          let sig = ctrlFalse_0_rx.recv()?;
-          let count = sig.1;
-          for _ in 0 .. count { let c_0_0 = f(); c_0_0_tx.send(c_0_0)?; () };
-          let renew_next_time = sig.0;
-          renew = renew_next_time;
-          ()
         }
       }
     }));

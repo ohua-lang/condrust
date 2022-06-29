@@ -17,7 +17,7 @@ spec =
                 expected <- showCode "Expected:" Expect.loopIterator
                 compiled `shouldBe` expected)
 
-        it "ForLoop over iterator on object" $
+        it "ForLoop over iterator an object" $
             (showCode "Compiled: " =<< compileCode Input.loopIterObj) >>=
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.loopIterObj

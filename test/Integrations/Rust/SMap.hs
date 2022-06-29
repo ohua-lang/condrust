@@ -123,9 +123,9 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:"
                     [sourceFile|
- use funs::*;
+use funs::*;
 
- fn test() -> std::Vec<  i32,> {
+fn test() -> std::Vec<  i32,> {
   #[derive(Debug)]
   enum RunError {
     SendFailed,
@@ -148,6 +148,15 @@ spec =
   let (r_0_0_0_tx, r_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
     Vec::new();
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
+        let var_0 = d_0_rx.recv()?;
+        let r_0_0_0 = h(var_0);
+        r_0_0_0_tx.send(r_0_0_0)?;
+        ()
+      }
+    }));
   tasks
     .push(Box::new(move || -> _ {
       let mut stream_0_0_0 = iter_i32();
@@ -175,15 +184,6 @@ spec =
           ctrl_0_0_tx.send(ctrl)?;
           ()
         }
-      }
-    }));
-  tasks
-    .push(Box::new(move || -> _ {
-      loop {
-        let var_0 = d_0_rx.recv()?;
-        let r_0_0_0 = h(var_0);
-        r_0_0_0_tx.send(r_0_0_0)?;
-        ()
       }
     }));
   tasks
@@ -228,7 +228,6 @@ spec =
     Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
   }
 }
-
                     |]
                 compiled `shouldBe` expected)
 {-       it "imperative while " $

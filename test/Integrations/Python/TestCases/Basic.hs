@@ -12,7 +12,7 @@ spec :: Spec
 spec =
     describe "Basics" $ do
         it "Simple function call" $
-            (showCode "Compiled: " =<< compileAndRun Input.callAFunction) >>=
+            (showCode "Compiled: " =<< compileCode Input.callAFunction) >>=
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.callAFunction
                 compiled `shouldBe` expected)

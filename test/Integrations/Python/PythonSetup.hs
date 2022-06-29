@@ -77,7 +77,7 @@ compileModule inCode opts compType = do
                     -- mapM_ putStr (caller:modules)
                     -- files <- mapM (\name -> readFile (outDir </> name)) (caller:modules)
                     producedFile <-readFile (outDir </> "algo.py")
-                    newMain <-readFile (outDir </> "test.py")
+                    -- newMain <-readFile (outDir </> "test.py")
                     --putStr newMainStr
                     -- putStr $ newMain  <> "\n"
                     -- putStr algoModStr 

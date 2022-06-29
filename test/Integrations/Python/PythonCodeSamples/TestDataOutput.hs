@@ -11,18 +11,17 @@ import Integrations.Python.PythonCodeSamples.SimpleQuoter
 callAFunction = [pythonModule|
 import multiprocessing as mp
 from testLib import *
-def task_1(x_0_0_0_sender):
-    x_0_0_0 = hello_world()
-    x_0_0_0_sender.send(x_0_0_0)
-def task_2(a_0_0_sender, x_0_0_0_receiver):
+def task_1(a_0_0_sender, x_0_0_0_receiver):
     x_0_0_0_receiver.recv()
     a_0_0_sender.send(None)
-
+def task_2(x_0_0_0_sender):
+    x_0_0_0 = hello_world()
+    x_0_0_0_sender.send(x_0_0_0)
 def main():
     a_0_0_sender, a_0_0_receiver = mp.Pipe()
     x_0_0_0_sender, x_0_0_0_receiver = mp.Pipe()
     tasks = [task_1, task_2]
-    channels = [[x_0_0_0_sender], [a_0_0_sender, x_0_0_0_receiver]]
+    channels = [[a_0_0_sender, x_0_0_0_receiver], [x_0_0_0_sender]]
     processes = []
     for task, channels in zip(tasks, channels):
         process = mp.Process(target=task, args=channels)
@@ -31,7 +30,7 @@ def main():
     result = a_0_0_receiver.recv()
     list(map(mp.Process.terminate, processes))
     list(map(mp.Process.join, processes))
-    return result
+    return result    
 |]
 
 assignNumLit = [pythonModule|
@@ -103,19 +102,18 @@ def task_1(y_0_0_0_sender, x_0_0_0_receiver, z_0_0_0_receiver):
         var_1 = z_0_0_0_receiver.recv()
         y_0_0_0 = var_0 + var_1
         y_0_0_0_sender.send(y_0_0_0)
-def task_2(x_0_0_0_sender):
-    x_0_0_0 = f()
-    x_0_0_0_sender.send(x_0_0_0)
-def task_3(z_0_0_0_sender):
+def task_2(z_0_0_0_sender):
     z_0_0_0 = g()
     z_0_0_0_sender.send(z_0_0_0)
-
+def task_3(x_0_0_0_sender):
+    x_0_0_0 = f()
+    x_0_0_0_sender.send(x_0_0_0)
 def main():
     y_0_0_0_sender, y_0_0_0_receiver = mp.Pipe()
     z_0_0_0_sender, z_0_0_0_receiver = mp.Pipe()
     x_0_0_0_sender, x_0_0_0_receiver = mp.Pipe()
     tasks = [task_1, task_2, task_3]
-    channels = [[y_0_0_0_sender, x_0_0_0_receiver, z_0_0_0_receiver], [x_0_0_0_sender], [z_0_0_0_sender]]
+    channels = [[y_0_0_0_sender, x_0_0_0_receiver, z_0_0_0_receiver], [z_0_0_0_sender], [x_0_0_0_sender]]
     processes = []
     for task, channels in zip(tasks, channels):
         process = mp.Process(target=task, args=channels)
@@ -161,18 +159,17 @@ def main(a_1, b_1):
 noReturn = [pythonModule|
 import multiprocessing as mp
 from testLib import *
-def task_1(x_0_0_0_sender):
-    x_0_0_0 = funInt()
-    x_0_0_0_sender.send(x_0_0_0)
-def task_2(a_0_0_sender, x_0_0_0_receiver):
+def task_1(a_0_0_sender, x_0_0_0_receiver):
     x_0_0_0_receiver.recv()
     a_0_0_sender.send(None)
-
+def task_2(x_0_0_0_sender):
+    x_0_0_0 = funInt()
+    x_0_0_0_sender.send(x_0_0_0)
 def main():
     a_0_0_sender, a_0_0_receiver = mp.Pipe()
     x_0_0_0_sender, x_0_0_0_receiver = mp.Pipe()
     tasks = [task_1, task_2]
-    channels = [[x_0_0_0_sender], [a_0_0_sender, x_0_0_0_receiver]]
+    channels = [[a_0_0_sender, x_0_0_0_receiver], [x_0_0_0_sender]]
     processes = []
     for task, channels in zip(tasks, channels):
         process = mp.Process(target=task, args=channels)
@@ -334,21 +331,20 @@ def task_1(z_0_0_0_sender, x_0_0_0_receiver):
         var_0 = x_0_0_0_receiver.recv()
         z_0_0_0 = g(var_0)
         z_0_0_0_sender.send(z_0_0_0)
-def task_2(a_0_0_0_sender):
-    a_0_0_0 = f(42)
-    a_0_0_0_sender.send(a_0_0_0)
-def task_3(x_0_0_0_sender, a_0_0_0_receiver):
+def task_2(x_0_0_0_sender, a_0_0_0_receiver):
     while True:
         var_0 = a_0_0_0_receiver.recv()
         x_0_0_0 = f(var_0)
         x_0_0_0_sender.send(x_0_0_0)
-
+def task_3(a_0_0_0_sender):
+    a_0_0_0 = f(42)
+    a_0_0_0_sender.send(a_0_0_0)
 def main():
     z_0_0_0_sender, z_0_0_0_receiver = mp.Pipe()
     a_0_0_0_sender, a_0_0_0_receiver = mp.Pipe()
     x_0_0_0_sender, x_0_0_0_receiver = mp.Pipe()
     tasks = [task_1, task_2, task_3]
-    channels = [[z_0_0_0_sender, x_0_0_0_receiver], [a_0_0_0_sender], [x_0_0_0_sender, a_0_0_0_receiver]]
+    channels = [[z_0_0_0_sender, x_0_0_0_receiver], [x_0_0_0_sender, a_0_0_0_receiver], [a_0_0_0_sender]]
     processes = []
     for task, channels in zip(tasks, channels):
         process = mp.Process(target=task, args=channels)
@@ -398,25 +394,24 @@ def task_1(x_0_0_0_sender, c_0_0_receiver, a_0_0_receiver):
         var_1 = a_0_0_receiver.recv()
         x_0_0_0 = moreArgs(var_0, var_1, 42)
         x_0_0_0_sender.send(x_0_0_0)
-def task_2(b_0_0_sender):
-    b_0_0 = funInt()
-    b_0_0_sender.send(b_0_0)
+def task_2(c_0_0_sender):
+    c_0_0 = funInt()
+    c_0_0_sender.send(c_0_0)
 def task_3(a_0_0_sender, b_0_0_receiver):
     while True:
         var_0 = b_0_0_receiver.recv()
         a_0_0 = oneArg(var_0)
         a_0_0_sender.send(a_0_0)
-def task_4(c_0_0_sender):
-    c_0_0 = funInt()
-    c_0_0_sender.send(c_0_0)
-
+def task_4(b_0_0_sender):
+    b_0_0 = funInt()
+    b_0_0_sender.send(b_0_0)
 def main():
     x_0_0_0_sender, x_0_0_0_receiver = mp.Pipe()
     b_0_0_sender, b_0_0_receiver = mp.Pipe()
     a_0_0_sender, a_0_0_receiver = mp.Pipe()
     c_0_0_sender, c_0_0_receiver = mp.Pipe()
     tasks = [task_1, task_2, task_3, task_4]
-    channels = [[x_0_0_0_sender, c_0_0_receiver, a_0_0_receiver], [b_0_0_sender], [a_0_0_sender, b_0_0_receiver], [c_0_0_sender]]
+    channels = [[x_0_0_0_sender, c_0_0_receiver, a_0_0_receiver], [c_0_0_sender], [a_0_0_sender, b_0_0_receiver], [b_0_0_sender]]
     processes = []
     for task, channels in zip(tasks, channels):
         process = mp.Process(target=task, args=channels)
@@ -622,13 +617,12 @@ def task_1(x_0_0_0_sender, d_0_0_receiver, c_0_0_receiver):
         var_1 = c_0_0_receiver.recv()
         x_0_0_0 = {var_0[0]: var_0[1], var_1[0]: var_1[1]}
         x_0_0_0_sender.send(x_0_0_0)
-def task_2(c_0_0_sender):
-    c_0_0 = b, 2
-    c_0_0_sender.send(c_0_0)
-def task_3(d_0_0_sender):
+def task_2(d_0_0_sender):
     d_0_0 = a, 1
     d_0_0_sender.send(d_0_0)
-
+def task_3(c_0_0_sender):
+    c_0_0 = b, 2
+    c_0_0_sender.send(c_0_0)
 def main(a_1, b_1):
     global a, b
     a, b = a_1, b_1
@@ -636,7 +630,7 @@ def main(a_1, b_1):
     c_0_0_sender, c_0_0_receiver = mp.Pipe()
     d_0_0_sender, d_0_0_receiver = mp.Pipe()
     tasks = [task_1, task_2, task_3]
-    channels = [[x_0_0_0_sender, d_0_0_receiver, c_0_0_receiver], [c_0_0_sender], [d_0_0_sender]]
+    channels = [[x_0_0_0_sender, d_0_0_receiver, c_0_0_receiver], [d_0_0_sender], [c_0_0_sender]]
     processes = []
     for task, channels in zip(tasks, channels):
         process = mp.Process(target=task, args=channels)
@@ -834,20 +828,19 @@ def main():
 flat= [pythonModule|
 import multiprocessing as mp
 from testLib import *
-def task_1(mob_0_0_1_sender):
-    mob_0_0_1 = MObs(i)
-    mob_0_0_1_sender.send(mob_0_0_1)
-def task_2(a_0_0_sender, result_0_0_0_receiver):
+def task_1(a_0_0_sender, result_0_0_0_receiver):
     while True:
         var_0 = result_0_0_0_receiver.recv()
         a_0_0 = oneArg(var_0)
         a_0_0_sender.send(a_0_0)
-def task_3(result_0_0_0_sender, mob_0_0_1_receiver):
+def task_2(result_0_0_0_sender, mob_0_0_1_receiver):
     while True:
         var_0 = mob_0_0_1_receiver.recv()
         result_0_0_0 = var_0.getNum()
         result_0_0_0_sender.send(result_0_0_0)
-
+def task_3(mob_0_0_1_sender):
+    mob_0_0_1 = MObs(i)
+    mob_0_0_1_sender.send(mob_0_0_1)
 def main(i_1):
     global i
     i, = i_1,
@@ -855,7 +848,7 @@ def main(i_1):
     mob_0_0_1_sender, mob_0_0_1_receiver = mp.Pipe()
     result_0_0_0_sender, result_0_0_0_receiver = mp.Pipe()
     tasks = [task_1, task_2, task_3]
-    channels = [[mob_0_0_1_sender], [a_0_0_sender, result_0_0_0_receiver], [result_0_0_0_sender, mob_0_0_1_receiver]]
+    channels = [[a_0_0_sender, result_0_0_0_receiver], [result_0_0_0_sender, mob_0_0_1_receiver], [mob_0_0_1_sender]]
     processes = []
     for task, channels in zip(tasks, channels):
         process = mp.Process(target=task, args=channels)
@@ -930,10 +923,7 @@ def task_1(c_0_0_sender, mob_0_1_1_receiver):
         var_0 = mob_0_1_1_receiver.recv()
         c_0_0 = var_0.getNum()
         c_0_0_sender.send(c_0_0)
-def task_2(mob_0_0_1_sender):
-    mob_0_0_1 = MObs(a)
-    mob_0_0_1_sender.send(mob_0_0_1)
-def task_3(ctrl_0_0_sender, d_1_sender):
+def task_2(ctrl_0_0_sender, d_1_sender):
     g_0_0_0 = some_invented_iter_function()
     while True:
         hasSize = True if hasattr(g_0_0_0, '__len__') else False
@@ -952,6 +942,9 @@ def task_3(ctrl_0_0_sender, d_1_sender):
                 size = size + 1
             ctrl = True, 0
             ctrl_0_0_sender.send(ctrl)
+def task_3(mob_0_0_1_sender):
+    mob_0_0_1 = MObs(a)
+    mob_0_0_1_sender.send(mob_0_0_1)
 def task_4(mob_0_1_1_sender, mob_0_0_1_receiver, ctrl_0_0_receiver, d_1_receiver):
     while True:
         renew = False
@@ -965,7 +958,6 @@ def task_4(mob_0_1_1_sender, mob_0_0_1_receiver, ctrl_0_0_receiver, d_1_receiver
             renew_next_time = sig[0]
             renew = renew_next_time
         mob_0_1_1_sender.send(mob_0_0_1_0)
-
 def main(a_1):
     global a
     a, = a_1,
@@ -975,7 +967,7 @@ def main(a_1):
     d_1_sender, d_1_receiver = mp.Pipe()
     mob_0_1_1_sender, mob_0_1_1_receiver = mp.Pipe()
     tasks = [task_1, task_2, task_3, task_4]
-    channels = [[c_0_0_sender, mob_0_1_1_receiver], [mob_0_0_1_sender], [ctrl_0_0_sender, d_1_sender], [mob_0_1_1_sender, mob_0_0_1_receiver, ctrl_0_0_receiver, d_1_receiver]]
+    channels = [[c_0_0_sender, mob_0_1_1_receiver], [ctrl_0_0_sender, d_1_sender], [mob_0_0_1_sender], [mob_0_1_1_sender, mob_0_0_1_receiver, ctrl_0_0_receiver, d_1_receiver]]
     processes = []
     for task, channels in zip(tasks, channels):
         process = mp.Process(target=task, args=channels)
@@ -990,10 +982,7 @@ def main(a_1):
 stateOut = [pythonModule|
 import multiprocessing as mp
 from testLib import *
-def task_1(mob_0_0_2_sender):
-    mob_0_0_2 = MObs(a)
-    mob_0_0_2_sender.send(mob_0_0_2)
-def task_2(x_0_0_0_sender, mob2_0_0_0_receiver, ctrl_0_0_receiver, d_1_receiver):
+def task_1(x_0_0_0_sender, mob2_0_0_0_receiver, ctrl_0_0_receiver, d_1_receiver):
     while True:
         renew = False
         mob2_0_0_0_0 = mob2_0_0_0_receiver.recv()
@@ -1006,13 +995,7 @@ def task_2(x_0_0_0_sender, mob2_0_0_0_receiver, ctrl_0_0_receiver, d_1_receiver)
                 x_0_0_0_sender.send(x_0_0_0)
             renew_next_time = sig[0]
             renew = renew_next_time
-def task_3(mob2_0_0_0_sender, mob_0_0_1_0_sender, mob_0_0_2_receiver):
-    while True:
-        var_0 = mob_0_0_2_receiver.recv()
-        mob2_0_0_0 = var_0.clone()
-        mob2_0_0_0_sender.send(mob2_0_0_0)
-        mob_0_0_1_0_sender.send(var_0)
-def task_4(ctrl_0_0_sender, ctrl_0_1_sender, d_1_sender):
+def task_2(ctrl_0_0_sender, ctrl_0_1_sender, d_1_sender):
     g_0_0_0 = some_invented_iter_function()
     while True:
         hasSize = True if hasattr(g_0_0_0, '__len__') else False
@@ -1037,6 +1020,15 @@ def task_4(ctrl_0_0_sender, ctrl_0_1_sender, d_1_sender):
             ctrl_0_0_sender.send(ctrl)
             ctrl = True, 0
             ctrl_0_1_sender.send(ctrl)
+def task_3(mob2_0_0_0_sender, mob_0_0_1_0_sender, mob_0_0_2_receiver):
+    while True:
+        var_0 = mob_0_0_2_receiver.recv()
+        mob2_0_0_0 = var_0.clone()
+        mob2_0_0_0_sender.send(mob2_0_0_0)
+        mob_0_0_1_0_sender.send(var_0)
+def task_4(mob_0_0_2_sender):
+    mob_0_0_2 = MObs(a)
+    mob_0_0_2_sender.send(mob_0_0_2)
 def task_5(mob_0_1_0_sender, mob_0_0_1_0_receiver, ctrl_0_1_receiver, x_0_0_0_receiver):
     while True:
         renew = False
@@ -1050,7 +1042,6 @@ def task_5(mob_0_1_0_sender, mob_0_0_1_0_receiver, ctrl_0_1_receiver, x_0_0_0_re
             renew_next_time = sig[0]
             renew = renew_next_time
         mob_0_1_0_sender.send(mob_0_0_1_0_0)
-
 def main(a_1):
     global a
     a, = a_1,
@@ -1063,7 +1054,7 @@ def main(a_1):
     d_1_sender, d_1_receiver = mp.Pipe()
     x_0_0_0_sender, x_0_0_0_receiver = mp.Pipe()
     tasks = [task_1, task_2, task_3, task_4, task_5]
-    channels = [[mob_0_0_2_sender], [x_0_0_0_sender, mob2_0_0_0_receiver, ctrl_0_0_receiver, d_1_receiver], [mob2_0_0_0_sender, mob_0_0_1_0_sender, mob_0_0_2_receiver], [ctrl_0_0_sender, ctrl_0_1_sender, d_1_sender], [mob_0_1_0_sender, mob_0_0_1_0_receiver, ctrl_0_1_receiver, x_0_0_0_receiver]]
+    channels = [[x_0_0_0_sender, mob2_0_0_0_receiver, ctrl_0_0_receiver, d_1_receiver], [ctrl_0_0_sender, ctrl_0_1_sender, d_1_sender], [mob2_0_0_0_sender, mob_0_0_1_0_sender, mob_0_0_2_receiver], [mob_0_0_2_sender], [mob_0_1_0_sender, mob_0_0_1_0_receiver, ctrl_0_1_receiver, x_0_0_0_receiver]]
     processes = []
     for task, channels in zip(tasks, channels):
         process = mp.Process(target=task, args=channels)
@@ -1086,10 +1077,7 @@ def task_1(r_0_0_0_sender, d_0_receiver):
         var_0 = d_0_receiver.recv()
         r_0_0_0 = h(var_0)
         r_0_0_0_sender.send(r_0_0_0)
-def task_2(s_0_0_1_sender):
-    s_0_0_1 = MObs(42)
-    s_0_0_1_sender.send(s_0_0_1)
-def task_3(ctrl_0_0_sender, d_0_sender):
+def task_2(ctrl_0_0_sender, d_0_sender):
     stream_0_0_0 = some_invented_iter_function()
     while True:
         hasSize = True if hasattr(stream_0_0_0, '__len__') else False
@@ -1108,6 +1096,9 @@ def task_3(ctrl_0_0_sender, d_0_sender):
                 size = size + 1
             ctrl = True, 0
             ctrl_0_0_sender.send(ctrl)
+def task_3(s_0_0_1_sender):
+    s_0_0_1 = MObs(42)
+    s_0_0_1_sender.send(s_0_0_1)
 def task_4(s_0_1_0_sender, s_0_0_1_receiver, ctrl_0_0_receiver, r_0_0_0_receiver):
     while True:
         renew = False
@@ -1121,7 +1112,6 @@ def task_4(s_0_1_0_sender, s_0_0_1_receiver, ctrl_0_0_receiver, r_0_0_0_receiver
             renew_next_time = sig[0]
             renew = renew_next_time
         s_0_1_0_sender.send(s_0_0_1_0)
-
 def main():
     s_0_1_0_sender, s_0_1_0_receiver = mp.Pipe()
     s_0_0_1_sender, s_0_0_1_receiver = mp.Pipe()
@@ -1129,7 +1119,7 @@ def main():
     d_0_sender, d_0_receiver = mp.Pipe()
     r_0_0_0_sender, r_0_0_0_receiver = mp.Pipe()
     tasks = [task_1, task_2, task_3, task_4]
-    channels = [[r_0_0_0_sender, d_0_receiver], [s_0_0_1_sender], [ctrl_0_0_sender, d_0_sender], [s_0_1_0_sender, s_0_0_1_receiver, ctrl_0_0_receiver, r_0_0_0_receiver]]
+    channels = [[r_0_0_0_sender, d_0_receiver], [ctrl_0_0_sender, d_0_sender], [s_0_0_1_sender], [s_0_1_0_sender, s_0_0_1_receiver, ctrl_0_0_receiver, r_0_0_0_receiver]]
     processes = []
     for task, channels in zip(tasks, channels):
         process = mp.Process(target=task, args=channels)
@@ -1138,7 +1128,7 @@ def main():
     result = s_0_1_0_receiver.recv()
     list(map(mp.Process.terminate, processes))
     list(map(mp.Process.join, processes))
-    return result
+    return result 
 |]
 
 
@@ -1150,10 +1140,7 @@ def task_1(n_0_0_0_sender, d_1_receiver):
         var_0 = d_1_receiver.recv()
         n_0_0_0 = f(var_0)
         n_0_0_0_sender.send(n_0_0_0)
-def task_2(g_0_0_1_sender):
-    g_0_0_1 = dict()
-    g_0_0_1_sender.send(g_0_0_1)
-def task_3(ctrl_0_0_sender, d_1_sender, g_0_0_1_receiver):
+def task_2(ctrl_0_0_sender, d_1_sender, g_0_0_1_receiver):
     var_0 = g_0_0_1_receiver.recv()
     a_1_0 = var_0.values()
     None
@@ -1173,9 +1160,12 @@ def task_3(ctrl_0_0_sender, d_1_sender, g_0_0_1_receiver):
             size = size + 1
         ctrl = True, 0
         ctrl_0_0_sender.send(ctrl)
-def task_4(mOb_0_0_1_sender):
+def task_3(mOb_0_0_1_sender):
     mOb_0_0_1 = MObs(42)
     mOb_0_0_1_sender.send(mOb_0_0_1)
+def task_4(g_0_0_1_sender):
+    g_0_0_1 = dict()
+    g_0_0_1_sender.send(g_0_0_1)
 def task_5(mOb_0_1_0_sender, mOb_0_0_1_receiver, ctrl_0_0_receiver, n_0_0_0_receiver):
     while True:
         renew = False
@@ -1189,7 +1179,6 @@ def task_5(mOb_0_1_0_sender, mOb_0_0_1_receiver, ctrl_0_0_receiver, n_0_0_0_rece
             renew_next_time = sig[0]
             renew = renew_next_time
         mOb_0_1_0_sender.send(mOb_0_0_1_0)
-
 def main(a_1):
     global a
     a, = a_1,
@@ -1200,7 +1189,7 @@ def main(a_1):
     d_1_sender, d_1_receiver = mp.Pipe()
     n_0_0_0_sender, n_0_0_0_receiver = mp.Pipe()
     tasks = [task_1, task_2, task_3, task_4, task_5]
-    channels = [[n_0_0_0_sender, d_1_receiver], [g_0_0_1_sender], [ctrl_0_0_sender, d_1_sender, g_0_0_1_receiver], [mOb_0_0_1_sender], [mOb_0_1_0_sender, mOb_0_0_1_receiver, ctrl_0_0_receiver, n_0_0_0_receiver]]
+    channels = [[n_0_0_0_sender, d_1_receiver], [ctrl_0_0_sender, d_1_sender, g_0_0_1_receiver], [mOb_0_0_1_sender], [g_0_0_1_sender], [mOb_0_1_0_sender, mOb_0_0_1_receiver, ctrl_0_0_receiver, n_0_0_0_receiver]]
     processes = []
     for task, channels in zip(tasks, channels):
         process = mp.Process(target=task, args=channels)
@@ -1209,32 +1198,29 @@ def main(a_1):
     result = mOb_0_1_0_receiver.recv()
     list(map(mp.Process.terminate, processes))
     list(map(mp.Process.join, processes))
-    return result
+    return result 
 |]
 
 
 loop3 = [pythonModule|
 import multiprocessing as mp
 from helpers.library_proxy import *
-def task_1(x_0_0_0_sender, d_1_receiver):
-    while True:
-        var_0 = d_1_receiver.recv()
-        x_0_0_0 = fun1(var_0)
-        x_0_0_0_sender.send(x_0_0_0)
-def task_2(z_0_0_0_sender, y_0_0_0_receiver):
+def task_1(z_0_0_0_sender, y_0_0_0_receiver):
     while True:
         var_0 = y_0_0_0_receiver.recv()
         z_0_0_0 = fun3(var_0)
         z_0_0_0_sender.send(z_0_0_0)
-def task_3(y_0_0_0_sender, x_0_0_0_receiver):
+def task_2(y_0_0_0_sender, x_0_0_0_receiver):
     while True:
         var_0 = x_0_0_0_receiver.recv()
         y_0_0_0 = fun2(var_0)
         y_0_0_0_sender.send(y_0_0_0)
-def task_4(result_0_0_1_sender):
-    result_0_0_1 = []
-    result_0_0_1_sender.send(result_0_0_1)
-def task_5(ctrl_0_0_sender, d_1_sender):
+def task_3(x_0_0_0_sender, d_1_receiver):
+    while True:
+        var_0 = d_1_receiver.recv()
+        x_0_0_0 = fun1(var_0)
+        x_0_0_0_sender.send(x_0_0_0)
+def task_4(ctrl_0_0_sender, d_1_sender):
     a_0_0 = range(0, i)
     while True:
         hasSize = True if hasattr(a_0_0, '__len__') else False
@@ -1253,6 +1239,9 @@ def task_5(ctrl_0_0_sender, d_1_sender):
                 size = size + 1
             ctrl = True, 0
             ctrl_0_0_sender.send(ctrl)
+def task_5(result_0_0_1_sender):
+    result_0_0_1 = []
+    result_0_0_1_sender.send(result_0_0_1)
 def task_6(result_0_1_0_sender, result_0_0_1_receiver, ctrl_0_0_receiver, z_0_0_0_receiver):
     while True:
         renew = False
@@ -1277,7 +1266,7 @@ def main(i_1):
     y_0_0_0_sender, y_0_0_0_receiver = mp.Pipe()
     z_0_0_0_sender, z_0_0_0_receiver = mp.Pipe()
     tasks = [task_1, task_2, task_3, task_4, task_5, task_6]
-    channels = [[x_0_0_0_sender, d_1_receiver], [z_0_0_0_sender, y_0_0_0_receiver], [y_0_0_0_sender, x_0_0_0_receiver], [result_0_0_1_sender], [ctrl_0_0_sender, d_1_sender], [result_0_1_0_sender, result_0_0_1_receiver, ctrl_0_0_receiver, z_0_0_0_receiver]]
+    channels = [[z_0_0_0_sender, y_0_0_0_receiver], [y_0_0_0_sender, x_0_0_0_receiver], [x_0_0_0_sender, d_1_receiver], [ctrl_0_0_sender, d_1_sender], [result_0_0_1_sender], [result_0_1_0_sender, result_0_0_1_receiver, ctrl_0_0_receiver, z_0_0_0_receiver]]
     processes = []
     for task, channels in zip(tasks, channels):
         process = mp.Process(target=task, args=channels)
@@ -1340,15 +1329,36 @@ def algo(i):
 condExpr = [pythonModule|
 import multiprocessing as mp
 from testLib import *
-def task_1(g_0_0_sender, result_0_receiver):
+def task_1(f_0_0_sender, c_0_0_0_receiver, ctrlFalse_0_receiver):
+    while True:
+        renew = False
+        c_0_0_0_0 = c_0_0_0_receiver.recv()
+        while not renew:
+            sig = ctrlFalse_0_receiver.recv()
+            count = sig[1]
+            for _ in range(0, count):
+                f_0_0 = g1(c_0_0_0_0)
+                f_0_0_sender.send(f_0_0)
+            renew_next_time = sig[0]
+            renew = renew_next_time
+def task_2(e_0_0_sender, b_0_0_0_receiver, ctrlTrue_0_receiver):
+    while True:
+        renew = False
+        b_0_0_0_0 = b_0_0_0_receiver.recv()
+        while not renew:
+            sig = ctrlTrue_0_receiver.recv()
+            count = sig[1]
+            for _ in range(0, count):
+                e_0_0 = g0(b_0_0_0_0)
+                e_0_0_sender.send(e_0_0)
+            renew_next_time = sig[0]
+            renew = renew_next_time
+def task_3(g_0_0_sender, result_0_receiver):
     while True:
         var_0 = result_0_receiver.recv()
         g_0_0 = oneArg(var_0)
         g_0_0_sender.send(g_0_0)
-def task_2(c_0_0_0_sender):
-    c_0_0_0 = f2(3)
-    c_0_0_0_sender.send(c_0_0_0)
-def task_3(result_0_sender, a_0_0_0_1_receiver, e_0_0_receiver, f_0_0_receiver):
+def task_4(result_0_sender, a_0_0_0_1_receiver, e_0_0_receiver, f_0_0_receiver):
     while True:
         branchSelection = a_0_0_0_1_receiver.recv()
         if branchSelection:
@@ -1357,7 +1367,7 @@ def task_3(result_0_sender, a_0_0_0_1_receiver, e_0_0_receiver, f_0_0_receiver):
         else:
             result = f_0_0_receiver.recv()
             result_0_sender.send(result)
-def task_4(ctrlTrue_0_sender, ctrlFalse_0_sender, a_0_0_0_0_receiver):
+def task_5(ctrlTrue_0_sender, ctrlFalse_0_sender, a_0_0_0_0_receiver):
     while True:
         branchSelection = a_0_0_0_0_receiver.recv()
         if branchSelection:
@@ -1370,38 +1380,16 @@ def task_4(ctrlTrue_0_sender, ctrlFalse_0_sender, a_0_0_0_0_receiver):
             ctrlFalse = True, 1
             ctrlTrue_0_sender.send(ctrlTrue)
             ctrlFalse_0_sender.send(ctrlFalse)
-def task_5(a_0_0_0_0_sender, a_0_0_0_1_sender):
+def task_6(c_0_0_0_sender):
+    c_0_0_0 = f2(3)
+    c_0_0_0_sender.send(c_0_0_0)
+def task_7(b_0_0_0_sender):
+    b_0_0_0 = f1(2)
+    b_0_0_0_sender.send(b_0_0_0)
+def task_8(a_0_0_0_0_sender, a_0_0_0_1_sender):
     res = f()
     a_0_0_0_0_sender.send(res)
     a_0_0_0_1_sender.send(res)
-def task_6(b_0_0_0_sender):
-    b_0_0_0 = f1(2)
-    b_0_0_0_sender.send(b_0_0_0)
-def task_7(f_0_0_sender, c_0_0_0_receiver, ctrlFalse_0_receiver):
-    while True:
-        renew = False
-        c_0_0_0_0 = c_0_0_0_receiver.recv()
-        while not renew:
-            sig = ctrlFalse_0_receiver.recv()
-            count = sig[1]
-            for _ in range(0, count):
-                f_0_0 = g1(c_0_0_0_0)
-                f_0_0_sender.send(f_0_0)
-            renew_next_time = sig[0]
-            renew = renew_next_time
-def task_8(e_0_0_sender, b_0_0_0_receiver, ctrlTrue_0_receiver):
-    while True:
-        renew = False
-        b_0_0_0_0 = b_0_0_0_receiver.recv()
-        while not renew:
-            sig = ctrlTrue_0_receiver.recv()
-            count = sig[1]
-            for _ in range(0, count):
-                e_0_0 = g0(b_0_0_0_0)
-                e_0_0_sender.send(e_0_0)
-            renew_next_time = sig[0]
-            renew = renew_next_time
-
 def main(i_1):
     global i
     i, = i_1,
@@ -1416,7 +1404,7 @@ def main(i_1):
     a_0_0_0_1_sender, a_0_0_0_1_receiver = mp.Pipe()
     result_0_sender, result_0_receiver = mp.Pipe()
     tasks = [task_1, task_2, task_3, task_4, task_5, task_6, task_7, task_8]
-    channels = [[g_0_0_sender, result_0_receiver], [c_0_0_0_sender], [result_0_sender, a_0_0_0_1_receiver, e_0_0_receiver, f_0_0_receiver], [ctrlTrue_0_sender, ctrlFalse_0_sender, a_0_0_0_0_receiver], [a_0_0_0_0_sender, a_0_0_0_1_sender], [b_0_0_0_sender], [f_0_0_sender, c_0_0_0_receiver, ctrlFalse_0_receiver], [e_0_0_sender, b_0_0_0_receiver, ctrlTrue_0_receiver]]
+    channels = [[f_0_0_sender, c_0_0_0_receiver, ctrlFalse_0_receiver], [e_0_0_sender, b_0_0_0_receiver, ctrlTrue_0_receiver], [g_0_0_sender, result_0_receiver], [result_0_sender, a_0_0_0_1_receiver, e_0_0_receiver, f_0_0_receiver], [ctrlTrue_0_sender, ctrlFalse_0_sender, a_0_0_0_0_receiver], [c_0_0_0_sender], [b_0_0_0_sender], [a_0_0_0_0_sender, a_0_0_0_1_sender]]
     processes = []
     for task, channels in zip(tasks, channels):
         process = mp.Process(target=task, args=channels)
@@ -1445,24 +1433,7 @@ def task_1(g_0_0_sender, c_0_0_0_receiver, ctrlFalse_0_receiver):
                 g_0_0_sender.send(g_0_0)
             renew_next_time = sig[0]
             renew = renew_next_time
-def task_2(mob_0_0_1_sender):
-    mob_0_0_1 = MObs(3)
-    mob_0_0_1_sender.send(mob_0_0_1)
-def task_3(result_0_sender, e_0_0_1_receiver, f_0_0_receiver, g_0_0_receiver):
-    while True:
-        branchSelection = e_0_0_1_receiver.recv()
-        if branchSelection:
-            result = f_0_0_receiver.recv()
-            result_0_sender.send(result)
-        else:
-            result = g_0_0_receiver.recv()
-            result_0_sender.send(result)
-def task_4(h_0_0_sender, result_0_receiver):
-    while True:
-        var_0 = result_0_receiver.recv()
-        h_0_0 = oneArg(var_0)
-        h_0_0_sender.send(h_0_0)
-def task_5(f_0_0_sender, b_0_0_0_receiver, ctrlTrue_0_receiver):
+def task_2(f_0_0_sender, b_0_0_0_receiver, ctrlTrue_0_receiver):
     while True:
         renew = False
         b_0_0_0_0 = b_0_0_0_receiver.recv()
@@ -1474,7 +1445,21 @@ def task_5(f_0_0_sender, b_0_0_0_receiver, ctrlTrue_0_receiver):
                 f_0_0_sender.send(f_0_0)
             renew_next_time = sig[0]
             renew = renew_next_time
-def task_6(ctrlTrue_0_sender, ctrlFalse_0_sender, e_0_0_0_receiver):
+def task_3(h_0_0_sender, result_0_receiver):
+    while True:
+        var_0 = result_0_receiver.recv()
+        h_0_0 = oneArg(var_0)
+        h_0_0_sender.send(h_0_0)
+def task_4(result_0_sender, e_0_0_1_receiver, f_0_0_receiver, g_0_0_receiver):
+    while True:
+        branchSelection = e_0_0_1_receiver.recv()
+        if branchSelection:
+            result = f_0_0_receiver.recv()
+            result_0_sender.send(result)
+        else:
+            result = g_0_0_receiver.recv()
+            result_0_sender.send(result)
+def task_5(ctrlTrue_0_sender, ctrlFalse_0_sender, e_0_0_0_receiver):
     while True:
         branchSelection = e_0_0_0_receiver.recv()
         if branchSelection:
@@ -1487,19 +1472,21 @@ def task_6(ctrlTrue_0_sender, ctrlFalse_0_sender, e_0_0_0_receiver):
             ctrlFalse = True, 1
             ctrlTrue_0_sender.send(ctrlTrue)
             ctrlFalse_0_sender.send(ctrlFalse)
+def task_6(e_0_0_0_sender, e_0_0_1_sender, mob_0_0_1_receiver):
+    while True:
+        var_0 = mob_0_0_1_receiver.recv()
+        res = var_0.getNum()
+        e_0_0_0_sender.send(res)
+        e_0_0_1_sender.send(res)
 def task_7(b_0_0_0_sender, c_0_0_0_sender):
     res = double(i)
     b_0_0_0 = res[0]
     b_0_0_0_sender.send(b_0_0_0)
     c_0_0_0 = res[1]
     c_0_0_0_sender.send(c_0_0_0)
-def task_8(e_0_0_0_sender, e_0_0_1_sender, mob_0_0_1_receiver):
-    while True:
-        var_0 = mob_0_0_1_receiver.recv()
-        res = var_0.getNum()
-        e_0_0_0_sender.send(res)
-        e_0_0_1_sender.send(res)
-
+def task_8(mob_0_0_1_sender):
+    mob_0_0_1 = MObs(3)
+    mob_0_0_1_sender.send(mob_0_0_1)
 def main(i_1):
     global i
     i, = i_1,
@@ -1515,7 +1502,7 @@ def main(i_1):
     e_0_0_1_sender, e_0_0_1_receiver = mp.Pipe()
     result_0_sender, result_0_receiver = mp.Pipe()
     tasks = [task_1, task_2, task_3, task_4, task_5, task_6, task_7, task_8]
-    channels = [[g_0_0_sender, c_0_0_0_receiver, ctrlFalse_0_receiver], [mob_0_0_1_sender], [result_0_sender, e_0_0_1_receiver, f_0_0_receiver, g_0_0_receiver], [h_0_0_sender, result_0_receiver], [f_0_0_sender, b_0_0_0_receiver, ctrlTrue_0_receiver], [ctrlTrue_0_sender, ctrlFalse_0_sender, e_0_0_0_receiver], [b_0_0_0_sender, c_0_0_0_sender], [e_0_0_0_sender, e_0_0_1_sender, mob_0_0_1_receiver]]
+    channels = [[g_0_0_sender, c_0_0_0_receiver, ctrlFalse_0_receiver], [f_0_0_sender, b_0_0_0_receiver, ctrlTrue_0_receiver], [h_0_0_sender, result_0_receiver], [result_0_sender, e_0_0_1_receiver, f_0_0_receiver, g_0_0_receiver], [ctrlTrue_0_sender, ctrlFalse_0_sender, e_0_0_0_receiver], [e_0_0_0_sender, e_0_0_1_sender, mob_0_0_1_receiver], [b_0_0_0_sender, c_0_0_0_sender], [mob_0_0_1_sender]]
     processes = []
     for task, channels in zip(tasks, channels):
         process = mp.Process(target=task, args=channels)
@@ -1531,7 +1518,18 @@ def main(i_1):
 condContextFunction = [pythonModule|
 import multiprocessing as mp
 from testLib import *
-def task_1(b_0_0_sender, ctrlTrue_0_receiver):
+def task_1(c_0_0_sender, ctrlFalse_0_receiver):
+    while True:
+        renew = False
+        while not renew:
+            sig = ctrlFalse_0_receiver.recv()
+            count = sig[1]
+            for _ in range(0, count):
+                c_0_0 = f()
+                c_0_0_sender.send(c_0_0)
+            renew_next_time = sig[0]
+            renew = renew_next_time
+def task_2(b_0_0_sender, ctrlTrue_0_receiver):
     while True:
         renew = False
         while not renew:
@@ -1542,16 +1540,21 @@ def task_1(b_0_0_sender, ctrlTrue_0_receiver):
                 b_0_0_sender.send(b_0_0)
             renew_next_time = sig[0]
             renew = renew_next_time
-def task_2(e_0_0_sender, result_0_receiver):
+def task_3(e_0_0_sender, result_0_receiver):
     while True:
         var_0 = result_0_receiver.recv()
         e_0_0 = oneArg(var_0)
         e_0_0_sender.send(e_0_0)
-def task_3(a_0_0_0_0_sender, a_0_0_0_1_sender):
-    res = f1(i)
-    a_0_0_0_0_sender.send(res)
-    a_0_0_0_1_sender.send(res)
-def task_4(ctrlTrue_0_sender, ctrlFalse_0_sender, a_0_0_0_0_receiver):
+def task_4(result_0_sender, a_0_0_0_1_receiver, b_0_0_receiver, c_0_0_receiver):
+    while True:
+        branchSelection = a_0_0_0_1_receiver.recv()
+        if branchSelection:
+            result = b_0_0_receiver.recv()
+            result_0_sender.send(result)
+        else:
+            result = c_0_0_receiver.recv()
+            result_0_sender.send(result)
+def task_5(ctrlTrue_0_sender, ctrlFalse_0_sender, a_0_0_0_0_receiver):
     while True:
         branchSelection = a_0_0_0_0_receiver.recv()
         if branchSelection:
@@ -1564,27 +1567,10 @@ def task_4(ctrlTrue_0_sender, ctrlFalse_0_sender, a_0_0_0_0_receiver):
             ctrlFalse = True, 1
             ctrlTrue_0_sender.send(ctrlTrue)
             ctrlFalse_0_sender.send(ctrlFalse)
-def task_5(result_0_sender, a_0_0_0_1_receiver, b_0_0_receiver, c_0_0_receiver):
-    while True:
-        branchSelection = a_0_0_0_1_receiver.recv()
-        if branchSelection:
-            result = b_0_0_receiver.recv()
-            result_0_sender.send(result)
-        else:
-            result = c_0_0_receiver.recv()
-            result_0_sender.send(result)
-def task_6(c_0_0_sender, ctrlFalse_0_receiver):
-    while True:
-        renew = False
-        while not renew:
-            sig = ctrlFalse_0_receiver.recv()
-            count = sig[1]
-            for _ in range(0, count):
-                c_0_0 = f()
-                c_0_0_sender.send(c_0_0)
-            renew_next_time = sig[0]
-            renew = renew_next_time
-
+def task_6(a_0_0_0_0_sender, a_0_0_0_1_sender):
+    res = f1(i)
+    a_0_0_0_0_sender.send(res)
+    a_0_0_0_1_sender.send(res)
 def main(i_1):
     global i
     i, = i_1,
@@ -1597,7 +1583,7 @@ def main(i_1):
     a_0_0_0_1_sender, a_0_0_0_1_receiver = mp.Pipe()
     result_0_sender, result_0_receiver = mp.Pipe()
     tasks = [task_1, task_2, task_3, task_4, task_5, task_6]
-    channels = [[b_0_0_sender, ctrlTrue_0_receiver], [e_0_0_sender, result_0_receiver], [a_0_0_0_0_sender, a_0_0_0_1_sender], [ctrlTrue_0_sender, ctrlFalse_0_sender, a_0_0_0_0_receiver], [result_0_sender, a_0_0_0_1_receiver, b_0_0_receiver, c_0_0_receiver], [c_0_0_sender, ctrlFalse_0_receiver]]
+    channels = [[c_0_0_sender, ctrlFalse_0_receiver], [b_0_0_sender, ctrlTrue_0_receiver], [e_0_0_sender, result_0_receiver], [result_0_sender, a_0_0_0_1_receiver, b_0_0_receiver, c_0_0_receiver], [ctrlTrue_0_sender, ctrlFalse_0_sender, a_0_0_0_0_receiver], [a_0_0_0_0_sender, a_0_0_0_1_sender]]
     processes = []
     for task, channels in zip(tasks, channels):
         process = mp.Process(target=task, args=channels)
@@ -1606,25 +1592,25 @@ def main(i_1):
     result = e_0_0_receiver.recv()
     list(map(mp.Process.terminate, processes))
     list(map(mp.Process.join, processes))
-    return result
+    return result 
 |]
 
 condExprStateFunRet = [pythonModule|
 import multiprocessing as mp
 from testLib import *
-def task_1(result_0_sender, b_0_0_0_1_receiver, a_0_0_receiver, c_0_0_receiver):
+def task_1(c_0_0_sender, mob2_0_0_1_receiver, ctrlFalse_0_receiver):
     while True:
-        branchSelection = b_0_0_0_1_receiver.recv()
-        if branchSelection:
-            result = a_0_0_receiver.recv()
-            result_0_sender.send(result)
-        else:
-            result = c_0_0_receiver.recv()
-            result_0_sender.send(result)
-def task_2(mob2_0_0_1_sender):
-    mob2_0_0_1 = MObs(23)
-    mob2_0_0_1_sender.send(mob2_0_0_1)
-def task_3(a_0_0_sender, mob1_0_0_1_receiver, ctrlTrue_0_receiver):
+        renew = False
+        mob2_0_0_1_0 = mob2_0_0_1_receiver.recv()
+        while not renew:
+            sig = ctrlFalse_0_receiver.recv()
+            count = sig[1]
+            for _ in range(0, count):
+                c_0_0 = mob2_0_0_1_0.getNum()
+                c_0_0_sender.send(c_0_0)
+            renew_next_time = sig[0]
+            renew = renew_next_time
+def task_2(a_0_0_sender, mob1_0_0_1_receiver, ctrlTrue_0_receiver):
     while True:
         renew = False
         mob1_0_0_1_0 = mob1_0_0_1_receiver.recv()
@@ -1636,6 +1622,15 @@ def task_3(a_0_0_sender, mob1_0_0_1_receiver, ctrlTrue_0_receiver):
                 a_0_0_sender.send(a_0_0)
             renew_next_time = sig[0]
             renew = renew_next_time
+def task_3(result_0_sender, b_0_0_0_1_receiver, a_0_0_receiver, c_0_0_receiver):
+    while True:
+        branchSelection = b_0_0_0_1_receiver.recv()
+        if branchSelection:
+            result = a_0_0_receiver.recv()
+            result_0_sender.send(result)
+        else:
+            result = c_0_0_receiver.recv()
+            result_0_sender.send(result)
 def task_4(ctrlTrue_0_sender, ctrlFalse_0_sender, b_0_0_0_0_receiver):
     while True:
         branchSelection = b_0_0_0_0_receiver.recv()
@@ -1649,26 +1644,16 @@ def task_4(ctrlTrue_0_sender, ctrlFalse_0_sender, b_0_0_0_0_receiver):
             ctrlFalse = True, 1
             ctrlTrue_0_sender.send(ctrlTrue)
             ctrlFalse_0_sender.send(ctrlFalse)
-def task_5(c_0_0_sender, mob2_0_0_1_receiver, ctrlFalse_0_receiver):
-    while True:
-        renew = False
-        mob2_0_0_1_0 = mob2_0_0_1_receiver.recv()
-        while not renew:
-            sig = ctrlFalse_0_receiver.recv()
-            count = sig[1]
-            for _ in range(0, count):
-                c_0_0 = mob2_0_0_1_0.getNum()
-                c_0_0_sender.send(c_0_0)
-            renew_next_time = sig[0]
-            renew = renew_next_time
-def task_6(b_0_0_0_0_sender, b_0_0_0_1_sender):
+def task_5(b_0_0_0_0_sender, b_0_0_0_1_sender):
     res = f()
     b_0_0_0_0_sender.send(res)
     b_0_0_0_1_sender.send(res)
+def task_6(mob2_0_0_1_sender):
+    mob2_0_0_1 = MObs(23)
+    mob2_0_0_1_sender.send(mob2_0_0_1)
 def task_7(mob1_0_0_1_sender):
     mob1_0_0_1 = MObs(3)
     mob1_0_0_1_sender.send(mob1_0_0_1)
-
 def main(i_1):
     global i
     i, = i_1,
@@ -1682,7 +1667,7 @@ def main(i_1):
     a_0_0_sender, a_0_0_receiver = mp.Pipe()
     b_0_0_0_1_sender, b_0_0_0_1_receiver = mp.Pipe()
     tasks = [task_1, task_2, task_3, task_4, task_5, task_6, task_7]
-    channels = [[result_0_sender, b_0_0_0_1_receiver, a_0_0_receiver, c_0_0_receiver], [mob2_0_0_1_sender], [a_0_0_sender, mob1_0_0_1_receiver, ctrlTrue_0_receiver], [ctrlTrue_0_sender, ctrlFalse_0_sender, b_0_0_0_0_receiver], [c_0_0_sender, mob2_0_0_1_receiver, ctrlFalse_0_receiver], [b_0_0_0_0_sender, b_0_0_0_1_sender], [mob1_0_0_1_sender]]
+    channels = [[c_0_0_sender, mob2_0_0_1_receiver, ctrlFalse_0_receiver], [a_0_0_sender, mob1_0_0_1_receiver, ctrlTrue_0_receiver], [result_0_sender, b_0_0_0_1_receiver, a_0_0_receiver, c_0_0_receiver], [ctrlTrue_0_sender, ctrlFalse_0_sender, b_0_0_0_0_receiver], [b_0_0_0_0_sender, b_0_0_0_1_sender], [mob2_0_0_1_sender], [mob1_0_0_1_sender]]
     processes = []
     for task, channels in zip(tasks, channels):
         process = mp.Process(target=task, args=channels)
@@ -1697,27 +1682,7 @@ def main(i_1):
 condExprFunCond = [pythonModule|
 import multiprocessing as mp
 from testLib import *
-def task_1(b_0_0_sender, ctrlTrue_0_receiver):
-    while True:
-        renew = False
-        while not renew:
-            sig = ctrlTrue_0_receiver.recv()
-            count = sig[1]
-            for _ in range(0, count):
-                b_0_0 = g()
-                b_0_0_sender.send(b_0_0)
-            renew_next_time = sig[0]
-            renew = renew_next_time
-def task_2(result_0_sender, a_0_0_1_receiver, b_0_0_receiver, c_0_0_receiver):
-    while True:
-        branchSelection = a_0_0_1_receiver.recv()
-        if branchSelection:
-            result = b_0_0_receiver.recv()
-            result_0_sender.send(result)
-        else:
-            result = c_0_0_receiver.recv()
-            result_0_sender.send(result)
-def task_3(c_0_0_sender, ctrlFalse_0_receiver):
+def task_1(c_0_0_sender, ctrlFalse_0_receiver):
     while True:
         renew = False
         while not renew:
@@ -1728,11 +1693,27 @@ def task_3(c_0_0_sender, ctrlFalse_0_receiver):
                 c_0_0_sender.send(c_0_0)
             renew_next_time = sig[0]
             renew = renew_next_time
-def task_4(a_0_0_0_sender, a_0_0_1_sender):
-    res = f()
-    a_0_0_0_sender.send(res)
-    a_0_0_1_sender.send(res)
-def task_5(ctrlTrue_0_sender, ctrlFalse_0_sender, a_0_0_0_receiver):
+def task_2(b_0_0_sender, ctrlTrue_0_receiver):
+    while True:
+        renew = False
+        while not renew:
+            sig = ctrlTrue_0_receiver.recv()
+            count = sig[1]
+            for _ in range(0, count):
+                b_0_0 = g()
+                b_0_0_sender.send(b_0_0)
+            renew_next_time = sig[0]
+            renew = renew_next_time
+def task_3(result_0_sender, a_0_0_1_receiver, b_0_0_receiver, c_0_0_receiver):
+    while True:
+        branchSelection = a_0_0_1_receiver.recv()
+        if branchSelection:
+            result = b_0_0_receiver.recv()
+            result_0_sender.send(result)
+        else:
+            result = c_0_0_receiver.recv()
+            result_0_sender.send(result)
+def task_4(ctrlTrue_0_sender, ctrlFalse_0_sender, a_0_0_0_receiver):
     while True:
         branchSelection = a_0_0_0_receiver.recv()
         if branchSelection:
@@ -1745,7 +1726,10 @@ def task_5(ctrlTrue_0_sender, ctrlFalse_0_sender, a_0_0_0_receiver):
             ctrlFalse = True, 1
             ctrlTrue_0_sender.send(ctrlTrue)
             ctrlFalse_0_sender.send(ctrlFalse)
-
+def task_5(a_0_0_0_sender, a_0_0_1_sender):
+    res = f()
+    a_0_0_0_sender.send(res)
+    a_0_0_1_sender.send(res)
 def main(i_1):
     global i
     i, = i_1,
@@ -1757,7 +1741,7 @@ def main(i_1):
     b_0_0_sender, b_0_0_receiver = mp.Pipe()
     a_0_0_1_sender, a_0_0_1_receiver = mp.Pipe()
     tasks = [task_1, task_2, task_3, task_4, task_5]
-    channels = [[b_0_0_sender, ctrlTrue_0_receiver], [result_0_sender, a_0_0_1_receiver, b_0_0_receiver, c_0_0_receiver], [c_0_0_sender, ctrlFalse_0_receiver], [a_0_0_0_sender, a_0_0_1_sender], [ctrlTrue_0_sender, ctrlFalse_0_sender, a_0_0_0_receiver]]
+    channels = [[c_0_0_sender, ctrlFalse_0_receiver], [b_0_0_sender, ctrlTrue_0_receiver], [result_0_sender, a_0_0_1_receiver, b_0_0_receiver, c_0_0_receiver], [ctrlTrue_0_sender, ctrlFalse_0_sender, a_0_0_0_receiver], [a_0_0_0_sender, a_0_0_1_sender]]
     processes = []
     for task, channels in zip(tasks, channels):
         process = mp.Process(target=task, args=channels)
@@ -1767,14 +1751,29 @@ def main(i_1):
     list(map(mp.Process.terminate, processes))
     list(map(mp.Process.join, processes))
     return result
-    |]
+|]
 
 
 --Test cases for TailRec.hs --------------------------------------------
 tailRec= [pythonModule|
 import multiprocessing as mp
 from testLib import *
-def task_1(j_0_0_0_sender, k_0_0_0_sender, i_0_0_0_receiver):
+def task_1(b_0_0_sender, recursionFlag_0_0_0_receiver):
+    while True:
+        var_0 = recursionFlag_0_0_0_receiver.recv()
+        b_0_0 = check(var_0)
+        b_0_0_sender.send(b_0_0)
+def task_2(returnV_0_0_0_sender, k_0_0_0_receiver):
+    while True:
+        var_0 = k_0_0_0_receiver.recv()
+        returnV_0_0_0 = g0(var_0)
+        returnV_0_0_0_sender.send(returnV_0_0_0)
+def task_3(recursionFlag_0_0_0_sender, j_0_0_0_receiver):
+    while True:
+        var_0 = j_0_0_0_receiver.recv()
+        recursionFlag_0_0_0 = g0(var_0)
+        recursionFlag_0_0_0_sender.send(recursionFlag_0_0_0)
+def task_4(j_0_0_0_sender, k_0_0_0_sender, i_0_0_0_receiver):
     while True:
         var_0 = i_0_0_0_receiver.recv()
         res = double(var_0)
@@ -1782,21 +1781,6 @@ def task_1(j_0_0_0_sender, k_0_0_0_sender, i_0_0_0_receiver):
         j_0_0_0_sender.send(j_0_0_0)
         k_0_0_0 = res[1]
         k_0_0_0_sender.send(k_0_0_0)
-def task_2(returnV_0_0_0_sender, k_0_0_0_receiver):
-    while True:
-        var_0 = k_0_0_0_receiver.recv()
-        returnV_0_0_0 = g0(var_0)
-        returnV_0_0_0_sender.send(returnV_0_0_0)
-def task_3(b_0_0_sender, recursionFlag_0_0_0_receiver):
-    while True:
-        var_0 = recursionFlag_0_0_0_receiver.recv()
-        b_0_0 = check(var_0)
-        b_0_0_sender.send(b_0_0)
-def task_4(recursionFlag_0_0_0_sender, j_0_0_0_receiver):
-    while True:
-        var_0 = j_0_0_0_receiver.recv()
-        recursionFlag_0_0_0 = g0(var_0)
-        recursionFlag_0_0_0_sender.send(recursionFlag_0_0_0)
 def task_5(i_0_0_0_sender, d_0_0_sender, b_0_0_receiver, returnV_0_0_0_receiver):
     i_0_0_0_sender.send(1)
     while b_0_0_receiver.recv():
@@ -1804,7 +1788,6 @@ def task_5(i_0_0_0_sender, d_0_0_sender, b_0_0_receiver, returnV_0_0_0_receiver)
         i_0_0_0_sender.send(loop_res_0)
     finalResult = returnV_0_0_0_receiver.recv()
     d_0_0_sender.send(finalResult)
-
 def main():
     d_0_0_sender, d_0_0_receiver = mp.Pipe()
     returnV_0_0_0_sender, returnV_0_0_0_receiver = mp.Pipe()
@@ -1814,7 +1797,7 @@ def main():
     k_0_0_0_sender, k_0_0_0_receiver = mp.Pipe()
     recursionFlag_0_0_0_sender, recursionFlag_0_0_0_receiver = mp.Pipe()
     tasks = [task_1, task_2, task_3, task_4, task_5]
-    channels = [[j_0_0_0_sender, k_0_0_0_sender, i_0_0_0_receiver], [returnV_0_0_0_sender, k_0_0_0_receiver], [b_0_0_sender, recursionFlag_0_0_0_receiver], [recursionFlag_0_0_0_sender, j_0_0_0_receiver], [i_0_0_0_sender, d_0_0_sender, b_0_0_receiver, returnV_0_0_0_receiver]]
+    channels = [[b_0_0_sender, recursionFlag_0_0_0_receiver], [returnV_0_0_0_sender, k_0_0_0_receiver], [recursionFlag_0_0_0_sender, j_0_0_0_receiver], [j_0_0_0_sender, k_0_0_0_sender, i_0_0_0_receiver], [i_0_0_0_sender, d_0_0_sender, b_0_0_receiver, returnV_0_0_0_receiver]]
     processes = []
     for task, channels in zip(tasks, channels):
         process = mp.Process(target=task, args=channels)

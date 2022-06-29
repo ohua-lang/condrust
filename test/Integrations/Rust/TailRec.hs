@@ -60,18 +60,18 @@ fn test() -> i32 {
   tasks
     .push(Box::new(move || -> _ {
       loop {
-        let var_0 = i_0_0_0_rx.recv()?;
-        let j_0_0_0 = h(var_0);
-        j_0_0_0_tx.send(j_0_0_0)?;
+        let var_0 = j_0_0_0_rx.recv()?;
+        let a_0_0 = check(var_0);
+        a_0_0_tx.send(a_0_0)?;
         ()
       }
     }));
   tasks
     .push(Box::new(move || -> _ {
       loop {
-        let var_0 = j_0_0_0_rx.recv()?;
-        let a_0_0 = check(var_0);
-        a_0_0_tx.send(a_0_0)?;
+        let var_0 = i_0_0_0_rx.recv()?;
+        let j_0_0_0 = h(var_0);
+        j_0_0_0_tx.send(j_0_0_0)?;
         ()
       }
     }));
@@ -162,15 +162,6 @@ fn test() -> i32 {
   tasks
     .push(Box::new(move || -> _ {
       loop {
-        let var_0 = two_0_0_0_rx.recv()?;
-        let j_0_0_0 = h(var_0);
-        j_0_0_0_tx.send(j_0_0_0)?;
-        ()
-      }
-    }));
-  tasks
-    .push(Box::new(move || -> _ {
-      loop {
         let var_0 = k_0_0_0_rx.recv()?;
         let a_0_0 = check(var_0);
         a_0_0_tx.send(a_0_0)?;
@@ -184,6 +175,24 @@ fn test() -> i32 {
         let var_1 = j_0_0_0_rx.recv()?;
         let k_0_0_0 = h2(var_0, var_1);
         k_0_0_0_tx.send(k_0_0_0)?;
+        ()
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
+        let var_0 = two_0_0_0_rx.recv()?;
+        let j_0_0_0 = h(var_0);
+        j_0_0_0_tx.send(j_0_0_0)?;
+        ()
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
+        let var_0 = one_0_0_0_rx.recv()?;
+        let i_0_0_0 = h(var_0);
+        i_0_0_0_tx.send(i_0_0_0)?;
         ()
       }
     }));
@@ -203,15 +212,6 @@ fn test() -> i32 {
       j_0_0_0_rx.recv()?;
       let finalResult = k_0_0_0_rx.recv()?;
       Ok(c_0_0_tx.send(finalResult)?)
-    }));
-  tasks
-    .push(Box::new(move || -> _ {
-      loop {
-        let var_0 = one_0_0_0_rx.recv()?;
-        let i_0_0_0 = h(var_0);
-        i_0_0_0_tx.send(i_0_0_0)?;
-        ()
-      }
     }));
   let handles: Vec<  std::thread::JoinHandle<  _,>,> =
     tasks
@@ -289,6 +289,24 @@ fn test() -> i32 {
   tasks
     .push(Box::new(move || -> _ {
       loop {
+        let mut renew = false;
+        while !renew {
+          let sig = ctrl_0_0_0_rx.recv()?;
+          let count = sig.1;
+          for _ in 0 .. count {
+            let j_0_0_0 = f();
+            j_0_0_0_tx.send(j_0_0_0)?;
+            ()
+          };
+          let renew_next_time = sig.0;
+          renew = renew_next_time;
+          ()
+        }
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
         let var_0 = k_0_0_0_rx.recv()?;
         let a_0_0 = check(var_0);
         a_0_0_tx.send(a_0_0)?;
@@ -330,24 +348,6 @@ fn test() -> i32 {
       ctrl_0_0_0_tx.send(ctrlSig)?;
       let finalResult = k_0_0_0_rx.recv()?;
       Ok(c_0_0_tx.send(finalResult)?)
-    }));
-  tasks
-    .push(Box::new(move || -> _ {
-      loop {
-        let mut renew = false;
-        while !renew {
-          let sig = ctrl_0_0_0_rx.recv()?;
-          let count = sig.1;
-          for _ in 0 .. count {
-            let j_0_0_0 = f();
-            j_0_0_0_tx.send(j_0_0_0)?;
-            ()
-          };
-          let renew_next_time = sig.0;
-          renew = renew_next_time;
-          ()
-        }
-      }
     }));
   let handles: Vec<  std::thread::JoinHandle<  _,>,> =
     tasks

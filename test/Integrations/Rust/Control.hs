@@ -77,19 +77,19 @@ fn test() -> i32 {
   tasks
     .push(Box::new(move || -> _ {
       loop {
-        let mut var_0 = k_0_0_1_rx.recv()?;
-        let k2_0_0_0 = var_0.clone();
-        k2_0_0_0_tx.send(k2_0_0_0)?;
-        k_0_0_0_0_tx.send(var_0)?
+        let var_0 = k2_0_0_0_rx.recv()?;
+        let a_0_0 = check(var_0);
+        a_0_0_tx.send(a_0_0)?;
+        ()
       }
     }));
   tasks
     .push(Box::new(move || -> _ {
       loop {
-        let var_0 = one_0_0_0_0_rx.recv()?;
-        let j_0_0_0 = h(var_0);
-        j_0_0_0_tx.send(j_0_0_0)?;
-        ()
+        let mut var_0 = k_0_0_1_rx.recv()?;
+        let k2_0_0_0 = var_0.clone();
+        k2_0_0_0_tx.send(k2_0_0_0)?;
+        k_0_0_0_0_tx.send(var_0)?
       }
     }));
   tasks
@@ -105,9 +105,9 @@ fn test() -> i32 {
   tasks
     .push(Box::new(move || -> _ {
       loop {
-        let var_0 = k2_0_0_0_rx.recv()?;
-        let a_0_0 = check(var_0);
-        a_0_0_tx.send(a_0_0)?;
+        let var_0 = one_0_0_0_0_rx.recv()?;
+        let j_0_0_0 = h(var_0);
+        j_0_0_0_tx.send(j_0_0_0)?;
         ()
       }
     }));
@@ -231,30 +231,6 @@ fn test() -> i32 {
   tasks
     .push(Box::new(move || -> _ {
       loop {
-        let var_0 = one_0_0_0_rx.recv()?;
-        let i_0_0_1 = h(var_0);
-        i_0_0_1_tx.send(i_0_0_1)?;
-        ()
-      }
-    }));
-  tasks
-    .push(Box::new(move || -> _ {
-      one_0_0_0_tx.send(2)?;
-      two_0_0_0_tx.send(4)?;
-      while a_0_0_rx.recv()? {
-        let loop_res_0 = k1_0_0_0_rx.recv()?;
-        let loop_res_1 = i1_0_0_0_rx.recv()?;
-        one_0_0_0_tx.send(loop_res_0)?;
-        two_0_0_0_tx.send(loop_res_1)?;
-        ()
-      };
-      i1_0_0_0_rx.recv()?;
-      let finalResult = k1_0_0_0_rx.recv()?;
-      Ok(c_0_0_tx.send(finalResult)?)
-    }));
-  tasks
-    .push(Box::new(move || -> _ {
-      loop {
         let mut var_0 = k_0_0_1_rx.recv()?;
         let k1_0_0_0 = var_0.clone();
         k1_0_0_0_tx.send(k1_0_0_0)?;
@@ -279,6 +255,30 @@ fn test() -> i32 {
         i1_0_0_0_tx.send(i1_0_0_0)?;
         i_0_0_0_0_tx.send(var_0)?
       }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
+        let var_0 = one_0_0_0_rx.recv()?;
+        let i_0_0_1 = h(var_0);
+        i_0_0_1_tx.send(i_0_0_1)?;
+        ()
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      one_0_0_0_tx.send(2)?;
+      two_0_0_0_tx.send(4)?;
+      while a_0_0_rx.recv()? {
+        let loop_res_0 = k1_0_0_0_rx.recv()?;
+        let loop_res_1 = i1_0_0_0_rx.recv()?;
+        one_0_0_0_tx.send(loop_res_0)?;
+        two_0_0_0_tx.send(loop_res_1)?;
+        ()
+      };
+      i1_0_0_0_rx.recv()?;
+      let finalResult = k1_0_0_0_rx.recv()?;
+      Ok(c_0_0_tx.send(finalResult)?)
     }));
   let handles: Vec<  std::thread::JoinHandle<  _,>,> =
     tasks

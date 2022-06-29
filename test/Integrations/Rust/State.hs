@@ -55,18 +55,18 @@ fn test(i: i32) -> i32 {
     }));
   tasks
     .push(Box::new(move || -> _ {
-      let state_0_0_1 = S::new_state(i);
-      state_0_0_1_tx.send(state_0_0_1)?;
-      Ok(())
-    }));
-  tasks
-    .push(Box::new(move || -> _ {
       loop {
         let mut var_0 = state_0_0_1_rx.recv()?;
         let result_0_0_0 = var_0.gs(5);
         result_0_0_0_tx.send(result_0_0_0)?;
         ()
       }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      let state_0_0_1 = S::new_state(i);
+      state_0_0_1_tx.send(state_0_0_1)?;
+      Ok(())
     }));
   let handles: Vec<  std::thread::JoinHandle<  _,>,> =
     tasks
@@ -125,6 +125,15 @@ fn test(i: i32) -> String {
   tasks
     .push(Box::new(move || -> _ {
       loop {
+        let mut var_0 = state_0_0_1_0_rx.recv()?;
+        let r1_0_0_0 = var_0.gs1(6);
+        r1_0_0_0_tx.send(r1_0_0_0)?;
+        ()
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
         let mut var_0 = state_0_0_2_rx.recv()?;
         var_0.modify(5);
         state_0_0_1_0_tx.send(var_0)?
@@ -135,15 +144,6 @@ fn test(i: i32) -> String {
       let state_0_0_2 = S::new_state(i);
       state_0_0_2_tx.send(state_0_0_2)?;
       Ok(())
-    }));
-  tasks
-    .push(Box::new(move || -> _ {
-      loop {
-        let mut var_0 = state_0_0_1_0_rx.recv()?;
-        let r1_0_0_0 = var_0.gs1(6);
-        r1_0_0_0_tx.send(r1_0_0_0)?;
-        ()
-      }
     }));
   let handles: Vec<  std::thread::JoinHandle<  _,>,> =
     tasks
@@ -211,7 +211,17 @@ fn test(i: i32) -> () {
     Vec::new();
   tasks
     .push(Box::new(move || -> _ {
-      loop { let mut var_0 = d_0_rx.recv()?; var_0.gs(5); () }
+      loop {
+        let mut renew = false;
+        while !renew {
+          let sig = ctrl_0_rx.recv()?;
+          let count = sig.1;
+          for _ in 0 .. count { c_0_0_tx.send(c_0_0)?; () };
+          let renew_next_time = sig.0;
+          renew = renew_next_time;
+          ()
+        }
+      }
     }));
   tasks
     .push(Box::new(move || -> _ {
@@ -224,6 +234,15 @@ fn test(i: i32) -> () {
         };
         x_0_0_0_tx.send(collection)?
       }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      x_0_0_0_rx.recv()?;
+      Ok(b_0_0_tx.send(())?)
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      loop { let mut var_0 = d_0_rx.recv()?; var_0.gs(5); () }
     }));
   tasks
     .push(Box::new(move || -> _ {
@@ -252,25 +271,6 @@ fn test(i: i32) -> () {
           size_0_tx.send(size)?;
           let ctrl = (true, 0);
           ctrl_0_tx.send(ctrl)?;
-          ()
-        }
-      }
-    }));
-  tasks
-    .push(Box::new(move || -> _ {
-      x_0_0_0_rx.recv()?;
-      Ok(b_0_0_tx.send(())?)
-    }));
-  tasks
-    .push(Box::new(move || -> _ {
-      loop {
-        let mut renew = false;
-        while !renew {
-          let sig = ctrl_0_rx.recv()?;
-          let count = sig.1;
-          for _ in 0 .. count { c_0_0_tx.send(c_0_0)?; () };
-          let renew_next_time = sig.0;
-          renew = renew_next_time;
           ()
         }
       }
@@ -339,6 +339,40 @@ fn test(i: i32) -> () {
   tasks
     .push(Box::new(move || -> _ {
       loop {
+        let mut renew = false;
+        while !renew {
+          let sig = ctrl_0_1_rx.recv()?;
+          let count = sig.1;
+          for _ in 0 .. count { c_0_0_tx.send(c_0_0)?; () };
+          let renew_next_time = sig.0;
+          renew = renew_next_time;
+          ()
+        }
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
+        let mut renew = false;
+        let mut io_0_0_1_0 = io_0_0_1_rx.recv()?;
+        while !renew {
+          let sig = ctrl_0_0_rx.recv()?;
+          let count = sig.1;
+          for _ in 0 .. count {
+            let var_1 = d_1_rx.recv()?;
+            io_0_0_1_0.gs(var_1);
+            ()
+          };
+          let renew_next_time = sig.0;
+          renew = renew_next_time;
+          ()
+        };
+        ()
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
         let num = size_0_rx.recv()?;
         let mut collection = Vec::new();
         for _ in 0 .. num {
@@ -347,6 +381,11 @@ fn test(i: i32) -> () {
         };
         x_0_0_0_tx.send(collection)?
       }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      x_0_0_0_rx.recv()?;
+      Ok(b_0_0_tx.send(())?)
     }));
   tasks
     .push(Box::new(move || -> _ {
@@ -387,48 +426,9 @@ fn test(i: i32) -> () {
     }));
   tasks
     .push(Box::new(move || -> _ {
-      loop {
-        let mut renew = false;
-        while !renew {
-          let sig = ctrl_0_1_rx.recv()?;
-          let count = sig.1;
-          for _ in 0 .. count { c_0_0_tx.send(c_0_0)?; () };
-          let renew_next_time = sig.0;
-          renew = renew_next_time;
-          ()
-        }
-      }
-    }));
-  tasks
-    .push(Box::new(move || -> _ {
-      loop {
-        let mut renew = false;
-        let mut io_0_0_1_0 = io_0_0_1_rx.recv()?;
-        while !renew {
-          let sig = ctrl_0_0_rx.recv()?;
-          let count = sig.1;
-          for _ in 0 .. count {
-            let var_1 = d_1_rx.recv()?;
-            io_0_0_1_0.gs(var_1);
-            ()
-          };
-          let renew_next_time = sig.0;
-          renew = renew_next_time;
-          ()
-        };
-        ()
-      }
-    }));
-  tasks
-    .push(Box::new(move || -> _ {
       let io_0_0_1 = S::new_state(i);
       io_0_0_1_tx.send(io_0_0_1)?;
       Ok(())
-    }));
-  tasks
-    .push(Box::new(move || -> _ {
-      x_0_0_0_rx.recv()?;
-      Ok(b_0_0_tx.send(())?)
     }));
   let handles: Vec<  std::thread::JoinHandle<  _,>,> =
     tasks
@@ -490,12 +490,6 @@ fn test(i: i32) -> () {
     Vec::new();
   tasks
     .push(Box::new(move || -> _ {
-      let s_0_0_1 = S::new_state(i);
-      s_0_0_1_tx.send(s_0_0_1)?;
-      Ok(())
-    }));
-  tasks
-    .push(Box::new(move || -> _ {
       loop {
         let mut var_0 = s_0_1_1_rx.recv()?;
         let b_0_0 = var_0.gs(5);
@@ -531,6 +525,12 @@ fn test(i: i32) -> () {
           ()
         }
       }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      let s_0_0_1 = S::new_state(i);
+      s_0_0_1_tx.send(s_0_0_1)?;
+      Ok(())
     }));
   tasks
     .push(Box::new(move || -> _ {
@@ -621,6 +621,36 @@ fn test(i: i32) -> () {
     Vec::new();
   tasks
     .push(Box::new(move || -> _ {
+      loop {
+        let mut renew = false;
+        let sp_0_0_0_0 = sp_0_0_0_rx.recv()?;
+        while !renew {
+          let sig = ctrl_0_1_rx.recv()?;
+          let count = sig.1;
+          for _ in 0 .. count {
+            let var_1 = d_1_rx.recv()?;
+            let x_0_0_0 = f_s(sp_0_0_0_0, var_1);
+            x_0_0_0_tx.send(x_0_0_0)?;
+            ()
+          };
+          let renew_next_time = sig.0;
+          renew = renew_next_time;
+          ()
+        };
+        ()
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
+        let mut var_0 = s_0_1_1_rx.recv()?;
+        let b_0_0 = var_0.gs(5);
+        b_0_0_tx.send(b_0_0)?;
+        ()
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
       let mut stream_0_0_0 = iter_i32();
       loop {
         let hasSize =
@@ -657,15 +687,6 @@ fn test(i: i32) -> () {
   tasks
     .push(Box::new(move || -> _ {
       loop {
-        let mut var_0 = s_0_1_1_rx.recv()?;
-        let b_0_0 = var_0.gs(5);
-        b_0_0_tx.send(b_0_0)?;
-        ()
-      }
-    }));
-  tasks
-    .push(Box::new(move || -> _ {
-      loop {
         let mut var_0 = s_0_0_2_rx.recv()?;
         let sp_0_0_0 = var_0.clone();
         sp_0_0_0_tx.send(sp_0_0_0)?;
@@ -677,27 +698,6 @@ fn test(i: i32) -> () {
       let s_0_0_2 = S::new_state(i);
       s_0_0_2_tx.send(s_0_0_2)?;
       Ok(())
-    }));
-  tasks
-    .push(Box::new(move || -> _ {
-      loop {
-        let mut renew = false;
-        let sp_0_0_0_0 = sp_0_0_0_rx.recv()?;
-        while !renew {
-          let sig = ctrl_0_1_rx.recv()?;
-          let count = sig.1;
-          for _ in 0 .. count {
-            let var_1 = d_1_rx.recv()?;
-            let x_0_0_0 = f_s(sp_0_0_0_0, var_1);
-            x_0_0_0_tx.send(x_0_0_0)?;
-            ()
-          };
-          let renew_next_time = sig.0;
-          renew = renew_next_time;
-          ()
-        };
-        ()
-      }
     }));
   tasks
     .push(Box::new(move || -> _ {
@@ -785,6 +785,27 @@ fn test(i: i32) -> S {
     Vec::new();
   tasks
     .push(Box::new(move || -> _ {
+      loop {
+        let mut renew = false;
+        let sp_0_0_0_0 = sp_0_0_0_rx.recv()?;
+        while !renew {
+          let sig = ctrl_0_1_rx.recv()?;
+          let count = sig.1;
+          for _ in 0 .. count {
+            let var_1 = d_1_rx.recv()?;
+            let x_0_0_0 = f_s(sp_0_0_0_0, var_1);
+            x_0_0_0_tx.send(x_0_0_0)?;
+            ()
+          };
+          let renew_next_time = sig.0;
+          renew = renew_next_time;
+          ()
+        };
+        ()
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
       let mut stream_0_0_0 = iter_i32();
       loop {
         let hasSize =
@@ -832,27 +853,6 @@ fn test(i: i32) -> S {
       let s_0_0_2 = S::new_state(i);
       s_0_0_2_tx.send(s_0_0_2)?;
       Ok(())
-    }));
-  tasks
-    .push(Box::new(move || -> _ {
-      loop {
-        let mut renew = false;
-        let sp_0_0_0_0 = sp_0_0_0_rx.recv()?;
-        while !renew {
-          let sig = ctrl_0_1_rx.recv()?;
-          let count = sig.1;
-          for _ in 0 .. count {
-            let var_1 = d_1_rx.recv()?;
-            let x_0_0_0 = f_s(sp_0_0_0_0, var_1);
-            x_0_0_0_tx.send(x_0_0_0)?;
-            ()
-          };
-          let renew_next_time = sig.0;
-          renew = renew_next_time;
-          ()
-        };
-        ()
-      }
     }));
   tasks
     .push(Box::new(move || -> _ {

@@ -23,7 +23,7 @@ spec =
     Loops.spec >>
     TailRec.spec >>
     State.spec  >>
-    ToDos.spec >>
-    BMs.spec -- >>-}
+    ToDos.spec -- >>
+    -- BMs.spec -- >>
 
     -- WIP.spec
