@@ -50,7 +50,7 @@ fuse ns =
     where
         go :: TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (VarCtrl ty) (LitCtrl ty))
            -> TCProgram (Channel ty) (Com 'Recv ty) (TaskExpr ty)
-        go = sortByDependency . evictUnusedChannels . concludeFusion . fuseStateThreads . fuseSMaps
+        go = evictUnusedChannels . concludeFusion . fuseStateThreads . fuseSMaps
 
 
 
@@ -148,7 +148,7 @@ fuseCtrls (TCProgram chans resultChan exprs) =
             let sAndT = srcsAndTgts noFunCtrls funCtrls
                 fused = map (uncurry fuseIt) sAndT
                 orphans = HS.fromList $
-                    map ((\case Left f -> Fun f; Right c -> Control $ Left c) . snd)    -- Order?: This also need not be sorted, likewise just a ffilter
+                    map ((\case Left f -> Fun f; Right c -> Control $ Left c) . snd)
                         sAndT
                 noFunCtrls' = filter (not . (`HS.member` orphans)) noFunCtrls
                 noFunCtrls'' = fused ++ noFunCtrls'
@@ -343,16 +343,17 @@ fuseSMaps (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ go e
             _ -> Nothing
     getAndDrop _ _ _ = Nothing
 
+-- REMINDER: (Maybe as a result of fusion) There might be no nodes without input i.e. nodes requireing input might send 
+-- input fo rother before requireing to receive. Hence we can't just sort them by satisfied input requirements
 sortByDependency :: TCProgram (Channel ty1) (Com 'Recv ty1) (TaskExpr ty1) -> TCProgram (Channel ty1) (Com 'Recv ty1) (TaskExpr ty1)
 sortByDependency (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ orderTasks exprs HS.empty
     where
         orderTasks [] _ = []
         orderTasks tasks fulfilledDependencies =
             let taskInOut = map (\t -> (t, findInputs t, findReturns t)) tasks
-                -- TODO: replace intersection by isSubsetOf after updating our HashSet version
                 toBeScheduled = filter (\(t, ins, outs) -> ins `HS.intersection` fulfilledDependencies == ins) taskInOut
                 fulfilled = HS.fromList $ concatMap (\(t, ins, outs) -> outs) toBeScheduled
-                scheduled = map (\(t, ins, outs) -> t) toBeScheduled
+                scheduled = (map (\(t, ins, outs) -> t) toBeScheduled)
                 remaining = filter (`notElem` scheduled) tasks
             in scheduled ++ orderTasks remaining (fulfilledDependencies `HS.union` fulfilled)
 
