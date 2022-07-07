@@ -1,9 +1,9 @@
 {-# LANGUAGE QuasiQuotes #-}
-module Integrations.Rust.If where
+module Integrations.Rust.RustSTM.If where
 
 import Ohua.Prelude
 
-import Integrations.Rust.RustSetup
+import Integrations.Rust.RustSTM.RustSetup
 
 
 spec :: Spec
