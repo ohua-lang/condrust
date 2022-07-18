@@ -5,6 +5,7 @@ import Test.Hspec
 import qualified LoweringSpec as Lowering
 import qualified ConfigSpec as Config
 import qualified Integrations.Rust.RustSTM.Spec as Rust
+import qualified Integrations.Rust.RustM3.Spec as RustM3
 import qualified Integrations.Python.Spec as Python
 
 
@@ -15,5 +16,6 @@ spec :: Spec
 spec = do
   describe "LoweringSpec" Lowering.spec
   describe "ConfigSpec" Config.spec
-  describe "Rust Integration" Rust.spec
+  describe "Rust Integration STM" Rust.spec
   describe "Python Integration" Python.spec
+  describe "Rust Integration M3" RustM3.spec

@@ -38,7 +38,7 @@ import Test.Hspec
 import TestOptions 
 
 import Integrations.TestSetup (Testable(..))
-import Integrations.Rust.RustM3.HelperFiles
+import Integrations.Rust.RustM3.RustTestCode.HelperFiles
 
 
 
@@ -77,7 +77,7 @@ compileModule inCode opts cty = do
     $ \testDir -> do
       setCurrentDirectory testDir
       -- if neccessary, write library files to compile directory/scope
-      -- writeFile (testDir </> "funs.rs") funs
+      writeFile (testDir </> "funs.rs") (renderRust funs)
       let inFile = testDir </> "test.rs"
       L.writeFile inFile $ renderRustCode inCode
       withSystemTempDirectory "output" $
@@ -89,10 +89,10 @@ compileModule inCode opts cty = do
             $ compile inFile compScope options integrationOptions outDir
           let outFile = outDir </> takeFileName inFile
 
-          -- producedCode <- readFile outFile
-          --putStr ("\n PRODUCED MODULE: \n"::String)
-          -- putStr producedCode
-          placeholderFile <-readFile (outDir </> "placeholderlib.rs")
+          producedCode <- readFile outFile
+          putStr ("\n PRODUCED MODULE: \n"::String)
+          putStr producedCode
+          placeholderFile <- readFile (outDir </> "placeholderlib.rs")
           putStr placeholderFile
 
           -- run the target compiler (i.e., rustc) on the input
@@ -112,8 +112,8 @@ runTargetCompiler inDir outDir outFile = do
   createDirectory srcDir
   setCurrentDirectory outDir
   writeFile (outDir </> "Cargo.toml") cargoFile
-  writeFile (srcDir </> "main.rs") libFile
-  writeFile (srcDir </> "funs.rs") funs
+  writeFile (srcDir </> "main.rs") (renderRust libFile)
+  writeFile (srcDir </> "funs.rs") (renderRust funs)
   copyFile outFile (srcDir </> "test.rs")
 
   -- actually run the compiler
