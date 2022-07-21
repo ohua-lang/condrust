@@ -39,6 +39,7 @@ import TestOptions
 
 import Integrations.TestSetup (Testable(..))
 import Integrations.Rust.RustM3.RustTestCode.HelperFiles
+import Integrations.Rust.RustM3.RustTestCode.KVAppCode (composition_code, ohua_util)
 
 
 
@@ -77,23 +78,27 @@ compileModule inCode opts cty = do
     $ \testDir -> do
       setCurrentDirectory testDir
       -- if neccessary, write library files to compile directory/scope
+      -- REMINDER: There might be a better solution than always writing all helper files
       writeFile (testDir </> "funs.rs") (renderRust funs)
+      writeFile (testDir </> "smoltcp.rs") (renderRust composition_code)
+      writeFile (testDir </> "init_components.rs") (renderRust ohua_util)
       let inFile = testDir </> "test.rs"
       L.writeFile inFile $ renderRustCode inCode
       withSystemTempDirectory "output" $
         \outDir -> do
           let compScope = HM.empty
           let options = if debug then withDebug opts else opts
+          putStr ("before compiling\n":: String)
           runCompM
             LevelWarn
             $ compile inFile compScope options integrationOptions outDir
           let outFile = outDir </> takeFileName inFile
-
+          putStr ("done compiling\n":: String)
           producedCode <- readFile outFile
           putStr ("\n PRODUCED MODULE: \n"::String)
           putStr producedCode
-          placeholderFile <- readFile (outDir </> "placeholderlib.rs")
-          putStr placeholderFile
+          --placeholderFile <- readFile (outDir </> "placeholderlib.rs")
+          --putStr placeholderFile
 
           -- run the target compiler (i.e., rustc) on the input
           case cty of

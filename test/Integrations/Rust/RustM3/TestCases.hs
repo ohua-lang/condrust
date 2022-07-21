@@ -3,69 +3,65 @@ module Integrations.Rust.RustM3.TestCases where
 import Ohua.Prelude ( ($), Monad((>>=)), (=<<) )
 
 import Integrations.Rust.RustM3.RustM3Setup
-import Integrations.Rust.RustM3.RustTestCode.KVAppCode as Input
-import Integrations.Rust.RustM3.RustTestCode.KVAppCompiled as Expect
-import Integrations.Rust.RustM3.RustTestCode.BasicsCode as BasicsInput
-import Integrations.Rust.RustM3.RustTestCode.BasicsOutput as BasicsExpect
+import Integrations.Rust.RustM3.RustTestCode.BasicsCode as Input
+import Integrations.Rust.RustM3.RustTestCode.BasicsOutput as Expect
 
 spec :: Spec
 spec =
     describe "Basic Constructs" $ do
         it "hello world" $ 
-            (showCode "Compiled: " =<< compileCode BasicsInput.hello_world) >>=
+            (showCode "Compiled: " =<< compileCode Input.hello_world) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" BasicsExpect.hello_world
+                expected <- showCode "Expected:" Expect.hello_world
                 compiled `shouldBe` expected)
-        it "simple composition" $ 
-            (showCode "Compiled: " =<< compileCode BasicsInput.simple_composition) >>=
+        it "Smap on unbound range" $ 
+            (showCode "Compiled: " =<< compileCode Input.smap_unbound) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" BasicsExpect.simple_composition
+                expected <- showCode "Expected:" Expect.hello_world
+                compiled `shouldBe` expected)
+
+        it "simple composition" $ 
+            (showCode "Compiled: " =<< compileCode Input.simple_composition) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" Expect.simple_composition
                 compiled `shouldBe` expected)
         it "function with two calculated params" $ 
-            (showCode "Compiled: " =<< compileCode BasicsInput.multi_var) >>=
+            (showCode "Compiled: " =<< compileCode Input.multi_var) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" BasicsExpect.multi_var
+                expected <- showCode "Expected:" Expect.multi_var
                 compiled `shouldBe` expected)
         it "Arc and clone local var" $ 
-            (showCode "Compiled: " =<< compileCode BasicsInput.multi_var_read_only) >>=
+            (showCode "Compiled: " =<< compileCode Input.multi_var_read_only) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" BasicsExpect.multi_var_read_only
+                expected <- showCode "Expected:" Expect.multi_var_read_only
                 compiled `shouldBe` expected)
         it "Clone local var" $ 
-            (showCode "Compiled: " =<< compileCode BasicsInput.multi_var_expl_clone) >>=
+            (showCode "Compiled: " =<< compileCode Input.multi_var_expl_clone) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" BasicsExpect.multi_var_expl_clone
+                expected <- showCode "Expected:" Expect.multi_var_expl_clone
                 compiled `shouldBe` expected)
         it "Use imported function" $ 
-            (showCode "Compiled: " =<< compileCode BasicsInput.env_vars) >>=
+            (showCode "Compiled: " =<< compileCode Input.env_vars) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" BasicsExpect.env_vars
+                expected <- showCode "Expected:" Expect.env_vars
                 compiled `shouldBe` expected)
         it "Use algo in other algo" $ 
-            (showCode "Compiled: " =<< compileCode BasicsInput.algo_loading) >>=
+            (showCode "Compiled: " =<< compileCode Input.algo_loading) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" BasicsExpect.algo_loading
+                expected <- showCode "Expected:" Expect.algo_loading
                 compiled `shouldBe` expected)
         it "Use algo with imported function in other algo" $ 
-            (showCode "Compiled: " =<< compileCode BasicsInput.algo_loading_env) >>=
+            (showCode "Compiled: " =<< compileCode Input.algo_loading_env) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" BasicsExpect.algo_loading_env
+                expected <- showCode "Expected:" Expect.algo_loading_env
                 compiled `shouldBe` expected)
         it "Tuple destruct from unit fun" $ 
-            (showCode "Compiled: " =<< compileCode BasicsInput.tuple_from_unit_fun) >>=
+            (showCode "Compiled: " =<< compileCode Input.tuple_from_unit_fun) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" BasicsExpect.tuple_from_unit_fun
+                expected <- showCode "Expected:" Expect.tuple_from_unit_fun
                 compiled `shouldBe` expected)
         it "Tuple destruct from param fun" $ 
-            (showCode "Compiled: " =<< compileCode BasicsInput.tuple_from_param) >>=
+            (showCode "Compiled: " =<< compileCode Input.tuple_from_param) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" BasicsExpect.tuple_from_param
+                expected <- showCode "Expected:" Expect.tuple_from_param
                 compiled `shouldBe` expected)     
-
-{-
-    describe "KVApplication should compile" $ do
-        it "KV-Applicaation, 3 Step Loop" $
-            (showCode "Compiled: " =<< compileCode Input.kv_application) >>=
-            (\compiled -> do
-                expected <- showCode "Expected:" Expect.kv_application
-                compiled `shouldBe` expected)-}

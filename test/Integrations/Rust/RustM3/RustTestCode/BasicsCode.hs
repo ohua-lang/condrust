@@ -144,4 +144,17 @@ tuple_from_param = [sourceFile|
                 }
                 |]
 
+smap_unbound :: SourceFile Span
+smap_unbound = [sourceFile|
+                use funs::*;
+                
+                fn test(i:i32) -> () {
+                    let s = S::new_state();
+                    for e in range_from(i) {
+                        let r = h(e);
+                        s.gs(r);
+                    }
+                }
+                
+                |]
           

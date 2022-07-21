@@ -42,6 +42,8 @@ funs =[sourceFile|
     fn g1(i:i32) -> i32 { unimplemented!{} }  
     fn check(i:i32) -> bool { unimplemented!{} }  
     
+    fn range_from(i:i32) -> RangeFrom { unimplemented!{} }  
+    
     struct S {}  
     impl S {  
       fn new_state(i:i32) -> S { unimplemented!{} }  

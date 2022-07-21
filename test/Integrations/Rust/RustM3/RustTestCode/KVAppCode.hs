@@ -9,9 +9,13 @@ kv_application :: SourceFile Span
 kv_application = [sourceFile|
 mod ohua_util;
 
-use ohua_util::init_components::{init_app,init_device,init_tcp_ip_stack};
-use smoltcp::phy::{Device};
-use smoltcp::iface::composition::{poll};
+// Simplify import for testing - In particular the mod::{stuff} syntax doesn't work
+//use ohua_util::init_components::{init_app,init_device,init_tcp_ip_stack, init_socket_proxy};
+//use smoltcp::phy::{Device};
+//use smoltcp::iface::composition::{poll};
+use init_components::*; 
+use smoltcp::*;
+
 
 fn main() {
     let mut app = init_app();
@@ -20,9 +24,9 @@ fn main() {
     // Contains: Actuall payload messages for the sockets i.e. like {handle:[msgs]}, maybe also socket state
     let socket_proxy_state = init_socket_proxy();
 
-    loop {
+    while true {
         let states_n_data = poll(tcp_ip_stack, device, socket_proxy_state);
-        let processed_data = app.do_your_thing(states_n_data);
+        let processed_data:CommandsAndMessages = app.do_your_thing(states_n_data);
         socket_proxy_state.update_all(processed_data) 
     }
 }
@@ -36,7 +40,6 @@ fn main() {
 composition_code::SourceFile Span
 composition_code = 
     [sourceFile|
-use funs::*;
 
 pub fn poll(tcp_ip_stack:TcpIPInterface, nic:Device, prev_state: StatesAndData) -> Result<StatesAndData> {
     // We need to 
@@ -52,6 +55,31 @@ pub fn poll(tcp_ip_stack:TcpIPInterface, nic:Device, prev_state: StatesAndData) 
     let result = device.send_all(new_outbound);
     new_state
 }
+|]
 
+ohua_util :: SourceFile Span
+ohua_util = [sourceFile|
 
+struct App {}
+struct SocketProxyState {}
+
+impl App {
+    pub fn do_your_thing(states_n_data:StatesAndData) -> CommandsAndMessages {
+        unimplemented!()
+    }
+}
+
+impl SocketProxyState {
+        pub fn update_all(&mut self, states_n_data:CommandsAndMessages) -> SocketProxyState{
+        unimplemented!()
+    }
+}
+
+pub fn init_app() -> App {unimplemented!()}
+
+pub fn init_device() -> Device {unimplemented!()}
+
+pub fn init_tcp_ip_stack() -> TcpIPInterface {unimplemented!()}
+
+pub fn init_socket_proxy() -> SocketProxyState {unimplemented!()}
 |]
