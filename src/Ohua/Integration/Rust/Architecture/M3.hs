@@ -19,7 +19,7 @@ import Ohua.Integration.Rust.Backend.Convert
     noSpan,
     prependToBlock,
   )
-import Ohua.Integration.Rust.Backend.Subset as Sub
+import qualified Ohua.Integration.Rust.Backend.Subset as Sub
 import qualified Ohua.Integration.Rust.TypeExtraction as TE
 import Ohua.Integration.Rust.Types as RT
 import Ohua.Prelude
@@ -42,8 +42,8 @@ instance Architecture (Architectures 'M3) where
      in Rust.Local
           ( convertPat $
               Sub.TupP
-                [ IdentPat Immutable $ bnd <> "_tx",
-                  IdentPat Immutable $ bnd <> "_rx"
+                [ Sub.IdentPat Sub.Immutable $ bnd <> "_tx",
+                  Sub.IdentPat Sub.Immutable $ bnd <> "_rx"
                 ]
           )
           Nothing
@@ -52,23 +52,45 @@ instance Architecture (Architectures 'M3) where
           noSpan
 
   convertRecv SM3 (SRecv TypeVar (SChan _channel)) = error "Invariant broken!"
-  convertRecv SM3 (SRecv (Type (TE.Self _ty _ _mut)) (SChan _channel)) =
-    error "Not yet implemented: Recv of reference type"
+  -- QUESTION: Can we use the same pattern here as for STM? I'll just use it for now to keep on working with the test code. 
+  convertRecv SM3 (SRecv (Type (TE.Self ty _ _mut)) (SChan channel)) =
+    let ty' = noSpan <$ ty
+        send =
+          Sub.MethodCall
+            (Sub.Var $ channel <> "_rx")
+            (Sub.CallRef (asQualBind "recv_msg") $ Just $ Sub.AngleBracketed [Sub.TypeArg $ Sub.RustType ty'])
+            []
+    in Sub.MethodCall send (Sub.CallRef (asQualBind "unwrap") Nothing) []
+    -- error "Not yet implemented: Recv of reference type"
   convertRecv SM3 (SRecv (Type (TE.Normal ty)) (SChan channel)) =
     let ty' = noSpan <$ ty
         send =
-          MethodCall
-            (Var $ channel <> "_rx")
-            (CallRef "/recv_msg" $ Just $ AngleBracketed [TypeArg $ RustType ty'])
+          Sub.MethodCall
+            (Sub.Var $ channel <> "_rx")
+            (Sub.CallRef (asQualBind "recv_msg") $ Just $ Sub.AngleBracketed [Sub.TypeArg $ Sub.RustType ty'])
             []
-     in MethodCall send (CallRef "/unwrap" Nothing) []
+     in Sub.MethodCall send (Sub.CallRef (asQualBind "unwrap") Nothing) []
+  -- ISSUE: Find correct reaction here
+  convertRecv SM3 (SRecv (TupleTy lst_of_types) (SChan channel)) = undefined
 
-  convertSend SM3 (SSend (SChan channel) (Right _)) = undefined
-  convertSend SM3 (SSend (SChan channel) (Left d)) =
-    MethodCall
-      (MethodCall (Var $ channel <> "_tx") (CallRef "/send_msg" Nothing) [Var d])
-      (CallRef "/unwrap" Nothing)
-      []
+  -- QUESTION: Why is sending a binding (Right binding) undefined and (Left Lit ty) is ok?
+  -- REMINDER: To make progress in testing stuff I'll adopt the handling from STM here. Check if
+    -- thats valid and replace otherwise 
+  convertSend SM3 (SSend (SChan channel) toSend) = case toSend of
+    Right num@NumericLit{} -> asMethodCall $ Sub.Lit num
+    Right b@BoolLit{} -> asMethodCall $ Sub.Lit b
+    Right s@StringLit{} -> asMethodCall $ Sub.Lit s
+    Right UnitLit -> asMethodCall $ Sub.Lit UnitLit
+    Right (EnvRefLit bnd) -> asMethodCall $ Sub.Var bnd
+    Right (FunRefLit _) -> error "Invariant broken: Got tasked to send a function reference via channel which should have been caught in the backend."
+    (Left d) -> asMethodCall $ Sub.Var d
+    where 
+      asMethodCall item = 
+        Sub.MethodCall
+              (Sub.MethodCall (Sub.Var $ channel <> "_tx") (Sub.CallRef (asQualBind "send_msg") Nothing) [item])
+              (Sub.CallRef (asQualBind "unwrap") Nothing)
+              []
+                    
 
   build SM3 (Module _ (Rust.SourceFile _ _ _items)) ns =
     return $ ns & algos %~ map (\algo -> algo & algoCode %~ createTasksAndRetChan)
@@ -82,26 +104,26 @@ instance Architecture (Architectures 'M3) where
               createTask $
                 convertExp $
                   prependToBlock (activateCom task) $
-                    BlockExpr taskE
+                    Sub.BlockExpr taskE
             all = map convertStmt initVPE ++ [Rust.NoSemi taskE' noSpan]
          in Rust.BlockExpr [] (Rust.Block all Rust.Normal noSpan) Nothing noSpan <$ task
 
-      createVPE :: Stmt
+      createVPE :: Sub.Stmt
       createVPE =
-        Local (IdentP $ IdentPat Mutable "vpe") Nothing $
-          MethodCall
-            (Call (CallRef "VPE/new_child_vpe" Nothing) []) -- TODO would normally take some argument
-            (CallRef "/unwrap" Nothing)
+        Sub.Local (Sub.IdentP $ Sub.IdentPat Sub.Mutable "vpe") Nothing $
+          Sub.MethodCall
+            (Sub.Call (Sub.CallRef (QualifiedBinding (makeThrow ["VPE"]) "new_child_vpe") Nothing) []) -- TODO would normally take some argument
+            (Sub.CallRef (asQualBind "unwrap") Nothing)
             []
 
-      activateCom :: FullTask TE.RustTypeAnno a -> [Stmt]
+      activateCom :: FullTask TE.RustTypeAnno a -> [Sub.Stmt]
       activateCom (FullTask sends recvs _) =
         map
-          ( Semi
+          ( Sub.Semi
               . ( \c ->
-                    MethodCall
-                      (MethodCall (Var c) (CallRef "/activate" Nothing) [])
-                      (CallRef "/unwrap" Nothing)
+                    Sub.MethodCall
+                      (Sub.MethodCall (Sub.Var c) (Sub.CallRef (asQualBind "activate") Nothing) [])
+                      (Sub.CallRef (asQualBind "unwrap") Nothing)
                       []
                 )
           )
@@ -109,18 +131,18 @@ instance Architecture (Architectures 'M3) where
               ++ map (\(SRecv _type (SChan c)) -> c) recvs
           )
 
-      delegateCom :: FullTask TE.RustTypeAnno a -> [Stmt]
+      delegateCom :: FullTask TE.RustTypeAnno a -> [Sub.Stmt]
       delegateCom (FullTask sends recvs _) =
         map
-          ( Semi
+          ( Sub.Semi
               . ( \c ->
-                    MethodCall
-                      ( MethodCall
-                          (Var "vpe")
-                          (CallRef "/delegate_obj" Nothing)
-                          [MethodCall (Var c) (CallRef "/sel" Nothing) []]
+                    Sub.MethodCall
+                      ( Sub.MethodCall
+                          (Sub.Var "vpe")
+                          (Sub.CallRef (asQualBind "delegate_obj") Nothing)
+                          [Sub.MethodCall (Sub.Var c) (Sub.CallRef (asQualBind "sel") Nothing) []]
                       )
-                      (CallRef "unwrap" Nothing)
+                      (Sub.CallRef (asQualBind "unwrap") Nothing)
                       []
                 )
           )
@@ -142,13 +164,13 @@ instance Architecture (Architectures 'M3) where
             box =
               Rust.Call
                 []
-                (convertCallRef $ CallRef "Box/new" Nothing)
+                (convertCallRef $ Sub.CallRef (QualifiedBinding (makeThrow ["Box"]) "new") Nothing)
                 [closure]
                 noSpan
             run =
               Rust.MethodCall
                 []
-                (convertExp $ Var "vpe")
+                (convertExp $ Sub.Var "vpe")
                 (Rust.PathSegment (mkIdent "run") Nothing noSpan)
                 [box]
                 noSpan
@@ -162,9 +184,19 @@ instance Architecture (Architectures 'M3) where
   -- REMINDER: Replace Placeholder
   serialize SM3 mod placeholder ns = C.serialize mod ns createProgram placeholder
     where
-      createProgram (Program chans (Try resultExpr) tasks) =
+      -- QUESTION: Will here ever be a Try Expr or is it just an STM Thing?
+      createProgram (Program chans resultExpr tasks) = case resultExpr of
+       (Sub.Try resultExpr') -> 
         let taskStmts = map (flip Rust.Semi noSpan . taskExpression) tasks
             program = toList chans ++ taskStmts
-         in Rust.Block (program ++ [Rust.NoSemi (convertExp resultExpr) noSpan]) Rust.Normal noSpan
+         in Rust.Block (program ++ [Rust.NoSemi (convertExp resultExpr') noSpan]) Rust.Normal noSpan
+       anyExpr ->
+        let taskStmts = map (flip Rust.Semi noSpan . taskExpression) tasks
+            program = toList chans ++ taskStmts
+         in Rust.Block (program ++ [Rust.NoSemi (convertExp anyExpr) noSpan]) Rust.Normal noSpan
+
+asQualBind :: Binding -> QualifiedBinding
+asQualBind = QualifiedBinding (makeThrow [])
 
 instance Transform (Architectures 'M3)
+
