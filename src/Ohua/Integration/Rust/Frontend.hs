@@ -78,15 +78,18 @@ instance Integration (Language 'Rust) where
         return $ Namespace (filePathToNsRef srcFile) imports algos
 
       extractImports :: CompM m => [Binding] -> UseTree Span -> m (NonEmpty Import)
+      -- UseTreeSimple means: 'use something;' 
       extractImports prefix (UseTreeSimple path (Just alias) _) =
         (:| []) . flip Alias (toBinding alias) . makeThrow . (prefix <>) <$> toBindings path
-      extractImports _prefix u@(UseTreeSimple path Nothing _) = do
+      extractImports prefix u@(UseTreeSimple path Nothing _) = do
         bnds <- reverse <$> toBindings path
         case bnds of
           [] -> throwError $ "Empty 'use' path detected. Impossible: This program certainly does not pass 'rustc'." <> show u
-          (x : xs) -> return (Full (makeThrow $ reverse xs) x :| [])
+          (x : xs) -> return (Full (makeThrow $ prefix <> reverse xs) x :| [])
+      -- UseTreeGlob means: 'use something::*;'
       extractImports prefix (UseTreeGlob path _) =
         (:| []) . Glob . makeThrow . (prefix <>) <$> toBindings path
+      -- UseTreeNested means:'use some::thing::...' or 'use some::thing::{Items}'
       extractImports prefix u@(UseTreeNested path nesteds _) = do
         path' <- (prefix <>) <$> toBindings path
         nesteds' <- case nonEmpty nesteds of
@@ -176,7 +179,8 @@ instance Integration (Language 'Rust) where
 
       lookupFunTypes :: CompM m => QualifiedBinding -> m ([NSRef], QualifiedBinding)
       lookupFunTypes q@(QualifiedBinding (NSRef []) nam) =
-        return $ (,q) $ maybe globs (: []) $ HM.lookup nam fullyResolvedImports
+        -- ISSUE: Resolving imports here fails for use mod::{fun1, fun2} syntax ...Check why and fix
+        return $ (,q) $ maybe globs (: []) $ (trace $ "looking up" <> show q) HM.lookup nam fullyResolvedImports
       lookupFunTypes q@(QualifiedBinding nsRef _name) =
         let (aliaz : rest) = unwrap nsRef
          in case HM.lookup aliaz aliasImports of
