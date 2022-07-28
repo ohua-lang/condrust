@@ -35,13 +35,13 @@ fn test() -> String {
       }))
       .unwrap()
   };
-  a_0_0_rx.recv_msg::<  String,>().unwrap()
+  a_0_0_rx.recv_msg::<String,>().unwrap()
 }
                 |]
 
 simple_composition :: SourceFile Span
 simple_composition = [sourceFile|
-                use funs::*;
+use funs::{f, g};
 
 fn test() -> String {
   let (a_0_0_tx, a_0_0_rx) =
@@ -1004,8 +1004,210 @@ fn test(i: i32) -> i32 {
       }))
       .unwrap()
   };
-  b_0_0_rx.recv_msg::<  i32,>().unwrap()
+  b_0_0_rx.recv_msg::<i32,>().unwrap()
 } 
                 |]
+
+
+-- ISSUE : There are multiple Problems with this case 
+  -- a) same channels are activated and used for delegation twice
+  -- b) there are '!' type annotations, which are placeholders for types we don't know -> this must not happen
+  -- c) Is it on purpose, that only one of algos is replaced ? 
+  -- d) We need to adapt to actual M3 API
+if_recursion_only_call_in_branch :: SourceFile Span
+if_recursion_only_call_in_branch = [sourceFile|
+use funs::*;
+
+fn algo_rec(i: i32, state: S) -> S {
+  state.gs(i);
+  let i_new = add(i, 1);
+  if islowerthan23(i) { algo_rec(i_new, state) } else { state }
+}
+
+fn test(i: i32) -> S {
+  let (c_0_0_tx, c_0_0_rx) =
+    {
+      let mut rgate =
+        wv_assert_ok!(
+          RecvGate::new(math::next_log2(256), math::next_log2(256))
+        );
+      let sgate =
+        wv_assert_ok!(SendGate::new_with(SGateArgs::new(&rgate).credits(1)));
+      (sgate, rgate)
+    };
+  let (state_0_0_0_0_tx, state_0_0_0_0_rx) =
+    {
+      let mut rgate =
+        wv_assert_ok!(
+          RecvGate::new(math::next_log2(256), math::next_log2(256))
+        );
+      let sgate =
+        wv_assert_ok!(SendGate::new_with(SGateArgs::new(&rgate).credits(1)));
+      (sgate, rgate)
+    };
+  let (a_0_0_tx, a_0_0_rx) =
+    {
+      let mut rgate =
+        wv_assert_ok!(
+          RecvGate::new(math::next_log2(256), math::next_log2(256))
+        );
+      let sgate =
+        wv_assert_ok!(SendGate::new_with(SGateArgs::new(&rgate).credits(1)));
+      (sgate, rgate)
+    };
+  let (i_new_0_0_0_tx, i_new_0_0_0_rx) =
+    {
+      let mut rgate =
+        wv_assert_ok!(
+          RecvGate::new(math::next_log2(256), math::next_log2(256))
+        );
+      let sgate =
+        wv_assert_ok!(SendGate::new_with(SGateArgs::new(&rgate).credits(1)));
+      (sgate, rgate)
+    };
+  let (state_1_0_0_tx, state_1_0_0_rx) =
+    {
+      let mut rgate =
+        wv_assert_ok!(
+          RecvGate::new(math::next_log2(256), math::next_log2(256))
+        );
+      let sgate =
+        wv_assert_ok!(SendGate::new_with(SGateArgs::new(&rgate).credits(1)));
+      (sgate, rgate)
+    };
+  let (state_0_0_1_tx, state_0_0_1_rx) =
+    {
+      let mut rgate =
+        wv_assert_ok!(
+          RecvGate::new(math::next_log2(256), math::next_log2(256))
+        );
+      let sgate =
+        wv_assert_ok!(SendGate::new_with(SGateArgs::new(&rgate).credits(1)));
+      (sgate, rgate)
+    };
+  let (i_0_0_0_tx, i_0_0_0_rx) =
+    {
+      let mut rgate =
+        wv_assert_ok!(
+          RecvGate::new(math::next_log2(256), math::next_log2(256))
+        );
+      let sgate =
+        wv_assert_ok!(SendGate::new_with(SGateArgs::new(&rgate).credits(1)));
+      (sgate, rgate)
+    };
+  {
+    let mut vpe = VPE::new_child_vpe().unwrap();
+    vpe.delegate_obj(a_0_0.sel()).unwrap();
+    vpe.delegate_obj(i_0_0_0.sel()).unwrap();
+    vpe
+      .run(Box::new(move || -> _ {
+        a_0_0.activate().unwrap();
+        i_0_0_0.activate().unwrap();
+        loop {
+          let var_0 = i_0_0_0_rx.recv_msg::<  i32,>().unwrap();
+          let a_0_0 = islowerthan23(var_0);
+          a_0_0_tx.send_msg(a_0_0).unwrap();
+          ()
+        }
+      }))
+      .unwrap()
+  };
+  {
+    let mut vpe = VPE::new_child_vpe().unwrap();
+    vpe.delegate_obj(i_new_0_0_0.sel()).unwrap();
+    vpe.delegate_obj(i_0_0_0.sel()).unwrap();
+    vpe
+      .run(Box::new(move || -> _ {
+        i_new_0_0_0.activate().unwrap();
+        i_0_0_0.activate().unwrap();
+        loop {
+          let var_0 = i_0_0_0_rx.recv_msg::<  i32,>().unwrap();
+          let i_new_0_0_0 = add(var_0, 1);
+          i_new_0_0_0_tx.send_msg(i_new_0_0_0).unwrap();
+          ()
+        }
+      }))
+      .unwrap()
+  };
+  {
+    let mut vpe = VPE::new_child_vpe().unwrap();
+    vpe.delegate_obj(state_0_0_0_0.sel()).unwrap();
+    vpe.delegate_obj(state_0_0_1.sel()).unwrap();
+    vpe.delegate_obj(i_0_0_0.sel()).unwrap();
+    vpe
+      .run(Box::new(move || -> _ {
+        state_0_0_0_0.activate().unwrap();
+        state_0_0_1.activate().unwrap();
+        i_0_0_0.activate().unwrap();
+        loop {
+          let var_0 = state_0_0_1_rx.recv_msg::<  S,>().unwrap();
+          let var_1 = i_0_0_0_rx.recv_msg::<  i32,>().unwrap();
+          var_0.gs(var_1);
+          state_0_0_0_0_tx.send_msg(var_0).unwrap()
+        }
+      }))
+      .unwrap()
+  };
+  {
+    let mut vpe = VPE::new_child_vpe().unwrap();
+    vpe.delegate_obj(i_0_0_0.sel()).unwrap();
+    vpe.delegate_obj(state_0_0_1.sel()).unwrap();
+    vpe.delegate_obj(i_0_0_0.sel()).unwrap();
+    vpe.delegate_obj(state_0_0_1.sel()).unwrap();
+    vpe.delegate_obj(c_0_0.sel()).unwrap();
+    vpe.delegate_obj(state_1_0_0.sel()).unwrap();
+    vpe.delegate_obj(a_0_0.sel()).unwrap();
+    vpe.delegate_obj(i_new_0_0_0.sel()).unwrap();
+    vpe.delegate_obj(state_0_0_0_0.sel()).unwrap();
+    vpe.delegate_obj(i_new_0_0_0.sel()).unwrap();
+    vpe.delegate_obj(state_0_0_0_0.sel()).unwrap();
+    vpe
+      .run(Box::new(move || -> _ {
+        i_0_0_0.activate().unwrap();
+        state_0_0_1.activate().unwrap();
+        i_0_0_0.activate().unwrap();
+        state_0_0_1.activate().unwrap();
+
+        c_0_0.activate().unwrap();
+        state_1_0_0.activate().unwrap();
+        
+        a_0_0.activate().unwrap();
+        
+        i_new_0_0_0.activate().unwrap();
+        state_0_0_0_0.activate().unwrap();
+        i_new_0_0_0.activate().unwrap();
+        state_0_0_0_0.activate().unwrap();
+        
+        let init_1 = state_1_0_0_rx.recv_msg::<  !,>().unwrap();
+        i_0_0_0_tx.send_msg(i).unwrap();
+        state_0_0_1_tx.send_msg(init_1).unwrap();
+        while a_0_0_rx.recv_msg::<  !,>().unwrap() {
+          let loop_res_0 = i_new_0_0_0_rx.recv_msg::<  !,>().unwrap();
+          let loop_res_1 = state_0_0_0_0_rx.recv_msg::<  !,>().unwrap();
+          i_0_0_0_tx.send_msg(loop_res_0).unwrap();
+          state_0_0_1_tx.send_msg(loop_res_1).unwrap();
+          ()
+        };
+        i_new_0_0_0_rx.recv_msg::<  !,>().unwrap();
+        let finalResult = state_0_0_0_0_rx.recv_msg::<  !,>().unwrap();
+        c_0_0_tx.send_msg(finalResult).unwrap()
+      }))
+      .unwrap()
+  };
+  {
+    let mut vpe = VPE::new_child_vpe().unwrap();
+    vpe.delegate_obj(state_1_0_0.sel()).unwrap();
+    vpe
+      .run(Box::new(move || -> _ {
+        state_1_0_0.activate().unwrap();
+        let state_1_0_0 = S::new_state();
+        state_1_0_0_tx.send_msg(state_1_0_0).unwrap();
+        ()
+      }))
+      .unwrap()
+  };
+  c_0_0_rx.recv_msg::<  S,>().unwrap()
+}
+|]
 
           

@@ -43,6 +43,8 @@ funs =[sourceFile|
     fn check(i:i32) -> bool { unimplemented!{} }  
     
     fn range_from(i:i32) -> RangeFrom { unimplemented!{} }  
+    fn islowerthan23(i:i32) -> bool { i<23 }
+    fn add(i:i32, j:i32)-> i32 {i+j}
     
     struct S {}  
     impl S {  

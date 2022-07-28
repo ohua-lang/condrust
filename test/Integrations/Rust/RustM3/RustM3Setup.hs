@@ -72,6 +72,9 @@ integrationOptions = IC.Config Arch.M3 $ IC.Options Nothing Nothing
 
 compileModule :: SourceFile Span -> Options -> CompilationType -> ReaderT DebugOptions IO (SourceFile Span)
 compileModule inCode opts cty = do
+  --putStrLn ("My Imports: " <> show testRust::String)
+  --putStrLn ("Simple IMports: " <> show testRust2::String)
+  --putStrLn ("Very Simple IMports: " <> show testRust3::String)
   debug <- asks printIRs
   lift $ withSystemTempDirectory
     "testDir"
@@ -88,15 +91,13 @@ compileModule inCode opts cty = do
         \outDir -> do
           let compScope = HM.empty
           let options = if debug then withDebug opts else opts
-          putStr ("before compiling\n":: String)
           runCompM
             LevelWarn
             $ compile inFile compScope options integrationOptions outDir
           let outFile = outDir </> takeFileName inFile
-          putStr ("done compiling\n":: String)
-          producedCode <- readFile outFile
-          putStr ("\n PRODUCED MODULE: \n"::String)
-          putStr producedCode
+          -- producedCode <- readFile outFile
+          -- putStr ("\n PRODUCED MODULE: \n"::String)
+          -- putStr producedCode
           --placeholderFile <- readFile (outDir </> "placeholderlib.rs")
           --putStr placeholderFile
 
@@ -112,7 +113,7 @@ compileModule inCode opts cty = do
 
 
 runTargetCompiler :: FilePath -> FilePath -> FilePath -> IO ()
-runTargetCompiler inDir outDir outFile = do
+runTargetCompiler _inDir outDir outFile = do
   let srcDir = outDir </> "src"
   createDirectory srcDir
   setCurrentDirectory outDir
@@ -125,4 +126,4 @@ runTargetCompiler inDir outDir outFile = do
   compilationResult <- readProcessWithExitCode "cargo" ["check"] ""
   case compilationResult of
     (ExitSuccess, _, _) -> return ()
-    (ExitFailure exitCode, stdOut, stdErr) -> error $ toText $ "Target Compiler Compilation Failed: " <> stdErr
+    (ExitFailure _exitCode, _stdOut, stdErr) -> error $ toText $ "Target Compiler Compilation Failed: " <> stdErr

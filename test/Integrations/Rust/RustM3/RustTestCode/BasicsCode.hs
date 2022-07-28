@@ -16,7 +16,7 @@ hello_world = [sourceFile|
 
 simple_composition :: SourceFile Span
 simple_composition = [sourceFile|
-                use funs::*;
+                use funs::{f, g};
 
                 fn test() -> String {
                     let x = f();
@@ -144,8 +144,8 @@ tuple_from_param = [sourceFile|
                 }
                 |]
 
-smap_unbound :: SourceFile Span
-smap_unbound = [sourceFile|
+smap_for_unbound :: SourceFile Span
+smap_for_unbound = [sourceFile|
                 use funs::*;
                 
                 fn test(i:i32) -> () {
@@ -157,4 +157,86 @@ smap_unbound = [sourceFile|
                 }
                 
                 |]
-          
+
+smap_for_bound :: SourceFile Span
+smap_for_bound = [sourceFile|
+                use funs::*;
+
+                fn test() -> S {
+                    let s = S::new_state();
+                    let stream = iter_i32();
+                    for e in stream {
+                        let r = h(e);
+                        s.gs(r);
+                    }
+                    s
+                }
+|]
+
+smap_while:: SourceFile Span
+smap_while = [sourceFile|
+                use funs::*;
+
+                fn test() -> S {
+                    let state = S::new_state();
+                    let mut i = 1;
+                    while islowerthan23(i) {
+                        state.gs(i);
+                        i = add(i, 1);
+                    }
+                    s
+                }
+|]      
+
+if_recursion:: SourceFile Span
+if_recursion = [sourceFile|
+                use funs::*;
+
+                fn algo_rec(i:i32, state:S) -> S{
+                    if islowerthan23(i) {
+                        state.gs(i);
+                        algo_rec(add(i,1), state)
+                    } else {
+                        state
+                    }
+                }
+
+                fn test(i:i32) -> S {
+                    let mut state = S::new_state();
+                    algo_rec(i, state) 
+                }
+|]
+
+if_recursion_only_call_in_branch:: SourceFile Span
+if_recursion_only_call_in_branch = [sourceFile|
+                use funs::*;
+
+                fn algo_rec(i:i32, state:S) -> S{
+                    state.gs(i);
+                    let i_new = add(i, 1);
+                    if islowerthan23(i) {
+                        algo_rec(i_new, state)
+                    } else {
+                        state
+                    }
+                }
+
+                fn test(i:i32) -> S {
+                    let mut state = S::new_state();
+                    algo_rec(i, state) 
+                }
+|]
+
+if_binop:: SourceFile Span
+if_binop = [sourceFile|
+                use funs::*;
+
+                fn test(i:i32) -> i32{
+                    if i < 13 {
+                        i
+                    } else {
+                        i+1
+                    }
+                }
+|]
+
