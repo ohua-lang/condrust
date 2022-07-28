@@ -21,7 +21,7 @@ import Ohua.Integration.Rust.Backend.Convert
   )
 import qualified Ohua.Integration.Rust.Backend.Subset as Sub
 import qualified Ohua.Integration.Rust.TypeExtraction as TE
-import Ohua.Integration.Rust.Types as RT
+import qualified Ohua.Integration.Rust.Types as RT
 import Ohua.Prelude
 
 instance Architecture (Architectures 'M3) where
@@ -50,8 +50,20 @@ instance Architecture (Architectures 'M3) where
           (Just channel)
           []
           noSpan
-
-  convertRecv SM3 (SRecv TypeVar (SChan _channel)) = error "Invariant broken!"
+  -- QUESTION: This 'invariant' probably is probably imposed by M3 requiring 'turbo fish'
+  -- typing for the recv. calls i.e. a_0_0_rx.recv_msg::<String,>().unwrap() so if any return
+    -- type is unknown to Ohua, this will blow up
+    -- &&convertRecv SM3 (SRecv TypeVar (SChan channel)) = (trace $ show channel) error "Invariant broken!"
+  -- ISSUE: To make progress, I'll insert a paceholder type annotation. The real type needs to be derived earlier!!
+  convertRecv SM3 (SRecv TypeVar (SChan channel)) = 
+    let ty' = Rust.Never noSpan
+        send =
+              Sub.MethodCall
+                (Sub.Var $ channel <> "_rx")
+                (Sub.CallRef (asQualBind "recv_msg") $ Just $ Sub.AngleBracketed [Sub.TypeArg $ Sub.RustType ty'])
+                []
+     in Sub.MethodCall send (Sub.CallRef (asQualBind "unwrap") Nothing) []
+  -- ToDo: Refactor when case handling is clear to get rid of duplicate code  
   -- QUESTION: Can we use the same pattern here as for STM? I'll just use it for now to keep on working with the test code. 
   convertRecv SM3 (SRecv (Type (TE.Self ty _ _mut)) (SChan channel)) =
     let ty' = noSpan <$ ty
@@ -70,8 +82,15 @@ instance Architecture (Architectures 'M3) where
             (Sub.CallRef (asQualBind "recv_msg") $ Just $ Sub.AngleBracketed [Sub.TypeArg $ Sub.RustType ty'])
             []
      in Sub.MethodCall send (Sub.CallRef (asQualBind "unwrap") Nothing) []
-  -- ISSUE: Find correct reaction here
-  convertRecv SM3 (SRecv (TupleTy lst_of_types) (SChan channel)) = undefined
+  -- ISSUE: Find correct reaction here. For now I'll pretend channel.recv::<(ty1, ty2 ...)>().unwrap() is ok
+  convertRecv SM3 (SRecv lst_of_types (SChan channel)) = 
+    let typeTuple =  toRustTy lst_of_types
+        send =
+          Sub.MethodCall
+            (Sub.Var $ channel <> "_rx")
+            (Sub.CallRef (asQualBind "recv_msg") $ Just $ Sub.AngleBracketed [Sub.TypeArg $ Sub.RustType typeTuple])
+            []
+     in Sub.MethodCall send (Sub.CallRef (asQualBind "unwrap") Nothing) []
 
   -- QUESTION: Why is sending a binding (Right binding) undefined and (Left Lit ty) is ok?
   -- REMINDER: To make progress in testing stuff I'll adopt the handling from STM here. Check if
@@ -92,7 +111,7 @@ instance Architecture (Architectures 'M3) where
               []
                     
 
-  build SM3 (Module _ (Rust.SourceFile _ _ _items)) ns =
+  build SM3 (RT.Module _ (Rust.SourceFile _ _ _items)) ns =
     return $ ns & algos %~ map (\algo -> algo & algoCode %~ createTasksAndRetChan)
     where
       createTasksAndRetChan (Program chans retChan tasks) =
@@ -194,6 +213,13 @@ instance Architecture (Architectures 'M3) where
         let taskStmts = map (flip Rust.Semi noSpan . taskExpression) tasks
             program = toList chans ++ taskStmts
          in Rust.Block (program ++ [Rust.NoSemi (convertExp anyExpr) noSpan]) Rust.Normal noSpan
+
+toRustTy :: ArgType TE.RustTypeAnno -> Rust.Ty ()
+toRustTy TypeVar = Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "PlaceHolder" Nothing noSpan] noSpan) noSpan
+toRustTy (Type (TE.Self ty _ _ )) = undefined
+toRustTy (Type (TE.Normal ty)) = ty
+toRustTy (TupleTy types) = Rust.TupTy (toList $ map toRustTy types) noSpan
+
 
 asQualBind :: Binding -> QualifiedBinding
 asQualBind = QualifiedBinding (makeThrow [])
