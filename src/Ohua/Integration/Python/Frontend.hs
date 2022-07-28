@@ -101,10 +101,10 @@ instance Integration (Language 'Python) where
                         Nothing -> throwError  "Currently we do not support relative import paths"
 
     -- | This function assigns types to the functions called inside an algorithm. In Rust, it 
-    -- | would do so, by checking the given namespace for definitions of those functions.
-    -- | As we currently do not 'type' any of the arguments in Python and the number of
-    -- | (explicit) arguments may vary for each function due to default values, we just assign
-    -- | a type of [PyObject] to every function call site.
+    --   would do so, by checking the given namespace for definitions of those functions.
+    --   As we currently do not 'type' any of the arguments in Python and the number of
+    --   (explicit) arguments may vary for each function due to default values, we just assign
+    --   a type of [PyObject] to every function call site.
     loadTypes :: CompM m => Language 'Python ->
                     Module ->
                     PythonNamespace ->

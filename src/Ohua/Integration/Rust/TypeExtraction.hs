@@ -18,6 +18,9 @@ data RustArgType = Self (Ty ()) (Maybe (Lifetime ())) Mutability | Normal (Ty ()
 type RustTypeAnno = RustArgType
 type FunTypes = HM.HashMap QualifiedBinding (FunType RustTypeAnno)
 
+-- | Load the given file as AST, pattern match on the content and collect
+--   the types of all defined functions (fn, impl or inside trait) into a 
+--   Hashmap @FunTypes@ mapping function bindings to their types
 extractFromFile :: CompM m => FilePath -> m FunTypes
 extractFromFile srcFile = extract srcFile =<< liftIO (load srcFile)
 

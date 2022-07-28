@@ -48,7 +48,7 @@ instance Integration (Language 'Rust) where
   loadNs _ srcFile = do
     mod <- liftIO $ load srcFile
     ns <- extractNs mod
-    -- REMINDER Replace True by extracted module
+    -- REMINDER Replace empty placeholder by extracted module
     return (Module srcFile mod, ns, Module "placeholderlib.rs" placeholderModule)
     where
       extractNs ::
@@ -124,18 +124,71 @@ instance Integration (Language 'Rust) where
     Namespace (FrLang.Expr RustArgType) (Item Span) ->
     m (Namespace (FrLang.Expr RustArgType) (Item Span))
   loadTypes _ (Module ownFile _) ohuaNs = do
+    -- Extract namespace reference (filepath) and Qualified name for all functions called in each algo
     filesAndPaths <- concat <$> mapM funsForAlgo (ohuaNs ^. algos)
-    --traceShowM $ "files and paths: " <> show filesAndPaths
+    traceShowM $ "files and paths: " <> show filesAndPaths
+    -- For functions from the compiled module (not imported), set the file path to the current file
     let filesAndPaths' = map (first convertOwn) filesAndPaths
+    -- Go through all namespace references, parse the files and return all function types defined in there
     typez <- load $ concatMap fst filesAndPaths'
     -- traceShowM $ "loaded types: " <> show types
+    -- For each function reference check the extracted function type, if function is not found or defined multiple
+    -- times this will fail
     types' <- HM.fromList . catMaybes <$> mapM (verifyAndRegister typez) filesAndPaths'
     -- traceShowM $ "extracted types: " <> show types'
+    -- Replace type annotations of function literals with extracted types
     updateExprs ohuaNs (transformM (assignTypes types'))
     where
+      funsForAlgo :: CompM m => Algo (FrLang.Expr RustArgType) (Item Span) -> m [([NSRef], QualifiedBinding)]
+      funsForAlgo (Algo _name code _) = do
+        traceShowM $ "algo: " <> show _name <> "\n code: \n" <> quickRender code
+        mapM lookupFunTypes [f | LitE (FunRefLit (FunRef f _ _)) <- universe code]
+      
+      lookupFunTypes :: CompM m => QualifiedBinding -> m ([NSRef], QualifiedBinding)
+      lookupFunTypes q@(QualifiedBinding (NSRef []) nam) =
+        return $ (,q) $ maybe globs (: []) $ HM.lookup nam fullyResolvedImports
+      lookupFunTypes q@(QualifiedBinding nsRef _name) =
+        let (aliaz : rest) = unwrap nsRef
+         in case HM.lookup aliaz aliasImports of
+              Just a -> return ([NSRef $ unwrap a ++ rest], q)
+              Nothing -> case globs of
+                [] ->
+                  throwError $
+                    "Invariant broken: I found the module alias reference '"
+                      <> show q
+                      <> "' that is not listed in the imports and no glob imports (::*) were defined: '"
+                      <> show globs
+                      <> "'\n Please move it into this module if you happen to import this via a mod.rs file."
+                xs -> return (xs, q)
+
+      convertOwn :: [NSRef] -> [NSRef]
+      convertOwn [] = [filePathToNsRef ownFile]
+      convertOwn n = n
+
+      -- | Extract a HashMap of {name: function type} from the given file reference
+      load :: CompM m => [NSRef] -> m FunTypes
+      load nsRefs = HM.unions <$> mapM (extractFromFile . toFilePath . (,".rs")) nsRefs
+        
+      verifyAndRegister :: CompM m => FunTypes -> ([NSRef], QualifiedBinding) -> m (Maybe (QualifiedBinding, FunType RustArgType))
+      verifyAndRegister typez ([candidate], qp@(QualifiedBinding _ nam)) =
+        case HM.lookup (QualifiedBinding candidate nam) typez of
+          Just t -> return $ Just (qp, t)
+          Nothing -> do
+            $(logWarn) $ "Function `" <> show (unwrap nam) <> "` not found in module `" <> show candidate <> "`."
+            return Nothing
+      verifyAndRegister typez (globs', qp@(QualifiedBinding _ nam)) =
+        case mapMaybe ((`HM.lookup` typez) . (`QualifiedBinding` nam)) globs' of
+          [] -> do
+            $(logWarn) $ "Function `" <> show (unwrap nam) <> "` not found in modules `" <> show globs' <> "`. "
+            return Nothing
+          [t] -> return $ Just (qp, t)
+          _ -> throwError $ "Multiple definitions of function `" <> show (unwrap nam) <> "` in modules " <> show globs' <> " detected!\nPlease verify again that your code compiles properly by running `rustc`. If the problem persists then please file a bug. (See issue sertel/ohua-frontend#1)"
+
       assignTypes :: CompM m => FunTypes -> FrLang.Expr RustArgType -> m (FrLang.Expr RustArgType)
       -- FIXME It is nice to write it like this, really, but this has to check whether the function used in the code has (at the very least)
       --       the same number of arguments as it is applied to. If this does not match then clearly we need to error here!
+      -- NO. We don't. Writing correct Rust code is the developers responsibility. We only need to extract types to
+      -- implement correct transformations
       assignTypes typez = \case
         f@(LitE (FunRefLit (FunRef qb i ft))) | allArgsTyped ft -> return f
         (LitE (FunRefLit (FunRef qb i _))) ->
@@ -172,51 +225,7 @@ instance Integration (Language 'Rust) where
       globs :: [NSRef]
       globs = mapMaybe (\case (Glob n) -> Just n; _ -> Nothing) (ohuaNs ^. imports)
 
-      funsForAlgo :: CompM m => Algo (FrLang.Expr RustArgType) (Item Span) -> m [([NSRef], QualifiedBinding)]
-      funsForAlgo (Algo _name code _) = do
-        -- traceShowM $ "algo: " <> show _name <> "\n code: \n" <> quickRender code
-        mapM lookupFunTypes [f | LitE (FunRefLit (FunRef f _ _)) <- universe code]
-
-      lookupFunTypes :: CompM m => QualifiedBinding -> m ([NSRef], QualifiedBinding)
-      lookupFunTypes q@(QualifiedBinding (NSRef []) nam) =
-        -- ISSUE: Resolving imports here fails for use mod::{fun1, fun2} syntax ...Check why and fix
-        return $ (,q) $ maybe globs (: []) $ (trace $ "looking up" <> show q) HM.lookup nam fullyResolvedImports
-      lookupFunTypes q@(QualifiedBinding nsRef _name) =
-        let (aliaz : rest) = unwrap nsRef
-         in case HM.lookup aliaz aliasImports of
-              Just a -> return ([NSRef $ unwrap a ++ rest], q)
-              Nothing -> case globs of
-                [] ->
-                  throwError $
-                    "Invariant broken: I found the module alias reference '"
-                      <> show q
-                      <> "' that is not listed in the imports and no glob imports (::*) were defined: '"
-                      <> show globs
-                      <> "'\n Please move it into this module if you happen to import this via a mod.rs file."
-                xs -> return (xs, q)
-
-      load :: CompM m => [NSRef] -> m FunTypes
-      load nsRefs = HM.unions <$> mapM (extractFromFile . toFilePath . (,".rs")) nsRefs
-
-      convertOwn :: [NSRef] -> [NSRef]
-      convertOwn [] = [filePathToNsRef ownFile]
-      convertOwn n = n
-
-      verifyAndRegister :: CompM m => FunTypes -> ([NSRef], QualifiedBinding) -> m (Maybe (QualifiedBinding, FunType RustArgType))
-      verifyAndRegister typez ([candidate], qp@(QualifiedBinding _ nam)) =
-        case HM.lookup (QualifiedBinding candidate nam) typez of
-          Just t -> return $ Just (qp, t)
-          Nothing -> do
-            $(logWarn) $ "Function `" <> show (unwrap nam) <> "` not found in module `" <> show candidate <> "`."
-            return Nothing
-      verifyAndRegister typez (globs', qp@(QualifiedBinding _ nam)) =
-        case mapMaybe ((`HM.lookup` typez) . (`QualifiedBinding` nam)) globs' of
-          [] -> do
-            $(logWarn) $ "Function `" <> show (unwrap nam) <> "` not found in modules `" <> show globs' <> "`. "
-            return Nothing
-          [t] -> return $ Just (qp, t)
-          _ -> throwError $ "Multiple definitions of function `" <> show (unwrap nam) <> "` in modules " <> show globs' <> " detected!\nPlease verify again that your code compiles properly by running `rustc`. If the problem persists then please file a bug. (See issue sertel/ohua-frontend#1)"
-
+      
 createFunTypeArgs :: ConvertM m => QualifiedBinding -> [Sub.Expr] -> m (Either Unit (NonEmpty (ArgType RustArgType)))
 createFunTypeArgs ref args =
   case args of
