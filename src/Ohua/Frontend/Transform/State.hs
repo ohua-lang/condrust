@@ -1,4 +1,4 @@
-module Ohua.Frontend.Transform.State where
+module Ohua.Frontend.Transform.State  where 
 
 import Ohua.Prelude hiding (Nat)
 import Ohua.Types.Vector
@@ -18,8 +18,8 @@ data Ctxt =
   (HM.HashMap Binding Action) -- ctxt
   (HM.HashMap Binding Action) -- local ctxt
 
-check :: CompM m => Expr ty -> m ()
-check expr = f (Ctxt HM.empty HM.empty) expr >> return ()
+checkLinearUsage :: CompM m => Expr ty -> m ()
+checkLinearUsage expr = f (Ctxt HM.empty HM.empty) expr >> return ()
   where
     f ctxt e@(BindE (VarE bnd) b) = do
       (Ctxt ctxt' local') <- f ctxt b
@@ -59,7 +59,7 @@ check expr = f (Ctxt HM.empty HM.empty) expr >> return ()
                        "\n Expression:\n" <> prettyExpr expr
     f ctxt (AppE a bs) = f ctxt a >>= (\ctxt' -> foldM f ctxt' bs)
     f ctxt (LetE p a b) =
-      -- I have to add it here into the check for a because p may be the identifier
+      -- I have to add it here into the checkLinearUsage for a because p may be the identifier
       -- for a recursive function.
        f (addToCtxt ctxt p) a >>= (`f` b)
     f ctxt (LamE ps b) = f (addToCtxt ctxt $ TupP ps) b

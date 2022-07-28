@@ -30,8 +30,7 @@ contextedTraversal f = go
         goPat (VarP bdg) = [bdg]
         goPat (TupP ps) = join $ Ohua.Prelude.map goPat ps
 
--- This transformation establishes well-scopedness!
-
+-- | This transformation establishes well-scopedness 
 --      The implementation is quite straight forward: collect the variables and check for
 --      references that are not defined as variables (usually in function position).
 --      These must be references to functions in the current namespace.

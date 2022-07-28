@@ -20,6 +20,7 @@ import qualified Data.HashMap.Strict as HM
 --                  else throwError $ "No such module registered: " <> show (imp^.nsRef))
 --         $ ns^.imports
 
+-- QUESTION: Why this distinction between the first and the other modules? 
 
 -- | This function loads all dependencies into the current namespace.
 --   We currently use a very simple but easily maintainable approach:
@@ -46,13 +47,19 @@ loadDeps lang scope (Namespace _ imps algs) = do
                 registry
                 $ ns^.algos
 
+
+-- | This function calls the language integration to extract defined functions (algorithms) and imports 
+--   from the input file. Extracting algorithms means, they are translated to an expression of the
+--   frontend IR here. In a second step
+--   the same is done for all files in the given scope to build up a registry of algorithms, mapping their names
+--   (qualified by the file they come from) to their translated code.
 load :: forall m lang.
     (CompM m, Integration lang) 
     => lang -> CompilationScope -> FilePath 
     -> m (NS lang, Namespace (Expr (Type lang)) (AlgoSrc lang), NamespaceRegistry (Type lang), NS lang)
 load lang scope inFile = do
     -- logDebugN $ "Loading module: " <> show inFile <> "..."
-    -- REMINDER: Tyype of placeholder is threaded through here
+    -- REMINDER: Type of placeholder is threaded through here
     (ctxt, ns, placeholder) <- loadNs lang inFile
     -- let ns' = Namespace (makeThrow []) imports algos -- references to functions contain an empty ref
     -- logDebugN $ "Loaded ns: " <> show (ns'^.nsName)

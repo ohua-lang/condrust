@@ -31,6 +31,15 @@ import qualified Data.HashSet as HS
 import qualified Data.Text as T
 
 
+-- | This function basically inlines function calls from inside the compile scope. It goes over all
+--   algorithms loaded from the original file, extracts function calls from their code, retrievs the
+--   code of the called functions from the registry and replaces a
+--   @let x = fun(arg)@ 
+--   by 
+--   @let fun = 'inlined function' in@
+--   @     let x = fun arg@
+
+-- QUESTION :  Am I getting this right? 
 resolveNS :: forall ty m anno.(MonadError Error m)
           => (Namespace (Expr ty) anno, NamespaceRegistry ty)
           -> m (Namespace (Expr ty) anno)
