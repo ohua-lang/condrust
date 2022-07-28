@@ -4,10 +4,11 @@
 module Integrations.Python.PythonCodeSamples.TestDataOutput where
 
 import Integrations.Python.PythonCodeSamples.SimpleQuoter
+import Language.Python.Common.AST (ModuleSpan)
 
 
 -- Test cases for Basic.hs
-
+callAFunction :: ModuleSpan
 callAFunction = [pythonModule|
 import multiprocessing as mp
 from testLib import *
@@ -33,6 +34,7 @@ def main():
     return result    
 |]
 
+assignNumLit :: ModuleSpan
 assignNumLit = [pythonModule|
 from testLib import *
 
@@ -40,6 +42,7 @@ def algo():
     x = 5
 |]
 
+assignNumLitReturn :: ModuleSpan
 assignNumLitReturn = [pythonModule|
 from testLib import *
 
@@ -48,6 +51,7 @@ def algo():
     return x
 |]
 
+assignBinOp :: ModuleSpan
 assignBinOp = [pythonModule|
 import multiprocessing as mp
 from testLib import *
@@ -70,7 +74,7 @@ def main():
     return result
 |]
 
-
+assignBools :: ModuleSpan
 assignBools = [pythonModule|
 import multiprocessing as mp
 from testLib import *
@@ -93,6 +97,7 @@ def main():
     return result
 |]
 
+assignBinOpChained :: ModuleSpan
 assignBinOpChained = [pythonModule|
 import multiprocessing as mp
 from testLib import *
@@ -125,6 +130,7 @@ def main():
     return result
 |]
 
+assignAugmented :: ModuleSpan
 assignAugmented = [pythonModule|
 from testLib import *
 
@@ -132,6 +138,7 @@ def algo():
     x += 42
 |]
 
+assignSet :: ModuleSpan
 assignSet  = [pythonModule|
 import multiprocessing as mp
 from testLib import *
@@ -156,6 +163,7 @@ def main(a_1, b_1):
     return result
 |]
 
+noReturn :: ModuleSpan
 noReturn = [pythonModule|
 import multiprocessing as mp
 from testLib import *
@@ -181,6 +189,7 @@ def main():
     return result
 |]
 
+multiAssignment:: ModuleSpan
 multiAssignment = [pythonModule|
 from testLib import *
 
@@ -190,6 +199,7 @@ def algo():
     z = h()
 |]
 
+emptyReturn :: ModuleSpan
 emptyReturn = [pythonModule|
 import multiprocessing as mp
 from testLib import *
@@ -216,6 +226,7 @@ def main():
     return result
 |]
 
+noneReturn :: ModuleSpan
 noneReturn = [pythonModule|
 import multiprocessing as mp
 from testLib import *
@@ -242,6 +253,7 @@ def main():
     return result
 |]
 
+exprNoReturn :: ModuleSpan
 exprNoReturn = [pythonModule|
 import multiprocessing as mp
 from testLib import *
@@ -268,6 +280,7 @@ def main():
     return result
 |] 
 
+varReturn :: ModuleSpan
 varReturn = [pythonModule|
 import multiprocessing as mp
 from testLib import *
@@ -290,6 +303,7 @@ def main():
     return result
 |]
 
+otherVarReturn :: ModuleSpan
 otherVarReturn = [pythonModule|
 from testLib import *
 
@@ -300,6 +314,7 @@ def algo():
     return x
 |]
 
+onlyReturnFunCall :: ModuleSpan
 onlyReturnFunCall  = [pythonModule|
 import multiprocessing as mp
 from testLib import *
@@ -322,7 +337,7 @@ def main():
     return result
 |]
 
-
+chainedAssignment :: ModuleSpan
 chainedAssignment = [pythonModule|
 import multiprocessing as mp
 from testLib import *
@@ -356,6 +371,7 @@ def main():
     return result
 |]
 
+assignmentCallReturn :: ModuleSpan
 assignmentCallReturn = [pythonModule|
 import multiprocessing as mp
 from testLib import *
@@ -385,6 +401,7 @@ def main():
     return result
 |]
 
+nestedCompose :: ModuleSpan
 nestedCompose = [pythonModule|
 import multiprocessing as mp
 from testLib import *
@@ -423,6 +440,7 @@ def main():
     return result
 |]
 
+tupleArgumentCall :: ModuleSpan
 tupleArgumentCall= [pythonModule|
 import multiprocessing as mp
 from testLib import *
@@ -453,6 +471,7 @@ def main(a_1, b_1):
     return result
 |]
 
+algoWithParams :: ModuleSpan
 algoWithParams = [pythonModule|
 import multiprocessing as mp
 from testLib import *
@@ -488,6 +507,7 @@ def main(a_1, b_1):
     return result
 |]
 
+applyLambdaExpr :: ModuleSpan
 applyLambdaExpr = [pythonModule|
 import multiprocessing as mp
 from testLib import *
@@ -512,6 +532,7 @@ def main(a_1, b_1):
     return result
 |]
 
+assignLambdaExpr :: ModuleSpan
 assignLambdaExpr = [pythonModule|
 import multiprocessing as mp
 from testLib import *
@@ -536,6 +557,7 @@ def main(a_1, b_1):
     return result
 |]
 
+assignEmptyList :: ModuleSpan
 assignEmptyList = [pythonModule|
 import multiprocessing as mp
 from testLib import *
@@ -560,6 +582,7 @@ def main(a_1, b_1):
     return result
 |]
 
+assignList :: ModuleSpan
 assignList = [pythonModule|
 import multiprocessing as mp
 from testLib import *
@@ -584,6 +607,7 @@ def main(a_1, b_1):
     return result
 |]
 
+assignEmptyDict :: ModuleSpan
 assignEmptyDict = [pythonModule|
 import multiprocessing as mp
 from testLib import *
@@ -608,6 +632,7 @@ def main(a_1, b_1):
     return result
 |]
 
+assignDict :: ModuleSpan
 assignDict = [pythonModule|
 import multiprocessing as mp
 from testLib import *
@@ -642,7 +667,7 @@ def main(a_1, b_1):
     return result
 |]
 
-
+assignToSubscript :: ModuleSpan
 assignToSubscript = [pythonModule|
 import multiprocessing as mp
 from testLib import *
@@ -678,6 +703,7 @@ def main(a_1, b_1):
     return result
 |]
 
+assignSubscript :: ModuleSpan
 assignSubscript = [pythonModule|
 import multiprocessing as mp
 from testLib import *
@@ -708,6 +734,7 @@ def main(a_1, b_1):
     return result
 |]
 
+argsAndKwargs :: ModuleSpan
 argsAndKwargs = [pythonModule|
 import multiprocessing as mp
 from testLib import *
@@ -731,7 +758,7 @@ def main(a_1:str ="hihi", b_1:int =0):
     return result
 |]
 
-
+assignListCompr :: ModuleSpan
 assignListCompr = [pythonModule|
 import multiprocessing as mp
 from testLib import *
@@ -797,6 +824,7 @@ def main(a_1, b_1):
 |]
 
 --Test cases for State.hs ---------------------------------------------
+callMethod :: ModuleSpan
 callMethod = [pythonModule|
 import multiprocessing as mp
 from testLib import *
@@ -825,6 +853,7 @@ def main():
     return result
 |]
 
+flat :: ModuleSpan
 flat= [pythonModule|
 import multiprocessing as mp
 from testLib import *
@@ -860,6 +889,7 @@ def main(i_1):
     return result
 |]
 
+thread :: ModuleSpan
 thread = [pythonModule|
 import multiprocessing as mp
 from testLib import *
@@ -896,6 +926,7 @@ def main(i_1):
     return result
 |]
 
+loop :: ModuleSpan
 loop = [pythonModule|
 from testLib import *
 
@@ -905,6 +936,7 @@ def algo(a):
         e.addNum(7)
 |]
 
+singleIO :: ModuleSpan
 singleIO = [pythonModule|
 from testLib import *
 
@@ -915,6 +947,7 @@ def algo(a):
         mob.addNum(e)
 |]
 
+singleState :: ModuleSpan
 singleState = [pythonModule|
 import multiprocessing as mp
 from testLib import *
@@ -979,6 +1012,7 @@ def main(a_1):
     return result
 |]
 
+stateOut :: ModuleSpan
 stateOut = [pythonModule|
 import multiprocessing as mp
 from testLib import *
@@ -1069,6 +1103,7 @@ def main(a_1):
 
 
 --Test cases for Loops.hs ---------------------------------------------
+loopIterator :: ModuleSpan
 loopIterator= [pythonModule|
 import multiprocessing as mp
 from testLib import *
@@ -1131,7 +1166,7 @@ def main():
     return result 
 |]
 
-
+loopIterObj :: ModuleSpan
 loopIterObj= [pythonModule|
 import multiprocessing as mp
 from testLib import *
@@ -1201,7 +1236,7 @@ def main(a_1):
     return result 
 |]
 
-
+loop3 :: ModuleSpan
 loop3 = [pythonModule|
 import multiprocessing as mp
 from helpers.library_proxy import *
@@ -1279,43 +1314,49 @@ def main(i_1):
 |]
 
 
-
+loopTuplePattern :: ModuleSpan
 loopTuplePattern= [pythonModule|
 from testLib import *
 # Todo
 |]
 
+loopCommaPattern :: ModuleSpan
 loopCommaPattern= [pythonModule|
 from testLib import *
 # Todo
 |]
 
+whileLoop :: ModuleSpan
 whileLoop = [pythonModule|
 from testLib import *
 # ToDo
 |]
 --Test cases for IfElse.hs --------------------------------------------
+iteLiteralArgs :: ModuleSpan
 iteLiteralArgs = [pythonModule|
 from testLib import *
 # ToDO
 |]
 
+branchReturn :: ModuleSpan
 branchReturn = [pythonModule|
 from testLib import *
 # ToDo
 |] 
 
+iteStateful :: ModuleSpan
 iteStateful = [pythonModule|
 from testLib import *
 # ToDo
 |] 
 
+iteRustExample :: ModuleSpan
 iteRustExample = [pythonModule|
 from testLib import *
 # TODO
 |]
 
-
+condExprLit :: ModuleSpan
 condExprLit = [pythonModule|
 from testLib import *
 
@@ -1326,6 +1367,7 @@ def algo(i):
     return x
 |]
 
+condExpr :: ModuleSpan
 condExpr = [pythonModule|
 import multiprocessing as mp
 from testLib import *
@@ -1417,7 +1459,7 @@ def main(i_1):
 |]
 
 
-
+condExprState :: ModuleSpan
 condExprState = [pythonModule|
 import multiprocessing as mp
 from testLib import *
@@ -1514,7 +1556,7 @@ def main(i_1):
     return result
 |]
 
-
+condContextFunction :: ModuleSpan
 condContextFunction = [pythonModule|
 import multiprocessing as mp
 from testLib import *
@@ -1595,6 +1637,7 @@ def main(i_1):
     return result 
 |]
 
+condExprStateFunRet :: ModuleSpan
 condExprStateFunRet = [pythonModule|
 import multiprocessing as mp
 from testLib import *
@@ -1679,6 +1722,7 @@ def main(i_1):
     return result
 |]
 
+condExprFunCond :: ModuleSpan
 condExprFunCond = [pythonModule|
 import multiprocessing as mp
 from testLib import *
@@ -1755,6 +1799,7 @@ def main(i_1):
 
 
 --Test cases for TailRec.hs --------------------------------------------
+tailRec :: ModuleSpan
 tailRec= [pythonModule|
 import multiprocessing as mp
 from testLib import *
@@ -1809,11 +1854,13 @@ def main():
     return result
 |]
 
+tailRecMultiArg :: ModuleSpan
 tailRecMultiArg= [pythonModule|
 from testLib import *
 # TODO
 |]
 
+tailRecContext :: ModuleSpan
 tailRecContext= [pythonModule|
 from testLib import *
 
@@ -1821,7 +1868,7 @@ from testLib import *
 |]
 
 ---------------------------
-
+twoAlgos :: ModuleSpan
 twoAlgos = [pythonModule|
 from testLib import *
 
