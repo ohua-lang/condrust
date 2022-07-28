@@ -8,6 +8,7 @@ data Lit ty
     = NumericLit !Integer -- ^ an integer literal
     | BoolLit Bool -- ^ a boolean literal
     | UnitLit -- ^ aka @()@
+    | StringLit String
     | EnvRefLit Binding -- ^ a variable bound by the outermost lambda that we compile
     | FunRefLit (FunRef ty) -- ^ Reference to an external function
     deriving (Show, Eq, Generic)
