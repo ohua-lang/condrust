@@ -73,6 +73,7 @@ instance Architecture (Architectures 'SharedMemory) where
     Left bnd -> trySend $ Sub.Var bnd
     Right num@NumericLit{} -> trySend $ Sub.Lit num
     Right b@BoolLit{} -> trySend $ Sub.Lit b
+    Right s@StringLit{} -> trySend $ Sub.Lit s
     Right UnitLit -> trySend $ Sub.Lit UnitLit
     Right (EnvRefLit bnd) -> trySend $ Sub.Var bnd
     Right (FunRefLit _) -> error "Invariant broken: Got tasked to send a function reference via channel which should have been caught in the backend."
@@ -175,6 +176,8 @@ instance Architecture (Architectures 'SharedMemory) where
                 ]
                 noSpan
          in Rust.Block (program ++ [Rust.NoSemi resultHandling noSpan]) Rust.Normal noSpan
+      createProgram (Program chans expr tasks) = error $ "Compilations resulted in a result expression: " <> show expr <> "This is probably a bug, please report."
+
 
 -- | Surrounds the final non-semicolon terminated statement in a Rust operator with a `Ok(...)` when the operator is *not* containing a loop.
 replaceFinalStatement :: Rust.Expr () -> Rust.Expr ()
