@@ -4,8 +4,9 @@
 module Integrations.Python.PythonCodeSamples.TestDataInput where
 
 import Integrations.Python.PythonCodeSamples.SimpleQuoter
+import Language.Python.Common.AST (ModuleSpan)
 
-
+testLib :: ModuleSpan
 testLib = [pythonModule|
 from typing import List
 
@@ -90,6 +91,7 @@ def mobFun(mob, num):
 
 
 -- Test cases for Basic.hs ------------------------------
+callAFunction :: ModuleSpan
 callAFunction = [pythonModule|
 from testLib import *
 
@@ -98,6 +100,7 @@ def algo():
 
 |]
 
+exprArg :: ModuleSpan
 exprArg = [pythonModule|
 from testLib import *
 
@@ -106,6 +109,7 @@ def algo():
     return x
 |]
 
+assignNumLit :: ModuleSpan
 assignNumLit = [pythonModule|
 from testLib import *
 
@@ -113,6 +117,7 @@ def algo():
     x = 5
 |]
 
+assignNumLitReturn :: ModuleSpan
 assignNumLitReturn = [pythonModule|
 from testLib import *
 
@@ -121,6 +126,7 @@ def algo():
     return x
 |]
 
+assignBinOp :: ModuleSpan
 assignBinOp = [pythonModule|
 from testLib import *
 
@@ -129,6 +135,7 @@ def algo():
     return x
 |]
 
+assignBools :: ModuleSpan
 assignBools = [pythonModule|
 from testLib import *
 
@@ -139,6 +146,7 @@ def algo():
     return c
 |]
 
+assignBinOpChained :: ModuleSpan
 assignBinOpChained = [pythonModule|
 from testLib import *
 
@@ -149,6 +157,7 @@ def algo():
     return y
 |]
 
+assignAugmented :: ModuleSpan
 assignAugmented = [pythonModule|
 from testLib import *
 
@@ -157,6 +166,7 @@ def algo():
 |]
 
 
+noReturn :: ModuleSpan
 noReturn = [pythonModule|
 from testLib import *
 
@@ -164,6 +174,7 @@ def algo():
     x = funInt()
 |]
 
+emptyReturn :: ModuleSpan
 emptyReturn = [pythonModule|
 from testLib import *
 
@@ -172,6 +183,7 @@ def algo():
     return
 |]
 
+noneReturn :: ModuleSpan
 noneReturn = [pythonModule|
 from testLib import *
 
@@ -180,6 +192,7 @@ def algo():
     return None
 |]
 
+exprNoReturn :: ModuleSpan
 exprNoReturn = [pythonModule|
 from testLib import *
 
@@ -187,6 +200,7 @@ def algo():
     funInt()
 |]
 
+multiAssignment :: ModuleSpan
 multiAssignment = [pythonModule|
 from testLib import *
 
@@ -197,6 +211,7 @@ def algo():
     return res
 |]
 
+varReturn :: ModuleSpan
 varReturn = [pythonModule|
 from testLib import *
 
@@ -205,6 +220,7 @@ def algo():
     return x
 |]
 
+onlyReturnFunCall :: ModuleSpan
 onlyReturnFunCall  = [pythonModule|
 from testLib import *
     
@@ -213,6 +229,7 @@ def algo():
 |]
 
 
+chainedAssignment :: ModuleSpan
 chainedAssignment = [pythonModule|
 from testLib import *
 
@@ -223,6 +240,7 @@ def algo():
     return z
 |]
 
+assignmentCallReturn :: ModuleSpan
 assignmentCallReturn = [pythonModule|
 from testLib import *
 
@@ -232,6 +250,7 @@ def algo():
     return x
 |]
 
+nestedCompose :: ModuleSpan
 nestedCompose = [pythonModule|
 from testLib import *
 
@@ -240,6 +259,7 @@ def algo():
     return x
 |]
 
+tupleArgumentCall :: ModuleSpan
 tupleArgumentCall= [pythonModule|
 from testLib import *
 
@@ -249,6 +269,7 @@ def algo(a,b):
     return x
 |]
 
+algoWithParams :: ModuleSpan
 algoWithParams = [pythonModule|
 from testLib import *
 
@@ -258,6 +279,7 @@ def algo(a, b):
     return x+y 
 |]
 
+applyLambdaExpr :: ModuleSpan
 applyLambdaExpr = [pythonModule|
 from testLib import *
 
@@ -265,6 +287,8 @@ def algo(a, b):
     x = (lambda a : 2*a)(3)
     return x
 |] 
+
+assignLambdaExpr :: ModuleSpan
 assignLambdaExpr = [pythonModule|
 from testLib import *
 
@@ -274,6 +298,7 @@ def algo(a, b):
     return y
 |]
 
+assignEmptyList :: ModuleSpan
 assignEmptyList = [pythonModule|
 from testLib import *
 
@@ -282,6 +307,7 @@ def algo(a, b):
     return x
 |]
 
+assignList :: ModuleSpan
 assignList = [pythonModule|
 from testLib import *
 
@@ -291,6 +317,7 @@ def algo(a, b):
 |]
 
 
+assignEmptyDict :: ModuleSpan
 assignEmptyDict = [pythonModule|
 from testLib import *
 
@@ -299,6 +326,8 @@ def algo(a, b):
     return x
 |]
 
+
+assignDict :: ModuleSpan
 assignDict = [pythonModule|
 from testLib import *
 
@@ -307,7 +336,7 @@ def algo(a, b):
     return x
 |]
 
-
+assignSet :: ModuleSpan
 assignSet = [pythonModule|
 from testLib import *
 
@@ -316,7 +345,7 @@ def algo(a, b):
     return x
 |]
 
-
+assignSubscript :: ModuleSpan
 assignSubscript = [pythonModule|
 from testLib import *
 
@@ -326,6 +355,7 @@ def algo(a, b):
     return x
 |]
 
+assignToSubscript :: ModuleSpan
 assignToSubscript = [pythonModule|
 from testLib import *
 
@@ -335,7 +365,7 @@ def algo(a, b):
     return l
 |]
 
-
+assignFromDictKey :: ModuleSpan
 assignFromDictKey = [pythonModule|
 from testLib import *
 
@@ -346,6 +376,7 @@ def algo(a, b):
     return x
 |]
 
+assignToDictKey :: ModuleSpan
 assignToDictKey = [pythonModule|
 from testLib import *
 
@@ -356,7 +387,7 @@ def algo(a, b):
     return d
 |]
 
-
+assignListCompr :: ModuleSpan
 assignListCompr = [pythonModule|
 from testLib import *
 
@@ -366,6 +397,7 @@ def algo(a, b):
     return x
 |]
 
+justListCompr :: ModuleSpan
 justListCompr = [pythonModule|
 from testLib import *
 
@@ -373,6 +405,7 @@ def algo(a, b):
     [sideEffect(i) for i in range(10)]
 |]
 
+justListComprComp :: ModuleSpan
 justListComprComp = [pythonModule|
 from testLib import *
 
@@ -385,7 +418,7 @@ def algo(a, b):
 
 
 --Test cases for State.hs ---------------------------------------------
-
+argsAndKwargs :: ModuleSpan
 argsAndKwargs = [pythonModule|
 from testLib import *
 
@@ -397,7 +430,8 @@ def algo(a:str= "hihi", b:int=0):
 
 
 --Test cases for Loops.hs ---------------------------------------------
-loopIterator= [pythonModule|
+loopIterator :: ModuleSpan 
+loopIterator = [pythonModule|
 from testLib import *
 def algo():
     s = MObs(42)
@@ -408,6 +442,7 @@ def algo():
     return s
 |]
 
+loopIterObj :: ModuleSpan
 loopIterObj= [pythonModule|
 from testLib import *
 def algo(a):
@@ -419,7 +454,7 @@ def algo(a):
     return mOb
 |]
 
-
+loop3 :: ModuleSpan
 loop3 = [pythonModule|
 from helpers.library_proxy import *
 
@@ -434,7 +469,8 @@ def algo(i):
     return result
 |]
 
-loopTuplePattern= [pythonModule|
+loopTuplePattern :: ModuleSpan
+loopTuplePattern = [pythonModule|
 from testLib import *
 def algo(a):
     g = {1:2, 3:4}
@@ -445,6 +481,7 @@ def algo(a):
     return mOb
 |]
 
+loopCommaPattern :: ModuleSpan
 loopCommaPattern= [pythonModule|
 from testLib import *
 
@@ -458,7 +495,7 @@ def algo(a):
     return mOb
 |]
 
-
+whileLoop :: ModuleSpan
 whileLoop = [pythonModule|
 from testLib import *
 
@@ -473,6 +510,7 @@ def algo(a):
 
 
 --Test cases for IfElse.hs --------------------------------------------
+condExpr :: ModuleSpan
 condExpr = [pythonModule|
 from testLib import *
 
@@ -484,6 +522,7 @@ def algo(i):
     return oneArg(d) 
 |]
 
+condExprState :: ModuleSpan
 condExprState = [pythonModule|
 from testLib import *
 
@@ -494,6 +533,7 @@ def algo(i):
     return oneArg(d) 
 |]
 
+condContextFunction :: ModuleSpan
 condContextFunction = [pythonModule|
 from testLib import *
 
@@ -503,6 +543,7 @@ def algo(i):
     return oneArg(d) 
 |]
 
+condExprComCond :: ModuleSpan
 condExprComCond = [pythonModule|
 from testLib import *
 
@@ -512,7 +553,7 @@ def algo(i):
     return d 
 |]
 
-
+condExprFunCond :: ModuleSpan
 condExprFunCond = [pythonModule|
 from testLib import *
 
@@ -521,6 +562,7 @@ def algo(i):
     return d 
 |]
 
+condExprLit :: ModuleSpan
 condExprLit = [pythonModule|
 from testLib import *
 
@@ -530,6 +572,7 @@ def algo(i):
     return x
 |]
 
+condExprStateFunRet :: ModuleSpan
 condExprStateFunRet = [pythonModule|
 from testLib import *
 
@@ -541,6 +584,7 @@ def algo(i):
     return d 
 |]
 
+iteOnlyIf :: ModuleSpan
 iteOnlyIf = [pythonModule|
 from testLib import *
 
@@ -552,6 +596,7 @@ def algo(i):
     return b 
 |]
 
+iteOnlyIfState :: ModuleSpan
 iteOnlyIfState = [pythonModule|
 from testLib import *
 
@@ -563,7 +608,7 @@ def algo(i):
     return mob
 |]
 
-
+branchReturn :: ModuleSpan
 branchReturn = [pythonModule|
 from testLib import *
 
@@ -575,7 +620,7 @@ def algo(a,b):
     return oneArg(d) 
 |] 
 
-
+iteLiteralArgs :: ModuleSpan
 iteLiteralArgs = [pythonModule|
 from testLib import *
 
@@ -588,6 +633,7 @@ def algo(a):
     return x
 |]
 
+iteRustExample :: ModuleSpan
 iteRustExample = [pythonModule|
 from testLib import *
 
@@ -602,6 +648,7 @@ def algo(i):
     return oneArg(d) 
 |]
 
+iteStateful :: ModuleSpan
 iteStateful = [pythonModule|
 from testLib import *
 
@@ -616,6 +663,7 @@ def algo(i):
 |]
 
 --Test cases for State.hs --------------------------------------------
+callMethod :: ModuleSpan
 callMethod = [pythonModule|
 from testLib import *
 
@@ -626,7 +674,8 @@ def algo():
     return x
 |]
 
-flat= [pythonModule|
+flat :: ModuleSpan
+flat = [pythonModule|
 from testLib import *
 
 def algo(i):
@@ -635,6 +684,7 @@ def algo(i):
     return oneArg(result) 
 |]
 
+thread :: ModuleSpan
 thread = [pythonModule|
 from testLib import *
 
@@ -645,6 +695,7 @@ def algo(i):
     return result 
 |]
 
+loop :: ModuleSpan
 loop = [pythonModule|
 from testLib import *
 
@@ -654,6 +705,7 @@ def algo(a):
         e.addNum(7)
 |]
 
+singleIO :: ModuleSpan
 singleIO = [pythonModule|
 from testLib import *
 
@@ -664,6 +716,7 @@ def algo(a):
         mob.addNum(e)
 |]
 
+singleState :: ModuleSpan
 singleState = [pythonModule|
 from testLib import *
 
@@ -675,6 +728,7 @@ def algo(a):
     return mob.getNum()
 |]
 
+stateOut :: ModuleSpan
 stateOut = [pythonModule|
 from testLib import *
 
@@ -688,6 +742,7 @@ def algo(a):
     return mob
 |]
 
+nested :: ModuleSpan
 nested = [pythonModule|
 from testLib import *
 
@@ -702,7 +757,8 @@ def algo(n):
 
 
 --Test cases for TailRec.hs --------------------------------------------
-tailRecExpr= [pythonModule|
+tailRecExpr :: ModuleSpan
+tailRecExpr = [pythonModule|
 from testLib import *
 def algo2(i):
     j,k = double(i)
@@ -714,7 +770,8 @@ def algo():
     return algo2(1)
 |]
 
-tailRecExpr2= [pythonModule|
+tailRecExpr2 :: ModuleSpan
+tailRecExpr2 = [pythonModule|
 from testLib import *
 def algo2(a,b):
     i = g0(a)
@@ -727,7 +784,8 @@ def algo(a, b):
     return algo2(a, b)
 |]
 
-tailRecStmt= [pythonModule|
+tailRecStmt :: ModuleSpan
+tailRecStmt = [pythonModule|
 from testLib import *
 def algo2(i):
     recursionFlag = g0(i)
@@ -741,7 +799,8 @@ def algo():
     return algo2(1)
 |]
 
-tailRecMultiArg= [pythonModule|
+tailRecMultiArg :: ModuleSpan
+tailRecMultiArg = [pythonModule|
 from testLib import *
 
 def algo(one, two):
@@ -757,7 +816,8 @@ def algo2():
     algo(2,  4)
 |]
 
-tailRecContext= [pythonModule|
+tailRecContext :: ModuleSpan
+tailRecContext = [pythonModule|
 from testLib import *
 def algo(one):
     i = g0(one)
@@ -773,6 +833,7 @@ def algo2():
 |]
 
 
+twoFuns :: ModuleSpan
 twoFuns= [pythonModule|
 from testLib import *
 
@@ -790,6 +851,7 @@ def algo2(a):
 |]
 
 -----
+twoAlgos :: ModuleSpan
 twoAlgos = [pythonModule|
 from testLib import *
 
@@ -805,11 +867,13 @@ def algo2():
     return x + y
 |]
 
+testMod :: ModuleSpan
 testMod = [pythonModule|
 # from testLib import *
 print("Called test module")
 |]
 
+globalRef :: ModuleSpan
 globalRef = [pythonModule|
 from testLib import *
 GLOB = 42
