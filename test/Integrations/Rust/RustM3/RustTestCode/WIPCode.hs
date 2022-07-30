@@ -10,7 +10,7 @@ return_literal = [sourceFile|
                 use funs::hello_world;
 
                 fn test() -> String {
-                    let x = hello_world();
+                    let x:String = hello_world();
                     "literal"
                 }
                 |]
@@ -18,9 +18,22 @@ return_literal = [sourceFile|
 assign_literal :: SourceFile Span
 assign_literal = [sourceFile|
                 use funs::*;
+                use std;
 
                 fn test() -> String {
-                    let x = 3;
-                    f(x)
+                    let x:i32 = f();
+                    let y:i32 = std::std_fun(x);
+                    f(y)
                 }
                 |]
+
+binary_operations :: SourceFile Span
+binary_operations = [sourceFile|
+                fn test() -> i32 {
+                    let x:i32 = 0;
+                    let y:i32 = 42;
+                    let z:i32 = x + y;
+                    let z1:i23 = z * 2;
+                    z1 
+                }
+|]

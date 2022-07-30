@@ -1210,4 +1210,148 @@ fn test(i: i32) -> S {
 }
 |]
 
-          
+binary_operations :: SourceFile Span
+binary_operations = [sourceFile|
+fn test() -> i32 {
+  let (z1_0_0_0_tx, z1_0_0_0_rx) =
+    {
+      let mut rgate =
+        wv_assert_ok!(
+          RecvGate::new(math::next_log2(256), math::next_log2(256))
+        );
+      let sgate =
+        wv_assert_ok!(SendGate::new_with(SGateArgs::new(&rgate).credits(1)));
+      (sgate, rgate)
+    };
+  let (z_0_0_0_tx, z_0_0_0_rx) =
+    {
+      let mut rgate =
+        wv_assert_ok!(
+          RecvGate::new(math::next_log2(256), math::next_log2(256))
+        );
+      let sgate =
+        wv_assert_ok!(SendGate::new_with(SGateArgs::new(&rgate).credits(1)));
+      (sgate, rgate)
+    };
+  {
+    let mut vpe = VPE::new_child_vpe().unwrap();
+    vpe.delegate_obj(z1_0_0_0.sel()).unwrap();
+    vpe.delegate_obj(z_0_0_0.sel()).unwrap();
+    vpe
+      .run(Box::new(move || -> _ {
+        z1_0_0_0.activate().unwrap();
+        z_0_0_0.activate().unwrap();
+        loop {
+          let var_0 = z_0_0_0_rx.recv_msg::<  i32,>().unwrap();
+          let z1_0_0_0 = var_0 * 2;
+          z1_0_0_0_tx.send_msg(z1_0_0_0).unwrap();
+          ()
+        }
+      }))
+      .unwrap()
+  };
+  {
+    let mut vpe = VPE::new_child_vpe().unwrap();
+    vpe.delegate_obj(z_0_0_0.sel()).unwrap();
+    vpe
+      .run(Box::new(move || -> _ {
+        z_0_0_0.activate().unwrap();
+        let z_0_0_0 = 0 + 42;
+        z_0_0_0_tx.send_msg(z_0_0_0).unwrap();
+        ()
+      }))
+      .unwrap()
+  };
+  z1_0_0_0_rx.recv_msg::<  i32,>().unwrap()
+}
+
+|]
+
+
+assign_literal :: SourceFile Span
+assign_literal = [sourceFile|
+use funs::*;
+
+use std;
+
+fn test() -> String {
+  let (a_0_0_tx, a_0_0_rx) =
+    {
+      let mut rgate =
+        wv_assert_ok!(
+          RecvGate::new(math::next_log2(256), math::next_log2(256))
+        );
+      let sgate =
+        wv_assert_ok!(SendGate::new_with(SGateArgs::new(&rgate).credits(1)));
+      (sgate, rgate)
+    };
+  let (x_0_0_0_tx, x_0_0_0_rx) =
+    {
+      let mut rgate =
+        wv_assert_ok!(
+          RecvGate::new(math::next_log2(256), math::next_log2(256))
+        );
+      let sgate =
+        wv_assert_ok!(SendGate::new_with(SGateArgs::new(&rgate).credits(1)));
+      (sgate, rgate)
+    };
+  let (y_0_0_0_tx, y_0_0_0_rx) =
+    {
+      let mut rgate =
+        wv_assert_ok!(
+          RecvGate::new(math::next_log2(256), math::next_log2(256))
+        );
+      let sgate =
+        wv_assert_ok!(SendGate::new_with(SGateArgs::new(&rgate).credits(1)));
+      (sgate, rgate)
+    };
+  {
+    let mut vpe = VPE::new_child_vpe().unwrap();
+    vpe.delegate_obj(a_0_0.sel()).unwrap();
+    vpe.delegate_obj(y_0_0_0.sel()).unwrap();
+    vpe
+      .run(Box::new(move || -> _ {
+        a_0_0.activate().unwrap();
+        y_0_0_0.activate().unwrap();
+        loop {
+          let var_0 = y_0_0_0_rx.recv_msg::<  i32,>().unwrap();
+          let a_0_0 = f(var_0);
+          a_0_0_tx.send_msg(a_0_0).unwrap();
+          ()
+        }
+      }))
+      .unwrap()
+  };
+  {
+    let mut vpe = VPE::new_child_vpe().unwrap();
+    vpe.delegate_obj(y_0_0_0.sel()).unwrap();
+    vpe.delegate_obj(x_0_0_0.sel()).unwrap();
+    vpe
+      .run(Box::new(move || -> _ {
+        y_0_0_0.activate().unwrap();
+        x_0_0_0.activate().unwrap();
+        loop {
+          let var_0 = x_0_0_0_rx.recv_msg::<  i32,>().unwrap();
+          let y_0_0_0 = std::std_fun(var_0);
+          y_0_0_0_tx.send_msg(y_0_0_0).unwrap();
+          ()
+        }
+      }))
+      .unwrap()
+  };
+  {
+    let mut vpe = VPE::new_child_vpe().unwrap();
+    vpe.delegate_obj(x_0_0_0.sel()).unwrap();
+    vpe
+      .run(Box::new(move || -> _ {
+        x_0_0_0.activate().unwrap();
+        let x_0_0_0 = f();
+        x_0_0_0_tx.send_msg(x_0_0_0).unwrap();
+        ()
+      }))
+      .unwrap()
+  };
+  a_0_0_rx.recv_msg::<  String,>().unwrap()
+}
+
+|]

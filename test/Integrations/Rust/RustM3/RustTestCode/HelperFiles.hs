@@ -71,6 +71,7 @@ funs =[sourceFile|
   
 
 std = [sourceFile|
+    fn std_fun(i:i32) -> i32  {i+1}
     struct Vec<T> {}  
     impl<T> Vec<T> {  
       pub fn default() -> Self { unimplemented!() }  
