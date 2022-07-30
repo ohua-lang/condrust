@@ -42,7 +42,7 @@ data Expr
   | BlockExpr Block
   | HalfOpenRange (Maybe Expr) (Maybe Expr)
   | Async Block
-  deriving (Eq, Generic)
+  deriving (Eq, Generic, Show)
 
 -------------------- Recursion schemes support --------------------
 

@@ -110,6 +110,7 @@ instance Integration (Language 'Rust) where
       convertIntoFrExpr :: CompM m => Block Span -> m (FrLang.Expr RustArgType)
       convertIntoFrExpr rustBlock = do
         subsetExpr <- SubC.convertBlock rustBlock
+        -- ToDo: This should not start with an empty Context but prefilled with the types of the arguments
         evalStateT (convertExpr subsetExpr) HM.empty
 
       toBindings p@(Path _ segments _) =
@@ -123,6 +124,8 @@ instance Integration (Language 'Rust) where
     Module ->
     Namespace (FrLang.Expr RustArgType) (Item Span) ->
     m (Namespace (FrLang.Expr RustArgType) (Item Span))
+  loadTypes  _ (Module ownFile _) ohuaNs = return ohuaNs
+   {-
   loadTypes _ (Module ownFile _) ohuaNs = do
     -- Extract namespace reference (filepath) and Qualified name for all functions called in each algo
     filesAndPaths <- concat <$> mapM funsForAlgo (ohuaNs ^. algos)
@@ -138,12 +141,14 @@ instance Integration (Language 'Rust) where
     -- traceShowM $ "extracted types: " <> show types'
     -- Replace type annotations of function literals with extracted types
     updateExprs ohuaNs (transformM (assignTypes types'))
+    -}
     where
       funsForAlgo :: CompM m => Algo (FrLang.Expr RustArgType) (Item Span) -> m [([NSRef], QualifiedBinding)]
       funsForAlgo (Algo _name code _) = do
         traceShowM $ "algo: " <> show _name <> "\n code: \n" <> quickRender code
+        -- ToDo: Show types of functions here. They should allready be correct after transformmation to IR
         mapM lookupFunTypes [f | LitE (FunRefLit (FunRef f _ _)) <- universe code]
-      
+
       lookupFunTypes :: CompM m => QualifiedBinding -> m ([NSRef], QualifiedBinding)
       lookupFunTypes q@(QualifiedBinding (NSRef []) nam) =
         return $ (,q) $ maybe globs (: []) $ HM.lookup nam fullyResolvedImports
@@ -168,7 +173,7 @@ instance Integration (Language 'Rust) where
       -- | Extract a HashMap of {name: function type} from the given file reference
       load :: CompM m => [NSRef] -> m FunTypes
       load nsRefs = HM.unions <$> mapM (extractFromFile . toFilePath . (,".rs")) nsRefs
-        
+
       verifyAndRegister :: CompM m => FunTypes -> ([NSRef], QualifiedBinding) -> m (Maybe (QualifiedBinding, FunType RustArgType))
       verifyAndRegister typez ([candidate], qp@(QualifiedBinding _ nam)) =
         case HM.lookup (QualifiedBinding candidate nam) typez of
@@ -225,34 +230,55 @@ instance Integration (Language 'Rust) where
       globs :: [NSRef]
       globs = mapMaybe (\case (Glob n) -> Just n; _ -> Nothing) (ohuaNs ^. imports)
 
-      
-createFunTypeArgs :: ConvertM m => QualifiedBinding -> [Sub.Expr] -> m (Either Unit (NonEmpty (ArgType RustArgType)))
-createFunTypeArgs ref args =
-  case args of
-    [] -> return $ Left Unit
-    (x : xs) -> Right <$> mapM extractType (x :| xs)
 
-extractType :: ConvertM m => Sub.Expr -> m (ArgType RustArgType)
-extractType (Sub.Var bnd) =
-  maybe TypeVar intoRustArgType . HM.lookup bnd <$> get
+argTypesFromContext :: ConvertM m => [Sub.Expr] -> m (Either Unit (NonEmpty (ArgType RustArgType)))
+argTypesFromContext args = 
+    case args of
+    [] -> return $ Left Unit
+    (x : xs) -> Right <$> mapM getArgType (x :| xs)
+
+-- If we don't want additional typing via extraction from scope we need this to succeed 
+-- i.e. no 'TypeVar' results here
+getArgType :: ConvertM m => Sub.Expr -> m (ArgType RustArgType)
+getArgType (Sub.Var bnd) = do 
+  ctxt <- get 
+  let argtype = HM.lookup bnd ctxt
+  case argtype of
+    Just (Sub.RustType rustType) -> return $ Type $ TE.Normal rustType
+    Nothing -> error $ "No type info found for" <> show bnd
   where
     intoRustArgType (Sub.RustType ty) = Type $ TE.Normal ty
-extractType _ = return TypeVar
+-- FIXME: Actually literal should just carry through the value and the type of the literal
+getArgType (Sub.Lit lit) = case lit of
+  Sub.Bool b -> return $ Type . TE.Normal $ PathTy Nothing (Path False [PathSegment "bool" Nothing ()] ()) ()
+  Sub.Int i ->  return $ Type . TE.Normal $ PathTy Nothing (Path False [PathSegment "i32" Nothing ()] ()) ()
+
+getArgType e = error $ "No type info found for" <> show e
+
+
 
 instance ConvertExpr Sub.Expr where
+  -- ToDo: Type function literal here
   convertExpr (Sub.Call fun args) = do
     fun' <- convertExpr fun
+    -- Function references may be parsed as simple variables as in x = f()
+    -- or as path expressions as in x = std::f()
     fun'' <- case fun' of
       LitE (FunRefLit (FunRef ref _ _)) -> do
-        ty <- createFunTypeArgs ref args
+        ty <- argTypesFromContext args
         return $ LitE (FunRefLit (FunRef ref Nothing $ FunType ty))
-      _ -> return fun'
+      VarE bnd -> do
+        let qBnd = toQualBinding bnd
+        ty <- argTypesFromContext args
+        return $ LitE (FunRefLit (FunRef qBnd Nothing $ FunType ty))
+      _ -> (trace$"Not the fun I expected: "<> show fun <> "\n") return fun'
     args' <- mapM convertExpr args
     return $ fun'' `AppE` args'
+  -- ToDo: Type function literal here 
   convertExpr (Sub.MethodCall receiver (Sub.CallRef method _) args) = do
     receiver' <- convertExpr receiver
-    argTys <- createFunTypeArgs method args
-    receiverTy <- extractType receiver
+    argTys <- argTypesFromContext args
+    receiverTy <- getArgType receiver
     let method' = LitE (FunRefLit (FunRef method Nothing $ STFunType receiverTy argTys))
     args' <- mapM convertExpr args
     return $ BindE receiver' method' `AppE` args'
@@ -260,14 +286,16 @@ instance ConvertExpr Sub.Expr where
     vars' <- mapM convertExpr vars
     return $ TupE vars'
   convertExpr (Sub.Binary op left right) = do
-    op' <- convertExpr op
     left' <- convertExpr left
     right' <- convertExpr right
-    return $ op' `AppE` [left', right']
+    types <- argTypesFromContext [left, right]
+    funref <- asFunRef (asBinSymbol op) types
+    return $ funref `AppE` [left', right']
   convertExpr (Sub.Unary op arg) = do
-    op' <- convertExpr op
     arg' <- convertExpr arg
-    return $ op' `AppE` [arg']
+    argTy <- argTypesFromContext [arg]
+    funref <- asFunRef (asUnSymbol op) argTy
+    return $ funref `AppE` [arg']
   convertExpr (Sub.Lit l) = convertExpr l
   convertExpr (Sub.If expr trueBlock falseBlock) = do
     expr' <- convertExpr expr
@@ -308,6 +336,8 @@ instance ConvertExpr Sub.Expr where
   convertExpr (Sub.BlockExpr block) = convertExpr block
   convertExpr (Sub.PathExpr (Sub.CallRef ref tyInfo)) =
     -- TODO handle type info (these are bound type parameters)
+    -- REMINDER: This is (one) origin of Function References. Check what kind of type annotations may already be 
+    --           present here and incoorporate them.
     return $ LitE $ FunRefLit $ FunRef ref Nothing Untyped
   convertExpr (Sub.Var bnd) = return $ VarE bnd
 
@@ -328,10 +358,18 @@ instance ConvertExpr Sub.Block where
                   convertedLast
                   convertedHeads
       convertStmt :: ConvertM m => Sub.Stmt -> m (FrLang.Expr RustArgType -> FrLang.Expr RustArgType)
-      convertStmt (Sub.Local pat ty e) = do
+      convertStmt s@(Sub.Local pat ty e) = do
         case (pat, ty) of
+          -- ToDo: We should move this to Rust -> Sub Conversion and set it automatically if the RHS is a literal
           (Sub.IdentP (Sub.IdentPat _ bnd), Just ty') -> modify (HM.insert bnd ty')
-          _ -> return ()
+          (Sub.TupP idents, Just (Sub.RustType (TupTy tys _))) -> do 
+            -- QUESTION: Non-matching lengths of both tuples i.e. variables and types are Rust syntay errors and
+            --           as such actually not our business. Should we check anyway?
+            let asSubRustType = map Sub.RustType tys 
+                asBindings = map fromIdent idents
+                keysAndValues = zip asBindings asSubRustType
+            modify (\context-> foldl (\c (a,b) ->  HM.insert a b c) context keysAndValues)
+          _ -> error $ "Please type annotate targets of the assignment: " <> show s <> "\n" 
         pat' <- convertPat pat
         e' <- convertExpr e
         return $ LetE pat' e'
@@ -344,6 +382,9 @@ instance ConvertExpr Sub.Block where
           Sub.ForLoop {} -> (\e -> e $ LitE UnitLit) <$> convertStmt e
           _ -> convertExpr expr
       convertLastStmt e = (\e -> e $ LitE UnitLit) <$> convertStmt e
+
+fromIdent :: Sub.IdentPat -> Binding
+fromIdent (Sub.IdentPat _mode bnd ) =  bnd
 
 instance ConvertPat Sub.Pat where
   convertPat Sub.WildP = return $ VarP $ fromString "_"
@@ -360,23 +401,30 @@ instance ConvertPat Sub.Arg where
       _ -> return ()
     convertPat pat
 
-instance ConvertExpr Sub.BinOp where
-  convertExpr Sub.Add = toExpr "+"
-  convertExpr Sub.Sub = toExpr "-"
-  convertExpr Sub.Mul = toExpr "*"
-  convertExpr Sub.Div = toExpr "/"
-  convertExpr Sub.Lt = toExpr "<"
-  convertExpr Sub.Lte = toExpr "<="
-  convertExpr Sub.Gte = toExpr ">="
-  convertExpr Sub.Gt = toExpr ">"
-  convertExpr Sub.EqOp = toExpr "=="
+asBinSymbol:: Sub.BinOp -> Binding
+asBinSymbol Sub.Add =  "+"
+asBinSymbol Sub.Sub =  "-"
+asBinSymbol Sub.Mul =  "*"
+asBinSymbol Sub.Div =  "/"
+asBinSymbol Sub.Lt =  "<"
+asBinSymbol Sub.Lte =  "<="
+asBinSymbol Sub.Gte =  ">="
+asBinSymbol Sub.Gt =  ">"
+asBinSymbol Sub.EqOp =  "=="
 
-instance ConvertExpr Sub.UnOp where
-  convertExpr Sub.Deref = toExpr "*"
-  convertExpr Sub.Not = toExpr "!"
-  convertExpr Sub.Neg = toExpr "-"
+asUnSymbol::Sub.UnOp -> Binding
+asUnSymbol Sub.Deref =  "*"
+asUnSymbol Sub.Not =  "!"
+asUnSymbol Sub.Neg =  "-"
 
-toExpr op = return $ LitE $ FunRefLit $ FunRef (QualifiedBinding (makeThrow []) op) Nothing Untyped
+asFunRef :: Monad m => Binding -> Either Unit (NonEmpty (ArgType RustArgType)) -> m (FrLang.Expr RustArgType)
+asFunRef op tys = return $ 
+      LitE $ FunRefLit $ 
+        FunRef (QualifiedBinding (makeThrow []) op) Nothing (FunType tys)
+
+
+toQualBinding :: Binding -> QualifiedBinding
+toQualBinding = QualifiedBinding (makeThrow [])
 
 instance ConvertExpr Sub.Lit where
   convertExpr (Sub.Int i) = return $ LitE $ NumericLit i
