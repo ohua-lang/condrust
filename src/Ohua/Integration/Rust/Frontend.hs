@@ -1,7 +1,7 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell #-}
+
 
 module Ohua.Integration.Rust.Frontend where
 
@@ -25,15 +25,12 @@ import Ohua.Integration.Rust.Types
 import Ohua.Integration.Rust.Util
 import Ohua.Prelude
 
-type Context = HM.HashMap Binding Sub.RustType
-
-type ConvertM m = (Monad m, MonadState Context m)
 
 class ConvertExpr a where
-  convertExpr :: ConvertM m => a -> m (FrLang.Expr RustArgType)
+  convertExpr :: SubC.ConvertM m => a -> m (FrLang.Expr RustArgType)
 
 class ConvertPat a where
-  convertPat :: ConvertM m => a -> m FrLang.Pat
+  convertPat :: SubC.ConvertM m => a -> m FrLang.Pat
 
 instance Integration (Language 'Rust) where
   type NS (Language 'Rust) = Module
@@ -45,6 +42,8 @@ instance Integration (Language 'Rust) where
     Language 'Rust ->
     FilePath ->
     m (Module, Namespace (FrLang.Expr RustArgType) (Item Span), Module)
+  -- ToDo: If we want to include global constants in the 'type inference' for functions
+  --       we need an extra pass here to collect them to the context before parsing the algos
   loadNs _ srcFile = do
     mod <- liftIO $ load srcFile
     ns <- extractNs mod
@@ -71,7 +70,7 @@ instance Integration (Language 'Rust) where
             <$> mapM
               ( \case
                   f@(Fn _ _ ident decl _ _ block _) ->
-                    Just . (\e -> Algo (toBinding ident) e f) <$> extractAlgo decl block
+                    Just . (\e -> Algo (toBinding ident) e f) <$> evalStateT (extractAlgo decl block) HM.empty
                   _ -> return Nothing
               )
               items
@@ -98,25 +97,29 @@ instance Integration (Language 'Rust) where
         join <$> mapM (extractImports path') nesteds'
 
       extractAlgo ::
-        CompM m =>
+        SubC.ConvertM m =>
         FnDecl Span ->
         Block Span ->
         m (FrLang.Expr RustArgType)
       extractAlgo (FnDecl args _ _ _) block = do
-        args' <- mapM ((`evalStateT` HM.empty) . convertPat <=< SubC.convertArg) args
+        ctxt <- get
+        traceM $ "Context before parsing arguments :" <> show ctxt <> "\n"
+        args' <- mapM (convertPat <=< SubC.convertArg) args
+        ctxt <- get
+        traceM $ "Context after parsing arguments :" <> show ctxt <> "\n"
         block' <- convertIntoFrExpr block
         return $ LamE args' block'
 
-      convertIntoFrExpr :: CompM m => Block Span -> m (FrLang.Expr RustArgType)
+      convertIntoFrExpr :: SubC.ConvertM m => Block Span -> m (FrLang.Expr RustArgType)
       convertIntoFrExpr rustBlock = do
         subsetExpr <- SubC.convertBlock rustBlock
         -- ToDo: This should not start with an empty Context but prefilled with the types of the arguments
-        evalStateT (convertExpr subsetExpr) HM.empty
+        convertExpr subsetExpr
 
       toBindings p@(Path _ segments _) =
         forM segments $ \case
           (PathSegment ident Nothing _) -> return $ toBinding ident
-          (PathSegment _ (Just _) _) -> throwError $ "We currently do not support import paths with path parameters.\n" <> show p
+          (PathSegment _ (Just _) _) -> error $ "We currently do not support import paths with path parameters.\n" <> show p
 
   loadTypes ::
     CompM m =>
@@ -141,7 +144,7 @@ instance Integration (Language 'Rust) where
     -- traceShowM $ "extracted types: " <> show types'
     -- Replace type annotations of function literals with extracted types
     updateExprs ohuaNs (transformM (assignTypes types'))
-    -}
+
     where
       funsForAlgo :: CompM m => Algo (FrLang.Expr RustArgType) (Item Span) -> m [([NSRef], QualifiedBinding)]
       funsForAlgo (Algo _name code _) = do
@@ -230,18 +233,19 @@ instance Integration (Language 'Rust) where
       globs :: [NSRef]
       globs = mapMaybe (\case (Glob n) -> Just n; _ -> Nothing) (ohuaNs ^. imports)
 
+    -}
 
-argTypesFromContext :: ConvertM m => [Sub.Expr] -> m (Either Unit (NonEmpty (ArgType RustArgType)))
-argTypesFromContext args = 
+argTypesFromContext :: SubC.ConvertM m => [Sub.Expr] -> m (Either Unit (NonEmpty (ArgType RustArgType)))
+argTypesFromContext args =
     case args of
     [] -> return $ Left Unit
     (x : xs) -> Right <$> mapM getArgType (x :| xs)
 
 -- If we don't want additional typing via extraction from scope we need this to succeed 
 -- i.e. no 'TypeVar' results here
-getArgType :: ConvertM m => Sub.Expr -> m (ArgType RustArgType)
-getArgType (Sub.Var bnd) = do 
-  ctxt <- get 
+getArgType :: SubC.ConvertM m => Sub.Expr -> m (ArgType RustArgType)
+getArgType (Sub.Var bnd) = do
+  ctxt <- get
   let argtype = HM.lookup bnd ctxt
   case argtype of
     Just (Sub.RustType rustType) -> return $ Type $ TE.Normal rustType
@@ -252,7 +256,6 @@ getArgType (Sub.Var bnd) = do
 getArgType (Sub.Lit lit) = case lit of
   Sub.Bool b -> return $ Type . TE.Normal $ PathTy Nothing (Path False [PathSegment "bool" Nothing ()] ()) ()
   Sub.Int i ->  return $ Type . TE.Normal $ PathTy Nothing (Path False [PathSegment "i32" Nothing ()] ()) ()
-
 getArgType e = error $ "No type info found for" <> show e
 
 
@@ -260,15 +263,18 @@ getArgType e = error $ "No type info found for" <> show e
 instance ConvertExpr Sub.Expr where
   -- ToDo: Type function literal here
   convertExpr (Sub.Call fun args) = do
+    ctxt <- get
     fun' <- convertExpr fun
     -- Function references may be parsed as simple variables as in x = f()
     -- or as path expressions as in x = std::f()
     fun'' <- case fun' of
       LitE (FunRefLit (FunRef ref _ _)) -> do
+        traceM $ "Context at parsing function " <> show ref <> ": \n" <> show ctxt <> "\n"
         ty <- argTypesFromContext args
         return $ LitE (FunRefLit (FunRef ref Nothing $ FunType ty))
       VarE bnd -> do
         let qBnd = toQualBinding bnd
+        traceM $ "Context at parsing function " <> show bnd <> ": \n" <> show ctxt <> "\n"
         ty <- argTypesFromContext args
         return $ LitE (FunRefLit (FunRef qBnd Nothing $ FunType ty))
       _ -> (trace$"Not the fun I expected: "<> show fun <> "\n") return fun'
@@ -357,19 +363,19 @@ instance ConvertExpr Sub.Block where
                   (\stmt cont -> stmt cont)
                   convertedLast
                   convertedHeads
-      convertStmt :: ConvertM m => Sub.Stmt -> m (FrLang.Expr RustArgType -> FrLang.Expr RustArgType)
+      convertStmt :: SubC.ConvertM m => Sub.Stmt -> m (FrLang.Expr RustArgType -> FrLang.Expr RustArgType)
       convertStmt s@(Sub.Local pat ty e) = do
         case (pat, ty) of
           -- ToDo: We should move this to Rust -> Sub Conversion and set it automatically if the RHS is a literal
           (Sub.IdentP (Sub.IdentPat _ bnd), Just ty') -> modify (HM.insert bnd ty')
-          (Sub.TupP idents, Just (Sub.RustType (TupTy tys _))) -> do 
+          (Sub.TupP idents, Just (Sub.RustType (TupTy tys _))) -> do
             -- QUESTION: Non-matching lengths of both tuples i.e. variables and types are Rust syntay errors and
             --           as such actually not our business. Should we check anyway?
-            let asSubRustType = map Sub.RustType tys 
+            let asSubRustType = map Sub.RustType tys
                 asBindings = map fromIdent idents
                 keysAndValues = zip asBindings asSubRustType
             modify (\context-> foldl (\c (a,b) ->  HM.insert a b c) context keysAndValues)
-          _ -> error $ "Please type annotate targets of the assignment: " <> show s <> "\n" 
+          _ -> error $ "Please type annotate targets of the assignment: " <> show s <> "\n"
         pat' <- convertPat pat
         e' <- convertExpr e
         return $ LetE pat' e'
@@ -418,8 +424,8 @@ asUnSymbol Sub.Not =  "!"
 asUnSymbol Sub.Neg =  "-"
 
 asFunRef :: Monad m => Binding -> Either Unit (NonEmpty (ArgType RustArgType)) -> m (FrLang.Expr RustArgType)
-asFunRef op tys = return $ 
-      LitE $ FunRefLit $ 
+asFunRef op tys = return $
+      LitE $ FunRefLit $
         FunRef (QualifiedBinding (makeThrow []) op) Nothing (FunType tys)
 
 
