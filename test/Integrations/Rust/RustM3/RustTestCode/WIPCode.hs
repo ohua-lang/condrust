@@ -79,3 +79,50 @@ scope_branch = [sourceFile|
                     h(x)
                 }
 |]
+
+
+scope_const :: SourceFile Span
+scope_const = [sourceFile|
+
+                const global:i32 = 9;
+
+                fn test() -> i32 {
+                    let x:i32 = f(global);
+                    let y:String = g(x);
+                    h(y)
+                }
+            |]
+
+scope_static :: SourceFile Span
+scope_static = [sourceFile|
+
+                const global:i32 = 9;
+                static st_thing:String = String::from(" times hello");
+
+                fn test() -> i32 {
+                    let x:i32 = f(global);
+                    let y:String = second_algo(x);
+                    h(y)
+                }
+
+                fn second_algo(arg:i32)-> String {
+                    // -- ToDo: Missing language construct. 
+                    //          The original call would be : let mut as_string:String = arg.to_string();
+                    //          But it seems we can not use arguments as states, which should be possible I think.
+                    let mut as_string:String = to_string(arg);
+                    as_string.push(st_thing)
+                }
+            |]
+
+scope_mut :: SourceFile Span
+scope_mut = [sourceFile|
+
+                static mut st_thing:String = String::from(" times hello");
+
+                fn test() -> i32 {
+                    let x:i32 = f(st_thing);
+                    let y:String = second_algo(x);
+                    h(y)
+                }
+
+            |] 

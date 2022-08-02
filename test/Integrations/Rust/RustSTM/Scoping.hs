@@ -3,6 +3,8 @@ module Integrations.Rust.RustSTM.Scoping where
 
 import Ohua.Prelude ( ($), Monad((>>=)), (=<<) )
 import Integrations.Rust.RustSTM.RustSetup
+import Language.Rust.Syntax (SourceFile)
+import Language.Rust.Parser (Span)
 
 
 spec :: Spec
@@ -59,7 +61,63 @@ spec =
                 }
             |] `shouldThrow` anyException
 
+        it "Global const in scope" $
+         (showCode "Compiled: " =<< compileCode  
+            [sourceFile|
 
+                const global:i32 = 9;
+
+                fn test() -> i32 {
+                    let x:i32 = f(global);
+                    let y:String = g(x);
+                    h(y)
+                }
+            |]) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" scoped_const
+                compiled `shouldBe` expected)
+
+        it "Global const in 'all' algos" $
+         (showCode "Compiled: " =<< compileCode  
+            [sourceFile|
+
+                const global:i32 = 9;
+                static st_thing:String = String::from(" times hello");
+
+                fn test() -> i32 {
+                    let x:i32 = f(global);
+                    let y:String = second_algo(x);
+                    h(y)
+                }
+
+                fn second_algo(arg:i32)-> String {
+                    // -- ToDo: Missing language construct. 
+                    //          The original call would be : let mut as_string:String = arg.to_string();
+                    //          But it seems we can not use arguments as states, which should be possible I think.
+                    let mut as_string:String = to_string(arg);
+                    as_string.push(st_thing)
+                }
+            |]) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" scoped_static
+                compiled `shouldBe` expected)
+
+        it "Error on mutable globals" $
+         compileCode  
+            [sourceFile|
+
+                static mut st_thing:String = String::from(" times hello");
+
+                fn test() -> i32 {
+                    let x:i32 = f(st_thing);
+                    let y:String = second_algo(x);
+                    h(y)
+                }
+
+            |] `shouldThrow` anyException
+            
+
+scoped :: SourceFile Span
 scoped = [sourceFile|
 fn test() -> i32 {
   #[derive(Debug)]
@@ -137,6 +195,7 @@ fn test() -> i32 {
 
 |]
 
+scoped_for :: SourceFile Span
 scoped_for = [sourceFile|
 fn test() -> i32 {
   #[derive(Debug)]
@@ -271,3 +330,201 @@ fn test() -> i32 {
   }
 }
 |]
+
+scoped_const :: SourceFile Span
+scoped_const = [sourceFile|
+const global: i32 = 9;
+
+fn test() -> i32 {
+  #[derive(Debug)]
+  enum RunError {
+    SendFailed,
+    RecvFailed,
+  }
+  impl<  T: Send,> From<  std::sync::mpsc::SendError<  T,>,> for RunError {
+    fn from(_err: std::sync::mpsc::SendError<  T,>) -> Self {
+      RunError::SendFailed
+    }
+  }
+  impl From<  std::sync::mpsc::RecvError,> for RunError {
+    fn from(_err: std::sync::mpsc::RecvError) -> Self {
+      RunError::RecvFailed
+    }
+  }
+  let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel();
+  let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (y_0_0_0_tx, y_0_0_0_rx) = std::sync::mpsc::channel::<  String,>();
+  let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
+    Vec::new();
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
+        let var_0 = y_0_0_0_rx.recv()?;
+        let a_0_0 = h(var_0);
+        a_0_0_tx.send(a_0_0)?;
+        ()
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
+        let var_0 = x_0_0_0_rx.recv()?;
+        let y_0_0_0 = g(var_0);
+        y_0_0_0_tx.send(y_0_0_0)?;
+        ()
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      let x_0_0_0 = f(global);
+      x_0_0_0_tx.send(x_0_0_0)?;
+      Ok(())
+    }));
+  let handles: Vec<  std::thread::JoinHandle<  _,>,> =
+    tasks
+      .into_iter()
+      .map(|t| { std::thread::spawn(move || { let _ = t(); }) })
+      .collect();
+  for h in handles {
+    if let Err(_) = h.join() {
+      eprintln!("[Error] A worker thread of an Ohua algorithm has panicked!");
+    }
+  }
+  match a_0_0_rx.recv() {
+    Ok(res) => res,
+    Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
+  }
+}
+|]
+
+scoped_static :: SourceFile Span
+scoped_static = [sourceFile|
+const global: i32 = 9;
+
+static st_thing: String = String::from(" times hello");
+
+fn test() -> i32 {
+  #[derive(Debug)]
+  enum RunError {
+    SendFailed,
+    RecvFailed,
+  }
+  impl<  T: Send,> From<  std::sync::mpsc::SendError<  T,>,> for RunError {
+    fn from(_err: std::sync::mpsc::SendError<  T,>) -> Self {
+      RunError::SendFailed
+    }
+  }
+  impl From<  std::sync::mpsc::RecvError,> for RunError {
+    fn from(_err: std::sync::mpsc::RecvError) -> Self {
+      RunError::RecvFailed
+    }
+  }
+  let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel();
+  let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (as_string_0_0_1_tx, as_string_0_0_1_rx) =
+    std::sync::mpsc::channel::<  String,>();
+  let (y_0_0_0_tx, y_0_0_0_rx) = std::sync::mpsc::channel::<  String,>();
+  let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
+    Vec::new();
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
+        let var_0 = y_0_0_0_rx.recv()?;
+        let a_0_0 = h(var_0);
+        a_0_0_tx.send(a_0_0)?;
+        ()
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
+        let mut var_0 = as_string_0_0_1_rx.recv()?;
+        let y_0_0_0 = var_0.push(st_thing);
+        y_0_0_0_tx.send(y_0_0_0)?;
+        ()
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
+        let var_0 = x_0_0_0_rx.recv()?;
+        let as_string_0_0_1 = to_string(var_0);
+        as_string_0_0_1_tx.send(as_string_0_0_1)?;
+        ()
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      let x_0_0_0 = f(global);
+      x_0_0_0_tx.send(x_0_0_0)?;
+      Ok(())
+    }));
+  let handles: Vec<  std::thread::JoinHandle<  _,>,> =
+    tasks
+      .into_iter()
+      .map(|t| { std::thread::spawn(move || { let _ = t(); }) })
+      .collect();
+  for h in handles {
+    if let Err(_) = h.join() {
+      eprintln!("[Error] A worker thread of an Ohua algorithm has panicked!");
+    }
+  }
+  match a_0_0_rx.recv() {
+    Ok(res) => res,
+    Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
+  }
+}
+
+fn second_algo(arg: i32) -> String {
+  #[derive(Debug)]
+  enum RunError {
+    SendFailed,
+    RecvFailed,
+  }
+  impl<  T: Send,> From<  std::sync::mpsc::SendError<  T,>,> for RunError {
+    fn from(_err: std::sync::mpsc::SendError<  T,>) -> Self {
+      RunError::SendFailed
+    }
+  }
+  impl From<  std::sync::mpsc::RecvError,> for RunError {
+    fn from(_err: std::sync::mpsc::RecvError) -> Self {
+      RunError::RecvFailed
+    }
+  }
+  let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel();
+  let (as_string_0_0_1_tx, as_string_0_0_1_rx) =
+    std::sync::mpsc::channel::<  String,>();
+  let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
+    Vec::new();
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
+        let mut var_0 = as_string_0_0_1_rx.recv()?;
+        let a_0_0 = var_0.push(st_thing);
+        a_0_0_tx.send(a_0_0)?;
+        ()
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      let as_string_0_0_1 = to_string(arg);
+      as_string_0_0_1_tx.send(as_string_0_0_1)?;
+      Ok(())
+    }));
+  let handles: Vec<  std::thread::JoinHandle<  _,>,> =
+    tasks
+      .into_iter()
+      .map(|t| { std::thread::spawn(move || { let _ = t(); }) })
+      .collect();
+  for h in handles {
+    if let Err(_) = h.join() {
+      eprintln!("[Error] A worker thread of an Ohua algorithm has panicked!");
+    }
+  }
+  match a_0_0_rx.recv() {
+    Ok(res) => res,
+    Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
+  }
+}
+|]
+

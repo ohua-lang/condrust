@@ -39,3 +39,18 @@ spec =
 
         it "[ERROR] Branch Scope Bindings" $
             compileCode Input.scope_branch `shouldThrow` anyException
+
+        it "Global const in scope" $
+         (showCode "Compiled: " =<< compileCode Input.scope_const) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" WIPExpect.scope_const
+                compiled `shouldBe` expected)
+
+        it "Global const in 'all' algos" $
+         (showCode "Compiled: " =<< compileCode  Input.scope_static) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" WIPExpect.scope_static
+                compiled `shouldBe` expected)
+
+        it "Error on mutable globals" $
+         compileCode  Input.scope_mut `shouldThrow` anyException
