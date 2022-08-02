@@ -37,3 +37,45 @@ binary_operations = [sourceFile|
                     z1 
                 }
 |]
+
+scope:: SourceFile Span
+scope = [sourceFile|
+
+                fn test() -> i32 {
+                    let x:i32 = f();
+                    let s:State = State::new();
+                    {
+                        let x:String = g();
+                        s.do_it(x);
+                    }
+                    h(x)
+                }
+|]
+
+scope_for:: SourceFile Span
+scope_for = [sourceFile|
+
+                fn test() -> i32 {
+                    let x:i32 = f();
+                    let s:State = State::new();
+                    for i in iter() {
+                        let x:String = g();
+                        s.do_it(x);
+                    }
+                    h(x)
+                }
+|]
+
+scope_branch:: SourceFile Span
+scope_branch = [sourceFile|
+
+                fn test() -> i32 {
+                    let x:i32 = f();
+                    let s:State = State::new();
+                    if check() {
+                        let x:String = g();
+                        s.do_it(x)
+                        }
+                    h(x)
+                }
+|]
