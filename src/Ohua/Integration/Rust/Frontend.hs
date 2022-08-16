@@ -6,7 +6,7 @@
 module Ohua.Integration.Rust.Frontend where
 
 import qualified Data.HashMap.Lazy as HM
-import qualified Data.HashSet as HS
+-- import qualified Data.HashSet as HS
 import qualified Data.List.NonEmpty as NE
 -- import Ohua.Frontend.Convert
 
@@ -15,6 +15,8 @@ import Language.Rust.Data.Ident
 import Language.Rust.Parser (Span)
 import Language.Rust.Syntax as Rust hiding (Rust)
 import Ohua.Frontend.Lang as FrLang
+    ( Expr(..),
+      Pat(TupP, VarP) )
 import Ohua.Frontend.PPrint ()
 import Ohua.Frontend.Types
 import Ohua.Integration.Lang
@@ -24,6 +26,7 @@ import Ohua.Integration.Rust.TypeExtraction as TE
 import Ohua.Integration.Rust.Types
 import Ohua.Integration.Rust.Util
 import Ohua.Prelude
+import qualified Control.Applicative as Hm
 
 
 class ConvertExpr a where
@@ -54,27 +57,44 @@ instance Integration (Language 'Rust) where
         CompM m =>
         SourceFile Span ->
         m (Namespace (FrLang.Expr RustArgType) (Item Span))
-      -- TODO we might need to retrieve this from the file path.
-      -- extractNs (SourceFile Nothing a b) = extractNs $ SourceFile (Just $ takeFileName srcFile) a b
-      extractNs (SourceFile _ _ items) = do
-        imports <-
-          concat . catMaybes
-            <$> mapM
-              ( \case
-                  (Use _ _ t _) -> Just . toList <$> extractImports [] t
-                  _ -> return Nothing
+
+      extractNs input = do
+        globalDefs <- collectGlobals input
+        extractWithGlobals globalDefs input
+        where
+          collectGlobals input@(SourceFile _ _ items) = do
+            return $ foldl (\hm (k, v) -> HM.insert k v hm) HM.empty
+              (mapMaybe 
+              (\case
+                        (ConstItem _attr _pub ident ty expr _ )-> Just (toBinding ident, Sub.RustType (deSpan ty))
+                        (Static _ _ ident ty Immutable expr span) -> Just (toBinding ident, Sub.RustType (deSpan ty))
+                        (Static _ _ ident ty Mutable expr span) ->
+                            error $ "You are trying to use a global mutable object "<> show ident <>" in a concurrent program ... DON'T"
+                        _ -> Nothing
               )
-              items
-        algos <-
-          catMaybes
-            <$> mapM
-              ( \case
-                  f@(Fn _ _ ident decl _ _ block _) ->
-                    Just . (\e -> Algo (toBinding ident) e f) <$> evalStateT (extractAlgo decl block) HM.empty
-                  _ -> return Nothing
-              )
-              items
-        return $ Namespace (filePathToNsRef srcFile) imports algos
+                items)
+
+        -- TODO we might need to retrieve this from the file path.
+        -- extractNs (SourceFile Nothing a b) = extractNs $ SourceFile (Just $ takeFileName srcFile) a b
+          extractWithGlobals globs (SourceFile _ _ items) = do
+            imports <-
+              concat . catMaybes
+                <$> mapM
+                  ( \case
+                      (Use _ _ t _) -> Just . toList <$> extractImports [] t
+                      _ -> return Nothing
+                  )
+                  items
+            algos <-
+              catMaybes
+                <$> mapM
+                  ( \case
+                      f@(Fn _ _ ident decl _ _ block _) ->
+                        Just . (\e -> Algo (toBinding ident) e f) <$> evalStateT (extractAlgo decl block) globs
+                      _ -> return Nothing
+                  )
+                  items
+            return $ Namespace (filePathToNsRef srcFile) imports algos
 
       extractImports :: CompM m => [Binding] -> UseTree Span -> m (NonEmpty Import)
       -- UseTreeSimple means: 'use something;' 
@@ -103,10 +123,10 @@ instance Integration (Language 'Rust) where
         m (FrLang.Expr RustArgType)
       extractAlgo (FnDecl args _ _ _) block = do
         ctxt <- get
-        traceM $ "Context before parsing arguments :" <> show ctxt <> "\n"
+        -- traceM $ "Context before parsing arguments :" <> show ctxt <> "\n"
         args' <- mapM (convertPat <=< SubC.convertArg) args
         ctxt <- get
-        traceM $ "Context after parsing arguments :" <> show ctxt <> "\n"
+        -- traceM $ "Context after parsing arguments :" <> show ctxt <> "\n"
         block' <- convertIntoFrExpr block
         return $ LamE args' block'
 
@@ -258,7 +278,9 @@ getArgType (Sub.Lit lit) = case lit of
   Sub.Int i ->  return $ Type . TE.Normal $ PathTy Nothing (Path False [PathSegment "i32" Nothing ()] ()) ()
 getArgType e = error $ "No type info found for" <> show e
 
-
+-- ISSUE: I thought we could support Assignments as we actually just need to replcae them with ssa let bindings.
+--        However the compiler does constant propagation so a `mut i:i32 = 1` will be replaced by `1` 
+--        before we reach the point were it is reassigned -> I need to check if/how this can work out
 
 instance ConvertExpr Sub.Expr where
   -- ToDo: Type function literal here
@@ -269,12 +291,12 @@ instance ConvertExpr Sub.Expr where
     -- or as path expressions as in x = std::f()
     fun'' <- case fun' of
       LitE (FunRefLit (FunRef ref _ _)) -> do
-        traceM $ "Context at parsing function " <> show ref <> ": \n" <> show ctxt <> "\n"
+        -- traceM $ "Context at parsing function " <> show ref <> ": \n" <> show ctxt <> "\n"
         ty <- argTypesFromContext args
         return $ LitE (FunRefLit (FunRef ref Nothing $ FunType ty))
       VarE bnd -> do
         let qBnd = toQualBinding bnd
-        traceM $ "Context at parsing function " <> show bnd <> ": \n" <> show ctxt <> "\n"
+        -- traceM $ "Context at parsing function " <> show bnd <> ": \n" <> show ctxt <> "\n"
         ty <- argTypesFromContext args
         return $ LitE (FunRefLit (FunRef qBnd Nothing $ FunType ty))
       _ -> (trace$"Not the fun I expected: "<> show fun <> "\n") return fun'
@@ -282,9 +304,11 @@ instance ConvertExpr Sub.Expr where
     return $ fun'' `AppE` args'
   -- ToDo: Type function literal here 
   convertExpr (Sub.MethodCall receiver (Sub.CallRef method _) args) = do
+    ctxt <- get
     receiver' <- convertExpr receiver
     argTys <- argTypesFromContext args
     receiverTy <- getArgType receiver
+    -- traceM $ "Context at parsing function " <> show method <> ": \n" <> show ctxt <> "\n"
     let method' = LitE (FunRefLit (FunRef method Nothing $ STFunType receiverTy argTys))
     args' <- mapM convertExpr args
     return $ BindE receiver' method' `AppE` args'
@@ -296,12 +320,12 @@ instance ConvertExpr Sub.Expr where
     right' <- convertExpr right
     types <- argTypesFromContext [left, right]
     funref <- asFunRef (asBinSymbol op) types
-    return $ funref `AppE` [left', right']
+    return $  AppE funref [left', right']
   convertExpr (Sub.Unary op arg) = do
     arg' <- convertExpr arg
     argTy <- argTypesFromContext [arg]
     funref <- asFunRef (asUnSymbol op) argTy
-    return $ funref `AppE` [arg']
+    return $ AppE funref [arg']
   convertExpr (Sub.Lit l) = convertExpr l
   convertExpr (Sub.If expr trueBlock falseBlock) = do
     expr' <- convertExpr expr
@@ -311,12 +335,13 @@ instance ConvertExpr Sub.Expr where
   convertExpr (Sub.While cond block) = do
     cond' <- convertExpr cond
     block' <- convertExpr block
-    -- TODO proper name generation
+    return $ WhileE cond' block'
+{-
     let loopLambdaRef = "while_loop_body"
     let recur =
           IfE
             cond'
-            (VarE loopLambdaRef `AppE` [])
+            (AppE (VarE loopLambdaRef)  [])
             $ LitE UnitLit
     return $
       -- FIXME proper name generation needed here!
@@ -324,6 +349,7 @@ instance ConvertExpr Sub.Expr where
         (VarP loopLambdaRef)
         (LamE [] $ StmtE block' recur)
         recur
+-}
   convertExpr (Sub.ForLoop pat dataExpr body) = do
     pat' <- convertPat pat
     dataExpr' <- convertExpr dataExpr
