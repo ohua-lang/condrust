@@ -1,10 +1,12 @@
 {-# LANGUAGE QuasiQuotes #-}
+
 module Integrations.Rust.RustSharedMemory.State where
 
 import Ohua.Prelude  ( ($), Monad((>>=)), (=<<) )
 import Integrations.Rust.RustSharedMemory.RustSetup
 import Language.Rust.Syntax (SourceFile)
 import Language.Rust.Data.Position (Span)
+
 
 spec :: Spec
 spec =
