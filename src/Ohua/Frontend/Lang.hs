@@ -34,6 +34,7 @@ data Expr ty
     | IfE (Expr ty)
           (Expr ty)
           (Expr ty)
+    | WhileE (Expr ty) (Expr ty)
     | MapE (Expr ty)
            (Expr ty)
     | BindE (Expr ty)
