@@ -10,6 +10,9 @@ import Language.Rust.Syntax (SourceFile, SourceFile(..))
 
 import System.FilePath
 
+deSpan ::(Functor a) =>  a Span -> a ()
+deSpan = map (const ())
+
 toBinding :: Ident -> Binding
 toBinding Ident{name=n} = fromString n
 
