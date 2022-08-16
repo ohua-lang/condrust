@@ -1,9 +1,10 @@
 {-# LANGUAGE QuasiQuotes #-}
-module Integrations.Rust.Control where
+module Integrations.Rust.RustSharedMemory.Control where
 
 import Ohua.Prelude ( ($), Monad((>>=)), (=<<) )
-import Integrations.Rust.RustSetup
-
+import Integrations.Rust.RustSharedMemory.RustSetup
+import Language.Rust.Syntax (SourceFile)
+import Language.Rust.Data.Position (Span)
 
 spec :: Spec
 spec =
@@ -16,11 +17,11 @@ spec =
 
                 fn rec(one:i32) -> i32 {
                     // FIXME(feliix42): This is very unfortunate! Normally there'd be no cloning necessary here...
-                    let o2 = one.clone();
-                    let i = h(o2);
-                    let j = h(one);
-                    let k = h2(i, j);
-                    let k2 = k.clone();
+                    let o2: i32 = one.clone();
+                    let i: i32 = h(o2);
+                    let j: i32 = h(one);
+                    let k: i32 = h2(i, j);
+                    let k2: i32 = k.clone();
                     if check(k2) {
                         rec(k)
                     } else {
@@ -33,16 +34,45 @@ spec =
                 }
                 |]) >>=
             (\compiled -> do
-                expected <- showCode "Expected:"
-                    [sourceFile|
+                expected <- showCode "Expected:" simple 
+                compiled `shouldBe` expected)
+
+        it "dependent" $
+          -- fusion is more tricky here because `one` and `two` are used by data dependent calls!
+          (showCode "Compiled: " =<< compileCodeWithRec  [sourceFile|
+                use funs::*;
+
+                fn rec(one:i32, two:i32) -> i32 {
+                    let i: i32 = h(one);
+                    let i1: i32 = i.clone();
+                    let k: i32 = h2(two, i);
+                    let k1: i32 = k.clone();
+                    if check(k) {
+                        rec(k1,i1)
+                    } else {
+                        k1
+                    }
+                }
+
+                fn test() -> i32 {
+                    rec(2,4)
+                }
+                |]) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" dependent
+                compiled `shouldBe` expected)
+
+-------------- Testoutput -------------------------------
+simple :: SourceFile Span
+simple = [sourceFile|
 use funs::*;
 
 fn rec(one: i32) -> i32 {
-  let o2 = one.clone();
-  let i = h(o2);
-  let j = h(one);
-  let k = h2(i, j);
-  let k2 = k.clone();
+  let o2: i32 = one.clone();
+  let i: i32 = h(o2);
+  let j: i32 = h(one);
+  let k: i32 = h2(i, j);
+  let k2: i32 = k.clone();
   if check(k2) { rec(k) } else { k }
 }
 
@@ -65,12 +95,12 @@ fn test() -> i32 {
   let (c_0_0_tx, c_0_0_rx) = std::sync::mpsc::channel();
   let (k_0_0_0_0_tx, k_0_0_0_0_rx) = std::sync::mpsc::channel();
   let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel();
-  let (one_0_0_1_tx, one_0_0_1_rx) = std::sync::mpsc::channel::<  S,>();
+  let (one_0_0_1_tx, one_0_0_1_rx) = std::sync::mpsc::channel::<  i32,>();
   let (o2_0_0_0_tx, o2_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (one_0_0_0_0_tx, one_0_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (j_0_0_0_tx, j_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (i_0_0_0_tx, i_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
-  let (k_0_0_1_tx, k_0_0_1_rx) = std::sync::mpsc::channel::<  S,>();
+  let (k_0_0_1_tx, k_0_0_1_rx) = std::sync::mpsc::channel::<  i32,>();
   let (k2_0_0_0_tx, k2_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
     Vec::new();
@@ -154,40 +184,17 @@ fn test() -> i32 {
     Ok(res) => res,
     Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
   }
-}
-                    |]
-                compiled `shouldBe` expected)
-        it "dep" $
-          -- fusion is more tricky here because `one` and `two` are used by data dependent calls!
-          (showCode "Compiled: " =<< compileCodeWithRec  [sourceFile|
-                use funs::*;
+} |]
 
-                fn rec(one:i32, two:i32) -> i32 {
-                    let i = h(one);
-                    let i1 = i.clone();
-                    let k = h2(two, i);
-                    let k1 = k.clone();
-                    if check(k) {
-                        rec(k1,i1)
-                    } else {
-                        k1
-                    }
-                }
-
-                fn test() -> i32 {
-                    rec(2,4)
-                }
-                |]) >>=
-            (\compiled -> do
-                expected <- showCode "Expected:"
-                    [sourceFile|
+dependent :: SourceFile Span
+dependent =  [sourceFile|
 use funs::*;
 
 fn rec(one: i32, two: i32) -> i32 {
-  let i = h(one);
-  let i1 = i.clone();
-  let k = h2(two, i);
-  let k1 = k.clone();
+  let i: i32 = h(one);
+  let i1: i32 = i.clone();
+  let k: i32 = h2(two, i);
+  let k1: i32 = k.clone();
   if check(k) { rec(k1, i1) } else { k1 }
 }
 
@@ -212,10 +219,10 @@ fn test() -> i32 {
   let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel();
   let (i1_0_0_0_tx, i1_0_0_0_rx) = std::sync::mpsc::channel();
   let (one_0_0_0_tx, one_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
-  let (i_0_0_1_tx, i_0_0_1_rx) = std::sync::mpsc::channel::<  S,>();
+  let (i_0_0_1_tx, i_0_0_1_rx) = std::sync::mpsc::channel::<  i32,>();
   let (i_0_0_0_0_tx, i_0_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (two_0_0_0_tx, two_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
-  let (k_0_0_1_tx, k_0_0_1_rx) = std::sync::mpsc::channel::<  S,>();
+  let (k_0_0_1_tx, k_0_0_1_rx) = std::sync::mpsc::channel::<  i32,>();
   let (k_0_0_0_0_tx, k_0_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
     Vec::new();
@@ -294,6 +301,4 @@ fn test() -> i32 {
     Ok(res) => res,
     Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
   }
-}
-                    |]
-                compiled `shouldBe` expected)
+} |]

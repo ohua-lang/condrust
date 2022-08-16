@@ -1,19 +1,20 @@
 {-# LANGUAGE QuasiQuotes #-}
-module Integrations.Rust.TailRec where
+module Integrations.Rust.RustSharedMemory.TailRec where
 
 import Ohua.Prelude ( ($), Monad((>>=)), (=<<) )
-import Integrations.Rust.RustSetup
+import Integrations.Rust.RustSharedMemory.RustSetup
 
 
 spec :: Spec
 spec =
     describe "TailRec" $ do
+     
         it "simple one argument" $
             (showCode "Compiled: " =<< compileCodeWithRec  [sourceFile|
                 use funs::*;
 
                 fn rec(i:i32) -> i32 {
-                    let j = h(i);
+                    let j:i32 = h(i);
                     if check(j) {
                         rec(j)
                     } else {
@@ -26,12 +27,147 @@ spec =
                 }
                 |]) >>=
             (\compiled -> do
+                expected <- showCode "Expected:" simpleOneArgument
+                compiled `shouldBe` expected)
+        it "multi-argument" $
+            (showCode "Compiled: " =<< compileCodeWithRec  [sourceFile|
+                use funs::*;
+
+                fn rec(one:i32, two:i32) -> i32 {
+                    let i:i32 = h(one);
+                    let j:i32 = h(two);
+                    let k:i32 = h2(i, j);
+                    if check(k) {
+                        rec(i,j)
+                    } else {
+                        k
+                    }
+                }
+
+                fn test() -> i32 {
+                    rec(2,4)
+                }
+                |]) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" multiArgument                    
+                compiled `shouldBe` expected)
+        it "contexted function" $
+            (showCode "Compiled: " =<< compileCodeWithRec  [sourceFile|
+                use funs::*;
+
+                fn rec(one: i32) -> i32 {
+                    let i:i32 = h(one);
+                    let j:i32 = f();
+                    let k:i32 = h2(i, j);
+                    if check(k) {
+                        rec(k)
+                    } else {
+                        k
+                    }
+                }
+
+                fn test() -> i32 {
+                    rec(2)
+                }
+                |]) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" contextFunction
+                compiled `shouldBe` expected)
+        -- FIXME: [ERROR] Rec like imperative while - because we return a tuple  
+        it "[ERROR] Rec like imperative while - because we return a tuple  " $
+            (showCode "Compiled: " =<< compileCodeWithRecWithDebug  [sourceFile|
+                use funs::*;
+
+                fn while_loop_fun(state:S, i:i32) -> S{
+                  state.gs(i);
+                  i.add(1);
+                  if islowerthan23(i) {
+                    while_loop_fun(state, i)
+                  } else {
+                    (state, i)
+                  }
+                }
+
+                fn test() -> S {
+                    let state: S  = S::new_state();
+                    let mut i:i32 = I32::new(1);
+                    let state: S = while_loop_fun(state, i);
+                    state
+                }
+                |]) `shouldThrow` anyException
+       {-         
+      -- FIXME: SSA is broken ... see FIXME in SSA.hs
+        it "Rec like imperative while - assign rec call " $
+            (showCode "Compiled: " =<< compileCodeWithRecWithDebug  [sourceFile|
+                use funs::*;
+                /* fn while_loop_fun(state:State, i:i32) -> State{
+                  if islowerthan23(i) {
+                    state.gs(i);
+                    i.add(1);
+                    while_loop_fun(state, i)
+                  } else {
+                    state
+                  }
+                }
+
+                fn test() -> S {
+                    let state:State = S::new_state();
+                    let mut i:i32 = I32::new(1);
+                    let state:State = while_loop_fun(state, i);
+                    state
+                }*/
+
+                fn test_rename() -> i32 {
+                  let x:i32 = f();
+                  let x:i32 = fun(x);
+                  let y:i32 = fun2(x);
+                  y
+                }
+                |]) >>=
+            (\compiled -> do
                 expected <- showCode "Expected:"
                     [sourceFile|
+ use funs::*;
+ //ToDo
+                    |]
+                compiled `shouldBe` expected)
+
+
+        it "Rec like imperative while- return rec call" $
+            (showCode "Compiled: " =<< compileCodeWithRecWithDebug  [sourceFile|
+                use funs::*;
+
+                fn while_loop_fun(state:State, i:i32) -> State{
+                  if islowerthan23(i) {
+                    state.gs(i);
+                    i.add(1);
+                    while_loop_fun(state, i)
+                  } else {
+                    state
+                  }
+                }
+
+                fn test() -> S {
+                    let state:State = S::new_state();
+                    let mut i:i32 = I32::new(1);
+                    while_loop_fun(state, i);
+                }
+                |]) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:"
+                    [sourceFile|
+ use funs::*;
+ //ToDo
+                    |]
+                compiled `shouldBe` expected)-}
+
+
+----- Expected Outputs -------------------------------
+simpleOneArgument = [sourceFile|
 use funs::*;
 
 fn rec(i: i32) -> i32 {
-  let j = h(i);
+  let j: i32 = h(i);
   if check(j) { rec(j) } else { j }
 }
 
@@ -102,35 +238,14 @@ fn test() -> i32 {
   }
 }
 |]
-                compiled `shouldBe` expected)
-        it "multi-argument" $
-            (showCode "Compiled: " =<< compileCodeWithRec  [sourceFile|
-                use funs::*;
 
-                fn rec(one:i32, two:i32) -> i32 {
-                    let i = h(one);
-                    let j = h(two);
-                    let k = h2(i, j);
-                    if check(k) {
-                        rec(i,j)
-                    } else {
-                        k
-                    }
-                }
-
-                fn test() -> i32 {
-                    rec(2,4)
-                }
-                |]) >>=
-            (\compiled -> do
-                expected <- showCode "Expected:"
-                    [sourceFile|
+multiArgument = [sourceFile|
 use funs::*;
 
 fn rec(one: i32, two: i32) -> i32 {
-  let i = h(one);
-  let j = h(two);
-  let k = h2(i, j);
+  let i: i32 = h(one);
+  let j: i32 = h(two);
+  let k: i32 = h2(i, j);
   if check(k) { rec(i, j) } else { k }
 }
 
@@ -229,35 +344,15 @@ fn test() -> i32 {
   }
 }
                     |]
-                compiled `shouldBe` expected)
-        it "contexted function" $
-            (showCode "Compiled: " =<< compileCodeWithRec  [sourceFile|
-                use funs::*;
 
-                fn rec(one: i32) -> i32 {
-                    let i = h(one);
-                    let j = f();
-                    let k = h2(i, j);
-                    if check(k) {
-                        rec(k)
-                    } else {
-                        k
-                    }
-                }
 
-                fn test() -> i32 {
-                    rec(2)
-                }
-                |]) >>=
-            (\compiled -> do
-                expected <- showCode "Expected:"
-                    [sourceFile|
+contextFunction = [sourceFile|
 use funs::*;
 
 fn rec(one: i32) -> i32 {
-  let i = h(one);
-  let j = f();
-  let k = h2(i, j);
+  let i: i32 = h(one);
+  let j: i32 = f();
+  let k: i32 = h2(i, j);
   if check(k) { rec(k) } else { k }
 }
 
@@ -365,4 +460,3 @@ fn test() -> i32 {
   }
 }
                     |]
-                compiled `shouldBe` expected)

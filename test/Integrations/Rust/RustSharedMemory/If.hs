@@ -1,10 +1,11 @@
 {-# LANGUAGE QuasiQuotes #-}
-module Integrations.Rust.If where
+module Integrations.Rust.RustSharedMemory.If where
 
 import Ohua.Prelude
 
-import Integrations.Rust.RustSetup
-
+import Integrations.Rust.RustSharedMemory.RustSetup
+import Language.Rust.Syntax (SourceFile)
+import Language.Rust.Data.Position (Span)
 
 spec :: Spec
 spec =
@@ -14,10 +15,10 @@ spec =
                 use funs::*;
 
                 fn test(i: i32) -> i32 {
-                    let a = f0(i);
-                    let b = f1(i);
-                    let c = f2(i);
-                    let d = if a {
+                    let a: i32 = f0(i);
+                    let b: i32 = f1(i);
+                    let c: i32 = f2(i);
+                    let d: i32 = if a {
                         g0(b)
                     } else {
                         g1(c)
@@ -26,8 +27,30 @@ spec =
                 }
                 |]) >>=
             (\compiled -> do
-                expected <- showCode "Expected:"
-                    [sourceFile|
+                expected <- showCode "Expected:" simple_condition
+                compiled `shouldBe` expected)
+        it "context functions" $
+            (showCode "Compiled: " =<< compileCode  [sourceFile|
+                use funs::*;
+
+                fn test(i: i32) -> i32 {
+                    let a: i32 = f0(i);
+                    let d: i32 = if a {
+                        g0(5)
+                    } else {
+                        f()
+                    };
+                    h(d)
+                }
+                |]) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" context_functions
+                compiled `shouldBe` expected)
+
+------------- Testoutput -----------------------------
+
+simple_condition :: SourceFile Span
+simple_condition = [sourceFile|
 use funs::*;
 
 fn test(i: i32) -> i32 {
@@ -168,26 +191,10 @@ fn test(i: i32) -> i32 {
     Ok(res) => res,
     Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
   }
-}
-                    |]
-                compiled `shouldBe` expected)
-        it "context functions" $
-            (showCode "Compiled: " =<< compileCode  [sourceFile|
-                use funs::*;
+}|]
 
-                fn test(i: i32) -> i32 {
-                    let a = f0(i);
-                    let d = if a {
-                        g0(5)
-                    } else {
-                        f()
-                    };
-                    h(d)
-                }
-                |]) >>=
-            (\compiled -> do
-                expected <- showCode "Expected:"
-                    [sourceFile|
+context_functions :: SourceFile Span
+context_functions = [sourceFile|
 use funs::*;
 
 fn test(i: i32) -> i32 {
@@ -303,4 +310,3 @@ fn test(i: i32) -> i32 {
   }
 }
 |]
-                compiled `shouldBe` expected)

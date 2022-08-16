@@ -1,8 +1,10 @@
 {-# LANGUAGE QuasiQuotes #-}
-module Integrations.Rust.State where
+module Integrations.Rust.RustSharedMemory.State where
 
 import Ohua.Prelude  ( ($), Monad((>>=)), (=<<) )
-import Integrations.Rust.RustSetup
+import Integrations.Rust.RustSharedMemory.RustSetup
+import Language.Rust.Syntax (SourceFile)
+import Language.Rust.Data.Position (Span)
 
 spec :: Spec
 spec =
@@ -13,14 +15,132 @@ spec =
           use funs::*;
 
           fn test(i: i32) -> i32 {
-            let state = S::new_state(i);
-            let result = state.gs(5);
+            let state: S = S::new_state(i);
+            let result: i32 = state.gs(5);
             h(result)
           }
           |]) >>=
         (\compiled -> do
-          expected <- showCode "Expected:"
-            [sourceFile|
+          expected <- showCode "Expected:" simple
+          compiled `shouldBe` expected)
+
+      it "thread" $
+        (showCode "Compiled: " =<< compileCode  [sourceFile|
+          use funs::*;
+
+          fn test(i: i32) -> String {
+            let state: S  = S::new_state(i);
+            state.modify(5);
+            let r1:i32 = state.gs1(6);
+            r1
+          }
+          |]) >>=
+        (\compiled -> do
+          expected <- showCode "Expected:" thread
+          compiled `shouldBe` expected)
+         )
+
+    describe "loop" ( do
+        it "deep state simple" $
+            (showCode "Compiled: " =<< compileCode  [sourceFile|
+                use funs::*;
+
+                 fn test(i:i32) -> () {
+                    let stream: Iterator<S> = iter();
+                    for e in stream {
+                        e.gs(5);
+                    }
+                }
+                |]) >>=
+            (\compiled -> do
+                -- FIXME sertel/ohua-core#12
+                -- FIXME sertel/ohua-core#11
+                -- FIXME the state handling is still not ok!
+                -- even though the output of the stateful call is not used anywhere,
+                -- it needs to be the result of the loop!
+                expected <- showCode "Expected:" deep_state_simple
+                compiled `shouldBe` expected)
+
+        it "single io" $
+            -- FIXME sertel/ohua-core#11
+            (showCode "Compiled: " =<< compileCode  [sourceFile|
+                use funs::*;
+
+                 fn test(i:i32) -> () {
+                    let io: S = S::new_state(i);
+                    let stream: Iterator<i32> = iter_i32();
+                    for e in stream {
+                        io.gs(e);
+                    }
+                }
+                |]) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" single_io
+                compiled `shouldBe` expected)
+
+        it "single state" $
+            (showCode "Compiled: " =<< compileCode  [sourceFile|
+                use funs::*;
+
+                 fn test(i:i32) -> () {
+                    let s: S = S::new_state(i);
+                    let stream: Iterator<i32> = iter_i32();
+                    for e in stream {
+                        s.gs(e);
+                    }
+                    s.gs(5)
+                }
+                |]) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" single_state
+                compiled `shouldBe` expected)
+         )
+
+    describe "combo" (do
+        it "thread + loop" $
+            (showCode "Compiled: " =<< compileCode  [sourceFile|
+                use funs::*;
+
+                 fn test(i:i32) -> i32 {
+                    let s: S = S::new_state(i);
+                    let sp: S = s.clone();
+                    let stream: Iterator<i32> = iter_i32();
+                    for e in stream {
+                        let x: i32 = f_s(sp,e);
+                        s.gs(x);
+                    }
+                    s.gs(5)
+                }
+                |]) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:"  thread_and_loop
+                compiled `shouldBe` expected)
+
+        it "raw state out" $
+            (showCode "Compiled: " =<< compileCode  [sourceFile|
+                use funs::*;
+
+                 fn test(i:i32) -> S {
+                    let s: S = S::new_state(i);
+                    let sp: S = s.clone();
+                    let stream: Iterator<i32> = iter_i32();
+                    for e in stream {
+                        let x: i32 = f_s(sp,e);
+                        s.gs(x);
+                    }
+                    s
+                }
+                |]) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" raw_state_out
+                compiled `shouldBe` expected)
+        )
+
+
+----------- Testoutput ------------------
+
+simple :: SourceFile Span
+simple = [sourceFile|
 use funs::*;
 
 fn test(i: i32) -> i32 {
@@ -84,21 +204,9 @@ fn test(i: i32) -> i32 {
   }
 }
             |]
-          compiled `shouldBe` expected)
-      it "thread" $
-        (showCode "Compiled: " =<< compileCode  [sourceFile|
-          use funs::*;
 
-          fn test(i: i32) -> String {
-            let state = S::new_state(i);
-            state.modify(5);
-            let r1 = state.gs1(6);
-            r1
-          }
-          |]) >>=
-        (\compiled -> do
-          expected <- showCode "Expected:"
-            [sourceFile|
+thread :: SourceFile Span
+thread = [sourceFile|
 use funs::*;
 
 fn test(i: i32) -> String {
@@ -159,30 +267,10 @@ fn test(i: i32) -> String {
     Ok(res) => res,
     Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
   }
-}
-              |]
-          compiled `shouldBe` expected)
-         )
-    describe "loop" ( do
-        it "deep state simple" $
-            (showCode "Compiled: " =<< compileCode  [sourceFile|
-                use funs::*;
+}|]
 
-                 fn test(i:i32) -> () {
-                    let stream = iter();
-                    for e in stream {
-                        e.gs(5);
-                    }
-                }
-                |]) >>=
-            (\compiled -> do
-                -- FIXME sertel/ohua-core#12
-                -- FIXME sertel/ohua-core#11
-                -- FIXME the state handling is still not ok!
-                -- even though the output of the stateful call is not used anywhere,
-                -- it needs to be the result of the loop!
-                expected <- showCode "Expected:"
-                    [sourceFile|
+deep_state_simple :: SourceFile Span
+deep_state_simple = [sourceFile|
 use funs::*;
 
 fn test(i: i32) -> () {
@@ -289,25 +377,11 @@ fn test(i: i32) -> () {
     Ok(res) => res,
     Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
   }
-}
-                      |]
-                compiled `shouldBe` expected)
-        it "single io" $
-            -- FIXME sertel/ohua-core#11
-            (showCode "Compiled: " =<< compileCode  [sourceFile|
-                use funs::*;
+}|]
 
-                 fn test(i:i32) -> () {
-                    let io = S::new_state(i);
-                    let stream = iter_i32();
-                    for e in stream {
-                        io.gs(e);
-                    }
-                }
-                |]) >>=
-            (\compiled -> do
-                expected <- showCode "Expected:"
-                    [sourceFile|
+
+single_io :: SourceFile Span
+single_io = [sourceFile|
 use funs::*;
 
 fn test(i: i32) -> () {
@@ -444,25 +518,10 @@ fn test(i: i32) -> () {
     Ok(res) => res,
     Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
   }
-}
-                   |]
-                compiled `shouldBe` expected)
-        it "single state" $
-            (showCode "Compiled: " =<< compileCode  [sourceFile|
-                use funs::*;
+}|]
 
-                 fn test(i:i32) -> () {
-                    let s = S::new_state(i);
-                    let stream = iter_i32();
-                    for e in stream {
-                        s.gs(e);
-                    }
-                    s.gs(5)
-                }
-                |]) >>=
-            (\compiled -> do
-                expected <- showCode "Expected:"
-                    [sourceFile|
+single_state :: SourceFile Span
+single_state = [sourceFile|
 use funs::*;
 
 fn test(i: i32) -> () {
@@ -567,29 +626,10 @@ fn test(i: i32) -> () {
     Ok(res) => res,
     Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
   }
-}
-                    |]
-                compiled `shouldBe` expected)
-         )
-    describe "combo" (do
-        it "thread + loop" $
-            (showCode "Compiled: " =<< compileCode  [sourceFile|
-                use funs::*;
+}|]
 
-                 fn test(i:i32) -> () {
-                    let s = S::new_state(i);
-                    let sp = s.clone();
-                    let stream = iter_i32();
-                    for e in stream {
-                        let x = f_s(sp,e);
-                        s.gs(x);
-                    }
-                    s.gs(5)
-                }
-                |]) >>=
-            (\compiled -> do
-                expected <- showCode "Expected:"
-                    [sourceFile|
+thread_and_loop :: SourceFile Span
+thread_and_loop = [sourceFile|
 use funs::*;
 
 fn test(i: i32) -> () {
@@ -734,27 +774,10 @@ fn test(i: i32) -> () {
     Ok(res) => res,
     Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
   }
-}
-                    |]
-                compiled `shouldBe` expected)
-        it "raw state out" $
-            (showCode "Compiled: " =<< compileCode  [sourceFile|
-                use funs::*;
+}|]
 
-                 fn test(i:i32) -> S {
-                    let s = S::new_state(i);
-                    let sp = s.clone();
-                    let stream = iter_i32();
-                    for e in stream {
-                        let x = f_s(sp,e);
-                        s.gs(x);
-                    }
-                    s
-                }
-                |]) >>=
-            (\compiled -> do
-                expected <- showCode "Expected:"
-                    [sourceFile|
+raw_state_out :: SourceFile Span
+raw_state_out = [sourceFile|
 use funs::*;
 
 fn test(i: i32) -> S {
@@ -889,7 +912,4 @@ fn test(i: i32) -> S {
     Ok(res) => res,
     Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
   }
-}
-                    |]
-                compiled `shouldBe` expected)
-        )
+} |]

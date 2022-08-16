@@ -1,14 +1,15 @@
 {-# LANGUAGE QuasiQuotes #-}
-module Integrations.Rust.SMap where
+module Integrations.Rust.RustSharedMemory.SMap where
 
 import Ohua.Prelude
 
-import Integrations.Rust.RustSetup
+import Integrations.Rust.RustSharedMemory.RustSetup
 
 
 spec :: Spec
 spec =
     describe "SMap" $ do
+      {-
         -- see issue ohua-lang/ohua-core#29
         -- this computation is deleted by dead code elimination
         -- TODO in fact this whole computation is dead code and our
@@ -105,17 +106,35 @@ spec =
 --                        b_0_0_rx.recv()?
 --                      }
 --                    |]
---                compiled `shouldBe` expected)
+--                compiled `shouldBe` expected)-}
         it "imperative" $
             (showCode "Compiled: " =<< compileCode  [sourceFile|
                 use funs::*;
 
-                fn test() -> std::Vec<i32> {
-                    let s = S::new_state();
-                    let stream = iter_i32();
+                fn test() -> S {
+                    let s:S = S::new_state();
+                    let stream: Iterator<S> = iter_i32();
                     for e in stream {
-                        let r = h(e);
+                        let r: i32 = h(e);
                         s.gs(r);
+                    }
+                    s
+                }
+                |]) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" imperative
+                compiled `shouldBe` expected)
+ {-      it "imperative while " $
+            (showCode "Compiled: " =<< compileCodeWithRecWithDebug  [sourceFile|
+                use funs::*;
+
+                fn test() -> S {
+                    let state:State = S::new_state();
+                    let mut i:i32 = I32::new(1);
+                    while islowerthan23(i) {
+                        state.gs(i);
+                        // i = i + 1 is actually a stateful function acting on a named memory slot
+                        i.add(1); 
                     }
                     s
                 }
@@ -123,6 +142,14 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:"
                     [sourceFile|
+ use funs::*;
+ //ToDo
+                    |]
+                compiled `shouldBe` expected)-}
+
+
+------------ Testoutput ------------------------
+imperative =  [sourceFile|
 use funs::*;
 
 fn test() -> std::Vec<  i32,> {
@@ -229,26 +256,3 @@ fn test() -> std::Vec<  i32,> {
   }
 }
                     |]
-                compiled `shouldBe` expected)
-{-       it "imperative while " $
-            (showCode "Compiled: " =<< compileCode  [sourceFile|
-                use funs::*;
-
-                fn test() -> std::Vec<i32> {
-                    let n = iter_i32();
-                    let s = S::new_state();
-                    while n.has_next() {
-                        let e = n.next();
-                        s.gs(n);                       
-                    }
-                    s
-                }
-                |]) >>=
-            (\compiled -> do
-                expected <- showCode "Expected:"
-                    [sourceFile|
- use funs::*;
- //ToDo
-                    |]
-                compiled `shouldBe` expected)
--}

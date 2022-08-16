@@ -1,4 +1,4 @@
-module Integrations.Rust.RustSetup
+module Integrations.Rust.RustSharedMemory.RustSetup
   ( renderRustCode,
     showCode,
     showCodeWithDiff,
@@ -82,7 +82,7 @@ compileModule inCode opts cty = do
           let outFile = outDir </> takeFileName inFile
 
           -- producedCode <- readFile outFile
-          --putStr ("\n PRODUCED MODULE: \n"::String)
+          -- putStr ("\n PRODUCED MODULE: \n"::String)
           -- putStr producedCode
           placeholderFile <-readFile (outDir </> "placeholderlib.rs")
           putStr placeholderFile
