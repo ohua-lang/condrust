@@ -1,3 +1,4 @@
+{-# LANGUAGE ConstraintKinds #-}
 module Ohua.Integration.Rust.Frontend.Convert where
 
 import Language.Rust.Data.Ident
@@ -7,14 +8,20 @@ import Ohua.Integration.Rust.Common.Convert
 import qualified Ohua.Integration.Rust.Frontend.Subset as Sub
 import Ohua.Prelude
 
-convertExpr :: (Monad m, MonadError Error m) => Rust.Expr Span -> m Sub.Expr
-convertExpr e@Box {} = throwError $ "Currently, we do not support the construction of boxed values. Please do so in a function." <> show e
-convertExpr e@Vec {} = throwError $ "Currently, we do not support array expressions. Please do so in a function.\n" <> show e
+import qualified Data.HashMap.Lazy as HM
+
+type Context = HM.HashMap Binding Sub.RustType
+
+type ConvertM m = (Monad m, MonadState Context m)
+
+convertExpr :: ConvertM m => Rust.Expr Span -> m Sub.Expr
+convertExpr e@Box {} = error $ "Currently, we do not support the construction of boxed values. Please do so in a function." <> show e
+convertExpr e@Vec {} = error $ "Currently, we do not support array expressions. Please do so in a function.\n" <> show e
 convertExpr (Call [] fun args _) = do
   fun' <- convertExpr fun
   args' <- mapM convertExpr args
   return $ Sub.Call fun' args'
-convertExpr e@Call {} = throwError $ "Currently, we do not support attributes on function calls.\n" <> show e
+convertExpr e@Call {} = error $ "Currently, we do not support attributes on function calls.\n" <> show e
 convertExpr (MethodCall [] receiver method args _) = do
   receiver' <- convertExpr receiver
   method' <- convertLastSegment method
@@ -25,113 +32,113 @@ convertExpr (MethodCall [] receiver method args _) = do
             ty
   args' <- mapM convertExpr args
   return $ Sub.MethodCall receiver' method'' args'
-convertExpr e@MethodCall {} = throwError $ "Currently, we do not support attributes on method calls.\n" <> show e
+convertExpr e@MethodCall {} = error $ "Currently, we do not support attributes on method calls.\n" <> show e
 convertExpr (TupExpr [] vars _) = do
   vars' <- mapM convertExpr vars
   return $ Sub.Tuple vars'
-convertExpr e@TupExpr {} = throwError $ "Currently, we do not support attributes on tuple expressions.\n" <> show e
+convertExpr e@TupExpr {} = error $ "Currently, we do not support attributes on tuple expressions.\n" <> show e
 convertExpr (Binary [] op left right _) = do
   op' <- convertBinOp op
   left' <- convertExpr left
   right' <- convertExpr right
   return $ Sub.Binary op' left' right'
-convertExpr e@Binary {} = throwError $ "Currently, we do not support attributes on binary operations.\n" <> show e
+convertExpr e@Binary {} = error $ "Currently, we do not support attributes on binary operations.\n" <> show e
 convertExpr (Unary [] op arg _) = do
   let op' = convertUnOp op
   arg' <- convertExpr arg
   return $ Sub.Unary op' arg'
-convertExpr e@Unary {} = throwError $ "Currently, we do not support attributes on unary operations.\n" <> show e
+convertExpr e@Unary {} = error $ "Currently, we do not support attributes on unary operations.\n" <> show e
 convertExpr (Lit [] l _) = Sub.Lit <$> convertLit l
-convertExpr e@Lit {} = throwError $ "Currently, we do not support attributes on literals operations.\n" <> show e
-convertExpr e@Cast {} = throwError $ "Currently, we do not support cast expressions. Please use a function.\n" <> show e
-convertExpr e@TypeAscription {} = throwError $ "Currently, we do not support type ascriptions. Please use a function.\n" <> show e
+convertExpr e@Lit {} = error $ "Currently, we do not support attributes on literals operations.\n" <> show e
+convertExpr e@Cast {} = error $ "Currently, we do not support cast expressions. Please use a function.\n" <> show e
+convertExpr e@TypeAscription {} = error $ "Currently, we do not support type ascriptions. Please use a function.\n" <> show e
 convertExpr (If [] expr trueBlock falseBlock _) = do
   expr' <- convertExpr expr
   trueBlock' <- convertBlock trueBlock
   falseBlock' <- sequence (convertExpr <$> falseBlock)
   return $ Sub.If expr' trueBlock' falseBlock'
-convertExpr e@If {} = throwError $ "Currently, we do not support attributes on conditional expressions.\n" <> show e
-convertExpr e@IfLet {} = throwError $ "Currently, we do not support if-let expressions. Please file a bug if you feel that this is dearly needed.\n" <> show e
+convertExpr e@If {} = error $ "Currently, we do not support attributes on conditional expressions.\n" <> show e
+convertExpr e@IfLet {} = error $ "Currently, we do not support if-let expressions. Please file a bug if you feel that this is dearly needed.\n" <> show e
 convertExpr (While [] cond block Nothing _) = do
   cond' <- convertExpr cond
   block' <- convertBlock block
   return $ Sub.While cond' block'
-convertExpr e@(While [] _ _ (Just _) _) = throwError $ "Currently, we do not support loop labels.\n" <> show e
-convertExpr e@While {} = throwError $ "Currently, we do not support attributes on while loops.\n" <> show e
-convertExpr e@WhileLet {} = throwError $ "Currently, we do not support if-let expressions. Please file a bug if you feel that this is dearly needed.\n" <> show e
+convertExpr e@(While [] _ _ (Just _) _) = error $ "Currently, we do not support loop labels.\n" <> show e
+convertExpr e@While {} = error $ "Currently, we do not support attributes on while loops.\n" <> show e
+convertExpr e@WhileLet {} = error $ "Currently, we do not support if-let expressions. Please file a bug if you feel that this is dearly needed.\n" <> show e
 convertExpr (ForLoop [] pat dataExpr body Nothing _) = do
   pat' <- convertPat pat
   dataExpr' <- convertExpr dataExpr
   body' <- convertBlock body
   return $ Sub.ForLoop pat' dataExpr' body'
-convertExpr e@(ForLoop [] _ _ _ (Just _) _) = throwError $ "Currently, we do not support loop labels.\n" <> show e
-convertExpr e@ForLoop {} = throwError $ "Currently, we do not support attributes on for loops.\n" <> show e
-convertExpr e@Loop {} = throwError $ "Currently, we do not support conditionless loops. Please file a bug if you feel that this is dearly needed.\n" <> show e
-convertExpr e@Match {} = throwError $ "Currently, we do not support match expressions. Please file a bug if you feel that this is dearly needed.\n" <> show e
+convertExpr e@(ForLoop [] _ _ _ (Just _) _) = error $ "Currently, we do not support loop labels.\n" <> show e
+convertExpr e@ForLoop {} = error $ "Currently, we do not support attributes on for loops.\n" <> show e
+convertExpr e@Loop {} = error $ "Currently, we do not support conditionless loops. Please file a bug if you feel that this is dearly needed.\n" <> show e
+convertExpr e@Match {} = error $ "Currently, we do not support match expressions. Please file a bug if you feel that this is dearly needed.\n" <> show e
 convertExpr (Closure [] Value NotAsync Movable (FnDecl args retTy False _) body _) = do
   args' <- mapM convertArg args
   let retTy' = Sub.RustType . (noSpan <$) <$> retTy
   body' <- convertExpr body
   return $ Sub.Closure Sub.Value Sub.NotAsync Sub.Movable args' retTy' body'
-convertExpr e@(Closure _ _ _ _ (FnDecl _ _ True _) _ _) = throwError $ "Currently, we do not support variadic argument lists. \n" <> show e
-convertExpr e@(Closure _ _ _ Immovable _ _ _) = throwError $ "Currently, we do not support immovable closures. \n" <> show e
-convertExpr e@(Closure _ Ref _ _ _ _ _) = throwError $ "Currently, we do not support closures that capture environment variables by reference. \n" <> show e
-convertExpr e@(Closure _ _ IsAsync _ _ _ _) = throwError $ "Async functions are not part of the supported Rust subset. \n" <> show e
-convertExpr e@Closure {} = throwError $ "Currently, we do not support attributes on closures.\n" <> show e
+convertExpr e@(Closure _ _ _ _ (FnDecl _ _ True _) _ _) = error $ "Currently, we do not support variadic argument lists. \n" <> show e
+convertExpr e@(Closure _ _ _ Immovable _ _ _) = error $ "Currently, we do not support immovable closures. \n" <> show e
+convertExpr e@(Closure _ Ref _ _ _ _ _) = error $ "Currently, we do not support closures that capture environment variables by reference. \n" <> show e
+convertExpr e@(Closure _ _ IsAsync _ _ _ _) = error $ "Async functions are not part of the supported Rust subset. \n" <> show e
+convertExpr e@Closure {} = error $ "Currently, we do not support attributes on closures.\n" <> show e
 convertExpr e@(BlockExpr [] block Nothing _) = Sub.BlockExpr <$> convertBlock block
-convertExpr e@(BlockExpr _ _ (Just _) _) = throwError $ "Labels are not part of the supported Rust subset.\n" <> show e
-convertExpr e@BlockExpr {} = throwError $ "Currently, we do not support attributes on block expressions.\n" <> show e
-convertExpr e@TryBlock {} = throwError $ "Currently, we do not support try-block expressions. Please use a function. \n" <> show e
-convertExpr e@Async {} = throwError $ "Async is not part of the supported Rust subset. \n" <> show e
-convertExpr e@Await {} = throwError $ "Async is not part of the supported Rust subset. \n" <> show e
-convertExpr e@Assign {} = throwError $ "Currently, we do not support assign expressions (because memory is managed inside the functions). Please use a function. \n" <> show e
-convertExpr e@AssignOp {} = throwError $ "Currently, we do not support assign-op expressions (because memory is managed inside the functions). Please use a function. \n" <> show e
-convertExpr e@FieldAccess {} = throwError $ "Currently, we do not support field access expressions (because memory/state is managed inside the functions). Please use a function. \n" <> show e
-convertExpr e@TupField {} = throwError $ "Currently, we do not support tuple field expressions. Please use a function. \n" <> show e
-convertExpr e@Index {} = throwError $ "Currently, we do not support indexing expressions. Please use a function. \n" <> show e
-convertExpr e@Range {} = throwError $ "Currently, we do not support range expressions. Please use a function. \n" <> show e
+convertExpr e@(BlockExpr _ _ (Just _) _) = error $ "Labels are not part of the supported Rust subset.\n" <> show e
+convertExpr e@BlockExpr {} = error $ "Currently, we do not support attributes on block expressions.\n" <> show e
+convertExpr e@TryBlock {} = error $ "Currently, we do not support try-block expressions. Please use a function. \n" <> show e
+convertExpr e@Async {} = error $ "Async is not part of the supported Rust subset. \n" <> show e
+convertExpr e@Await {} = error $ "Async is not part of the supported Rust subset. \n" <> show e
+convertExpr e@Assign {} = error $ "Currently, we do not support assign expressions (because memory is managed inside the functions). Please use a function. \n" <> show e
+convertExpr e@AssignOp {} = error $ "Currently, we do not support assign-op expressions (because memory is managed inside the functions). Please use a function. \n" <> show e
+convertExpr e@FieldAccess {} = error $ "Currently, we do not support field access expressions (because memory/state is managed inside the functions). Please use a function. \n" <> show e
+convertExpr e@TupField {} = error $ "Currently, we do not support tuple field expressions. Please use a function. \n" <> show e
+convertExpr e@Index {} = error $ "Currently, we do not support indexing expressions. Please use a function. \n" <> show e
+convertExpr e@Range {} = error $ "Currently, we do not support range expressions. Please use a function. \n" <> show e
 convertExpr (PathExpr [] Nothing path _) = do
   path' <- convertPath path
   return $ case path' of
     Left v -> Sub.Var v
     Right cr -> Sub.PathExpr cr
-convertExpr e@(PathExpr [] (Just _) _ _) = throwError $ "Currently, we do not support paths to 'self', i.e., compilation of 'impl' functions. \n" <> show e
-convertExpr e@PathExpr {} = throwError $ "Currently, we do not support attributes on path expressions.\n" <> show e
-convertExpr e@AddrOf {} = throwError $ seqParProgNote <> "\n" <> show e
-convertExpr e@Break {} = throwError $ "Currently, we do not support 'break' expressions. Please reformulate the loop. \n" <> show e
-convertExpr e@Continue {} = throwError $ "Currently, we do not support 'continue' expressions. Please reformulate the loop. \n" <> show e
-convertExpr e@Ret {} = throwError $ "Currently, we do not support 'return' expressions. Please reformulate into an expression without a semicolon. \n" <> show e
-convertExpr e@MacExpr {} = throwError $ "Currently, we do not support macro invocations. \n" <> show e
-convertExpr e@Struct {} = throwError $ "Currently, we do not support struct literal expressions. Please use a function.\n" <> show e
-convertExpr e@Repeat {} = throwError $ "Currently, we do not support array construction expressions. Please use a function.\n" <> show e
-convertExpr e@ParenExpr {} = throwError $ "Impossible per documentation of language-rust.\n" <> show e
-convertExpr e@Try {} = throwError $ "Currently, we do not support error handling expressions. Please use a function.\n" <> show e
-convertExpr e@Yield {} = throwError $ "Currently, we do not support generator/yield expressions. Please use a function.\n" <> show e
+convertExpr e@(PathExpr [] (Just _) _ _) = error $ "Currently, we do not support paths to 'self', i.e., compilation of 'impl' functions. \n" <> show e
+convertExpr e@PathExpr {} = error $ "Currently, we do not support attributes on path expressions.\n" <> show e
+convertExpr e@AddrOf {} = error $ seqParProgNote <> "\n" <> show e
+convertExpr e@Break {} = error $ "Currently, we do not support 'break' expressions. Please reformulate the loop. \n" <> show e
+convertExpr e@Continue {} = error $ "Currently, we do not support 'continue' expressions. Please reformulate the loop. \n" <> show e
+convertExpr e@Ret {} = error $ "Currently, we do not support 'return' expressions. Please reformulate into an expression without a semicolon. \n" <> show e
+convertExpr e@MacExpr {} = error $ "Currently, we do not support macro invocations. \n" <> show e
+convertExpr e@Struct {} = error $ "Currently, we do not support struct literal expressions. Please use a function.\n" <> show e
+convertExpr e@Repeat {} = error $ "Currently, we do not support array construction expressions. Please use a function.\n" <> show e
+convertExpr e@ParenExpr {} = error $ "Impossible per documentation of language-rust.\n" <> show e
+convertExpr e@Try {} = error $ "Currently, we do not support error handling expressions. Please use a function.\n" <> show e
+convertExpr e@Yield {} = error $ "Currently, we do not support generator/yield expressions. Please use a function.\n" <> show e
 
-convertBlock :: (Monad m, MonadError Error m) => Rust.Block Span -> m Sub.Block
-convertBlock b@(Block _ Unsafe _) = throwError $ "Currently, we do not support unsafe blocks.\n" <> show b
+convertBlock :: ConvertM m => Rust.Block Span -> m Sub.Block
+convertBlock b@(Block _ Unsafe _) = error $ "Currently, we do not support unsafe blocks.\n" <> show b
 convertBlock (Block stmts Rust.Normal _) = (`Sub.RustBlock` Sub.Normal) <$> mapM convertStmt stmts
 
-convertStmt :: (Monad m, MonadError Error m) => Stmt Span -> m Sub.Stmt
+convertStmt :: ConvertM m => Stmt Span -> m Sub.Stmt
 convertStmt (Local pat ty (Just e) [] _) = do
   pat' <- convertPat pat
   let ty' = Sub.RustType . void <$> ty
   e' <- convertExpr e
   return $ Sub.Local pat' ty' e'
 convertStmt s@(Local pat _ Nothing _ _) =
-  throwError $ "Variables bind values and as such they need to be initialized. \n" <> show s
+  error $ "Variables bind values and as such they need to be initialized. \n" <> show s
 convertStmt s@Local {} =
-  throwError $ "Currently, we do not support attributes on local bindings.\n" <> show s
+  error $ "Currently, we do not support attributes on local bindings.\n" <> show s
 convertStmt s@ItemStmt {} =
-  throwError $ "Currently, we do not support item statements.\n" <> show s
+  error $ "Currently, we do not support item statements.\n" <> show s
 convertStmt (NoSemi e _) = Sub.NoSemi <$> convertExpr e
 convertStmt (Semi e _) = Sub.Semi <$> convertExpr e
 convertStmt s@MacStmt {} =
-  throwError $ "Currently, we do not support macro calls.\n" <> show s
+  error $ "Currently, we do not support macro calls.\n" <> show s
 convertStmt StandaloneSemi{} = return Sub.StandaloneSemi
 
 convertPath ::
-  (Monad m, MonadError Error m) =>
+  ConvertM m =>
   Rust.Path Span ->
   m (Either Sub.VarRef Sub.CallRef)
 convertPath p@(Path _ segments _) =
@@ -148,58 +155,58 @@ convertPath p@(Path _ segments _) =
           Sub.CallRef
             (QualifiedBinding (makeThrow firstSegs') $ fromString lastSeg')
             ty
-    [] -> throwError $ "I received a path with no segments. I do not konw what to do with it: " <> show p
+    [] -> error $ "I received a path with no segments. I do not konw what to do with it: " <> show p
 
 convertPathSegment (PathSegment Ident {name = n} Nothing _) = return n
-convertPathSegment e@PathSegment {} = throwError $ "Currently, we support type parameters only on the last element of the path.\n" <> show e
+convertPathSegment e@PathSegment {} = error $ "Currently, we support type parameters only on the last element of the path.\n" <> show e
 
 convertLastSegment (PathSegment Ident {name = n} ty _) = (n,) <$> sequence (convertGenericArgs <$> ty)
 
-convertGenericArgs :: (Monad m, MonadError Error m) => GenericArgs Span -> m Sub.GenericArgs
+convertGenericArgs :: ConvertM m => GenericArgs Span -> m Sub.GenericArgs
 convertGenericArgs (AngleBracketed args [] _) = Sub.AngleBracketed <$> mapM convertGenericArg args
-convertGenericArgs a@(AngleBracketed _ as _) = throwError $ "Currently, we do not support type constraints: " <> show a
-convertGenericArgs a = throwError $ "Currently, we only support angle-bracketed type information: " <> show a
+convertGenericArgs a@(AngleBracketed _ as _) = error $ "Currently, we do not support type constraints: " <> show a
+convertGenericArgs a = error $ "Currently, we only support angle-bracketed type information: " <> show a
 
-convertGenericArg :: (Monad m, MonadError Error m) => GenericArg Span -> m Sub.GenericArg
+convertGenericArg :: ConvertM m => GenericArg Span -> m Sub.GenericArg
 convertGenericArg (TypeArg ty) = return $ Sub.TypeArg $ Sub.RustType (noSpan <$ ty)
-convertGenericArg l@LifetimeArg{} = throwError $ "Currently, we do not support lifetime type arguments: " <> show l
-convertGenericArg c@ConstArg{} = throwError $ "Currently, we do not support const type arguments: " <> show c
+convertGenericArg l@LifetimeArg{} = error $ "Currently, we do not support lifetime type arguments: " <> show l
+convertGenericArg c@ConstArg{} = error $ "Currently, we do not support const type arguments: " <> show c
 
-convertArg :: (Monad m, MonadError Error m) => Rust.Arg Span -> m Sub.Arg
+convertArg :: ConvertM m => Rust.Arg Span -> m Sub.Arg
 convertArg (Arg _ (Just p) ty _) = (`Sub.Arg` Sub.RustType (noSpan <$ ty)) <$> convertPat p
-convertArg a@(Arg _ Nothing _ _) = throwError $ "Currently, we require a name for each argument, not only its type. If this is a type definition in your code, then please file a bug.\n" <> show a
-convertArg a = throwError $ "Currently, we do not support self arguments. \n" <> show a
+convertArg a@(Arg _ Nothing _ _) = error $ "Currently, we require a name for each argument, not only its type. If this is a type definition in your code, then please file a bug.\n" <> show a
+convertArg a = error $ "Currently, we do not support self arguments. \n" <> show a
 
-convertPat :: (Monad m, MonadError Error m) => Rust.Pat Span -> m Sub.Pat
+convertPat :: ConvertM  m => Rust.Pat Span -> m Sub.Pat
 convertPat (WildP _) = return Sub.WildP
 convertPat (IdentP (ByValue Immutable) Ident {name = n, raw = False} Nothing _) =
   return $ Sub.IdentP $ Sub.IdentPat Sub.Immutable $ fromString n
 convertPat (IdentP (ByValue Mutable) Ident {name = n, raw = False} Nothing _) =
   return $ Sub.IdentP $ Sub.IdentPat Sub.Mutable $ fromString n
-convertPat p@(IdentP _ Ident {raw = True} _ _) = throwError $ "Qualified identifiers in a pattern are currently not supported. Pattern: " <> show p
-convertPat p@(IdentP _ _ (Just _) _) = throwError $ "Currently, we do not support nested patterns: " <> show p
-convertPat p@(IdentP (ByRef _) _ _ _) = throwError $ seqParProgNote <> "\n" <> show p
-convertPat p@StructP {} = throwError $ "Currently, we do not support struct patterns: " <> show p <> ". Please use a function."
-convertPat p@TupleStructP {} = throwError $ "Currently, we do not support tuple struct patterns: " <> show p <> ". Please use a function."
-convertPat p@PathP {} = throwError $ "Currently, we do not support path patterns: " <> show p
+convertPat p@(IdentP _ Ident {raw = True} _ _) = error $ "Qualified identifiers in a pattern are currently not supported. Pattern: " <> show p
+convertPat p@(IdentP _ _ (Just _) _) = error $ "Currently, we do not support nested patterns: " <> show p
+convertPat p@(IdentP (ByRef _) _ _ _) = error $ seqParProgNote <> "\n" <> show p
+convertPat p@StructP {} = error $ "Currently, we do not support struct patterns: " <> show p <> ". Please use a function."
+convertPat p@TupleStructP {} = error $ "Currently, we do not support tuple struct patterns: " <> show p <> ". Please use a function."
+convertPat p@PathP {} = error $ "Currently, we do not support path patterns: " <> show p
 convertPat pat@(TupleP patterns _) =
   let unwrapIdentPat p =
         case p of
           Sub.IdentP p -> return p
-          _ -> throwError $ "Currently, we do not support nested tuple patterns: " <> show pat
+          _ -> error $ "Currently, we do not support nested tuple patterns: " <> show pat
    in Sub.TupP <$> mapM (unwrapIdentPat <=< convertPat) patterns
-convertPat p@OrP {} = throwError $ "Currently, we do not support or patterns: " <> show p <> "."
-convertPat p@BoxP {} = throwError $ "Currently, we do not support box patterns: " <> show p <> ". Please use a function."
-convertPat p@RefP {} = throwError $ seqParProgNote <> "\n" <> show p
-convertPat p@LitP {} = throwError $ "Currently, we do not support literal patterns: " <> show p <> ". Please use a function."
-convertPat p@RangeP {} = throwError $ "Currently, we do not support range patterns: " <> show p <> ". Please use a function."
-convertPat p@SliceP {} = throwError $ "Currently, we do not support slice patterns: " <> show p <> ". Please use a function."
-convertPat p@RestP {} = throwError $ "Currently, we do not support rest patterns: " <> show p <> "."
-convertPat p@ParenP {} = throwError $ "Currently, we do not support paren patterns: " <> show p <> "."
-convertPat p@MacP {} = throwError $ "Currently, we do not support patterns resulting from macro expansion: " <> show p <> ". Please use a function."
+convertPat p@OrP {} = error $ "Currently, we do not support or patterns: " <> show p <> "."
+convertPat p@BoxP {} = error $ "Currently, we do not support box patterns: " <> show p <> ". Please use a function."
+convertPat p@RefP {} = error $ seqParProgNote <> "\n" <> show p
+convertPat p@LitP {} = error $ "Currently, we do not support literal patterns: " <> show p <> ". Please use a function."
+convertPat p@RangeP {} = error $ "Currently, we do not support range patterns: " <> show p <> ". Please use a function."
+convertPat p@SliceP {} = error $ "Currently, we do not support slice patterns: " <> show p <> ". Please use a function."
+convertPat p@RestP {} = error $ "Currently, we do not support rest patterns: " <> show p <> "."
+convertPat p@ParenP {} = error $ "Currently, we do not support paren patterns: " <> show p <> "."
+convertPat p@MacP {} = error $ "Currently, we do not support patterns resulting from macro expansion: " <> show p <> ". Please use a function."
 
 
-convertBinOp :: (Monad m, MonadError Error m) => Rust.BinOp -> m Sub.BinOp
+convertBinOp :: ConvertM m => Rust.BinOp -> m Sub.BinOp
 convertBinOp AddOp = return Sub.Add
 convertBinOp SubOp = return Sub.Sub
 convertBinOp MulOp = return Sub.Mul
@@ -209,17 +216,18 @@ convertBinOp LtOp = return Sub.Lt
 convertBinOp LeOp = return Sub.Lte
 convertBinOp GeOp = return Sub.Gte
 convertBinOp GtOp = return Sub.Gt
-convertBinOp o = throwError $ "Unsupported binary operation: " <> show o
+convertBinOp o = error $ "Unsupported binary operation: " <> show o
 
 convertUnOp :: Rust.UnOp -> Sub.UnOp
 convertUnOp Deref = Sub.Deref
 convertUnOp Not = Sub.Not
 convertUnOp Neg = Sub.Neg
 
-convertLit :: (Monad m, MonadError Error m) => Rust.Lit Span -> m Sub.Lit
+convertLit :: ConvertM m => Rust.Lit Span -> m Sub.Lit
 convertLit (Int Dec i _ _) = return $ Sub.Int i
 convertLit (Bool b _ _) = return $ Sub.Bool b
-convertLit _ = throwError "Currently, we miss proper support for literals. This is a TODO. Please file a bug."
+-- ToDo: This seems to be called also when we e.g. return an i32. So even with int and bool -> check why
+convertLit _ = error "Currently, we miss proper support for literals. This is a TODO. Please file a bug."
 
 
 
