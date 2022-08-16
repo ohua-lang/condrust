@@ -31,6 +31,7 @@ literalsToFunctions e =
             case lit of
                 UnitLit      -> mkFun v u ie
                 NumericLit _ -> mkFun v u ie
+                StringLit _ -> mkFun v u ie
                 BoolLit _ -> mkFun v u ie
                 EnvRefLit _  -> mkFun v u ie
                 FunRefLit (FunRef qb _ _) -> throwError $ "Compiler invariant broken. Trying to convert function literal to function: " <> show qb 

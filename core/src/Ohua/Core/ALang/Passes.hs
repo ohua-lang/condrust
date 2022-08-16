@@ -347,11 +347,16 @@ noUndefinedBindings = flip runReaderT mempty . cata go
   where
     go (LetF b val body) = val >> registerBinding b body
     go (VarF bnd) = do
-        isDefined <- asks (HS.member bnd)
+        isDefined <-  asks (HS.member bnd)
         unless isDefined $ failWith $ "Not in scope " <> show bnd
+        
     go (LambdaF b body) = registerBinding b body
-    go e = sequence_ e
-    registerBinding = local . HS.insert
+    go e@(LitF _a ) = (trace $ "Passes: Lift " ) sequence_ e
+    go e@(ApplyF _a _b ) = (trace $ "Passes: Apply ") sequence_ e
+    go e@(BindStateF _a _b ) = (trace $ "Passes: BindState ") sequence_ e 
+    -- go (Li)
+    --go e = sequence_ e
+    registerBinding b = (trace $ "AL.Passes: Registering "<> show b) (local . HS.insert) b
 
 checkProgramValidity :: MonadOhua m => Expr ty -> m ()
 checkProgramValidity e = do
@@ -361,8 +366,8 @@ checkProgramValidity e = do
     noUndefinedBindings e
 
 -- | Lifts something like @if (f x) a b@ to @let x0 = f x in if x0 a b@
-liftApplyToApply :: MonadOhua m => Expr ty -> m (Expr ty)
-liftApplyToApply =
+liftApplyToLetArgsIn :: MonadOhua m => Expr ty -> m (Expr ty)
+liftApplyToLetArgsIn =
     lrPrewalkExprM $ \case
         Apply fn arg@(Apply _ _) -> do
             bnd <- generateBinding
@@ -382,7 +387,7 @@ liftApplyToApply =
 --         BindState _ _ -> throwError "State bind target must be a pure function reference"
 --         _ -> pure Nothing
 dumpNormalizeDebug :: Bool
-dumpNormalizeDebug = False
+dumpNormalizeDebug = True
 
 putStrLnND :: (Print str, MonadIO m) => str -> m ()
 putStrLnND =
@@ -409,7 +414,7 @@ normalize e =
     (\a ->
          putStrLnND ("Removed Currying" :: Text) >> printND (pretty a) >>
          return a) >>=
-    liftApplyToApply >>=
+    liftApplyToLetArgsIn >>=
     (\a -> putStrLnND ("App to App" :: Text) >> printND (pretty a) >> return a) .
     letLift >>=
     ensureFinalLet . inlineReassignments >>=

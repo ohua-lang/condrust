@@ -17,14 +17,14 @@ import Ohua.Core.Prelude
 import qualified Data.HashSet as HS
 
 import Ohua.Core.ALang.Lang as ALang
-import Ohua.Core.ALang.Passes
-import Ohua.Core.ALang.Passes.SSA
+import qualified Ohua.Core.ALang.Passes as APasses
+import qualified Ohua.Core.ALang.Passes.SSA as SSA
 import Ohua.Core.Feature.TailRec (loadTailRecPasses)
-import Ohua.Core.ALang.Passes.Verify
+import qualified Ohua.Core.ALang.Passes.Verify as AVerify
 import Ohua.Core.ALang.Refs as Refs
 import Ohua.Core.Compile.Configuration
 import Ohua.Core.DFLang.PPrint ()
-import Ohua.Core.DFLang.Passes
+import qualified Ohua.Core.DFLang.Passes as DFPasses
 import Ohua.Core.DFLang.Lang
 import Ohua.Core.Stage
 import Ohua.Core.Feature.TailRec.Passes.ALang (y)
@@ -37,33 +37,33 @@ forceLog msg a = a `deepseq` logDebugN msg
 pipeline :: CustomPasses -> ALang.Expr ty -> OhuaM (NormalizedDFExpr ty)
 pipeline CustomPasses {..} e = do
     stage resolvedAlang e
-    ssaE <- performSSA e
+    ssaE <- SSA.performSSA e
     stage ssaAlang ssaE
-    normalizedE <- normalize =<< passBeforeNormalize ssaE
+    normalizedE <- APasses.normalize =<< passBeforeNormalize ssaE
     stage normalizedAlang normalizedE
     whenDebug $ do
-        checkProgramValidity normalizedE
+        APasses.checkProgramValidity normalizedE
         checkHigherOrderFunctionSupport normalizedE
-        Ohua.Core.ALang.Passes.SSA.checkSSA normalizedE
+        SSA.checkSSA normalizedE
     customAfterNorm <- passAfterNormalize normalizedE
     stage customAlangPasses customAfterNorm
-    coreE <- Ohua.Core.ALang.Passes.runCorePasses =<< normalize customAfterNorm
+    coreE <- APasses.runCorePasses =<< APasses.normalize customAfterNorm
     stage coreAlang coreE
     whenDebug $ do
-        Ohua.Core.ALang.Passes.SSA.checkSSA coreE
-        Ohua.Core.ALang.Passes.Verify.checkInvariants coreE
-    dfE <- lowerToDF =<< normalize coreE
+        SSA.checkSSA coreE
+        AVerify.checkInvariants coreE
+    dfE <- DFPasses.lowerToDF =<< APasses.normalize coreE
     stage initialDflang dfE
     -- Ohua.Core.DFLang.Verify.verify dfE
-    whenDebug $ Ohua.Core.DFLang.Passes.checkSSA dfE
-    coreDfE <- Ohua.Core.DFLang.Passes.runCorePasses dfE
+    whenDebug $ DFPasses.checkSSA dfE
+    coreDfE <- DFPasses.runCorePasses dfE
     stage coreDflang coreDfE
     dfAfterCustom <- passAfterDFLowering coreDfE
     stage customDflang dfAfterCustom
-    whenDebug $ Ohua.Core.DFLang.Passes.checkSSA dfAfterCustom
-    dfFinal <- Ohua.Core.DFLang.Passes.finalPasses dfAfterCustom
+    whenDebug $ DFPasses.checkSSA dfAfterCustom
+    dfFinal <- DFPasses.finalPasses dfAfterCustom
     stage finalDflang dfFinal
-    whenDebug $ Ohua.Core.DFLang.Passes.checkSSA dfFinal
+    whenDebug $ DFPasses.checkSSA dfFinal
     pure dfFinal
 
 -- | Run the pipeline in an arbitrary monad that supports error reporting.
