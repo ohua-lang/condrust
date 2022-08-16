@@ -5,11 +5,12 @@ import Language.Rust.Quote (sourceFile)
 import Language.Rust.Syntax (SourceFile)
 import Language.Rust.Data.Position (Span)
 
+
+-- ToDo: Replace with tailrecursion as long as while is not an option. (see Felix' version as howto)
 kv_application :: SourceFile Span
 kv_application = [sourceFile|
 mod ohua_util;
 
-// Simplify import for testing - In particular the mod::{stuff} syntax doesn't work
 //use ohua_util::init_components::{init_app,init_device,init_tcp_ip_stack, init_socket_proxy};
 //use smoltcp::phy::{Device};
 //use smoltcp::iface::composition::{poll};

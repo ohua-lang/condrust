@@ -19,7 +19,7 @@ simple_composition = [sourceFile|
                 use funs::{f, g};
 
                 fn test() -> String {
-                    let x = f();
+                    let x:i32 = f();
                     g(x)
                 }
                 |]
@@ -32,8 +32,8 @@ multi_var = [sourceFile|
                 use funs::*;
 
                 fn test() -> String {
-                    let x = f();
-                    let y = h(x);
+                    let x:i32 = f();
+                    let y:i32 = h(x);
                     h2(x,y)
                 }
                 |]
@@ -53,9 +53,9 @@ multi_var_read_only =  [sourceFile|
 
                 fn test() -> String {
                     let x:i32 = f();
-                    let x1 = std::sync::Arc::new(x);
-                    let x2 = x1.clone();
-                    let y = h(x1);
+                    let x1:Arc<i32> = std::sync::Arc::new(x);
+                    let x2:Arc<i32> = x1.clone();
+                    let y:i32 = h(x1);
                     h2(x2,y)
                 }
                 |]  
@@ -71,9 +71,9 @@ multi_var_expl_clone = [sourceFile|
                 use funs::*;
 
                 fn test() -> String {
-                    let x = f();
-                    let x1 = x.clone();
-                    let y = h(x);
+                    let x:String = f();
+                    let x1:String = x.clone();
+                    let y:String = h(x);
                     h2(x1,y)
                 }
                 |]
@@ -83,7 +83,7 @@ env_vars =  [sourceFile|
                 use funs;
 
                 fn test(i: i32) -> String {
-                    let x = funs::h(i);
+                    let x:i32 = funs::h(i);
                     funs::g(x)
                 }
                 |]
@@ -95,7 +95,7 @@ algo_loading = [sourceFile|
                 use funs::*;
 
                 fn algo(i: i32) -> String {
-                    let x = h(i);
+                    let x:i32 = h(i);
                     g(x)
                 }
 
@@ -109,7 +109,7 @@ algo_loading_env =  [sourceFile|
                 use funs;
 
                 fn algo(i: i32) -> String {
-                    let x = funs::h(i);
+                    let x:i32 = funs::h(i);
                     funs::g(x)
                 }
 
@@ -125,9 +125,9 @@ tuple_from_unit_fun = [sourceFile|
                 use funs::*;
 
                 fn test() -> i32 {
-                    let (x0,y0) = f_tup();
-                    let x1 = f0(x0);
-                    let y1 = f1(y0);
+                    let (x0,y0):(i32,String) = f_tup();
+                    let x1:i32 = f0(x0);
+                    let y1:String = f1(y0);
                     h2(x1,y1)
                 }
                 |]
@@ -136,10 +136,10 @@ tuple_from_param :: SourceFile Span
 tuple_from_param = [sourceFile|
                 use funs::*;
 
-                fn test(i:i32) -> i32 {
-                    let (x0,y0) = fi_tup(i);
-                    let x1 = f0(x0);
-                    let y1 = f1(y0);
+                fn test() -> i32 {
+                    let (x0,y0):(i32,String) = f_tup(i32);
+                    let x1:i32 = f0(x0);
+                    let y1:String = f1(y0);
                     h2(x1,y1)
                 }
                 |]
@@ -149,9 +149,9 @@ smap_for_unbound = [sourceFile|
                 use funs::*;
                 
                 fn test(i:i32) -> () {
-                    let s = S::new_state();
+                    let s:State = S::new_state();
                     for e in range_from(i) {
-                        let r = h(e);
+                        let r:i32 = h(e);
                         s.gs(r);
                     }
                 }
@@ -163,10 +163,10 @@ smap_for_bound = [sourceFile|
                 use funs::*;
 
                 fn test() -> S {
-                    let s = S::new_state();
-                    let stream = iter_i32();
+                    let s:State = S::new_state();
+                    let stream:Iter<i32> = iter_i32();
                     for e in stream {
-                        let r = h(e);
+                        let r:i32 = h(e);
                         s.gs(r);
                     }
                     s
@@ -177,14 +177,16 @@ smap_while:: SourceFile Span
 smap_while = [sourceFile|
                 use funs::*;
 
-                fn test() -> S {
-                    let state = S::new_state();
-                    let mut i = 1;
-                    while islowerthan23(i) {
-                        state.gs(i);
-                        i = add(i, 1);
+                fn test() -> I32 {
+                    //let state:State = S::new_state();
+                    let mut i:i32 = I32::new(1);
+                    while i.islowerthan23() {
+                        //let e:i32
+                        //state.gs(i);
+                        // i = i + 1 is actually a stateful function acting on a named memory slot
+                        i.add(1); 
                     }
-                    s
+                    i
                 }
 |]      
 
@@ -202,7 +204,7 @@ if_recursion = [sourceFile|
                 }
 
                 fn test(i:i32) -> S {
-                    let mut state = S::new_state();
+                    let mut state:State = S::new_state();
                     algo_rec(i, state) 
                 }
 |]

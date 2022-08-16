@@ -9,7 +9,7 @@ import Integrations.Rust.RustM3.RustTestCode.BasicsOutput as Expect
 spec :: Spec
 spec =
     describe "Basic Constructs" $ do
-        it "hello world" $ 
+ {-       it "hello world" $ 
             (showCode "Compiled: " =<< compileCodeWithDebug Input.hello_world) >>=
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.hello_world
@@ -20,13 +20,13 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.simple_composition
                 compiled `shouldBe` expected)
-
+-}
         it "While Loop" $ 
             (showCode "Compiled: " =<< compileCodeWithRecWithDebug Input.smap_while) >>=
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.hello_world
                 compiled `shouldBe` expected)
-        
+{-       
         it "While Loop as If-Recursion" $ 
             (showCode "Compiled: " =<< compileCodeWithRecWithDebug Input.if_recursion) >>=
             (\compiled -> do
@@ -38,7 +38,7 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.if_recursion_only_call_in_branch
                 compiled `shouldBe` expected)
-{-
+
 
         it "if condition with binop" $ 
             (showCode "Compiled: " =<< compileCodeWithDebug Input.if_binop) >>=
