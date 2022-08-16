@@ -34,9 +34,9 @@ instance Architecture (Architectures 'M3) where
           noSpan
             <$ [expr| {
                 let mut rgate =
-                  wv_assert_ok!(RecvGate::new(math::next_log2(256), math::next_log2(256)));
+                  RecvGate::new(math::next_log2(256), math::next_log2(256));
                 let sgate =
-                  wv_assert_ok!(SendGate::new_with(SGateArgs::new(&rgate).credits(1)));
+                  SendGate::new_with(SGateArgs::new(&rgate).credits(1));
                 (sgate, rgate)
             } |]
      in Rust.Local
@@ -50,19 +50,20 @@ instance Architecture (Architectures 'M3) where
           (Just channel)
           []
           noSpan
-  -- QUESTION: This 'invariant' probably is probably imposed by M3 requiring 'turbo fish'
+  -- QUESTION: This 'invariant' is probably imposed by M3 requiring 'turbo fish'
   -- typing for the recv. calls i.e. a_0_0_rx.recv_msg::<String,>().unwrap() so if any return
     -- type is unknown to Ohua, this will blow up
     -- &&convertRecv SM3 (SRecv TypeVar (SChan channel)) = (trace $ show channel) error "Invariant broken!"
   -- ISSUE: To make progress, I'll insert a paceholder type annotation. The real type needs to be derived earlier!!
   convertRecv SM3 (SRecv TypeVar (SChan channel)) = 
-    let ty' = Rust.Never noSpan
+      error $ "A TypeVar was introduced for channel" <>  show channel <> ". This is a compiler error, please report (fix if you are me :-))"
+    {-let ty' = Rust.Never noSpan
         send =
               Sub.MethodCall
                 (Sub.Var $ channel <> "_rx")
                 (Sub.CallRef (asQualBind "recv_msg") $ Just $ Sub.AngleBracketed [Sub.TypeArg $ Sub.RustType ty'])
                 []
-     in Sub.MethodCall send (Sub.CallRef (asQualBind "unwrap") Nothing) []
+     in Sub.MethodCall send (Sub.CallRef (asQualBind "unwrap") Nothing) []-}
   -- ToDo: Refactor when case handling is clear to get rid of duplicate code  
   -- QUESTION: Can we use the same pattern here as for STM? I'll just use it for now to keep on working with the test code. 
   convertRecv SM3 (SRecv (Type (TE.Self ty _ _mut)) (SChan channel)) =
@@ -101,7 +102,7 @@ instance Architecture (Architectures 'M3) where
     Right s@StringLit{} -> asMethodCall $ Sub.Lit s
     Right UnitLit -> asMethodCall $ Sub.Lit UnitLit
     Right (EnvRefLit bnd) -> asMethodCall $ Sub.Var bnd
-    Right (FunRefLit _) -> error "Invariant broken: Got tasked to send a function reference via channel which should have been caught in the backend."
+    Right (FunRefLit _) -> error "Invariant broken: Got asked to send a function reference via channel which should have been caught in the backend."
     (Left d) -> asMethodCall $ Sub.Var d
     where 
       asMethodCall item = 
