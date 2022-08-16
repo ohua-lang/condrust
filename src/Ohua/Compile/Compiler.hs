@@ -14,20 +14,20 @@ module Ohua.Compile.Compiler where
 
 import Ohua.Prelude
 
-import Ohua.Frontend as Fr (frontend)
+import qualified  Ohua.Frontend as Fr (frontend)
 import Ohua.Frontend.Types (CompilationScope)
 import Ohua.Core.Types.Environment as CoreEnv
 import Ohua.Core.Compile.Configuration as CoreConfig
 import Ohua.Core.Compile as Core (compile)
 import qualified Ohua.Core.Compile.Configuration as CConfig
-import Ohua.Backend as B (backend)
+import qualified Ohua.Backend as B (backend)
 import Ohua.Compile.Lower.FrLang (toAlang)
 import Ohua.Compile.Lower.DFLang (toTCLang)
 
-import Ohua.Integration
+import Ohua.Integration (FullIntegration, runIntegration)
 import Ohua.Integration.Config as IConfig hiding (Options(..))
-import Ohua.Integration.Lang
-import Ohua.Integration.Architecture
+import Ohua.Integration.Lang (Lang, Language)
+import Ohua.Integration.Architecture (Arch, Architectures)
 
 import System.FilePath
 
@@ -52,10 +52,11 @@ compilation :: forall (lang::Lang) (arch::Arch) m.
     -> Maybe CConfig.CustomPasses
     -> Language lang -> Architectures arch -> m ()
 compilation inFile compScope coreOpts outDir optimizations integration arch = do
-    -- frontend
+    -- frontend: extract all algorithms (function definitions) from the given scope and
+    --           transform them into the frontend language
     -- REMINDER: I need to keep brackets around (ctxt, n) here because frontend returns an object 
     ((ctxt, n), enc_module) <- Fr.frontend integration compScope inFile
-    -- middle end
+    -- middle end: 
     n' <- updateExprs n $ toAlang >=> core >=> toTCLang
     -- backend
     B.backend outDir n' ctxt arch enc_module
