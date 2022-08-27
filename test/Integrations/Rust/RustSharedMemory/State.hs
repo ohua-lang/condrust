@@ -50,7 +50,8 @@ spec =
                  fn test(i:i32) -> () {
                     let stream: Iterator<S> = iter();
                     for e in stream {
-                        e.gs(5);
+                        let e1: S = e;
+                        e1.gs(5);
                     }
                 }
                 |]) >>=
@@ -72,7 +73,8 @@ spec =
                     let io: S = S::new_state(i);
                     let stream: Iterator<i32> = iter_i32();
                     for e in stream {
-                        io.gs(e);
+                        let e1:S = e;
+                        io.gs(e1);
                     }
                 }
                 |]) >>=
@@ -88,7 +90,8 @@ spec =
                     let s: S = S::new_state(i);
                     let stream: Iterator<i32> = iter_i32();
                     for e in stream {
-                        s.gs(e);
+                        let e1: S = e;
+                        s.gs(e1);
                     }
                     s.gs(5)
                 }
@@ -108,7 +111,8 @@ spec =
                     let sp: S = s.clone();
                     let stream: Iterator<i32> = iter_i32();
                     for e in stream {
-                        let x: i32 = f_s(sp,e);
+                        let e1: i32 = e;
+                        let x: i32 = f_s(sp,e1);
                         s.gs(x);
                     }
                     s.gs(5)
@@ -127,7 +131,8 @@ spec =
                     let sp: S = s.clone();
                     let stream: Iterator<i32> = iter_i32();
                     for e in stream {
-                        let x: i32 = f_s(sp,e);
+                        let e1: i32 = e;
+                        let x: i32 = f_s(sp,e1);
                         s.gs(x);
                     }
                     s
@@ -406,7 +411,7 @@ fn test(i: i32) -> () {
   let (io_0_0_1_tx, io_0_0_1_rx) = std::sync::mpsc::channel::<  S,>();
   let (ctrl_0_0_tx, ctrl_0_0_rx) = std::sync::mpsc::channel::<  (_, _),>();
   let (ctrl_0_1_tx, ctrl_0_1_rx) = std::sync::mpsc::channel();
-  let (d_1_tx, d_1_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (d_1_tx, d_1_rx) = std::sync::mpsc::channel::<  S,>();
   let (c_0_0_tx, c_0_0_rx) = std::sync::mpsc::channel();
   let (size_0_tx, size_0_rx) = std::sync::mpsc::channel();
   let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel();
@@ -545,7 +550,7 @@ fn test(i: i32) -> () {
   let (b_0_0_tx, b_0_0_rx) = std::sync::mpsc::channel();
   let (s_0_0_1_tx, s_0_0_1_rx) = std::sync::mpsc::channel::<  S,>();
   let (ctrl_0_0_tx, ctrl_0_0_rx) = std::sync::mpsc::channel::<  (_, _),>();
-  let (d_1_tx, d_1_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (d_1_tx, d_1_rx) = std::sync::mpsc::channel::<  S,>();
   let (s_0_1_1_tx, s_0_1_1_rx) = std::sync::mpsc::channel::<  S,>();
   let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
     Vec::new();
@@ -634,7 +639,7 @@ thread_and_loop :: SourceFile Span
 thread_and_loop = [sourceFile|
 use funs::*;
 
-fn test(i: i32) -> () {
+fn test(i: i32) -> i32 {
   #[derive(Debug)]
   enum RunError {
     SendFailed,
@@ -654,7 +659,7 @@ fn test(i: i32) -> () {
   let (s_0_0_2_tx, s_0_0_2_rx) = std::sync::mpsc::channel::<  S,>();
   let (s_0_0_1_0_tx, s_0_0_1_0_rx) = std::sync::mpsc::channel::<  S,>();
   let (ctrl_0_0_tx, ctrl_0_0_rx) = std::sync::mpsc::channel::<  (_, _),>();
-  let (sp_0_0_0_tx, sp_0_0_0_rx) = std::sync::mpsc::channel::<  &S,>();
+  let (sp_0_0_0_tx, sp_0_0_0_rx) = std::sync::mpsc::channel::<  S,>();
   let (ctrl_0_1_tx, ctrl_0_1_rx) = std::sync::mpsc::channel::<  (_, _),>();
   let (d_1_tx, d_1_rx) = std::sync::mpsc::channel::<  i32,>();
   let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
@@ -802,7 +807,7 @@ fn test(i: i32) -> S {
   let (s_0_0_2_tx, s_0_0_2_rx) = std::sync::mpsc::channel::<  S,>();
   let (s_0_0_1_0_tx, s_0_0_1_0_rx) = std::sync::mpsc::channel::<  S,>();
   let (ctrl_0_0_tx, ctrl_0_0_rx) = std::sync::mpsc::channel::<  (_, _),>();
-  let (sp_0_0_0_tx, sp_0_0_0_rx) = std::sync::mpsc::channel::<  &S,>();
+  let (sp_0_0_0_tx, sp_0_0_0_rx) = std::sync::mpsc::channel::<  S,>();
   let (ctrl_0_1_tx, ctrl_0_1_rx) = std::sync::mpsc::channel::<  (_, _),>();
   let (d_1_tx, d_1_rx) = std::sync::mpsc::channel::<  i32,>();
   let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();

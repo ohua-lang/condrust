@@ -115,7 +115,8 @@ spec =
                     let s:S = S::new_state();
                     let stream: Iterator<S> = iter_i32();
                     for e in stream {
-                        let r: i32 = h(e);
+                        let e1: S = e; 
+                        let r: i32 = h(e1);
                         s.gs(r);
                     }
                     s
@@ -152,7 +153,7 @@ spec =
 imperative =  [sourceFile|
 use funs::*;
 
-fn test() -> std::Vec<  i32,> {
+fn test() -> S {
   #[derive(Debug)]
   enum RunError {
     SendFailed,
@@ -171,7 +172,7 @@ fn test() -> std::Vec<  i32,> {
   let (s_0_1_0_tx, s_0_1_0_rx) = std::sync::mpsc::channel();
   let (s_0_0_1_tx, s_0_0_1_rx) = std::sync::mpsc::channel::<  S,>();
   let (ctrl_0_0_tx, ctrl_0_0_rx) = std::sync::mpsc::channel::<  (_, _),>();
-  let (d_0_tx, d_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (d_0_tx, d_0_rx) = std::sync::mpsc::channel::<  S,>();
   let (r_0_0_0_tx, r_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
     Vec::new();

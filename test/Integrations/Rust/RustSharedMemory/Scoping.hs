@@ -93,7 +93,8 @@ spec =
                 fn second_algo(arg:i32)-> String {
                     // -- ToDo: Missing language construct. 
                     //          The original call would be : let mut as_string:String = arg.to_string();
-                    //          But it seems we can not use arguments as states, which should be possible I think.
+                    //          But it seems we can not use arguments as states, which should be possible 
+                    //          I think, at least for algorithms
                     let mut as_string:String = to_string(arg);
                     as_string.push(st_thing)
                 }
@@ -116,7 +117,7 @@ spec =
 
             |] `shouldThrow` anyException
             
-
+--------------- Testoutputs -----------------------
 scoped :: SourceFile Span
 scoped = [sourceFile|
 fn test() -> i32 {
