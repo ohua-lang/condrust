@@ -99,8 +99,12 @@ whileToRecursion =
                 -- This may include a stateful varaible used in the condition e.g. while iter.has_next()
                 let usedStates = extractUsedStates body
                     returnTuple = 
-                        -- ToDo: Tuple kommt nicht mit nur einem Element klar -> 1. adapt with check -> Fix later
-                        TupE (map VarE usedStates)
+                        -- FIXME: I have to make the case distinction below, because TuPE fails with less than 2 arguments
+                        case usedStates of 
+                            [] -> error $ "There seems to be no state change in "<> show body <> ". This loop may be pointless."
+                            [sVar] -> VarE sVar
+                            sVars -> TupE (map VarE sVars)
+                    
                     recCall = 
                         LetE "bla" returnTuple $
                         IfE cond (AppE (VarE loopName) (map VarE usedStates)) (VarE "bla")

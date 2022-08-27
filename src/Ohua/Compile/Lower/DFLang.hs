@@ -52,6 +52,7 @@ generateFunctionCode = \case
            fn
            dataOut
            (SChan <$> sOut)
+    otherFun -> throwError $ "Called conversion function with unsupported function "<> show otherFun
     where
       stateOut fn (sOut, dout) = do
         sOut' <- toDirect fn sOut
