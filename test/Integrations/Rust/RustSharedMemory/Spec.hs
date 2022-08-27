@@ -14,7 +14,7 @@ import qualified Integrations.Rust.RustSharedMemory.TailRec as TailRec
 import qualified Integrations.Rust.RustSharedMemory.Benchmark as Benchmark
 import qualified Integrations.Rust.RustSharedMemory.Control as Control
 import qualified Integrations.Rust.RustSharedMemory.Scoping as Scoping
-
+import qualified Integrations.Rust.RustSharedMemory.ProgModRestrictions as Restrictions
 
 spec :: Spec
 spec =
@@ -26,4 +26,5 @@ spec =
     -- ohua-lang/ohuac#32
     -- Benchmark.spec >>
     Control.spec >>
-    Scoping.spec
+    Scoping.spec >>
+    Restrictions.spec
