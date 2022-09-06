@@ -90,8 +90,12 @@ lambdaLifting e = do
             case l of
                 NumericLit li -> show li
                 UnitLit -> "unit"
+                BoolLit b -> show b
+                StringLit str -> show str
                 FunRefLit ref -> bindifyFunRef ref
                 EnvRefLit li -> "env_" <> show li
+    bindingFromAny anyE = error $ "Sorry, we forgott to implement bindingFromAny for " <> show anyE
+
     bindifyFunRef :: FunRef ty -> Binding
     bindifyFunRef _ = error "Unsupported transformation of fun_ref literal" -- FIXME
 
@@ -157,6 +161,8 @@ findLiterals e =
               UnitLit -> [l]
               NumericLit _ -> [l]
               EnvRefLit _ -> [l]
+              BoolLit _ -> [l]
+              StringLit _ -> [l]
               _ -> []
     ]
 
