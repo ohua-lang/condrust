@@ -55,8 +55,20 @@ ssa =
     cata $ \case
         VarF bnd -> Var <$> ssaResolve bnd
         LambdaF v body -> ssaRename v $ \v' -> Lambda v' <$> body
-        LetF v val body -> ssaRename v $ \v' -> Let v' <$> val <*> body
+        LetF v val body -> do
+        -- REMINDER: As long as we can not distuish if `v` here is a normal vaiable
+        --           or a recursive function we can only support either recursive function
+        --           where `v`'s name in the RHS `val` has to be the same as on the left 
+        --           or we can 'support' name shadowing in the code, where we needed to rename
+        --           the RHS first i.e. `let v_new  = ... v_old ... in ...`
+        -- For this distinction it might suffice to know, if `v` was an algorithm in the frontent. We shoulb be $
+        -- able to learn this from the function types we gathered in the frontend
+            --  val' <- val
+            --  ssaRename v $ \v' -> Let v' val' <$> body
+            ssaRename v $ \v' -> Let v' <$> val <*> body
         e -> embed <$> sequence e
+
+            
 
 -- Check if an expression is in ssa form. Returns @Nothing@ if it is
 -- SSA Returns @Just aBinding@ where @aBinding@ is a binding which was
