@@ -47,7 +47,11 @@ newtype FnId =
     FnId Int
     deriving (Eq, Ord, Generic, Enum, Num, NFData, Hashable, Show, Lift)
 
-data ArgType ty = TypeVar | Type ty | TupleTy (NonEmpty (ArgType ty)) deriving (Lift, Generic)
+-- | Internal type representations. While Type and TupleTy capture types from the
+--   host language, TypeVar, TypeNat and TypeBool are used internaly to construct nodes
+--   They must be mapped to the according types of the host language in the backend or, in 
+--   in case of TypeVar might need to be eliminated for Backends requiring typed channels.
+data ArgType ty = TypeVar |TypeNat | TypeBool | Type ty | TupleTy (NonEmpty (ArgType ty)) deriving (Lift, Generic)
 data FunType ty where
      Untyped :: FunType ty
      FunType :: Either Unit (NonEmpty (ArgType ty)) -> FunType ty
@@ -71,6 +75,8 @@ instance Eq (ArgType ty) where
 
 instance ShowNoType (ArgType ty) where
     showNoType TypeVar = "TypeVar"
+    showNoType TypeNat = "Internal nat"
+    showNoType TypeBool = "Internal bool"
     showNoType (Type _) = "Type _"
     showNoType (TupleTy ts) = "(" <>  foldl (\b a -> show a <> ", " <> b) ")" ts
 
@@ -80,6 +86,8 @@ instance Show (ArgType ty) where
 instance Hashable (ArgType ty) where
     hashWithSalt s TypeVar = s
     hashWithSalt s (Type _) = s
+    hashWithSalt s TypeNat = s
+    hashWithSalt s TypeBool = s
     hashWithSalt s (TupleTy _) = s
 
 deriving instance Show (FunType ty)
