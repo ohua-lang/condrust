@@ -18,9 +18,18 @@ data RustArgType = Self (Ty ()) (Maybe (Lifetime ())) Mutability | Normal (Ty ()
 type RustTypeAnno = RustArgType
 type FunTypes = HM.HashMap QualifiedBinding (FunType RustTypeAnno)
 
+rustUnitReturn :: Ty ()
+rustUnitReturn = Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "()" Nothing ()] ()) ()
+
+rustBool :: Ty ()
+rustBool = Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "bool" Nothing ()] ()) ()
+
+-- REMINDER: Commented out because we don't scan the imported libraries for type extraction any more
+
 -- | Load the given file as AST, pattern match on the content and collect
 --   the types of all defined functions (fn, impl or inside trait) into a 
 --   Hashmap @FunTypes@ mapping function bindings to their types
+{-
 extractFromFile :: CompM m => FilePath -> m FunTypes
 extractFromFile srcFile = extract srcFile =<< liftIO (load srcFile)
 
@@ -99,3 +108,4 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
                                    (x:xs) -> Right (x :| xs)
                             _ -> FunType $ Right (x0 :| xs)
             in funType <$> convertImplArg selfType x
+-}

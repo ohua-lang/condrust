@@ -21,6 +21,7 @@ convertExp (Sub.Var bnd) =
     noSpan
 convertExp (Sub.Lit (NumericLit i)) = Rust.Lit [] (Int Dec i Unsuffixed noSpan) noSpan
 convertExp (Sub.Lit (BoolLit b)) = Rust.Lit [] (Bool b Unsuffixed noSpan) noSpan
+convertExp (Sub.Lit (StringLit str)) = Rust.Lit [] (Str str Cooked Unsuffixed noSpan) noSpan
 convertExp (Sub.Lit UnitLit) =
   TupExpr [] [] noSpan
 convertExp (Sub.Lit (EnvRefLit _hostExpr)) =
@@ -146,6 +147,7 @@ convertBinary Sub.Lte = Rust.LeOp
 convertBinary Sub.Gt  = Rust.GtOp
 convertBinary Sub.Gte = Rust.GeOp
 convertBinary Sub.EqOp = Rust.EqOp
+convertBinary Sub.OrOp = Rust.OrOp
 
 convertUnary :: Sub.UnOp -> Rust.UnOp
 convertUnary Sub.Not = Rust.Not

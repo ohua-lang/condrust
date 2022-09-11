@@ -216,10 +216,12 @@ instance Architecture (Architectures 'M3) where
          in Rust.Block (program ++ [Rust.NoSemi (convertExp anyExpr) noSpan]) Rust.Normal noSpan
 
 toRustTy :: ArgType TE.RustTypeAnno -> Rust.Ty ()
-toRustTy TypeVar = Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "PlaceHolder" Nothing noSpan] noSpan) noSpan
+toRustTy TypeVar = Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "_" Nothing noSpan] noSpan) noSpan
 toRustTy (Type (TE.Self ty _ _ )) = undefined
 toRustTy (Type (TE.Normal ty)) = ty
 toRustTy (TupleTy types) = Rust.TupTy (toList $ map toRustTy types) noSpan
+toRustTy TypeNat = Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "usize" Nothing noSpan] noSpan) noSpan
+toRustTy TypeBool = Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "bool" Nothing noSpan] noSpan) noSpan
 
 
 asQualBind :: Binding -> QualifiedBinding

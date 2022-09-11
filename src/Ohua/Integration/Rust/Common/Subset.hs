@@ -28,7 +28,7 @@ data Block e = RustBlock [Stmt e] Unsafety
 
 data Unsafety = Normal deriving (Eq, Generic, Show)
 
-data BinOp = Add | Sub | Mul | Div | Lt | Lte | Gt | Gte | EqOp deriving (Show, Eq, Generic)
+data BinOp = Add | Sub | Mul | Div | Lt | Lte | Gt | Gte | EqOp | OrOp  deriving (Show, Eq, Generic)
 data UnOp = Not | Neg | Deref deriving (Show, Eq, Generic)
 data CallRef = CallRef QualifiedBinding (Maybe GenericArgs) deriving (Show, Eq, Generic)
 

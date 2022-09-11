@@ -216,6 +216,7 @@ convertBinOp LtOp = return Sub.Lt
 convertBinOp LeOp = return Sub.Lte
 convertBinOp GeOp = return Sub.Gte
 convertBinOp GtOp = return Sub.Gt
+convertBinOp OrOp = return Sub.OrOp
 convertBinOp o = error $ "Unsupported binary operation: " <> show o
 
 convertUnOp :: Rust.UnOp -> Sub.UnOp
