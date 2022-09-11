@@ -32,7 +32,7 @@ type FileExtension = Text
 type FullIntegration lang arch =
   ( F.Integration (Language lang)
   , B.Integration (Language lang)
-  , F.NS (Language lang) ~ B.NS (Language lang)
+  , F.HostModule (Language lang) ~ B.HostModule (Language lang)
   , F.Type (Language lang) ~ B.Type (Language lang)
   , F.AlgoSrc (Language lang) ~ B.AlgoSrc (Language lang)
   , B.Architecture (Architectures arch)

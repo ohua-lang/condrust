@@ -57,13 +57,7 @@ instance Architecture (Architectures 'M3) where
   -- ISSUE: To make progress, I'll insert a paceholder type annotation. The real type needs to be derived earlier!!
   convertRecv SM3 (SRecv TypeVar (SChan channel)) = 
       error $ "A TypeVar was introduced for channel" <>  show channel <> ". This is a compiler error, please report (fix if you are me :-))"
-    {-let ty' = Rust.Never noSpan
-        send =
-              Sub.MethodCall
-                (Sub.Var $ channel <> "_rx")
-                (Sub.CallRef (asQualBind "recv_msg") $ Just $ Sub.AngleBracketed [Sub.TypeArg $ Sub.RustType ty'])
-                []
-     in Sub.MethodCall send (Sub.CallRef (asQualBind "unwrap") Nothing) []-}
+    
   -- ToDo: Refactor when case handling is clear to get rid of duplicate code  
   -- QUESTION: Can we use the same pattern here as for STM? I'll just use it for now to keep on working with the test code. 
   convertRecv SM3 (SRecv (Type (TE.Self ty _ _mut)) (SChan channel)) =
@@ -204,7 +198,6 @@ instance Architecture (Architectures 'M3) where
   -- REMINDER: Replace Placeholder
   serialize SM3 mod placeholder ns = C.serialize mod ns createProgram placeholder
     where
-      -- QUESTION: Will here ever be a Try Expr or is it just an STM Thing?
       createProgram (Program chans resultExpr tasks) = case resultExpr of
        (Sub.Try resultExpr') -> 
         let taskStmts = map (flip Rust.Semi noSpan . taskExpression) tasks
@@ -215,13 +208,6 @@ instance Architecture (Architectures 'M3) where
             program = toList chans ++ taskStmts
          in Rust.Block (program ++ [Rust.NoSemi (convertExp anyExpr) noSpan]) Rust.Normal noSpan
 
-toRustTy :: ArgType TE.RustTypeAnno -> Rust.Ty ()
-toRustTy TypeVar = Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "_" Nothing noSpan] noSpan) noSpan
-toRustTy (Type (TE.Self ty _ _ )) = undefined
-toRustTy (Type (TE.Normal ty)) = ty
-toRustTy (TupleTy types) = Rust.TupTy (toList $ map toRustTy types) noSpan
-toRustTy TypeNat = Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "usize" Nothing noSpan] noSpan) noSpan
-toRustTy TypeBool = Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "bool" Nothing noSpan] noSpan) noSpan
 
 
 asQualBind :: Binding -> QualifiedBinding

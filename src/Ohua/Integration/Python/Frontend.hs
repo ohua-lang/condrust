@@ -2,6 +2,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Functor law" #-}
 
 module Ohua.Integration.Python.Frontend where
 
@@ -30,10 +32,10 @@ type Context = HM.HashMap Binding Sub.PythonType
 type ConvertM m = (Monad m, MonadState Context m)
 
 
-type PythonNamespace = Namespace (FrLang.Expr PythonArgType) (Py.Statement SrcSpan)
+type PythonNamespace = Namespace (FrLang.Expr PythonArgType) (Py.Statement SrcSpan) PythonArgType
 
 instance Integration (Language 'Python) where
-    type NS (Language 'Python) = Module
+    type HostModule (Language 'Python) = Module
     type Type (Language 'Python) =  PythonArgType
     type AlgoSrc (Language 'Python) = Py.Statement SrcSpan
 
@@ -66,12 +68,17 @@ instance Integration (Language 'Python) where
                     -- ISSUE: Algo extraction needs a State Monad
                     -- During extraction we want to encapsulate non-compilable code into functions, move those to a library
                     -- and replace the code by a call to that library function. So the State of the monad needs to be of 
-                    -- type NS lang 
+                    -- type HostModule lang 
                     algos <- catMaybes <$>
                             mapM
                                 (\case
                                     fun@Py.Fun{} ->
-                                        Just . (\e -> Algo (toBinding$ Py.fun_name fun) e fun) <$> extractAlgo fun
+                                        Just . (\e -> 
+                                            Algo 
+                                                (toBinding$ Py.fun_name fun)
+                                                e
+                                                fun
+                                                PythonObject) <$> extractAlgo fun
                                     _ -> return Nothing)
                                 statements
                     return $ Namespace (filePathToNsRef srcFile) imports algos

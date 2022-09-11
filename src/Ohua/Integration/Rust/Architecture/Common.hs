@@ -7,7 +7,7 @@ import Data.Text.Prettyprint.Doc.Render.Text
 import Language.Rust.Pretty (pretty')
 import Language.Rust.Syntax as Rust hiding (Rust)
 import Ohua.Backend.Types
-import Ohua.Integration.Rust.TypeExtraction
+import qualified Ohua.Integration.Rust.TypeExtraction  as TE
 import Ohua.Integration.Rust.Types
 import Ohua.Integration.Rust.Util
 import Ohua.Prelude
@@ -16,13 +16,13 @@ import System.FilePath (takeFileName)
 serialize ::
   CompM m =>
   Module ->
-  Namespace (Program chan expr (Rust.Expr ()) RustTypeAnno) anno ->
-  (Program chan expr (Rust.Expr ()) RustTypeAnno -> Block ()) ->
+  Namespace (Program chan expr (Rust.Expr ()) TE.RustTypeAnno) anno  TE.RustTypeAnno ->
+  (Program chan expr (Rust.Expr ()) TE.RustTypeAnno -> Block ()) ->
   Module -> 
   m (NonEmpty (FilePath, L.ByteString))
 -- REMINDER: Replace Placeholder. Output new library file
 serialize (Module path (SourceFile modName atts items)) ns createProgram placeholder =
-  let algos' = HM.fromList $ map (\(Algo name expr _) -> (name, expr)) $ ns ^. algos
+  let algos' = HM.fromList $ map (\(Algo name expr _ _) -> (name, expr)) $ ns ^. algos
       src = SourceFile modName atts $ map (replaceAlgo algos') items
       render =
         encodeUtf8

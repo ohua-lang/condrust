@@ -32,23 +32,11 @@ instance Architecture (Architectures 'SharedMemory) where
 
   convertChannel SSharedMemory (SRecv argTy (SChan bnd)) =
     -- help out the type inference of Rust a little here
-    let chanTy =
-          case argTy of
-            TupleTy ts ->
-              Just $
-                Sub.AngleBracketed
-                  [ Sub.TypeArg $ Sub.RustType $
-                      Rust.TupTy (map (const (Rust.Infer noSpan)) $ toList ts) noSpan
-                  ]
-            Type (TE.Normal ti) ->
-              Just $
-                Sub.AngleBracketed
-                  [Sub.TypeArg $ Sub.RustType (noSpan <$ ti)]
-            Type (TE.Self ti _ _) ->
-              Just $
-                Sub.AngleBracketed
-                  [Sub.TypeArg $ Sub.RustType (noSpan <$ ti)]
-            _ -> Nothing
+    let chanTy = 
+          case convertToRustType argTy of
+            Just rustType -> Just $
+                Sub.AngleBracketed [ Sub.TypeArg rustType ]
+            Nothing -> error $ "Couldn't type channel properly: " <> show bnd 
      in Sub.Local
           ( Sub.TupP
               [ Sub.IdentPat Sub.Immutable $ bnd <> "_tx",
@@ -177,6 +165,11 @@ instance Architecture (Architectures 'SharedMemory) where
                 noSpan
          in Rust.Block (program ++ [Rust.NoSemi resultHandling noSpan]) Rust.Normal noSpan
       createProgram (Program chans expr tasks) = error $ "Compilations resulted in a result expression: " <> show expr <> "This is probably a bug, please report."
+
+convertToRustType :: ArgType TE.RustTypeAnno -> Maybe Sub.RustType 
+convertToRustType = \case 
+          --TypeVar -> Nothing
+          otherType -> Just $ Sub.RustType $ toRustTy otherType
 
 
 -- | Surrounds the final non-semicolon terminated statement in a Rust operator with a `Ok(...)` when the operator is *not* containing a loop.

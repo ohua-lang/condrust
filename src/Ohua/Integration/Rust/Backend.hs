@@ -29,7 +29,7 @@ convertIntoBlock arch expr =
         e -> Sub.RustBlock [Sub.NoSemi e] Sub.Normal
 
 instance Integration (Language 'Rust) where
-  type NS (Language 'Rust) = Module
+  type HostModule (Language 'Rust) = Module
   type Type (Language 'Rust) = RustTypeAnno
   type AlgoSrc (Language 'Rust) = Item Span
 
@@ -38,7 +38,7 @@ instance Integration (Language 'Rust) where
 
   lower (Module _path (SourceFile _ _ items)) arch ns =
     return $
-      ns & algos %~ map (\algo -> algo & algoCode %~ convertTasks (algo ^. algoAnno))
+      ns & algos %~ map (\algo -> algo & algoCode %~ convertTasks (algo ^. algoInputCode))
     where
       convertTasks (Fn _ _ _ (FnDecl args typ _ span) _ _ block _) (Program chans (SRecv _ c) tasks) =
         Program

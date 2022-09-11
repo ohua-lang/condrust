@@ -36,7 +36,7 @@ class ConvertPat a where
   convertPat :: SubC.ConvertM m => a -> m FrLang.Pat
 
 instance Integration (Language 'Rust) where
-  type NS (Language 'Rust) = Module
+  type HostModule (Language 'Rust) = Module
   type Type (Language 'Rust) = RustArgType
   type AlgoSrc (Language 'Rust) = Item Span
 
@@ -44,7 +44,7 @@ instance Integration (Language 'Rust) where
     CompM m =>
     Language 'Rust ->
     FilePath ->
-    m (Module, Namespace (FrLang.Expr RustArgType) (Item Span), Module)
+    m (Module, Namespace (FrLang.Expr RustArgType) (Item Span) RustArgType, Module)
   -- ToDo: If we want to include global constants in the 'type inference' for functions
   --       we need an extra pass here to collect them to the context before parsing the algos
   loadNs _ srcFile = do
@@ -56,7 +56,7 @@ instance Integration (Language 'Rust) where
       extractNs ::
         CompM m =>
         SourceFile Span ->
-        m (Namespace (FrLang.Expr RustArgType) (Item Span))
+        m (Namespace (FrLang.Expr RustArgType) (Item Span) RustArgType)
 
       extractNs input = do
         globalDefs <- collectGlobals input
@@ -74,8 +74,6 @@ instance Integration (Language 'Rust) where
               )
                 items)
 
-        -- TODO we might need to retrieve this from the file path.
-        -- extractNs (SourceFile Nothing a b) = extractNs $ SourceFile (Just $ takeFileName srcFile) a b
           extractWithGlobals globs (SourceFile _ _ items) = do
             imports <-
               concat . catMaybes
@@ -90,7 +88,7 @@ instance Integration (Language 'Rust) where
                 <$> mapM
                   ( \case
                       f@(Fn _ _ ident decl _ _ block _) ->
-                        Just . (\e -> Algo (toBinding ident) e f) <$> evalStateT (extractAlgo decl block) globs
+                        Just . (\e -> Algo (toBinding ident) e f (getReturn decl)) <$> evalStateT (extractAlgo decl block) globs
                       _ -> return Nothing
                   )
                   items
@@ -140,13 +138,21 @@ instance Integration (Language 'Rust) where
         forM segments $ \case
           (PathSegment ident Nothing _) -> return $ toBinding ident
           (PathSegment _ (Just _) _) -> error $ "We currently do not support import paths with path parameters.\n" <> show p
+      
+      getReturn :: FnDecl Span	-> RustArgType
+      -- FIXME: We may need more elaborate patterns for the type here
+      -- Currently we only care for pure functions as algos and do nto support tuple
+      -- returns (or any sort of elaborate types in the composition). If this changes, we need to 
+      -- make the return type more specific
+      getReturn (FnDecl _ (Just ty) _ _ ) = TE.Normal $ deSpan ty
+      getReturn (FnDecl _ Nothing _ _ ) = TE.Normal TE.rustUnitReturn
 
   loadTypes ::
     CompM m =>
     Language 'Rust ->
     Module ->
-    Namespace (FrLang.Expr RustArgType) (Item Span) ->
-    m (Namespace (FrLang.Expr RustArgType) (Item Span))
+    Namespace (FrLang.Expr RustArgType) (Item Span) RustArgType ->
+    m (Namespace (FrLang.Expr RustArgType) (Item Span) RustArgType)
   loadTypes  _ (Module ownFile _) ohuaNs = return ohuaNs
    {-
   loadTypes _ (Module ownFile _) ohuaNs = do
@@ -270,12 +276,11 @@ getArgType (Sub.Var bnd) = do
   case argtype of
     Just (Sub.RustType rustType) -> return $ Type $ TE.Normal rustType
     Nothing -> error $ "No type info found for" <> show bnd
-  where
-    intoRustArgType (Sub.RustType ty) = Type $ TE.Normal ty
 -- FIXME: Actually literal should just carry through the value and the type of the literal
 getArgType (Sub.Lit lit) = case lit of
   Sub.Bool b -> return $ Type . TE.Normal $ PathTy Nothing (Path False [PathSegment "bool" Nothing ()] ()) ()
   Sub.Int i ->  return $ Type . TE.Normal $ PathTy Nothing (Path False [PathSegment "i32" Nothing ()] ()) ()
+  -- ToDo: Add other literals
 getArgType e = error $ "No type info found for" <> show e
 
 -- ISSUE: I thought we could support Assignments as we actually just need to replcae them with ssa let bindings.
