@@ -51,7 +51,7 @@ newtype FnId =
 --   host language, TypeVar, TypeNat and TypeBool are used internaly to construct nodes
 --   They must be mapped to the according types of the host language in the backend or, in 
 --   in case of TypeVar might need to be eliminated for Backends requiring typed channels.
-data ArgType ty = TypeVar |TypeNat | TypeBool | Type ty | TupleTy (NonEmpty (ArgType ty)) deriving (Lift, Generic)
+data ArgType ty = TypeVar |TypeNat | TypeBool | Type ty | TypeList [ArgType ty] | TupleTy (NonEmpty (ArgType ty)) deriving (Lift, Generic)
 data FunType ty where
      Untyped :: FunType ty
      FunType :: Either Unit (NonEmpty (ArgType ty)) -> FunType ty
@@ -77,17 +77,24 @@ instance ShowNoType (ArgType ty) where
     showNoType TypeVar = "TypeVar"
     showNoType TypeNat = "Internal nat"
     showNoType TypeBool = "Internal bool"
+    showNoType (TypeList ts) = "Internal List [" <> prettyList ts <> "]"
     showNoType (Type _) = "Type _"
     showNoType (TupleTy ts) = "(" <>  foldl (\b a -> show a <> ", " <> b) ")" ts
+
+prettyList :: [ArgType ty] -> Text
+prettyList lst = 
+    let strs = map showNoType lst
+    in foldl' (\ txt new -> txt <> ", "<> new) "" strs
 
 instance Show (ArgType ty) where
     show = T.unpack . showNoType
 
 instance Hashable (ArgType ty) where
     hashWithSalt s TypeVar = s
-    hashWithSalt s (Type _) = s
     hashWithSalt s TypeNat = s
     hashWithSalt s TypeBool = s
+    hashWithSalt s (TypeList ts) = s
+    hashWithSalt s (Type _) = s
     hashWithSalt s (TupleTy _) = s
 
 deriving instance Show (FunType ty)
