@@ -6,8 +6,8 @@ import Ohua.Backend.Types
 import Ohua.Prelude hiding (First, Second)
 
 normalize ::
-  Namespace (TCProgram chan recv (TaskExpr ty)) anno ->
-  Namespace (TCProgram chan recv (TaskExpr ty)) anno
+  Namespace (TCProgram chan recv (TaskExpr ty)) anno ty ->
+  Namespace (TCProgram chan recv (TaskExpr ty)) anno ty
 normalize = updateTaskExprs normalizeTaskExpr
 
 normalizeTaskExpr :: TaskExpr ty -> TaskExpr ty
@@ -24,11 +24,9 @@ transformNoState f = (`evalState` HS.empty) . transformM go
       return e
     go e@(Let x _ _) = do
       states <- get
-      case HS.member x states of
-        True -> do
-          put $ HS.delete x states
-          return e
-        False -> return $ f e
+      if HS.member x states then (do
+        put $ HS.delete x states
+        return e) else return $ f e
     go e = pure e
 
 -- |

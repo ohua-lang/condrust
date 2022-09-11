@@ -23,11 +23,11 @@ backend ::
         , anno ~ AlgoSrc lang
         )
         => FilePath
-        -> Namespace (TCProgram (Channel ty) (Com 'Recv ty) (FusableExpr ty)) anno
-        -> NS lang
+        -> Namespace (TCProgram (Channel ty) (Com 'Recv ty) (FusableExpr ty)) anno ty
+        -> HostModule lang
         -> arch
         -- REMINDER: Replace type of placeholder when needed
-        -> NS lang
+        -> HostModule lang
         -> m ()
 backend outDir compiled lang arch placeholder =
     fuse compiled >>=

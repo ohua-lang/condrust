@@ -48,7 +48,7 @@ taskExpression :: FullTask ty expr -> expr
 taskExpression (FullTask _ _ e) = e
 
 class Integration lang where
-    type NS lang :: *
+    type HostModule lang :: *
     type Type lang :: *
     type AlgoSrc lang :: *
 
@@ -64,10 +64,10 @@ class Integration lang where
       , Architecture arch
       , Lang arch ~ lang
       , ty ~ Type lang)
-      => NS lang
+      => HostModule lang
       -> arch
-      -> Namespace (Program (Channel ty) (Com 'Recv ty) (TaskExpr ty) ty) (AlgoSrc lang)
-      -> m (Namespace (Program (Channel ty) (Com 'Recv ty) (Task lang) ty) (AlgoSrc lang))
+      -> Namespace (Program (Channel ty) (Com 'Recv ty) (TaskExpr ty) ty) (AlgoSrc lang) ty
+      -> m (Namespace (Program (Channel ty) (Com 'Recv ty) (Task lang) ty) (AlgoSrc lang) ty) 
 
 class Architecture arch where
     type Lang arch :: *
@@ -85,9 +85,9 @@ class Architecture arch where
         , expr ~ Expr (Lang arch)
         , CompM m)
         => arch
-        -> NS lang
-        -> Namespace (Program (Chan arch) expr (Task lang) ty) (AlgoSrc lang)
-        -> m (Namespace (Program (Chan arch) expr (ATask arch) ty) (AlgoSrc lang))
+        -> HostModule lang
+        -> Namespace (Program (Chan arch) expr (Task lang) ty) (AlgoSrc lang) ty
+        -> m (Namespace (Program (Chan arch) expr (ATask arch) ty) (AlgoSrc lang) ty)
 
     serialize ::
         ( CompM m
@@ -97,10 +97,9 @@ class Architecture arch where
         , expr ~ Expr (Lang arch)
         )
         => arch
-        -> NS lang
-        -- REMINDER: Replace bool placeholder by appropriate type
-        -> NS lang
-        -> Namespace (Program (Chan arch) expr (ATask arch) ty) (AlgoSrc lang)
+        -> HostModule lang -- ^ the original module  
+        -> HostModule lang -- ° a helper module encapsulating code we could not copile
+        -> Namespace (Program (Chan arch) expr (ATask arch) ty) (AlgoSrc lang) ty
         -> m (NonEmpty (FilePath, L.ByteString))
 
 
@@ -109,7 +108,7 @@ class (Architecture arch) => Transform arch where
                        , Integration lang
                        , ty ~ Type lang
                        )
-                    => NS lang
+                    => HostModule lang
                     -> arch
                     -> TaskExpr ty
                     -> TaskExpr ty
@@ -119,7 +118,7 @@ class (Architecture arch) => Transform arch where
                    , Integration lang
                    , ty ~ Type lang
                    )
-                => NS lang
+                => HostModule lang
                 -> arch
                 -> Task lang
                 -> Task lang
@@ -127,8 +126,8 @@ class (Architecture arch) => Transform arch where
 
 
 updateTaskExprs :: (expr1 -> expr2)
-                -> Namespace (TCProgram chan recv expr1) anno
-                -> Namespace (TCProgram  chan recv expr2) anno
+                -> Namespace (TCProgram chan recv expr1) anno ty
+                -> Namespace (TCProgram  chan recv expr2) anno ty
 updateTaskExprs f ns =
   ns & algos %~ map (\algo -> algo & algoCode %~ go)
   where
@@ -136,8 +135,8 @@ updateTaskExprs f ns =
       TCProgram chans resultChan $ map f exprs
 
 updateTasks :: (expr1 -> expr2)
-            -> Namespace (Program chan recv expr1 ty) anno
-            -> Namespace (Program  chan recv expr2 ty) anno
+            -> Namespace (Program chan recv expr1 ty) anno ty
+            -> Namespace (Program  chan recv expr2 ty) anno ty
 updateTasks f ns =
   ns & algos %~ map (\algo -> algo & algoCode %~ go)
   where
