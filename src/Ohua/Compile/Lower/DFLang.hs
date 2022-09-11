@@ -152,10 +152,13 @@ generateNodeCode e@(PureDFFun out (FunRef fun _ _) inp) | fun == select = do
                     ( SRecv xType $ SChan $ unwrapABnd x
                     , SRecv yType $ SChan $ unwrapABnd y
                     , SRecv zType $ SChan $ unwrapABnd z)
+            -- QUESTION: Why does it say 'don't match'. This function isn't typechecking
+            -- whether x is a bool and y and z have the same type.
             _ -> invariantBroken $ "Select arguments don't match:\n" <> show e
     out' <-
         case out of
             (Direct bnd) -> return $ SChan $ unwrapABnd bnd
+            -- QUESTION: Again 'match' what?
             _ -> invariantBroken $ "Select outputs don't match:\n" <> show e
     return $ Unfusable $
         EndlessLoop $
