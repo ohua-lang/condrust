@@ -55,11 +55,11 @@ compilation inFile compScope coreOpts outDir optimizations integration arch = do
     -- frontend: extract all algorithms (function definitions) from the given scope and
     --           transform them into the frontend language
     -- REMINDER: I need to keep brackets around (ctxt, n) here because frontend returns an object 
-    ((ctxt, n), enc_module) <- Fr.frontend integration compScope inFile
+    ((ctxt, extracted_algos), enc_module) <- Fr.frontend integration compScope inFile
     -- middle end: 
-    n' <- updateExprs n $ toAlang >=> core >=> toTCLang
+    extracted_algos' <- updateExprs extracted_algos $ toAlang >=> core >=> toTCLang
     -- backend
-    B.backend outDir n' ctxt arch enc_module
+    B.backend outDir extracted_algos' ctxt arch enc_module
 
     where
         core = Core.compile coreOpts coreOptimizations
