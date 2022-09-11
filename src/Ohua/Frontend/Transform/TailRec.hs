@@ -16,5 +16,5 @@ isRec currentFun expr = execState (contextedTraversal check HS.empty expr) False
     check _ v@(VarE bdg) = modify (\c -> c || bdg == currentFun) >> return v
     check _ e = return e
 
-isRecAlgo :: Algo (Expr ty) a -> Bool
-isRecAlgo (Algo aName code _) = isRec aName code
+isRecAlgo :: Algo (Expr ty) a ty -> Bool
+isRecAlgo (Algo aName code _ _) = isRec aName code

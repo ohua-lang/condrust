@@ -7,22 +7,22 @@ import qualified Data.HashMap.Lazy as HM
 
 -- TODO: What is the proper type constellation here, so that the first parameter of
 --       both functions in the interface become unnecessary/obsolete.
--- ToDo: Might work if we use associated data types 'data NS lang' instead of 'type NS lang'. See example below 
+-- ToDo: Might work if we use associated data types 'data HostModule lang' instead of 'type HostModule lang'. See example below 
 
 class Integration lang where
-    type NS lang :: *
+    type HostModule lang :: *
     type Type lang :: *
     type AlgoSrc lang :: *
     
     loadNs :: CompM m
            => lang
            -> FilePath
-           -> m (NS lang, Namespace (Expr (Type lang)) (AlgoSrc lang), NS lang)
+           -> m (HostModule lang, Namespace (Expr (Type lang)) (AlgoSrc lang) (Type lang), HostModule lang)
 
     loadTypes :: CompM m
-              => lang -> NS lang
-              ->    Namespace (Expr (Type lang)) (AlgoSrc lang)
-              -> m (Namespace (Expr (Type lang)) (AlgoSrc lang))
+              => lang -> HostModule lang
+              ->    Namespace (Expr (Type lang)) (AlgoSrc lang) (Type lang)
+              -> m (Namespace (Expr (Type lang)) (AlgoSrc lang) (Type lang))
 
 type LanguageFileSuffix = Text
 type CompilationScope = HM.HashMap NSRef LanguageFileSuffix

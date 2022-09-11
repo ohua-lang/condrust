@@ -22,7 +22,7 @@ frontend :: forall m lang. (CompM m, Integration lang)
          => lang
          -> CompilationScope
          -> FilePath
-         -> m ((NS lang, Namespace (FrLang.Expr (Type lang)) (AlgoSrc lang)), NS lang)
+         -> m ((HostModule lang, Namespace (FrLang.Expr (Type lang)) (AlgoSrc lang) (Type lang)), HostModule lang)
 frontend lang compScope inFile = do
         (langNs, ns, reg, placeholder) <- load lang compScope inFile
         -- some transformation steps on the algorithm expressions 
@@ -44,15 +44,15 @@ frontend lang compScope inFile = do
         return (finalNs, placeholder)
     where
         trans :: CompM m => Binding -> FrLang.Expr ty -> m (FrLang.Expr ty)
-        trans b e = (trace $ "after transform: " <> show e <> "\n") prepareRootAlgoVars . (trace $ "after wellscoping: " <> show e <> "\n") transformFinalLiterals =<<  (trace $ "before: " <> show e <> "\n") wellScopedness b e
+        trans b e = prepareRootAlgoVars .  transformFinalLiterals =<< wellScopedness b e
 
         -- | Make sure that every variable is either let-bound in the scope before usage i.e. actually a local variable
         --   or considered a reference to a function imported or defined in scope
-        
+
         -- QUESTION: Why do we do this? Shouldn't that be given by the parser/AST?        
         wellScopedness :: CompM m => Binding -> FrLang.Expr ty -> m (FrLang.Expr ty)
         wellScopedness b e = pure $ makeWellScoped b e
-        
+
         -- REMINDER: We need to add linear state use to the 'official assumptions' of our programming model (and write that down somewhere)
         linearState :: CompM m => Binding -> FrLang.Expr ty -> m ()
         linearState _ = checkLinearUsage

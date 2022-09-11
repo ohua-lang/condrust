@@ -16,50 +16,56 @@ spec =
         it "loading a 'normal' expression" $
             resolve
                 ( Namespace 
-                    ["some_ns"]
+                    (NSRef ["some_ns"])
                     [Full (makeThrow ["other_ns"]) "g"]
                     [Algo 
                         "f"
-                        $ LamE ["x"] 
-                            ((LitE $ FunRefLit $ FunRef "other_ns/g" Nothing) `AppE` ["x"])]
+                        (LamE ["x"] 
+                            ((LitE $ FunRefLit $ FunRef (QualifiedBinding (makeThrow []) "other_ns/g") Nothing Untyped) `AppE` ["x"]))
+                        "pointlessStringAnno"
+                    "sometype"]
+
                 , HM.fromList
                     [("other_ns/g", 
                         LamE ["y"] 
-                            ((LitE $ FunRefLit $ FunRef (QualifiedBinding (makeThrow []) "h") Nothing) `AppE` ["y"]))]
+                            ((LitE $ FunRefLit $ FunRef (QualifiedBinding (makeThrow []) "h") Nothing Untyped) `AppE` ["y"]))]
                 )
             >>= (`shouldBe`
-                Namespace 
-                    ["some_ns"]
-                    [Full (makeThrow ["other_ns"]) "g"]
-                    [Algo 
-                        "f"
-                        $ LamE ["x"]
-                            $ LetE 
-                                "other_ns.g" (LamE ["y"] 
-                                            ((LitE $ FunRefLit $ FunRef (QualifiedBinding (makeThrow []) "h") Nothing) `AppE` ["y"]))
-                                ("other_ns.g" `AppE` ["x"])]
-                )
+                    Namespace 
+                        (NSRef ["some_ns"])
+                        [Full (makeThrow ["other_ns"]) "g"]
+                        [Algo 
+                            "f"
+                            (LamE ["x"]
+                                $ LetE 
+                                    "other_ns.g" (LamE ["y"] 
+                                                ((LitE $ FunRefLit $ FunRef (QualifiedBinding (makeThrow []) "h") Nothing Untyped) `AppE` ["y"]))
+                                    ("other_ns.g" `AppE` ["x"]))
+                            "pointlessStringAnno" "madeUpType"])
+                
         it "loading a recursive expression" $
             resolve
                 ( Namespace 
-                    ["some_ns"]
+                    (NSRef ["some_ns"])
                     [Full (makeThrow ["other_ns"]) "g"]
                     [Algo 
                         "f"
-                        $ LamE ["x"] 
-                            ((LitE $ FunRefLit $ FunRef "other_ns/g" Nothing) `AppE` ["x"])]
+                        (LamE ["x"] 
+                            ((LitE $ FunRefLit $ FunRef "other_ns/g" Nothing Untyped) `AppE` ["x"]))
+                        "pointlessStringAnno" "madeUpType"]
                 , HM.fromList
                     [("other_ns/g", 
                         LamE ["y"] 
-                            ((LitE $ FunRefLit $ FunRef (QualifiedBinding (makeThrow ["other_ns"]) "g") Nothing) `AppE` ["y"]))]
+                            ((LitE $ FunRefLit $ FunRef (QualifiedBinding (makeThrow ["other_ns"]) "g") Nothing Untyped) `AppE` ["y"]))]
                 )
             >>= (`shouldBe`
-                Namespace 
-                    ["some_ns"]
-                    [Full (makeThrow ["other_ns"]) "g"]
-                    [Algo 
-                        "f"
-                        $ LamE ["x"]
-                            $ LetE "other_ns.g" (LamE ["y"] ("other_ns.g" `AppE` ["y"]))
-                                ("other_ns.g" `AppE` ["x"])]
-                )
+                    Namespace 
+                        (NSRef ["some_ns"])
+                        [Full (makeThrow ["other_ns"]) "g"]
+                        [Algo 
+                            "f"
+                            (LamE ["x"]
+                                $ LetE "other_ns.g" (LamE ["y"] ("other_ns.g" `AppE` ["y"]))
+                                    ("other_ns.g" `AppE` ["x"]))
+                        "pointlessStringAnno" "madeUpType"]
+                    )
