@@ -387,7 +387,7 @@ liftApplyToLetArgsIn =
 --         BindState _ _ -> throwError "State bind target must be a pure function reference"
 --         _ -> pure Nothing
 dumpNormalizeDebug :: Bool
-dumpNormalizeDebug = True
+dumpNormalizeDebug = False
 
 putStrLnND :: (Print str, MonadIO m) => str -> m ()
 putStrLnND =

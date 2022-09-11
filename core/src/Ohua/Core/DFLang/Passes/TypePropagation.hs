@@ -1,19 +1,23 @@
 module Ohua.Core.DFLang.Passes.TypePropagation where
 
-import Data.HashMap.Lazy as HM
+import Data.HashMap.Lazy as HM hiding (map, foldl')
 import Ohua.Core.DFLang.Lang
 import qualified Ohua.Core.DFLang.Refs as Refs
-import Ohua.Core.Prelude
+import Ohua.Core.Prelude 
 import qualified Ohua.Types.Vector as OV
 
 import qualified Data.List.NonEmpty as NE
 
 data Exists ty = forall semTy.Exists (DFVar semTy ty)
+type BindingContext ty = (HM.HashMap Binding (Exists ty)) 
+
+controlSignalType :: ArgType ty
+controlSignalType = TupleTy $ TypeBool:| [TypeNat]
 
 -- TODO collect variables from all calls (pure and stateful)
 -- TODO handle smapFun, recurFun, select, ifFun, ....
 propagateTypes :: NormalizedDFExpr ty -> NormalizedDFExpr ty
-propagateTypes e = evalState (transformExprM typeBottomUp e) HM.empty
+propagateTypes e = evalState (transformExprM typeBottomUp >=> transformExprTDM typeTopDown $ e) HM.empty
 -- What we know are the input types of functions parsed in the frontend
 -- Those types contain the types of parameters only i.e. no return type !
 -- 1. This means we can start bottom up. When we find a function call that is typed, we can assign types to the
@@ -25,12 +29,13 @@ propagateTypes e = evalState (transformExprM typeBottomUp e) HM.empty
 --    the inputs of these functions, given the typed variables entering them. 
 -- Ohua Inserted functions are:
 {-
-  Refs.ctrl   -> Type should be: (bool, A) -> A
+  Note: The tuple (bool, nat is a control signal)
+  Refs.ctrl   -> Type should be: ((bool, nat), A) -> A
   Refs.select -> Type should be; (bool, A, A) -> A
-  Refs.ifFun  -> Type should be: (A) -> (bool, bool)
-  Refs.collect-> Type should be (int, A) -> [A]
+  Refs.ifFun  -> Type should be: (A) -> ((bool, nat),(bool,nat))
+  Refs.collect-> Type should be (nat, A) -> [A]
   Refs.seqFun -> Type should be ? => grep doesn't show me any place it's used in the code
-              -> looks like: (A, int) -> A ?
+              -> looks like: (A, nat) -> A ?
   Refs.unitFun-> Type should be: (F, Unit) -> F(), 
               -> i.e. F is a stateles function that was called without arguments,
               -> I don't think we can learn from that since we don't know the return type of
@@ -39,17 +44,20 @@ propagateTypes e = evalState (transformExprM typeBottomUp e) HM.empty
               -> this might be the case for e.g. unitFUn(id, lA), which actually occures in the
                respective stage of DFLang. However we'd neeed to identify by adding the F functions
               -> to scope as simple variables (which they actually are.)
-  Refs.runSTCLangSMap   -> Type should be : (int, A) -> (A)
+  Refs.runSTCLangSMap   -> Type should be : (nat, A) -> (A)
   Refs.runSTCLangIf     ->  ??? from Alang.State it seems to take a cond (bool?) and two A (Somestate?) and returns a A (Somestate?)
                         -> Not sure, not sure if it arrives at DFLAng-Custom, not sure what all the "FIXME"s want to 
                         -> tell me about the reanson behind making any ccode depending on this implementation. :-(
-  Refs.id     -> Type should be:  A-> A 
+  Refs.id     -> Type should be:  A -> A 
 
 -}
+
+-- FIXME: This whole function is full of repeated paaterns that need to be extracted !!
+
   where
     typeBottomUp ::
       NormalizedDFExpr ty ->
-      State (HM.HashMap Binding (Exists ty)) (NormalizedDFExpr ty)
+      State (BindingContext ty) (NormalizedDFExpr ty)
     -- (Sebastian to himself): Implement these damn types already!!!
     -- REMINDER: 
       -- fTy : contains ArgType = TypeVar | Type ty | TupleTy (NonEmpty (ArgType ty)) if function is typed
@@ -57,53 +65,118 @@ propagateTypes e = evalState (transformExprM typeBottomUp e) HM.empty
         --                DFEnvVar :: ArgType ty -> Lit ty -> DFVar 'Data ty
         --                DFVar :: ArgType ty -> ABinding a -> DFVar a ty
 
-    typeBottomUp pf@(Let (PureDFFun out@(Direct outBnd) f@(FunRef fun _ _) (DFVar cty ctrlSig :| [DFVar ty dataInpBnd])) inCont)
+    typeBottomUp pf@(Let (PureDFFun out@(Direct outBnd) f@(FunRef fun _fid _fTy) (DFVar _ctrlType ctrlBnd :| [DFVar dataType dataInpBnd])) inCont)
       -- In this case, the function is an Ohua control node. Those nodes allways take two inputs
-      -- a variable and a signal and outputs the variable based on the signal.
-      -- So if we know it's input type we also know it's output and the other way around
+      -- an nat (0 or 1) and a variable and outputs the variable based on the signal.
+      
       -- In a bottom up pass, we've seen the function using the output already.
       -- So we can try to type the input, using the output. 
+      -- Also the control signal is always TypeBool
       | fun == Refs.ctrl = do
-        traceM  $ "Typing controle function " <> show fun
-        traceM $ "Controle type is " <> show cty
-        vars <- get
-        let dataInp' = case HM.lookup (unwrapABnd outBnd) vars of
-              Just (Exists (DFVar ty' _)) -> DFVar ty' dataInpBnd
-              _ -> DFVar ty dataInpBnd
-        -- add it to the used vars
-        modify (HM.insert (unwrapABnd dataInpBnd) $ Exists dataInp')
+                traceM  $ "Typing controle function " <> show fun
+                vars <- get
+                -- We can type the data input using the output, cause they have to have the same type
+                let dataType' = case HM.lookup (unwrapABnd outBnd) vars of
+                      Just (Exists (DFVar ty' _)) -> ty'
+                      _ -> dataType
 
-        -- FIXME: THIS IS ONE BIG HACK. Better solution would be pulling information from the function signature
-        let ctrlInp' = case cty of
-              TypeVar -> DFVar (TupleTy (TypeVar :| [TypeVar])) ctrlSig
-              _ -> DFVar cty ctrlSig
-        modify (HM.insert (unwrapABnd ctrlSig) $ Exists ctrlInp')
+                -- We can type the control input cause it has to be a (bool, nat)
+                let ctrlType' =  DFVar controlSignalType ctrlBnd
 
-        return $ Let (PureDFFun out f (ctrlInp' :| [dataInp'])) inCont
+                -- We add our type findings to the context.
+                updateContext dataInpBnd dataType'
+                updateContext ctrlBnd controlSignalType 
+
+                return $ Let (PureDFFun out f (ctrlType' :| [DFVar dataType' dataInpBnd])) inCont
+      | fun == Refs.collect = do
+                traceM "Typing collect function"
+                return pf
+      | fun == Refs.seqFun = do
+                traceM "Typing seq function"
+                return pf
+      | fun == Refs.runSTCLangSMap = do
+                traceM "Typing rustSTCLangSMap function"
+                -- This node collects state mutations from a loop i.e. it might be the last point in code 
+                -- where this state is used and hence we won't get type information 'bottom up' here. 
+                -- But we can try while we're at it 
+                vars <- get
+                let ctrlType' = DFVar TypeBool ctrlBnd
+                let dataInp' = case HM.lookup (unwrapABnd outBnd) vars of
+                      Just (Exists (DFVar ty' _)) -> DFVar ty' dataInpBnd
+                      _ -> DFVar dataType dataInpBnd
+                modify (HM.insert (unwrapABnd dataInpBnd) $ Exists dataInp')
+                modify (HM.insert (unwrapABnd ctrlBnd) $ Exists ctrlType')
+
+                return $ Let (PureDFFun out f (ctrlType' :| [dataInp'])) inCont
+  
+      | otherwise = do
+                traceM "Hit a normal function. Should learn from function type"
+                -- ToDo: It's not a good idea to pattern match on the number of arguments. 
+                -- Because this way we have to tread normal function twice. 
+                return pf
+
+
+
+    typeBottomUp fo@(Let (PureDFFun out f@(FunRef fun _fId (FunType (Right inputTypes))) vars) inCont)  
+      -- We hit a select function of type (bool, a, a) -> a. So we type it's first input type
+      -- and try to derive the second and third from their usages saved in the context
+      | fun == Refs.select = do
+                knownVars <- get
+                let realOutTy = case out of
+                        Direct something -> case HM.lookup (unwrapABnd something) knownVars of
+                          Just (Exists (DFVar ty' _)) -> ty'
+                          Just (Exists (DFEnvVar ty' _)) -> ty'
+                          Nothing -> TypeVar
+                        otherwise -> undefined
+
+                let realFunType = TypeBool :| [realOutTy, realOutTy]
+                traceM $ "Typing SELECT. Real type is " <> show realFunType
+
+                -- Type Input vars 
+                let typedIns' = NE.map (\case
+                          (DFVar _ bnd, ty') ->  DFVar ty' bnd
+                          (DFEnvVar _ lit, ty') -> DFEnvVar ty' lit
+                      ) $ NE.zip vars realFunType
+                -- Then we add all the variables and their newly assigned types  to the context
+                mapM_ (\case
+                        var@(DFVar ty bnd) -> updateContext bnd ty 
+                        _literal -> return ()
+                    ) typedIns'
+
+                return$ Let (PureDFFun out (FunRef fun _fId (FunType (Right realFunType))) typedIns') inCont
     
-    typeBottomUp (Let (PureDFFun out f@(FunRef _fun _ (FunType (Right lst))) vars) inCont) = do
-      -- traceM $ "Checking " <> show fun
-      -- vars <- get
-      let dataInps' = NE.map (\case
-                                 (DFVar _ bnd, ty') -> trace ("Found a typed variable "<> show bnd <>" Corresponding input type is " <> show ty') DFVar ty' bnd
-                                 (DFEnvVar _ lit, ty') -> DFEnvVar ty' lit
-                             ) $ NE.zip vars lst
-      -- traceM $ "Running this bad boi on " <> show _fun
-      mapM_ (\case
-               v@(DFVar _ bnd) -> modify (HM.insert (unwrapABnd bnd) $ Exists v)
-               _ -> return ()
-           ) dataInps'
-      return $ Let (PureDFFun out f dataInps') inCont
+      | otherwise = do
+        traceM $ "Typing pure function " <> show fun
+        -- We hit any pure function. So we check it's input types and annotate the corresponding variable names.
+        let dataInps' = NE.map (\case
+                                  (DFVar _ bnd, ty') -> DFVar ty' bnd
+                                  (DFEnvVar _ lit, ty') -> DFEnvVar ty' lit
+                              ) $ NE.zip vars inputTypes
+        -- Then we add all the variables and their newly assigned types (which may still be TypeVar) to the context
+        -- As we go bottom up, those variables will be the output of some function in outer scope, so we can type these
+        -- fuctions output then.
+        mapM_ (\case
+                var@(DFVar ty bnd) -> updateContext bnd ty
+                _literal -> return ()
+            ) dataInps'
+        return $ Let (PureDFFun out f dataInps') inCont
     
     typeBottomUp e'@(Let (PureDFFun out (FunRef bnd _ funType) params) inCont) = do
-      -- traceM $ "Not typing pure function: " <> show bnd
-      -- traceM $ "having type: " <> show funType
-      -- traceM $ "and Params: " <> show params
+      -- We hit a pure function that is either Untyped, or has no inputs (FunType Left Unit)
+      -- So we can not learn from it's type.
+      -- Yet we are in the bottom up pass so it's output might have been typed already
+      -- ToDo: Update output type
+      traceM $ "Not typing pure function: " <> show bnd
+      traceM $ "having type: " <> show funType
+      traceM $ "and Params: " <> show params
       return e'
 
     -- SMap
     typeBottomUp (Let (SMapFun out@(Just (Direct dOut), _, _) (DFVar ty dataInpBnd)) inCont) = do
-          -- traceM $ "Looking at smap input type " <> show ty
+          traceM $ "Typing smapFun"
+          -- Smap is used to collect actions on a state from a loop
+          -- This means, it is guaranteed, the the state was used (type assigned) before, but
+          -- not necessarily after SMap. Hence it makes more sense to type it in a top down, than in a bottom up pass.
           vars <- get
           let dataInp' = case HM.lookup (unwrapABnd dOut) vars of
                 Just (Exists (DFVar ty' _)) -> DFVar ty' dataInpBnd
@@ -112,11 +185,12 @@ propagateTypes e = evalState (transformExprM typeBottomUp e) HM.empty
           return $ Let (SMapFun out dataInp') inCont
     
     typeBottomUp e'@(Let (SMapFun (outData, outControle, outSize) inp) inCont) = do
-      -- traceM $ "Not typing SMap function" <> show e'
+      traceM $ "Not typing SMap function" <> show e'
       return e'
 
     -- Stateful Functions
-    typeBottomUp (Let (StateDFFun oBnds f@(FunRef _ _ (STFunType sty tyInfo)) stateIn dataIn) inCont) = do
+    typeBottomUp (Let (StateDFFun (mState, mData) f@(FunRef fun _ (STFunType sty tyInfo)) stateIn dataIn) inCont) = do
+      traceM $ "Typing stateful function " <> show fun <> " on obj type " <> show sty
       let stateIn' = case stateIn of
             (DFVar ty bnd) -> DFVar (maxType ty sty) bnd
       let dataIn' = case tyInfo of
@@ -125,61 +199,128 @@ propagateTypes e = evalState (transformExprM typeBottomUp e) HM.empty
                                        (DFEnvVar _ lit, ty') -> DFEnvVar ty' lit
                                    ) $ NE.zip dataIn info
             (Left Unit) -> dataIn
-      -- update state
+      -- Update State type
       case stateIn' of
-        v@(DFVar _ bnd) -> modify (HM.insert (unwrapABnd bnd) $ Exists v)
+        (DFVar ty bnd) -> do 
+          -- traceM $ "Updating input state" <> show bnd
+          updateContext bnd (maxType ty sty)
+          case mState of
+              Just (Direct stateBnd) -> 
+                  -- traceM $ "Updating output state" <> show stateBnd
+                  updateContext stateBnd (maxType ty sty)
+              Just (Destruct stateBnds) -> error $ "Saw destruct of " <> show (NE.length stateBnds) <> ". Please report/handle!"
+              Just (Dispatch stateBnds) -> error $ "Saw dispatch of "<> show (NE.length stateBnds) <> ". Please report/handle!"
+              Nothing -> return () 
       mapM_ (\case
-                v@(DFVar _ bnd) -> modify (HM.insert (unwrapABnd bnd) $ Exists v)
+                v@(DFVar ty bnd) -> updateContext bnd ty 
                 _ -> return ()
             ) dataIn'
-      return $ Let (StateDFFun oBnds f stateIn' dataIn') inCont
+      -- That's it here. We can't learn the/from the potentially existing mData output
+      return $ Let (StateDFFun (mState, mData) f stateIn' dataIn') inCont
 
     typeBottomUp e'@(Let (StateDFFun oBnds stFun stateIn dataIn) inCont)  = do
-      -- traceM $ "Not typing StateDF function" <> show e'
+      traceM $ "Not typing StateDF function" <> show e'
       return e'
      
     -- Recursion
     typeBottomUp (Let (RecurFun finalOut recCtrl argOuts initIns recIns cond result) inCont) = do
-      -- TODO: Try to involve type info from the argOuts??
+      traceM $ "Typing RecurFun"
+      -- ToDo: Try to involve type info from the argOuts??
       let (initIns', recIns') = OV.unzip $ OV.map updateVars $ OV.zip initIns recIns
       -- add new types to the pool
       mapM_ (\case
-               v@(DFVar _ bnd) -> modify (HM.insert (unwrapABnd bnd) $ Exists v)
+               v@(DFVar ty bnd) -> updateContext bnd ty 
                _ -> return ()
            ) $ OV.toList initIns' ++ OV.toList recIns'
       return $ Let (RecurFun finalOut recCtrl argOuts initIns' recIns' cond result) inCont
 
-    typeBottomUp e'@(Let (IfFun _ _ ) _) = do
-      traceM $ "Not typing If function" <> show e'
-      return e'
+    typeBottomUp e'@(Let (IfFun (Direct o1, Direct o2) inVar ) inCont) = do
+      traceM $ "Tying ifFun"
+      -- We know that ifFun is type bool -> (control signal, controle signal).
+      -- So we can make sure the input is typed correctly. 
+      -- We also know the output type obv. This is not particularly useful in bottom up pass because we've probably typed the two outputs
+      -- already, but we can make sure non the less
+      
+      let inVar' = case inVar of 
+              v@(DFVar _ty bnd) -> trace ("Typing input "<> show bnd<> " of IfFun")  DFVar TypeBool bnd
+              other_v -> other_v -- otherwise its a DFEnvVar
+      
+      case inVar' of 
+            v@(DFVar ty bnd) -> updateContext bnd ty 
+            _ -> return()
+
+      -- We know the types of the outputs so just to be sure
+      updateContext o1 controlSignalType -- (HM.insert (unwrapABnd o1) $ Exists (DFVar controlSignalType o1))
+      updateContext o2 controlSignalType 
+      return $ Let (IfFun (Direct o1, Direct o2) inVar' ) inCont
+
+    typeBottomUp e'@(Let (IfFun _  _ ) _) = error $ "Generated IfFun produces wrong outputs" <> show e'
+
     typeBottomUp e'@(Var _ ) = do
-      traceM $ "Not typing Var" <> show e'
+      traceM $ "Not typing Var"
 
       return e'
+
+    typeTopDown:: NormalizedDFExpr ty ->
+      State (BindingContext ty) (NormalizedDFExpr ty)
+    {-typeTopDown (Let (SMapFun out@(Just (Direct dOut), _, _) (DFVar ty dataInpBnd)) inCont) = do
+          -- So we try to type smapFun  again. 
+          traceM $ "Typing smapFun again"
+          vars <- get 
+          traceM $ " Input vars are " <> show dataInpBnd
+          let dataInp' = case HM.lookup (unwrapABnd dOut) vars of
+                Just (Exists (DFVar ty' _)) -> trace ("Found Output Type "<> show ty')  DFVar ty' dataInpBnd
+                _ -> DFVar ty dataInpBnd
+          -- We don't insert any more
+          -- modify (HM.insert (unwrapABnd dataInpBnd) $ Exists dataInp')
+          return $ Let (SMapFun out dataInp') inCont-}
+    
+    typeTopDown pf@(Let (PureDFFun out@(Direct outBnd) f@(FunRef fun _ _) (sizeVar :| [DFVar dataType dataInpBnd])) inCont) 
+      -- So we try to type SMao
+      |fun == Refs.runSTCLangSMap = do
+            traceM $ "Typing SMap again"
+            knownVars <- get
+            let dataInp' = case HM.lookup (unwrapABnd dataInpBnd) knownVars of
+                  Just (Exists (DFVar ty' _)) -> trace ("Found Output Type "<> show ty')  DFVar ty' dataInpBnd
+                  -- ToDo Actually we should fail here
+                  _ -> DFVar dataType dataInpBnd 
+            return $ Let (PureDFFun out f (sizeVar :| [dataInp'])) inCont
+      | otherwise = return pf
+
+
+
+    typeTopDown anyExpr = return anyExpr
 
      
 
 
 
-    -- | Updates the type signatures of two zipped DFVars to match them, 
-    --   giving the EnvVar type preference over the (possibly) inferred type of the other DFVar
-    updateVars :: (DFVar a ty, DFVar a ty) -> (DFVar a ty, DFVar a ty)
-    updateVars (DFVar t bnd, DFVar t2 bnd2) =
-      let newTy = maxType t t2
-      in (DFVar newTy bnd, DFVar newTy bnd2)
-    updateVars (DFVar t bnd, DFEnvVar t2 lit) =
-      -- this case should not occur in recurFun and is only here for the sake of completeness
-      let newTy = maxType t2 t
-      in (DFVar newTy bnd, DFEnvVar newTy lit)
-    updateVars (DFEnvVar t lit, DFVar t2 bnd2) =
-      let newTy = maxType t t2
-      in (DFEnvVar newTy lit, DFVar newTy bnd2)
-    updateVars (v1@DFEnvVar{}, v2@DFEnvVar{}) = (v1, v2)
+-- | Updates the type signatures of two zipped DFVars to match them, 
+--   giving the EnvVar type preference over the (possibly) inferred type of the other DFVar
+updateVars :: (DFVar a ty, DFVar a ty) -> (DFVar a ty, DFVar a ty)
+updateVars (DFVar t bnd, DFVar t2 bnd2) =
+  let newTy = maxType t t2
+  in (DFVar newTy bnd, DFVar newTy bnd2)
+updateVars (DFVar t bnd, DFEnvVar t2 lit) =
+  -- this case should not occur in recurFun and is only here for the sake of completeness
+  let newTy = maxType t2 t
+  in (DFVar newTy bnd, DFEnvVar newTy lit)
+updateVars (DFEnvVar t lit, DFVar t2 bnd2) =
+  let newTy = maxType t t2
+  in (DFEnvVar newTy lit, DFVar newTy bnd2)
+updateVars (v1@DFEnvVar{}, v2@DFEnvVar{}) = (v1, v2)
 
-    -- | Picks a Argtype from two available ones, choosing any type over TypeVar or the first one.
-    maxType :: ArgType ty -> ArgType ty -> ArgType ty
-    maxType TypeVar TypeVar = TypeVar
-    maxType t TypeVar = t
-    maxType TypeVar t = t
-    maxType t _ = t
+updateContext:: MonadState (HashMap Binding (Exists ty)) m => ABinding semTy -> ArgType ty -> m ()
+updateContext aBnd newType  = do
+  traceM $ "Updating binding " <> show aBnd <> " to type " <> show newType
+  modify (HM.insert (unwrapABnd aBnd) $ Exists (DFVar newType aBnd)) 
 
+  
+
+-- | Picks a Argtype from two available ones, choosing any type over TypeVar or the first one.
+maxType :: ArgType ty -> ArgType ty -> ArgType ty
+-- ToDo: host language types should be prefered over TypeNat and TypeBool as well
+maxType TypeVar TypeVar = TypeVar
+maxType t TypeVar = t
+maxType TypeVar t = t
+maxType t _ = t

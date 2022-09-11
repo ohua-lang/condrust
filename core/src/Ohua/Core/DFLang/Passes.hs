@@ -30,7 +30,8 @@ runCorePasses :: (MonadOhua m) => NormalizedExpr ty -> m (NormalizedDFExpr ty)
 runCorePasses = removeNth
 
 finalPasses :: (MonadOhua m) => NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
-finalPasses = pure . propagateTypes >=> insertDispatch >=> eliminate
+finalPasses = insertDispatch >=> eliminate >=> (return . propagateTypes)
+
 
 -- I really should not have to do this in the first place.
 -- All transformations that need an Nth node because they introduce functions whose output
