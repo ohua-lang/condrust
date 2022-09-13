@@ -47,11 +47,12 @@ newtype FnId =
     FnId Int
     deriving (Eq, Ord, Generic, Enum, Num, NFData, Hashable, Show, Lift)
 
+
 -- | Internal type representations. While Type and TupleTy capture types from the
 --   host language, TypeVar, TypeNat and TypeBool are used internaly to construct nodes
 --   They must be mapped to the according types of the host language in the backend or, in 
 --   in case of TypeVar might need to be eliminated for Backends requiring typed channels.
-data ArgType ty = TypeVar |TypeNat | TypeBool | Type ty | TypeList [ArgType ty] | TupleTy (NonEmpty (ArgType ty)) deriving (Lift, Generic)
+data ArgType ty = TypeVar |TypeNat | TypeBool | TypeUnit | TypeList (ArgType ty) |Type ty | TupleTy (NonEmpty (ArgType ty)) deriving (Lift, Generic)
 data FunType ty where
      Untyped :: FunType ty
      FunType :: Either Unit (NonEmpty (ArgType ty)) -> FunType ty
@@ -66,8 +67,12 @@ data FunRef ty where
 
 instance EqNoType (ArgType ty) where
     TypeVar ~= TypeVar = True
+    TypeNat ~= TypeNat = True
+    TypeBool ~= TypeBool = True
+    TypeUnit ~= TypeUnit = True
     Type _ ~= Type _ = True -- skipping to type info here!
     (TupleTy ts) ~= (TupleTy ts') = ts == ts' -- tuns into ~=, see instance below
+    (TypeList inner1) ~= (TypeList inner2) = inner1 == inner2
     _ ~= _ = False
 
 instance Eq (ArgType ty) where
@@ -77,14 +82,11 @@ instance ShowNoType (ArgType ty) where
     showNoType TypeVar = "TypeVar"
     showNoType TypeNat = "Internal nat"
     showNoType TypeBool = "Internal bool"
-    showNoType (TypeList ts) = "Internal List [" <> prettyList ts <> "]"
+    showNoType TypeUnit = "Internal Unit"
+    showNoType (TypeList ts) = "Internal List [" <> showNoType ts <> "]"
     showNoType (Type _) = "Type _"
     showNoType (TupleTy ts) = "(" <>  foldl (\b a -> show a <> ", " <> b) ")" ts
 
-prettyList :: [ArgType ty] -> Text
-prettyList lst = 
-    let strs = map showNoType lst
-    in foldl' (\ txt new -> txt <> ", "<> new) "" strs
 
 instance Show (ArgType ty) where
     show = T.unpack . showNoType
@@ -93,6 +95,7 @@ instance Hashable (ArgType ty) where
     hashWithSalt s TypeVar = s
     hashWithSalt s TypeNat = s
     hashWithSalt s TypeBool = s
+    hashWithSalt s TypeUnit = s
     hashWithSalt s (TypeList ts) = s
     hashWithSalt s (Type _) = s
     hashWithSalt s (TupleTy _) = s
