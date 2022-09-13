@@ -29,15 +29,13 @@ data OutData :: BindingType -> Type where
   Dispatch :: NonEmpty (ABinding b) -> OutData b
   deriving (Show, Eq, Generic)
 
--- data DFVar ty
---     = DFEnvVar ty (Lit ty)
---     | DFVar ty (ABinding 'Data) -- TODO should be polymorph in the annotation
---     | DFStateVar ty (ABinding 'State) -- TODO should be polymorph in the annotation
---     deriving (Show, Generic)
+
 
 data DFVar (semType :: BindingType) (ty :: Type) :: Type where
   DFEnvVar :: ArgType ty -> Lit ty -> DFVar 'Data ty
   DFVar :: ArgType ty -> ABinding a -> DFVar a ty
+  -- DFNatVar :: ABinding a -> DFVar a (TypeNat ty) 
+  -- DFBoolVar ::  ABinding a -> DFVar a 'TypeBool
 
 -- DFStateVar :: ArgType ty -> ABinding 'State -> DFVar 'State ty
 
@@ -101,29 +99,40 @@ data DFApp (f :: FunANF) (ty :: Type) :: Type where
     DFVar 'Data ty ->
     -- | (final) result in
     DFVar 'Data ty ->
-    DFApp 'BuiltIn ty
-  SMapFun
-       -- TODO the below output type is not strong enough because we want to say,
-       --      that at least one of these things needs to be present.
-       --      so we need a non-empty heterogeneous list (that is at most of length 3)
-       --      and we need to be able to identify the different outputs in this list
-       --      regardless of their position in the list.
-    :: ( Maybe (OutData b)     -- ^ data out
-         -- TODO subset types would be great here to show that this out data can never be
-         --      destructured.
-       , Maybe (OutData 'Data) -- ^ control out
-       , Maybe (OutData 'Data) -- ^ size out for collect and stclangCollect
-       )
-    -> DFVar a ty  -- ^ data in
-    -> DFApp 'Fun ty -- FIXME would be this: DFApp 'BuiltIn ty (fix when all IRs are fixed and I do not need to convert a Fun into a BuiltIn)
+    DFApp 'Fun ty -- DFApp 'BuiltIn ty , commented BuiltIn out cause it's currently useless and messes up my monads
+  SMapFun ::
+    -- TODO the below output type is not strong enough because we want to say,
+    --      that at least one of these things needs to be present.
+    --      so we need a non-empty heterogeneous list (that is at most of length 3)
+    --      and we need to be able to identify the different outputs in this list
+    --      regardless of their position in the list
+    -- TODO subset types would be great here to show that this out data can never be destructured.
+    -- | ( data out, control out, size out for collect and stclangCollect)
+    ( Maybe (OutData b)
+    , Maybe (OutData 'Data) 
+    , Maybe (OutData 'Data)
+    ) -> 
+    -- | data in
+    DFVar a ty -> 
+    DFApp 'Fun ty -- FIXME would be this: DFApp 'BuiltIn ty (fix when all IRs are fixed and I do not need to convert a Fun into a BuiltIn)
+  
   IfFun
     :: (OutData 'Data, OutData 'Data)
     -> DFVar 'Data ty
     -> DFApp 'Fun ty -- FIXME would be this: DFApp 'BuiltIn ty (fix when all IRs are fixed and I do not need to convert a Fun into a BuiltIn)
+{-
+  CollectFun
+    -- output is a list of lenght first input of elements, second input
+    :: (OutData 'Data) -> 
+    -- | first input as a nat
+    DFVar 'Data ty -> 
+    -- | second input is an elemt, which is actually always a ()
+    DFVar 'Data ty -> 
+    DFApp 'Fun ty 
 
 -- Collect
 -- Ctrl
--- Select
+-- Select-}
 
 data Expr (fun :: FunANF -> Type -> Type) (ty :: Type) :: Type where
   Let :: (Show (fun a ty), Function (fun a ty)) => fun a ty -> Expr fun ty -> Expr fun ty
@@ -144,27 +153,27 @@ outsApp (StateFun (Nothing, out) _ _ _) = unwrapABnd out :| []
 outsApp (StateFun (Just stateOut, out) _ _ _) = unwrapABnd stateOut :| [unwrapABnd out]
 
 outsDFApp :: DFApp ty a -> [Binding]
-outsDFApp (PureDFFun out _ _) = NE.toList $ outBnds out
+outsDFApp (PureDFFun out _ _) = NE.toList $ toOutBnds out
 outsDFApp (StateDFFun (Nothing, Nothing) _ _ _) = []
-outsDFApp (StateDFFun (Nothing, Just out) _ _ _) = NE.toList $ outBnds out
-outsDFApp (StateDFFun (Just stateOut, Nothing) _ _ _) = NE.toList $ outBnds stateOut
-outsDFApp (StateDFFun (Just stateOut, Just out) _ _ _) = NE.toList $ outBnds stateOut <> outBnds out
+outsDFApp (StateDFFun (Nothing, Just out) _ _ _) = NE.toList $ toOutBnds out
+outsDFApp (StateDFFun (Just stateOut, Nothing) _ _ _) = NE.toList $ toOutBnds stateOut
+outsDFApp (StateDFFun (Just stateOut, Just out) _ _ _) = NE.toList $ toOutBnds stateOut <> toOutBnds out
 outsDFApp (RecurFun result ctrl recurs _ _ _ _) =
-  let (x :| xs) = outBnds result
+  let (x :| xs) = toOutBnds result
    in ( NE.toList $
-          (x :| (xs <> join (map (NE.toList . outBnds) $ V.toList recurs)))
+          (x :| (xs <> join (map (NE.toList . toOutBnds) $ V.toList recurs)))
       )
-        ++ maybe [] (NE.toList . outBnds) ctrl
+        ++ maybe [] (NE.toList . toOutBnds) ctrl
 outsDFApp (SMapFun (dOut, collectOut, sizeOut) _) =
-  maybe [] (NE.toList . outBnds) dOut ++
-  maybe [] (NE.toList . outBnds) collectOut ++
-  maybe [] (NE.toList . outBnds) sizeOut
-outsDFApp (IfFun (oTrue, oFalse) _) = NE.toList $ outBnds oTrue <> outBnds oFalse
+  maybe [] (NE.toList . toOutBnds) dOut ++
+  maybe [] (NE.toList . toOutBnds) collectOut ++
+  maybe [] (NE.toList . toOutBnds) sizeOut
+outsDFApp (IfFun (oTrue, oFalse) _) = NE.toList $ toOutBnds oTrue <> toOutBnds oFalse
 
-outBnds :: OutData a -> NonEmpty Binding
-outBnds (Destruct o) = sconcat $ NE.map outBnds o
-outBnds (Dispatch o) = NE.map unwrapABnd o
-outBnds (Direct bnd) = unwrapABnd bnd :| []
+toOutBnds :: OutData a -> NonEmpty Binding
+toOutBnds (Destruct o) = sconcat $ NE.map toOutBnds o
+toOutBnds (Dispatch o) = NE.map unwrapABnd o
+toOutBnds (Direct bnd) = unwrapABnd bnd :| []
 
 insApp :: App ty a -> [Binding]
 insApp (PureFun _ _ i) = extractBndsFromInputs $ NE.toList i
@@ -257,7 +266,7 @@ deriving instance Show (DFApp ty a)
 --         out == out' && fn == fn' && stateIn == stateIn' && inp == inp'
 -- This does not work for the same reasons as in the case of App a.
 -- instance Eq (DFApp a ty) where
---     (PureDFFun out fn inp) == (PureDFFun out' fn' inp') = outBnds out == outBnds out' && fn == fn' && inp == inp'
+--     (PureDFFun out fn inp) == (PureDFFun out' fn' inp') = toOutBnds out == toOutBnds out' && fn == fn' && inp == inp'
 --     (StateDFFun out fn stateIn inp) == (StateDFFun out' fn' stateIn' inp') =
 --         out == out' && fn == fn' && stateIn == stateIn' && inp == inp'
 

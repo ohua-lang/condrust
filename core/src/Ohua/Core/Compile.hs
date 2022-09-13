@@ -66,15 +66,61 @@ pipeline CustomPasses {..} e = do
     whenDebug $ DFPasses.checkSSA dfFinal
     pure dfFinal
 
+
+-- REMINDER: Remove duplicate when done whith type propagation 
+pipelineWithRetTy :: CustomPasses -> ALang.Expr ty -> ty -> OhuaM (NormalizedDFExpr ty)
+pipelineWithRetTy CustomPasses {..} e returnType = do
+    stage resolvedAlang e
+    ssaE <- SSA.performSSA e
+    stage ssaAlang ssaE
+    normalizedE <- APasses.normalize =<< passBeforeNormalize ssaE
+    stage normalizedAlang normalizedE
+    whenDebug $ do
+        APasses.checkProgramValidity normalizedE
+        checkHigherOrderFunctionSupport normalizedE
+        SSA.checkSSA normalizedE
+    customAfterNorm <- passAfterNormalize normalizedE
+    stage customAlangPasses customAfterNorm
+    coreE <- APasses.runCorePasses =<< APasses.normalize customAfterNorm
+    stage coreAlang coreE
+    whenDebug $ do
+        SSA.checkSSA coreE
+        AVerify.checkInvariants coreE
+    dfE <- DFPasses.lowerToDF =<< APasses.normalize coreE
+    stage initialDflang dfE
+    -- Ohua.Core.DFLang.Verify.verify dfE
+    whenDebug $ DFPasses.checkSSA dfE
+    coreDfE <- DFPasses.runCorePasses dfE
+    stage coreDflang coreDfE
+    dfAfterCustom <- passAfterDFLowering coreDfE
+    stage customDflang dfAfterCustom
+    whenDebug $ DFPasses.checkSSA dfAfterCustom
+    dfFinal <- DFPasses.finalPassesWithTy dfAfterCustom returnType -- here we do the type propagation, that needs the return type
+    stage finalDflang dfFinal
+    whenDebug $ DFPasses.checkSSA dfFinal
+    pure dfFinal
+
 -- | Run the pipeline in an arbitrary monad that supports error reporting.
 compile :: CompM m => Options -> CustomPasses -> ALang.Expr ty -> m (NormalizedDFExpr ty)
-compile opts passes exprs = do
+compile opts passes expr = do
     logFn <- askLoggerIO
     let passes' =
             flip loadTailRecPasses passes $
             view transformRecursiveFunctions opts
     either throwError pure =<<
-        liftIO (runLoggingT (runFromExpr opts (pipeline passes') exprs) logFn)
+        liftIO (runLoggingT (runFromExpr opts (pipeline passes') expr) logFn)
+
+-- REMINDER: Remove duplicate when done  whith type propagation 
+compileWithRetTy :: CompM m => Options -> CustomPasses -> (ALang.Expr ty, ty)-> m (NormalizedDFExpr ty)
+compileWithRetTy opts passes (expr, returnType) = do
+    logFn <- askLoggerIO
+    let passes' =
+            flip loadTailRecPasses passes $
+            view transformRecursiveFunctions opts
+    either throwError pure =<<
+        liftIO (runLoggingT (runFromExprAndType opts (pipelineWithRetTy passes') expr returnType) logFn)
+
+
 
 hofNames :: HashSet QualifiedBinding
 hofNames = HS.fromList [Refs.smap, Refs.ifThenElse, Refs.seq, Refs.recur, y]

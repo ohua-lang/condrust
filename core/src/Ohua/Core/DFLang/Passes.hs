@@ -23,15 +23,17 @@ import Ohua.Core.ALang.Util
 import Ohua.Core.DFLang.Lang as DFLang hiding (length)
 import Ohua.Core.DFLang.Passes.DeadCodeElimination (eliminate)
 import Ohua.Core.DFLang.Passes.DispatchInsertion (insertDispatch)
-import Ohua.Core.DFLang.Passes.TypePropagation (propagateTypes)
+import Ohua.Core.DFLang.Passes.TypePropagation (propagateTypes, propagateTypesWithRetTy)
 import Ohua.Core.Prelude
 
 runCorePasses :: (MonadOhua m) => NormalizedExpr ty -> m (NormalizedDFExpr ty)
 runCorePasses = removeNth
 
-finalPasses :: (MonadOhua m) => NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
-finalPasses = insertDispatch >=> eliminate >=> (return . propagateTypes)
+finalPasses :: (MonadOhua m) =>  NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
+finalPasses = insertDispatch >=> eliminate >=> (return . propagateTypes) 
 
+finalPassesWithTy :: (MonadOhua m) =>  NormalizedDFExpr ty -> ty -> m (NormalizedDFExpr ty)
+finalPassesWithTy = \expr retTy -> insertDispatch >=> eliminate >=> (return . propagateTypesWithRetTy retTy) $ expr
 
 -- I really should not have to do this in the first place.
 -- All transformations that need an Nth node because they introduce functions whose output
@@ -40,7 +42,7 @@ finalPasses = insertDispatch >=> eliminate >=> (return . propagateTypes)
 -- Currently, this code does not cover destructurings of destructurings but this is ok, because
 -- we do not create those.
 -- NOTE: This code looks a lot like the code that removes state destructuring when lowering ALang into DFLang
-removeNth :: forall ty m. MonadOhua m => NormalizedExpr ty -> m (NormalizedDFExpr ty)
+removeNth :: forall ty m. MonadOhua m => NormalizedExpr ty-> m (NormalizedDFExpr ty)
 removeNth expr = do
   checkSSA expr
   let exp' = evalState (f expr) HM.empty

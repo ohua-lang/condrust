@@ -3,7 +3,7 @@
 #include "compat.h"
 
 module Ohua.Core.Monad
-    ( OhuaM, runFromExpr, runFromBindings
+    ( OhuaM, runFromExpr, runFromBindings, runFromExprAndType
     , MonadGenId(generateId, resetIdCounter)
     , MonadGenBnd(generateBinding, generateBindingWith)
     , MonadReadEnvironment(getEnvironment), fromEnv

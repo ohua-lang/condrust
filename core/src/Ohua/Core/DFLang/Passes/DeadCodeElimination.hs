@@ -34,7 +34,7 @@ eliminateExprs expr = do
     f e = pure e
 
     isUsed :: OutData a -> Bool
-    isUsed out = any (`HS.member` (HS.fromList $ usedBindings expr)) $ outBnds out
+    isUsed out = any (`HS.member` (HS.fromList $ usedBindings expr)) $ toOutBnds out
 
     warn :: QualifiedBinding -> m ()
     warn (QualifiedBinding (NSRef ["ohua","lang"]) _) = return ()

@@ -134,6 +134,21 @@ runFromExpr ::
 runFromExpr opts f tree =
     runFromBindings opts (f tree) $ HS.fromList [b | Var b <- universe tree]
 
+-- | Run a compiler
+-- Creates the state from the tree being passed in
+-- If there are any errors during the compilation they are reported together at the end
+runFromExprAndType ::
+    Options -> 
+    -- | a (compiler step) function on an algorithm and it's return type
+    (Expr ty -> ty -> OhuaM result) ->
+    -- | an algorithm in its current compile step representation
+    Expr ty -> 
+    -- | the algorithms output type
+    ty ->
+    LoggingT IO (Either Error result)
+runFromExprAndType opts f tree ty =
+    runFromBindings opts (f tree ty) $ HS.fromList [b | Var b <- universe tree]
+
 runFromBindings ::
        Options
     -> OhuaM result

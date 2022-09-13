@@ -45,9 +45,10 @@ recurLowering expr
       -- What this function actually wants to dispatch on, is a function that is not a state
       -- initializer function, i.e., it does not output anything that is later used as state.
       outsANew = map (Direct . DataBinding) . outsDFApp
-
+      
+      -- FIXME: Make it BuiltIn again if we we need that
       findEnd :: NonEmpty (OutData 'Data) -> NonEmpty (DFVar 'Data ty)
-              -> NormalizedDFExpr ty -> m (DFApp 'BuiltIn ty)
+              -> NormalizedDFExpr ty -> m (DFApp 'Fun ty ) -- BuiltIn ty)
       findEnd outs inp (Let app@PureDFFun{} _) | funRef app == ALangPass.recurEndMarker =
           let cond:(fixRef:recurArgs) = insDFApp app
               -- FIXME we don't need the var lists when we use the assertion
@@ -62,10 +63,11 @@ recurLowering expr
               ctrlOut = head outs
               recurArgsOuts = tail outs
 
+              -- FIXME: Make it BuiltIn again if we we need that
               fun :: OutData 'Data
                   -> [(OutData 'Data, DFVar 'Data ty, DFVar 'Data ty)]
                   -> V.SNat n
-                  -> DFApp 'BuiltIn ty
+                  -> DFApp 'Fun ty -- BuiltIn ty 
               fun finalResultOut xs snat =
                 let vec = V.fromList snat xs
                     recurArgsOuts' = V.map (\(x,_,_) -> x) vec
