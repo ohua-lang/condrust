@@ -65,13 +65,13 @@ updateExprs' namespace f = do
 
 
 
-updateExprsWithAnno :: Monad m => Namespace expr1 inpt retTy-> (expr1 -> m expr2) -> m (Namespace expr2 inpt retTy)
-updateExprsWithAnno namespace f = updateExprs' namespace $ \_ e -> f e
+updateExprsWithReturn :: Monad m => Namespace expr1 inpt retTy-> ((expr1, retTy) -> m expr2) -> m (Namespace expr2 inpt retTy)
+updateExprsWithReturn namespace f = updateExprsWithReturn' namespace $ \_ (e, ty) -> f (e, ty)
 
-updateExprsWithAnno' :: Monad m => Namespace expr1 inpt retTy -> (Binding -> expr1 -> m expr2) -> m (Namespace expr2 inpt retTy)
-updateExprsWithAnno' namespace f = do
-     algos' <- 
+updateExprsWithReturn' :: Monad m => Namespace expr1 inpt retTy -> (Binding -> (expr1, retTy)-> m expr2) -> m (Namespace expr2 inpt retTy)
+updateExprsWithReturn' namespace f = do
+     algos' <-
           forM (namespace^.algos) $ \algo -> do
-               algoCode' <- f (algo^.algoName) (algo^.algoCode)
-               return $ over algoCode (const algoCode') algo
+               algoCodeAndReturn' <- f (algo^.algoName) (algo^.algoCode, algo^.algoReturnTy)
+               return $ over algoCode (const algoCodeAndReturn') algo
      return $ over algos (const algos') namespace
