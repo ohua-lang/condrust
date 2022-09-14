@@ -8,8 +8,11 @@ import qualified Ohua.Types.Vector as OV
 
 import qualified Data.List.NonEmpty as NE
 
-data Exists ty = forall semTy.Exists (DFVar semTy ty)
+data Exists ty = forall semTy.Exists (DFVar semTy ty) 
 type BindingContext ty = (HM.HashMap Binding (Exists ty)) 
+
+showContext :: BindingContext ty -> Text
+showContext hm = show (HM.keys hm)
 
 controlSignalType :: ArgType ty
 controlSignalType = TupleTy $ TypeBool:| [TypeNat]
@@ -17,8 +20,6 @@ controlSignalType = TupleTy $ TypeBool:| [TypeNat]
 returnBinding:: Binding
 returnBinding = "finalReturnType"
 
-pattern RetBnd :: Binding
-pattern RetBnd <-  "finalReturnType"
 
 -- TODO collect variables from all calls (pure and stateful)
 -- TODO handle smapFun, recurFun, select, ifFun, ....
@@ -79,7 +80,7 @@ typeBottomUp ::
     --                DFEnvVar :: ArgType ty -> Lit ty -> DFVar 'Data ty
     --                DFVar :: ArgType ty -> ABinding a -> DFVar a ty
 
-typeBottomUp pf@(Let (PureDFFun out@(Direct outBnd) f@(FunRef fun _fid fTy) inputs@(DFVar _fstTy fstBnd :| scndIn: others)) inCont)
+typeBottomUp pf@(Let (PureDFFun out@(Direct outBnd) f@(FunRef fun _fid fTy) inputs@(DFVar _fstTy fstBnd :| scndIn: _)) inCont)
   -- In this case, the function is an Ohua control node. Those nodes allways take two inputs
   -- an nat (0 or 1) and a variable and outputs the variable based on the signal.
   
@@ -115,8 +116,8 @@ typeBottomUp pf@(Let (PureDFFun out@(Direct outBnd) f@(FunRef fun _fid fTy) inpu
 
             let natVar = DFVar TypeNat fstBnd
             updateContext fstBnd TypeNat
-
             return $ Let (PureDFFun out f (natVar :| [aVar])) inCont
+            
   | fun == Refs.runSTCLangSMap = do
             traceM "Typing rustSTCLangSMap function"
             -- This node collects state mutations from a loop i.e. it might be the last point in code 
@@ -182,9 +183,6 @@ typeBottomUp pf@(Let (PureDFFun out@(Direct outBnd) f@(FunRef fun _fid fTy) inpu
                 ) dataInps'
             return $ Let (PureDFFun out f dataInps') inCont
 
-            
-            return pf
-
 typeBottomUp _fo@(Let (PureDFFun out f@(FunRef fun _fId (FunType (Right inputTypes))) vars) inCont) = do
   -- We hit a select function of type (bool, a, a) -> a. So we type it's first input type
   -- and try to derive the second and third from their usages saved in the context
@@ -203,14 +201,11 @@ typeBottomUp _fo@(Let (PureDFFun out f@(FunRef fun _fId (FunType (Right inputTyp
         ) dataInps'
     return $ Let (PureDFFun out f dataInps') inCont
 
-typeBottomUp e'@(Let (PureDFFun _out (FunRef bnd _ funType) params) _inCont) = do
+typeBottomUp e'@(Let (PureDFFun _out (FunRef bnd _ _fty) _params) _inCont) = do
   -- We hit a pure function that is either Untyped, or has no inputs (FunType Left Unit)
   -- So we can not learn from it's type.
-  -- Yet we are in the bottom up pass so it's output might have been typed already
-  -- ToDo: Update output type
-  traceM $ "Not typing pure function: " <> show bnd
-  traceM $ "having type: " <> show funType
-  traceM $ "and Params: " <> show params
+  -- Also, by definition it's parameters havn't been ued elsewhere, so we can not type
+  -- them by context either
   return e'
 
 -- SMap
@@ -266,19 +261,26 @@ typeBottomUp e'@(Let (StateDFFun _oBnds _stFun _stateIn _dataIn) _inCont)  = do
   
 -- Recursion
 typeBottomUp (Let (RecurFun finalOut recCtrl argOuts initIns recIns cond result) inCont) = do
-  traceM $ "Typing RecurFun. Output is" <> show argOuts 
   -- using initins doesn't work (for now, because the literals are also TypeVar)
   -- let (initIns', recIns') = OV.unzip $ OV.map updateVars $ OV.zip initIns recIns
-
   newInits <- mapM maybeUpdateByOutData (OV.zip argOuts initIns)
 
   newRets <- mapM maybeUpdateByOutData (OV.zip argOuts recIns)
 
+
   let cond' = case cond of 
                 DFVar _ty bnd ->  DFVar TypeBool bnd
                 DFEnvVar _ty lit -> DFEnvVar TypeBool lit 
+
+  knownVars <- get
   let result' = case result of 
-                DFVar _ty bnd -> DFVar TypeBool bnd
+                DFVar ty bnd -> case HM.lookup (unwrapABnd bnd) knownVars of
+                  -- REMINDER: We can not take the 'algo return type' because 
+                  -- we are inside the algorithm that calls the recursive algo 
+                  -- i.e. return of the outer algo need not be the return of the recursion
+                  Just (Exists (DFVar ty' _rB)) ->  (DFVar (maxType ty ty') bnd)
+                  Just (Exists (DFEnvVar ty' _lit)) -> (DFVar (maxType ty ty') bnd)
+                  Nothing -> result
                 DFEnvVar _ty lit -> DFEnvVar TypeBool lit 
   
   case cond of
@@ -382,14 +384,14 @@ updateContext aBnd newType  = do
 -- | Picks a Argtype from two available ones, choosing any type over TypeVar or the second one.
 -- Problem is, we will assign type twice, when we type recursive functions. In that case we hit the 
 -- variable representing the recurFun first, wich is not the actual return value of the algorithm. 
--- Hence we need to override the firsr assignment and it's more intuitive to express this by choosing the second type
--- over the first i.e. maxtype old new. 
+-- Hence we need to override the firsr assignment and it's more intuitive to express this by choosing the first type
+-- over the first i.e. maxtype new old. 
 -- a
 maxType :: ArgType ty -> ArgType ty -> ArgType ty
 -- ToDo: host language types should be prefered over TypeNat and TypeBool as well
 maxType TypeVar TypeVar = TypeVar
 maxType t TypeVar = t
 maxType TypeVar t = t
-maxType _ t  = t
+maxType t _  = t
 
 fuckIt = error $ "Sorry I didn't handle that case"
