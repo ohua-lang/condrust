@@ -31,6 +31,8 @@ data ExVec :: Type -> Type where
 
 deriving instance (Show a) => Show (Vec n a)
 deriving instance (Eq a) => Eq (Vec n a)
+deriving instance Functor (Vec n)
+deriving instance Foldable (Vec n)
 
 -- computed by $(genSingletons [’’Nat])
 -- Sing is an open type family (as opposed to a closed type family declared with a GADT)
@@ -135,3 +137,7 @@ withSuccSing n f = case toSing n of
 natToInt :: Nat -> Int
 natToInt Zero = 0
 natToInt (Succ n) = 1 + natToInt n
+
+instance Traversable (Vec n ) where
+  traverse f VNil = pure VNil
+  traverse f (x :> xs) =  (:>) <$> f x <*> traverse f xs
