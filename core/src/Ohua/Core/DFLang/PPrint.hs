@@ -25,12 +25,12 @@ prettyExprM = LT.putStr . prettyExpr
 instance Pretty (NormalizedDFExpr ty) where
     pretty = \case
         (Let app cont) -> vsep $ hsep ["let", pretty app, "in"] : [pretty cont]
-        (Var bnd) -> vsep [pretty bnd]
+        (Var bnd _ ) -> vsep [pretty bnd]
 
 instance Pretty (NormalizedExpr ty) where
     pretty = \case
         (Let app cont) -> vsep $ hsep [pretty app, "in"] : [pretty cont]
-        (Var bnd) -> vsep [pretty bnd]
+        (Var bnd _) -> vsep [pretty bnd]
 
 instance Pretty (ABinding a) where
     pretty = pretty . unwrapABnd

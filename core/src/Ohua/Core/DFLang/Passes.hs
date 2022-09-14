@@ -23,14 +23,14 @@ import Ohua.Core.ALang.Util
 import Ohua.Core.DFLang.Lang as DFLang hiding (length)
 import Ohua.Core.DFLang.Passes.DeadCodeElimination (eliminate)
 import Ohua.Core.DFLang.Passes.DispatchInsertion (insertDispatch)
-import Ohua.Core.DFLang.Passes.TypePropagation (propagateTypes, propagateTypesWithRetTy)
+import Ohua.Core.DFLang.Passes.TypePropagation (propagateTypesWithRetTy)
 import Ohua.Core.Prelude
 
 runCorePasses :: (MonadOhua m) => NormalizedExpr ty -> m (NormalizedDFExpr ty)
 runCorePasses = removeNth
 
-finalPasses :: (MonadOhua m) =>  NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
-finalPasses = insertDispatch >=> eliminate >=> (return . propagateTypes) 
+--finalPasses :: (MonadOhua m) =>  NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
+--finalPasses = insertDispatch >=> eliminate >=> (return . propagateTypes) 
 
 finalPassesWithTy :: (MonadOhua m) =>  NormalizedDFExpr ty -> ty -> m (NormalizedDFExpr ty)
 finalPassesWithTy = \expr retTy -> insertDispatch >=> eliminate >=> (return . propagateTypesWithRetTy retTy) $ expr
@@ -53,7 +53,7 @@ removeNth expr = do
     -- explicit traversal prevents non-exhaustive pattern warnings and allows to convert stuff to Coq later on.
     f = \case
       (DFLang.Let app cont) -> go app cont
-      (DFLang.Var bnd) -> pure $ DFLang.Var bnd
+      (DFLang.Var bnd ty) -> pure $ DFLang.Var bnd ty
       where
         go ::
           App a ty ->
@@ -170,7 +170,7 @@ lowerToDF expr = evalStateT (transfer' expr) HS.empty
       (MonadState (HS.HashSet Binding) m, MonadOhua m) =>
       ALang.Expr ty ->
       m (NormalizedExpr ty)
-    transfer' (ALang.Var bnd) = return $ DFLang.Var bnd
+    transfer' (ALang.Var bnd) = return $ DFLang.Var bnd TypeVar
     transfer' (ALang.Let bnd a@(NthFunction b) e) = do
       isStateDestruct <- HS.member b <$> get
       if isStateDestruct

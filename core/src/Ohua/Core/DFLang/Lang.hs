@@ -137,7 +137,8 @@ data DFApp (f :: FunANF) (ty :: Type) :: Type where
 data Expr (fun :: FunANF -> Type -> Type) (ty :: Type) :: Type where
   Let :: (Show (fun a ty), Function (fun a ty)) => fun a ty -> Expr fun ty -> Expr fun ty
   -- FIXME this also should probably have a BindingType!
-  Var :: Binding -> Expr fun ty
+  -- Well it should first of all have a Type type :-/
+  Var :: Binding -> ArgType ty -> Expr fun ty
 
 ----------------------------
 -- Accessor functions
@@ -323,7 +324,7 @@ transformExpr f = runIdentity . transformExprM go
 -- | This is a bottom-up traversal
 transformExprM :: Monad m => (NormalizedDFExpr ty -> m (NormalizedDFExpr ty)) -> NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
 transformExprM f (Let app cont) = f . Let app =<< transformExprM f cont
-transformExprM f v@(Var _) = f v
+transformExprM f v@(Var _ _) = f v
 
 -- | This is a top-down traversal
 transformExprTDM :: Monad m => (NormalizedDFExpr ty -> m (NormalizedDFExpr ty)) -> NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
@@ -354,13 +355,13 @@ length (Let _ cont) = Succ $ length cont
 length Var {} = Zero
 
 countBindings :: NormalizedDFExpr ty -> V.Nat
-countBindings (Var _) = Succ Zero
+countBindings (Var _ _) = Succ Zero
 countBindings (Let app cont) =
   foldl (\acc _ -> Succ acc) (countBindings cont) $ insDFApp app ++ outsDFApp app
 
 usedBindings :: NormalizedDFExpr ty -> [Binding]
 usedBindings (Let app cont) = insDFApp app ++ usedBindings cont
-usedBindings (Var result) = [result]
+usedBindings (Var result _ ) = [result]
 
 
 data SubstitutionStrategy = FirstOccurrence | All

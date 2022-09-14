@@ -100,4 +100,4 @@ recurLowering expr
       findEnd outs inp (Let _ cont) = findEnd outs inp cont
       -- FIXME This looks like we should perform this transformation differently, so we
       -- can avoid this failure case. 
-      findEnd _ _ (Var v) = failWith $ "Did not find end marker for recursion. Hit var: " <> show v
+      findEnd _ _ (Var v _) = failWith $ "Did not find end marker for recursion. Hit var: " <> show v

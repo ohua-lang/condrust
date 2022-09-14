@@ -55,8 +55,8 @@ pattern RetBnd <-  "finalReturnType"
   Refs.id     -> Type should be:  A -> A 
 
 -}
-propagateTypes :: NormalizedDFExpr ty -> NormalizedDFExpr ty
-propagateTypes e = evalState (transformExprM typeBottomUp >=> transformExprTDM typeTopDown $ e) HM.empty
+--propagateTypes :: NormalizedDFExpr ty -> NormalizedDFExpr ty
+--propagateTypes e = evalState (transformExprM typeBottomUp >=> transformExprTDM typeTopDown $ e) HM.empty
 
 
 
@@ -79,7 +79,7 @@ typeBottomUp ::
     --                DFEnvVar :: ArgType ty -> Lit ty -> DFVar 'Data ty
     --                DFVar :: ArgType ty -> ABinding a -> DFVar a ty
 
-typeBottomUp pf@(Let (PureDFFun out@(Direct outBnd) f@(FunRef fun _fid _fTy) inputs@(DFVar _fstTy fstBnd :| scndIn:_)) inCont)
+typeBottomUp pf@(Let (PureDFFun out@(Direct outBnd) f@(FunRef fun _fid fTy) inputs@(DFVar _fstTy fstBnd :| scndIn: others)) inCont)
   -- In this case, the function is an Ohua control node. Those nodes allways take two inputs
   -- an nat (0 or 1) and a variable and outputs the variable based on the signal.
   
@@ -165,8 +165,24 @@ typeBottomUp pf@(Let (PureDFFun out@(Direct outBnd) f@(FunRef fun _fid _fTy) inp
               
   | otherwise = do
             traceM "Hit a normal function. Should learn from function type"
-            -- ToDo: It's not a good idea to pattern match on the number of arguments. 
-            -- Because this way we have to tread normal function twice. 
+            let dataInps' = 
+                  case fTy of
+                    (FunType (Right types)) -> 
+                        NE.map (\case
+                              (DFVar _ bnd, ty') -> DFVar ty' bnd
+                              (DFEnvVar _ lit, ty') -> DFEnvVar ty' lit
+                          ) $ NE.zip inputs types
+                    _ -> inputs
+          -- Then we add all the variables and their newly assigned types (which may still be TypeVar) to the context
+          -- As we go bottom up, those variables will be the output of some function in outer scope, so we can type these
+          -- fuctions output then.
+            mapM_ (\case
+                    (DFVar ty bnd) -> updateContext bnd ty
+                    _literal -> return ()
+                ) dataInps'
+            return $ Let (PureDFFun out f dataInps') inCont
+
+            
             return pf
 
 typeBottomUp _fo@(Let (PureDFFun out f@(FunRef fun _fId (FunType (Right inputTypes))) vars) inCont) = do
@@ -251,33 +267,29 @@ typeBottomUp e'@(Let (StateDFFun _oBnds _stFun _stateIn _dataIn) _inCont)  = do
 -- Recursion
 typeBottomUp (Let (RecurFun finalOut recCtrl argOuts initIns recIns cond result) inCont) = do
   traceM $ "Typing RecurFun. Output is" <> show argOuts 
-  knownVars <- get
   -- using initins doesn't work (for now, because the literals are also TypeVar)
   -- let (initIns', recIns') = OV.unzip $ OV.map updateVars $ OV.zip initIns recIns
-  let _local_updata_fun_because_sure_we_have_to_wrap_everything_in_as_many_dependent_types_as_possibe_TF = 
-          \(refBnd, inVar) ->
-                      case refBnd of
-                        Direct bnd -> 
-                          let knownOut = HM.lookup (unwrapABnd bnd) knownVars 
-                          in case knownOut of
-                            Just (Exists reference) -> 
-                              fst $ updateVars (inVar, reference)
-                            Nothing -> inVar
-                          -- newVar <- maybeUpdate bnd inVar
-                          -- newVar
-                        Destruct _ -> fuckIt
-                        Dispatch _ -> fuckIt
-          
-  --let newInits = OV.map (\tpl -> do x <- function_I_want_to_use; x) $ (OV.zip argOuts initIns)
-  --let newRets = OV.map function_I_want_to_use (OV.zip argOuts recIns)
 
-  let initIns' = OV.map
+  newInits <- mapM maybeUpdateByOutData (OV.zip argOuts initIns)
 
-  let cond' = case cond of
-        (DFVar _ty bnd) -> DFVar TypeBool bnd
-        (DFEnvVar _ty lit) -> DFEnvVar TypeBool lit
+  newRets <- mapM maybeUpdateByOutData (OV.zip argOuts recIns)
 
-  return $ Let (RecurFun finalOut recCtrl argOuts newInits newRets cond' result) inCont
+  let cond' = case cond of 
+                DFVar _ty bnd ->  DFVar TypeBool bnd
+                DFEnvVar _ty lit -> DFEnvVar TypeBool lit 
+  let result' = case result of 
+                DFVar _ty bnd -> DFVar TypeBool bnd
+                DFEnvVar _ty lit -> DFEnvVar TypeBool lit 
+  
+  case cond of
+        (DFVar _ty bnd) -> modify (HM.insert (unwrapABnd bnd) $ Exists cond)
+        (DFEnvVar _ty lit) -> return ()
+
+  case result' of
+        (DFVar _ty bnd) -> modify (HM.insert (unwrapABnd bnd) $ Exists result')
+        (DFEnvVar _ty lit) -> return ()
+
+  return $ Let (RecurFun finalOut recCtrl argOuts newInits newRets cond' result') inCont
 
 typeBottomUp _e'@(Let (IfFun (Direct o1, Direct o2) inVar ) inCont) = do
   traceM $ "Tying ifFun"
@@ -301,47 +313,21 @@ typeBottomUp _e'@(Let (IfFun (Direct o1, Direct o2) inVar ) inCont) = do
 
 typeBottomUp e'@(Let (IfFun _  _ ) _) = error $ "Generated IfFun produces wrong outputs" <> show e'
 
-typeBottomUp e'@(Var bnd ) = do
+typeBottomUp e'@(Var bnd ty) = do
       ctxt <- get
-      _ <- case HM.lookup returnBinding ctxt of
-        Just (Exists (DFVar algoReturnType _)) -> do 
-          -- we want the return value to have the return type
-          updateContext (DataBinding bnd) algoReturnType
-          -- we want to be sure, only the  return value get's the return type this way
-          modify (HM.delete returnBinding)
-        _ -> error $ "Trying to type " <> show bnd <>" but the rturn type has already been taken. This is probabl a compiler error."
-      return e'
+      let newReturnType =  case HM.lookup returnBinding ctxt of
+              Just (Exists (DFVar returnTy _rB)) -> returnTy
+              _ -> error $ "Trying to type " <> show bnd <>" but the return type has already been taken. This is probably a compiler error."
+      
+      -- we want the return value to have the return type
+      updateContext (DataBinding bnd) newReturnType 
+      -- we want to be sure, only the  return value get's the return type this way
+      modify (HM.delete returnBinding)
+      return $ Var bnd newReturnType
 
-typeTopDown:: NormalizedDFExpr ty ->
-  State (BindingContext ty) (NormalizedDFExpr ty)
-{-typeTopDown (Let (SMapFun out@(Just (Direct dOut), _, _) (DFVar ty scndBnd)) inCont) = do
-      -- So we try to type smapFun  again. 
-      traceM $ "Typing smapFun again"
-      vars <- get 
-      traceM $ " Input vars are " <> show scndBnd
-      let dataInp' = case HM.lookup (unwrapABnd dOut) vars of
-            Just (Exists (DFVar ty' _)) -> trace ("Found Output Type "<> show ty')  DFVar ty' scndBnd
-            _ -> DFVar ty scndBnd
-      -- We don't insert any more
-      -- modify (HM.insert (unwrapABnd scndBnd) $ Exists dataInp')
-      return $ Let (SMapFun out dataInp') inCont-}
 
-typeTopDown pf@(Let (PureDFFun out@(Direct _outBnd) f@(FunRef fun _ _) (sizeVar :| [DFVar scndTy scndBnd])) inCont) 
-  -- So we try to type SMao
-  |fun == Refs.runSTCLangSMap = do
-        traceM $ "Typing SMap again"
-        knownVars <- get
-        let dataInp' = case HM.lookup (unwrapABnd scndBnd) knownVars of
-              Just (Exists (DFVar ty' _)) -> trace ("Found Output Type "<> show ty')  DFVar ty' scndBnd
-              -- ToDo Actually we should fail here
-              _ -> DFVar scndTy scndBnd 
-        return $ Let (PureDFFun out f (sizeVar :| [dataInp'])) inCont
-  | otherwise = return pf
-
-typeTopDown anyExpr = return anyExpr
-
-function_I_want_to_use ::forall b m ty a. MonadState (HashMap Binding (Exists ty)) m => (OutData b, DFVar a ty) -> m( DFVar a ty)
-function_I_want_to_use = 
+maybeUpdateByOutData ::forall b m ty a. MonadState (HashMap Binding (Exists ty)) m => (OutData b, DFVar a ty) -> m( DFVar a ty)
+maybeUpdateByOutData = 
           \(refBnd, inVar) ->
                       case refBnd of
                         Direct bnd -> do
@@ -351,9 +337,6 @@ function_I_want_to_use =
                         Dispatch _ -> fuckIt
     
 
-
-
-
 -- | Updates the type signatures of two zipped DFVars to match them, 
 --   giving the EnvVar type preference over the (possibly) inferred type of the other DFVar
 updateVars :: (DFVar a ty, DFVar b ty) -> (DFVar a ty, DFVar b ty)
@@ -362,7 +345,7 @@ updateVars (DFVar t bnd, DFVar t2 bnd2) =
   in (DFVar newTy bnd, DFVar newTy bnd2)
 updateVars (DFVar t bnd, DFEnvVar t2 lit) =
   -- this case should not occur in recurFun and is only here for the sake of completeness
-  let newTy = maxType t2 t
+  let newTy = maxType t t2
   in (DFVar newTy bnd, DFEnvVar newTy lit)
 updateVars (DFEnvVar t lit, DFVar t2 bnd2) =
   let newTy = maxType t t2
@@ -396,12 +379,17 @@ updateContext aBnd newType  = do
 
   
 
--- | Picks a Argtype from two available ones, choosing any type over TypeVar or the first one.
+-- | Picks a Argtype from two available ones, choosing any type over TypeVar or the second one.
+-- Problem is, we will assign type twice, when we type recursive functions. In that case we hit the 
+-- variable representing the recurFun first, wich is not the actual return value of the algorithm. 
+-- Hence we need to override the firsr assignment and it's more intuitive to express this by choosing the second type
+-- over the first i.e. maxtype old new. 
+-- a
 maxType :: ArgType ty -> ArgType ty -> ArgType ty
 -- ToDo: host language types should be prefered over TypeNat and TypeBool as well
 maxType TypeVar TypeVar = TypeVar
 maxType t TypeVar = t
 maxType TypeVar t = t
-maxType t _  = t
+maxType _ t  = t
 
 fuckIt = error $ "Sorry I didn't handle that case"
