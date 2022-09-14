@@ -33,7 +33,7 @@ generateNodesCode = go
             task <- generateNodeCode app
             (tasks, resRecv) <- go cont
             return (task:tasks,resRecv)
-        go (DFLang.Var bnd) = return ([], SRecv TypeVar $ SChan bnd) -- FIXME needs a concrete type!
+        go (DFLang.Var bnd ty ) = return ([], SRecv ty $ SChan bnd) -- FIXME needs a concrete type!
 
 generateFunctionCode :: forall ty a m. CompM m => DFApp a ty -> LoweringM m (FusableExpr ty)
 generateFunctionCode = \case
@@ -87,7 +87,7 @@ generateArcsCode = go
                 current = filter (not . (`HS.member` collected'))
                           $ manuallyDedup $ map (\(t,b) -> SRecv t $ SChan b) $ insAndTypesDFApp app
             in foldl (flip (NE.<|)) collected current
-        go (DFLang.Var bnd) = SRecv TypeVar (SChan bnd) :|[] -- result channel
+        go (DFLang.Var bnd ty) = SRecv ty (SChan bnd) :|[] -- result channel
 
         manuallyDedup :: [Com 'Recv ty] -> [Com 'Recv ty]
         manuallyDedup = foldr (\x acc -> if x `elem` acc then acc else x : acc) []
@@ -117,7 +117,7 @@ generateNodeCode e@(SMapFun (dOut,ctrlOut,sizeOut) inp) = do
 
       serializeOut :: CompM m => OutData a -> m (NonEmpty Binding)
       serializeOut Destruct{} = throwError $ "We currently do not support destructuring on loop data: " <> show e
-      serializeOut o = pure $ outBnds o
+      serializeOut o = pure $ toOutBnds o
 
 generateNodeCode e@(PureDFFun out (FunRef fun _ _) inp) | fun == collect = do
     (sizeIn, dataIn) <-

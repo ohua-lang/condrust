@@ -11,7 +11,7 @@ import GHC.Exts
 import Ohua.Frontend.Lang as FR
 import Ohua.Frontend.PPrint ()
 import Ohua.Core.ALang.Lang hiding (Expr, ExprF)
-import qualified Ohua.Core.ALang.Lang as AL
+import qualified Ohua.Core.ALang.Lang as ALang
 import qualified Ohua.Core.ALang.Refs as ARefs
 import Ohua.Core.ParseTools.Refs (ifBuiltin, mkTuple, smapBuiltin, seqBuiltin)
 
@@ -157,7 +157,7 @@ unstructure valBnd pats = go (toInteger $ length pats) pats
                      ]) .
         zip [0 ..]
 
-trans :: FR.Expr ty -> AL.Expr ty
+trans :: FR.Expr ty -> ALang.Expr ty
 trans =
     cata $ \case
         VarEF b -> Var b
@@ -195,7 +195,7 @@ trans =
              "(function arguments or let bound variables) should be single vars or wild card but " <> show p <>
              "is not. Please file a bug."
 
-toAlang' :: CompM m => HS.HashSet Binding -> Expr ty -> m (AL.Expr ty)
+toAlang' :: CompM m => HS.HashSet Binding -> Expr ty -> m (ALang.Expr ty)
 toAlang' taken expr = runGenBndT taken $ transform expr
     where 
         transform =
@@ -204,7 +204,7 @@ toAlang' taken expr = runGenBndT taken $ transform expr
             mkLamSingleArgument >>> 
             removeDestructuring >=> pure . trans
 
-toAlang :: CompM m => FR.Expr ty -> m (AL.Expr ty)
+toAlang :: CompM m => FR.Expr ty -> m (ALang.Expr ty)
 toAlang expr = (trace $ "Converting to Alang, Bindings are" <> show (definedBindings expr)) toAlang' (definedBindings expr) expr
 
 definedBindings :: FR.Expr ty -> HS.HashSet Binding

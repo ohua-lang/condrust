@@ -18,7 +18,7 @@ import qualified  Ohua.Frontend as Fr (frontend)
 import Ohua.Frontend.Types (CompilationScope)
 import Ohua.Core.Types.Environment as CoreEnv
 import Ohua.Core.Compile.Configuration as CoreConfig
-import Ohua.Core.Compile as Core (compile)
+import Ohua.Core.Compile as Core (compileWithRetTy)
 import qualified Ohua.Core.Compile.Configuration as CConfig
 import qualified Ohua.Backend as B (backend)
 import Ohua.Compile.Lower.FrLang (toAlang)
@@ -57,12 +57,15 @@ compilation inFile compScope coreOpts outDir optimizations integration arch = do
     -- REMINDER: I need to keep brackets around (ctxt, n) here because frontend returns an object 
     ((ctxt, extracted_algos), enc_module) <- Fr.frontend integration compScope inFile
     -- middle end: 
-    extracted_algos' <- updateExprs extracted_algos $ toAlang >=> core >=> toTCLang
+    extracted_algos_as_ALang <- updateExprs extracted_algos toAlang
+    extracted_algos_as_DFLang <- updateExprsWithReturn extracted_algos_as_ALang core
+    extracted_algos_final <- updateExprs extracted_algos_as_DFLang toTCLang
     -- backend
-    B.backend outDir extracted_algos' ctxt arch enc_module
+    B.backend outDir extracted_algos_final ctxt arch enc_module
 
     where
-        core = Core.compile coreOpts coreOptimizations
+        -- core ::forall (lang::Lang) (arch::Arch) m ty. (CompM m, FullIntegration lang arch) => ALang.Expr ty -> ty -> m (DFLang.NormalizedDFExpr ty)
+        core = Core.compileWithRetTy coreOpts coreOptimizations
         coreOptimizations =
           case optimizations of
             Nothing -> def
