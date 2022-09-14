@@ -92,7 +92,7 @@ instance Hashable (TaskExpr ty)
 
 
 containsBinding :: TaskExpr ty -> Binding -> Bool
-containsBinding (Var bnd) b = b == bnd
+containsBinding (Var bnd ) b = b == bnd
 containsBinding Lit{} _ = False
 containsBinding (Apply app) b = case app of
   (Stateless _ exprs) -> any (`containsBinding` b) exprs
