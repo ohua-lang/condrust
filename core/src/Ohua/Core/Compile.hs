@@ -34,39 +34,6 @@ forceLog :: (MonadLogger m, NFData a) => Text -> a -> m ()
 forceLog msg a = a `deepseq` logDebugN msg
 
 -- | The canonical order of transformations and lowerings performed in a full compilation.
-pipeline :: CustomPasses -> ALang.Expr ty -> OhuaM (NormalizedDFExpr ty)
-pipeline CustomPasses {..} e = do
-    stage resolvedAlang e
-    ssaE <- SSA.performSSA e
-    stage ssaAlang ssaE
-    normalizedE <- APasses.normalize =<< passBeforeNormalize ssaE
-    stage normalizedAlang normalizedE
-    whenDebug $ do
-        APasses.checkProgramValidity normalizedE
-        checkHigherOrderFunctionSupport normalizedE
-        SSA.checkSSA normalizedE
-    customAfterNorm <- passAfterNormalize normalizedE
-    stage customAlangPasses customAfterNorm
-    coreE <- APasses.runCorePasses =<< APasses.normalize customAfterNorm
-    stage coreAlang coreE
-    whenDebug $ do
-        SSA.checkSSA coreE
-        AVerify.checkInvariants coreE
-    dfE <- DFPasses.lowerToDF =<< APasses.normalize coreE
-    stage initialDflang dfE
-    -- Ohua.Core.DFLang.Verify.verify dfE
-    whenDebug $ DFPasses.checkSSA dfE
-    coreDfE <- DFPasses.runCorePasses dfE
-    stage coreDflang coreDfE
-    dfAfterCustom <- passAfterDFLowering coreDfE
-    stage customDflang dfAfterCustom
-    whenDebug $ DFPasses.checkSSA dfAfterCustom
-    dfFinal <- DFPasses.finalPasses dfAfterCustom
-    stage finalDflang dfFinal
-    whenDebug $ DFPasses.checkSSA dfFinal
-    pure dfFinal
-
-
 -- REMINDER: Remove duplicate when done whith type propagation 
 pipelineWithRetTy :: CustomPasses -> ALang.Expr ty -> ty -> OhuaM (NormalizedDFExpr ty)
 pipelineWithRetTy CustomPasses {..} e returnType = do
@@ -101,15 +68,6 @@ pipelineWithRetTy CustomPasses {..} e returnType = do
     pure dfFinal
 
 -- | Run the pipeline in an arbitrary monad that supports error reporting.
-compile :: CompM m => Options -> CustomPasses -> ALang.Expr ty -> m (NormalizedDFExpr ty)
-compile opts passes expr = do
-    logFn <- askLoggerIO
-    let passes' =
-            flip loadTailRecPasses passes $
-            view transformRecursiveFunctions opts
-    either throwError pure =<<
-        liftIO (runLoggingT (runFromExpr opts (pipeline passes') expr) logFn)
-
 -- REMINDER: Remove duplicate when done  whith type propagation 
 compileWithRetTy :: CompM m => Options -> CustomPasses -> (ALang.Expr ty, ty)-> m (NormalizedDFExpr ty)
 compileWithRetTy opts passes (expr, returnType) = do
