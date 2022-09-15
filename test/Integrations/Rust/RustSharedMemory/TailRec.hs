@@ -75,7 +75,7 @@ spec =
                 compiled `shouldBe` expected)
         -- FIXME: [ERROR] Rec like imperative while - because we return a tuple  
         it "[ERROR] Rec like imperative while - because we return a tuple  " $
-            (showCode "Compiled: " =<< compileCodeWithRecWithDebug  [sourceFile|
+            (showCode "Compiled: " =<< compileCodeWithRec  [sourceFile|
                 use funs::*;
 
                 fn while_loop_fun(state:S, i:i32) -> S{
@@ -98,7 +98,7 @@ spec =
        {-         
       -- FIXME: SSA is broken ... see FIXME in SSA.hs
         it "Rec like imperative while - assign rec call " $
-            (showCode "Compiled: " =<< compileCodeWithRecWithDebug  [sourceFile|
+            (showCode "Compiled: " =<< compileCodeWithRec  [sourceFile|
                 use funs::*;
                 /* fn while_loop_fun(state:State, i:i32) -> State{
                   if islowerthan23(i) {
@@ -134,7 +134,7 @@ spec =
 
 
         it "Rec like imperative while- return rec call" $
-            (showCode "Compiled: " =<< compileCodeWithRecWithDebug  [sourceFile|
+            (showCode "Compiled: " =<< compileCodeWithRec  [sourceFile|
                 use funs::*;
 
                 fn while_loop_fun(state:State, i:i32) -> State{

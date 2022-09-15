@@ -61,7 +61,7 @@ spec =
       )
     describe "loop" ( do
         it "deep state simple" $
-            (showCode "Compiled: " =<< compileCodeWithDebug  [sourceFile|
+            (showCode "Compiled: " =<< compileCode  [sourceFile|
                 use funs::*;
 
                  fn test(i:i32) -> () {
@@ -83,7 +83,7 @@ spec =
 
         it "single io" $
             -- FIXME sertel/ohua-core#11
-            (showCode "Compiled: " =<< compileCodeWithDebug  [sourceFile|
+            (showCode "Compiled: " =<< compileCode  [sourceFile|
                 use funs::*;
 
                  fn test(i:i32) -> () {

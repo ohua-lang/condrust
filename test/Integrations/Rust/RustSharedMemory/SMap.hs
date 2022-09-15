@@ -126,7 +126,7 @@ spec =
                 expected <- showCode "Expected:" imperative
                 compiled `shouldBe` expected)
  {-      it "imperative while " $
-            (showCode "Compiled: " =<< compileCodeWithRecWithDebug  [sourceFile|
+            (showCode "Compiled: " =<< compileCodeWithRec  [sourceFile|
                 use funs::*;
 
                 fn test() -> S {

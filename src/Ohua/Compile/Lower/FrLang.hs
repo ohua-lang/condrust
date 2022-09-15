@@ -205,7 +205,7 @@ toAlang' taken expr = runGenBndT taken $ transform expr
             removeDestructuring >=> pure . trans
 
 toAlang :: CompM m => FR.Expr ty -> m (ALang.Expr ty)
-toAlang expr = (trace $ "Converting to Alang, Bindings are" <> show (definedBindings expr)) toAlang' (definedBindings expr) expr
+toAlang expr =  toAlang' (definedBindings expr) expr
 
 definedBindings :: FR.Expr ty -> HS.HashSet Binding
 definedBindings olang =
