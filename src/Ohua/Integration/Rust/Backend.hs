@@ -40,11 +40,12 @@ instance Integration (Language 'Rust) where
     return $
       ns & algos %~ map (\algo -> algo & algoCode %~ convertTasks (algo ^. algoInputCode))
     where
-      convertTasks (Fn _ _ _ (FnDecl args typ _ span) _ _ block _) (Program chans (SRecv _ c) tasks) =
+      convertTasks fnDef (Program chans resultChnl tasks) =
         Program
           chans
-          (SRecv (Type $ TE.Normal $ maybe (TupTy [] ()) void typ) c)
+          resultChnl
           $ map (convertIntoBlock arch . convertEnvs <$>) tasks
+
 
       convertEnvs :: TCLang.TaskExpr RustTypeAnno -> TCLang.TaskExpr RustTypeAnno
       convertEnvs = cata $ \case
