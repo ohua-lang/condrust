@@ -199,7 +199,7 @@ a_function = [sourceFile|
                                     RunError::RecvFailed
                                 }
                             }
-                            let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel();
+                            let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel::<  String,>();
                             let mut tasks: Vec<Box<dyn FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
                             tasks.push(Box::new(move || -> _ {
                                 let a_0_0 = hello_world();
@@ -246,7 +246,7 @@ simple_composition = [sourceFile|
                             RunError::RecvFailed
                             }
                         }
-                        let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel();
+                        let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel::<  String,>();
                         let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
                         let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
                             Vec::new();
@@ -300,7 +300,7 @@ binary_operation = [sourceFile|
                             RunError::RecvFailed
                           }
                         }
-                        let (z1_0_0_0_tx, z1_0_0_0_rx) = std::sync::mpsc::channel();
+                        let (z1_0_0_0_tx, z1_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
                         let (z_0_0_0_tx, z_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
                         let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
                           Vec::new();
@@ -356,7 +356,7 @@ fn test() -> String {
       RunError::RecvFailed
     }
   }
-  let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel();
+  let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel::<  String,>();
   let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (x1_0_0_1_tx, x1_0_0_1_rx) = std::sync::mpsc::channel::<  Arc<  i32,>,>();
   let (x1_0_0_0_0_tx, x1_0_0_0_0_rx) =
@@ -445,7 +445,7 @@ fn test() -> String {
       RunError::RecvFailed
     }
   }
-  let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel();
+  let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel::<  String,>();
   let (x_0_0_1_tx, x_0_0_1_rx) = std::sync::mpsc::channel::<  i32,>();
   let (x_0_0_0_0_tx, x_0_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (y_0_0_0_tx, y_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
@@ -522,7 +522,7 @@ env_vars = [sourceFile|
                                 RunError::RecvFailed
                               }
                             }
-                            let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel();
+                            let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel::<  String,>();
                             let (x_0_0_0_tx, x_0_0_0_rx)  = std::sync::mpsc::channel::<i32>();
                             let mut tasks: Vec<Box<FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
                             tasks
@@ -577,7 +577,7 @@ algo_loading = [sourceFile|
                         RunError::RecvFailed
                         }
                     }
-                    let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel();
+                    let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel::<  String,>();
                     let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
                     let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
                         Vec::new();
@@ -628,7 +628,7 @@ algo_loading = [sourceFile|
                         RunError::RecvFailed
                         }
                     }
-                    let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel();
+                    let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel::<  String,>();
                     let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
                     let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
                         Vec::new();
@@ -685,7 +685,7 @@ algo_loading_globs =
                             RunError::RecvFailed
                             }
                         }
-                        let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel();
+                        let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel::<  String,>();
                         let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
                         let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
                             Vec::new();
@@ -736,7 +736,7 @@ algo_loading_globs =
                             RunError::RecvFailed
                             }
                         }
-                        let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel();
+                        let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel::<  String,>();
                         let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
                         let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
                             Vec::new();
@@ -792,7 +792,7 @@ fn test(i: i32) -> i32 {
       RunError::RecvFailed
     }
   }
-  let (b_0_0_tx, b_0_0_rx) = std::sync::mpsc::channel();
+  let (b_0_0_tx, b_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (x0_0_0_0_tx, x0_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (y0_0_0_0_tx, y0_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (y1_0_0_0_tx, y1_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
@@ -874,7 +874,7 @@ fn test() -> i32 {
       RunError::RecvFailed
     }
   }
-  let (b_0_0_tx, b_0_0_rx) = std::sync::mpsc::channel();
+  let (b_0_0_tx, b_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (x0_0_0_0_tx, x0_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (y0_0_0_0_tx, y0_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (y1_0_0_0_tx, y1_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();

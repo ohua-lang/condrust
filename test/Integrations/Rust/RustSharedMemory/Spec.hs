@@ -26,5 +26,5 @@ spec =
     -- ohua-lang/ohuac#32
     -- Benchmark.spec >>
     Control.spec >>
-    Scoping.spec >>
-    Restrictions.spec
+    Scoping.spec{- >>
+    Restrictions.spec-}

@@ -40,11 +40,28 @@ spec =
         (\compiled -> do
           expected <- showCode "Expected:" thread
           compiled `shouldBe` expected)
-         )
 
+      it "single state" $
+            (showCode "Compiled: " =<< compileCode  [sourceFile|
+                use funs::*;
+
+                 fn test(i:i32) -> () {
+                    let s: S = S::new_state(i);
+                    let stream: Iterator<i32> = iter_i32();
+                    for e in stream {
+                        let e1: S = e;
+                        s.gs(e1);
+                    }
+                    s.gs(5)
+                }
+                |]) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" single_state
+                compiled `shouldBe` expected)
+      )
     describe "loop" ( do
         it "deep state simple" $
-            (showCode "Compiled: " =<< compileCode  [sourceFile|
+            (showCode "Compiled: " =<< compileCodeWithDebug  [sourceFile|
                 use funs::*;
 
                  fn test(i:i32) -> () {
@@ -66,14 +83,14 @@ spec =
 
         it "single io" $
             -- FIXME sertel/ohua-core#11
-            (showCode "Compiled: " =<< compileCode  [sourceFile|
+            (showCode "Compiled: " =<< compileCodeWithDebug  [sourceFile|
                 use funs::*;
 
                  fn test(i:i32) -> () {
                     let io: S = S::new_state(i);
                     let stream: Iterator<i32> = iter_i32();
                     for e in stream {
-                        let e1:S = e;
+                        let e1:i32 = e;
                         io.gs(e1);
                     }
                 }
@@ -81,26 +98,7 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:" single_io
                 compiled `shouldBe` expected)
-
-        it "single state" $
-            (showCode "Compiled: " =<< compileCode  [sourceFile|
-                use funs::*;
-
-                 fn test(i:i32) -> () {
-                    let s: S = S::new_state(i);
-                    let stream: Iterator<i32> = iter_i32();
-                    for e in stream {
-                        let e1: S = e;
-                        s.gs(e1);
-                    }
-                    s.gs(5)
-                }
-                |]) >>=
-            (\compiled -> do
-                expected <- showCode "Expected:" single_state
-                compiled `shouldBe` expected)
-         )
-
+        )
     describe "combo" (do
         it "thread + loop" $
             (showCode "Compiled: " =<< compileCode  [sourceFile|
@@ -142,7 +140,20 @@ spec =
                 expected <- showCode "Expected:" raw_state_out
                 compiled `shouldBe` expected)
         )
+    describe "Minimal case" (do
+        it "minimal state use" $
+            (showCode "Compiled: " =<< compileCode  [sourceFile|
+              
+                 fn test(i:i32) -> WierdType {
+                    let s: S = S::new_state();
+                    s.gs(5)
+                }
+                |]) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:"  minimal
+                compiled `shouldBe` expected)
 
+        )
 
 ----------- Testoutput ------------------
 
@@ -166,7 +177,7 @@ fn test(i: i32) -> i32 {
       RunError::RecvFailed
     }
   }
-  let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel();
+  let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (state_0_0_1_tx, state_0_0_1_rx) = std::sync::mpsc::channel::<  S,>();
   let (result_0_0_0_tx, result_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
@@ -232,7 +243,7 @@ fn test(i: i32) -> String {
       RunError::RecvFailed
     }
   }
-  let (r1_0_0_0_tx, r1_0_0_0_rx) = std::sync::mpsc::channel();
+  let (r1_0_0_0_tx, r1_0_0_0_rx) = std::sync::mpsc::channel::<  String,>();
   let (state_0_0_2_tx, state_0_0_2_rx) = std::sync::mpsc::channel::<  S,>();
   let (state_0_0_1_0_tx, state_0_0_1_0_rx) = std::sync::mpsc::channel::<  S,>();
   let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
@@ -296,12 +307,12 @@ fn test(i: i32) -> () {
       RunError::RecvFailed
     }
   }
-  let (b_0_0_tx, b_0_0_rx) = std::sync::mpsc::channel();
-  let (ctrl_0_tx, ctrl_0_rx) = std::sync::mpsc::channel();
+  let (b_0_0_tx, b_0_0_rx) = std::sync::mpsc::channel::<  (),>();
+  let (ctrl_0_tx, ctrl_0_rx) = std::sync::mpsc::channel::<  (bool, usize),>();
   let (d_0_tx, d_0_rx) = std::sync::mpsc::channel::<  S,>();
-  let (c_0_0_tx, c_0_0_rx) = std::sync::mpsc::channel();
-  let (size_0_tx, size_0_rx) = std::sync::mpsc::channel();
-  let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel();
+  let (c_0_0_tx, c_0_0_rx) = std::sync::mpsc::channel::<  (),>();
+  let (size_0_tx, size_0_rx) = std::sync::mpsc::channel::<  usize,>();
+  let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel::<  Vec<  (),>,>();
   let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
     Vec::new();
   tasks
@@ -407,14 +418,16 @@ fn test(i: i32) -> () {
       RunError::RecvFailed
     }
   }
-  let (b_0_0_tx, b_0_0_rx) = std::sync::mpsc::channel();
+  let (b_0_0_tx, b_0_0_rx) = std::sync::mpsc::channel::<  (),>();
   let (io_0_0_1_tx, io_0_0_1_rx) = std::sync::mpsc::channel::<  S,>();
-  let (ctrl_0_0_tx, ctrl_0_0_rx) = std::sync::mpsc::channel::<  (_, _),>();
-  let (ctrl_0_1_tx, ctrl_0_1_rx) = std::sync::mpsc::channel();
-  let (d_1_tx, d_1_rx) = std::sync::mpsc::channel::<  S,>();
-  let (c_0_0_tx, c_0_0_rx) = std::sync::mpsc::channel();
-  let (size_0_tx, size_0_rx) = std::sync::mpsc::channel();
-  let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel();
+  let (ctrl_0_0_tx, ctrl_0_0_rx) =
+    std::sync::mpsc::channel::<  (bool, usize),>();
+  let (ctrl_0_1_tx, ctrl_0_1_rx) =
+    std::sync::mpsc::channel::<  (bool, usize),>();
+  let (d_1_tx, d_1_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (c_0_0_tx, c_0_0_rx) = std::sync::mpsc::channel::<  (),>();
+  let (size_0_tx, size_0_rx) = std::sync::mpsc::channel::<  usize,>();
+  let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel::<  Vec<  (),>,>();
   let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
     Vec::new();
   tasks
@@ -547,9 +560,10 @@ fn test(i: i32) -> () {
       RunError::RecvFailed
     }
   }
-  let (b_0_0_tx, b_0_0_rx) = std::sync::mpsc::channel();
+  let (b_0_0_tx, b_0_0_rx) = std::sync::mpsc::channel::<  (),>();
   let (s_0_0_1_tx, s_0_0_1_rx) = std::sync::mpsc::channel::<  S,>();
-  let (ctrl_0_0_tx, ctrl_0_0_rx) = std::sync::mpsc::channel::<  (_, _),>();
+  let (ctrl_0_0_tx, ctrl_0_0_rx) =
+    std::sync::mpsc::channel::<  (bool, usize),>();
   let (d_1_tx, d_1_rx) = std::sync::mpsc::channel::<  S,>();
   let (s_0_1_1_tx, s_0_1_1_rx) = std::sync::mpsc::channel::<  S,>();
   let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
@@ -633,7 +647,8 @@ fn test(i: i32) -> () {
     Ok(res) => res,
     Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
   }
-}|]
+}
+|]
 
 thread_and_loop :: SourceFile Span
 thread_and_loop = [sourceFile|
@@ -655,12 +670,14 @@ fn test(i: i32) -> i32 {
       RunError::RecvFailed
     }
   }
-  let (b_0_0_tx, b_0_0_rx) = std::sync::mpsc::channel();
+  let (b_0_0_tx, b_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (s_0_0_2_tx, s_0_0_2_rx) = std::sync::mpsc::channel::<  S,>();
   let (s_0_0_1_0_tx, s_0_0_1_0_rx) = std::sync::mpsc::channel::<  S,>();
-  let (ctrl_0_0_tx, ctrl_0_0_rx) = std::sync::mpsc::channel::<  (_, _),>();
+  let (ctrl_0_0_tx, ctrl_0_0_rx) =
+    std::sync::mpsc::channel::<  (bool, usize),>();
   let (sp_0_0_0_tx, sp_0_0_0_rx) = std::sync::mpsc::channel::<  S,>();
-  let (ctrl_0_1_tx, ctrl_0_1_rx) = std::sync::mpsc::channel::<  (_, _),>();
+  let (ctrl_0_1_tx, ctrl_0_1_rx) =
+    std::sync::mpsc::channel::<  (bool, usize),>();
   let (d_1_tx, d_1_rx) = std::sync::mpsc::channel::<  i32,>();
   let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (s_0_1_1_tx, s_0_1_1_rx) = std::sync::mpsc::channel::<  S,>();
@@ -803,12 +820,14 @@ fn test(i: i32) -> S {
       RunError::RecvFailed
     }
   }
-  let (s_0_1_0_tx, s_0_1_0_rx) = std::sync::mpsc::channel();
+  let (s_0_1_0_tx, s_0_1_0_rx) = std::sync::mpsc::channel::<  S,>();
   let (s_0_0_2_tx, s_0_0_2_rx) = std::sync::mpsc::channel::<  S,>();
   let (s_0_0_1_0_tx, s_0_0_1_0_rx) = std::sync::mpsc::channel::<  S,>();
-  let (ctrl_0_0_tx, ctrl_0_0_rx) = std::sync::mpsc::channel::<  (_, _),>();
+  let (ctrl_0_0_tx, ctrl_0_0_rx) =
+    std::sync::mpsc::channel::<  (bool, usize),>();
   let (sp_0_0_0_tx, sp_0_0_0_rx) = std::sync::mpsc::channel::<  S,>();
-  let (ctrl_0_1_tx, ctrl_0_1_rx) = std::sync::mpsc::channel::<  (_, _),>();
+  let (ctrl_0_1_tx, ctrl_0_1_rx) =
+    std::sync::mpsc::channel::<  (bool, usize),>();
   let (d_1_tx, d_1_rx) = std::sync::mpsc::channel::<  i32,>();
   let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
@@ -920,3 +939,56 @@ fn test(i: i32) -> S {
     Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
   }
 } |]
+
+minimal = [sourceFile|
+fn test(i: i32) -> WierdType {
+  #[derive(Debug)]
+  enum RunError {
+    SendFailed,
+    RecvFailed,
+  }
+  impl<  T: Send,> From<  std::sync::mpsc::SendError<  T,>,> for RunError {
+    fn from(_err: std::sync::mpsc::SendError<  T,>) -> Self {
+      RunError::SendFailed
+    }
+  }
+  impl From<  std::sync::mpsc::RecvError,> for RunError {
+    fn from(_err: std::sync::mpsc::RecvError) -> Self {
+      RunError::RecvFailed
+    }
+  }
+  let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel::<  WierdType,>();
+  let (s_0_0_1_tx, s_0_0_1_rx) = std::sync::mpsc::channel::<  S,>();
+  let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
+    Vec::new();
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
+        let mut var_0 = s_0_0_1_rx.recv()?;
+        let a_0_0 = var_0.gs(5);
+        a_0_0_tx.send(a_0_0)?;
+        ()
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      let s_0_0_1 = S::new_state();
+      s_0_0_1_tx.send(s_0_0_1)?;
+      Ok(())
+    }));
+  let handles: Vec<  std::thread::JoinHandle<  _,>,> =
+    tasks
+      .into_iter()
+      .map(|t| { std::thread::spawn(move || { let _ = t(); }) })
+      .collect();
+  for h in handles {
+    if let Err(_) = h.join() {
+      eprintln!("[Error] A worker thread of an Ohua algorithm has panicked!");
+    }
+  }
+  match a_0_0_rx.recv() {
+    Ok(res) => res,
+    Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
+  }
+}
+|]

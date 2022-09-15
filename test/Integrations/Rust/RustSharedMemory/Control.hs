@@ -92,9 +92,9 @@ fn test() -> i32 {
       RunError::RecvFailed
     }
   }
-  let (c_0_0_tx, c_0_0_rx) = std::sync::mpsc::channel();
-  let (k_0_0_0_0_tx, k_0_0_0_0_rx) = std::sync::mpsc::channel();
-  let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel();
+  let (c_0_0_tx, c_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (k_0_0_0_0_tx, k_0_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel::<  bool,>();
   let (one_0_0_1_tx, one_0_0_1_rx) = std::sync::mpsc::channel::<  i32,>();
   let (o2_0_0_0_tx, o2_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (one_0_0_0_0_tx, one_0_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
@@ -214,10 +214,10 @@ fn test() -> i32 {
       RunError::RecvFailed
     }
   }
-  let (c_0_0_tx, c_0_0_rx) = std::sync::mpsc::channel();
-  let (k1_0_0_0_tx, k1_0_0_0_rx) = std::sync::mpsc::channel();
-  let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel();
-  let (i1_0_0_0_tx, i1_0_0_0_rx) = std::sync::mpsc::channel();
+  let (c_0_0_tx, c_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (k1_0_0_0_tx, k1_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel::<  bool,>();
+  let (i1_0_0_0_tx, i1_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (one_0_0_0_tx, one_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (i_0_0_1_tx, i_0_0_1_rx) = std::sync::mpsc::channel::<  i32,>();
   let (i_0_0_0_0_tx, i_0_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();

@@ -167,8 +167,8 @@ spec =
                         let iter:Iterator<i32> = range(0,23);
                         let x:State = State::new();
                         for i in iter {
-                            let i:i32 = id(i);
-                            x.do_stuff(i);
+                            let i1:i32 = id(i);
+                            x.do_stuff(i1);
                             x.make()
                         } 
                         x
@@ -181,7 +181,7 @@ spec =
 
 placeholder = [sourceFile|
 
-pub fn hello() -> i32d {
+pub fn hello() -> i32 {
     let x = something();
     x
 }

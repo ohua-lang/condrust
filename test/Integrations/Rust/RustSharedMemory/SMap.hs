@@ -169,9 +169,10 @@ fn test() -> S {
       RunError::RecvFailed
     }
   }
-  let (s_0_1_0_tx, s_0_1_0_rx) = std::sync::mpsc::channel();
+  let (s_0_1_0_tx, s_0_1_0_rx) = std::sync::mpsc::channel::<  S,>();
   let (s_0_0_1_tx, s_0_0_1_rx) = std::sync::mpsc::channel::<  S,>();
-  let (ctrl_0_0_tx, ctrl_0_0_rx) = std::sync::mpsc::channel::<  (_, _),>();
+  let (ctrl_0_0_tx, ctrl_0_0_rx) =
+    std::sync::mpsc::channel::<  (bool, usize),>();
   let (d_0_tx, d_0_rx) = std::sync::mpsc::channel::<  S,>();
   let (r_0_0_0_tx, r_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =

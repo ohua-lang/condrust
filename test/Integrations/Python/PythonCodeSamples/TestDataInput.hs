@@ -760,14 +760,14 @@ def algo(n):
 tailRecExpr :: ModuleSpan
 tailRecExpr = [pythonModule|
 from testLib import *
-def algo2(i):
+def algo_rec(i):
     j,k = double(i)
     recursionFlag = g0(j)
     returnV = g0(k)
-    return  algo2(returnV) if check(recursionFlag) else returnV
+    return  algo_rec(returnV) if check(recursionFlag) else returnV
 
 def algo():
-    return algo2(1)
+    return algo_rec(1)
 |]
 
 tailRecExpr2 :: ModuleSpan

@@ -82,7 +82,7 @@ spec =
             [sourceFile|
 
                 const global:i32 = 9;
-                static st_thing:String = String::from(" times hello");
+                static st_thing:Char = 'V';
 
                 fn test() -> i32 {
                     let x:i32 = f(global);
@@ -91,12 +91,9 @@ spec =
                 }
 
                 fn second_algo(arg:i32)-> String {
-                    // -- ToDo: Missing language construct. 
-                    //          The original call would be : let mut as_string:String = arg.to_string();
-                    //          But it seems we can not use arguments as states, which should be possible 
-                    //          I think, at least for algorithms
                     let mut as_string:String = to_string(arg);
-                    as_string.push(st_thing)
+                    as_string.push(st_thing);
+                    as_string
                 }
             |]) >>=
             (\compiled -> do
@@ -136,7 +133,7 @@ fn test() -> i32 {
       RunError::RecvFailed
     }
   }
-  let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel();
+  let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (x_1_0_0_tx, x_1_0_0_rx) = std::sync::mpsc::channel::<  String,>();
   let (s_0_0_1_tx, s_0_0_1_rx) = std::sync::mpsc::channel::<  State,>();
   let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
@@ -214,10 +211,12 @@ fn test() -> i32 {
       RunError::RecvFailed
     }
   }
-  let (c_0_0_tx, c_0_0_rx) = std::sync::mpsc::channel();
+  let (c_0_0_tx, c_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (s_0_0_1_tx, s_0_0_1_rx) = std::sync::mpsc::channel::<  State,>();
-  let (ctrl_0_0_tx, ctrl_0_0_rx) = std::sync::mpsc::channel::<  (_, _),>();
-  let (ctrl_0_1_tx, ctrl_0_1_rx) = std::sync::mpsc::channel();
+  let (ctrl_0_0_tx, ctrl_0_0_rx) =
+    std::sync::mpsc::channel::<  (bool, usize),>();
+  let (ctrl_0_1_tx, ctrl_0_1_rx) =
+    std::sync::mpsc::channel::<  (bool, usize),>();
   let (x_1_0_0_tx, x_1_0_0_rx) = std::sync::mpsc::channel::<  String,>();
   let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
@@ -352,7 +351,7 @@ fn test() -> i32 {
       RunError::RecvFailed
     }
   }
-  let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel();
+  let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (y_0_0_0_tx, y_0_0_0_rx) = std::sync::mpsc::channel::<  String,>();
   let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
@@ -402,7 +401,7 @@ scoped_static :: SourceFile Span
 scoped_static = [sourceFile|
 const global: i32 = 9;
 
-static st_thing: String = String::from(" times hello");
+static st_thing: Char = 'V';
 
 fn test() -> i32 {
   #[derive(Debug)]
@@ -420,17 +419,18 @@ fn test() -> i32 {
       RunError::RecvFailed
     }
   }
-  let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel();
+  let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (as_string_0_0_1_tx, as_string_0_0_1_rx) =
     std::sync::mpsc::channel::<  String,>();
-  let (y_0_0_0_tx, y_0_0_0_rx) = std::sync::mpsc::channel::<  String,>();
+  let (as_string_0_0_0_0_tx, as_string_0_0_0_0_rx) =
+    std::sync::mpsc::channel::<  String,>();
   let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
     Vec::new();
   tasks
     .push(Box::new(move || -> _ {
       loop {
-        let var_0 = y_0_0_0_rx.recv()?;
+        let var_0 = as_string_0_0_0_0_rx.recv()?;
         let a_0_0 = h(var_0);
         a_0_0_tx.send(a_0_0)?;
         ()
@@ -440,9 +440,8 @@ fn test() -> i32 {
     .push(Box::new(move || -> _ {
       loop {
         let mut var_0 = as_string_0_0_1_rx.recv()?;
-        let y_0_0_0 = var_0.push(st_thing);
-        y_0_0_0_tx.send(y_0_0_0)?;
-        ()
+        var_0.push(st_thing);
+        as_string_0_0_0_0_tx.send(var_0)?
       }
     }));
   tasks
@@ -492,7 +491,8 @@ fn second_algo(arg: i32) -> String {
       RunError::RecvFailed
     }
   }
-  let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel();
+  let (as_string_0_0_0_0_tx, as_string_0_0_0_0_rx) =
+    std::sync::mpsc::channel::<  String,>();
   let (as_string_0_0_1_tx, as_string_0_0_1_rx) =
     std::sync::mpsc::channel::<  String,>();
   let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
@@ -501,9 +501,8 @@ fn second_algo(arg: i32) -> String {
     .push(Box::new(move || -> _ {
       loop {
         let mut var_0 = as_string_0_0_1_rx.recv()?;
-        let a_0_0 = var_0.push(st_thing);
-        a_0_0_tx.send(a_0_0)?;
-        ()
+        var_0.push(st_thing);
+        as_string_0_0_0_0_tx.send(var_0)?
       }
     }));
   tasks
@@ -522,7 +521,7 @@ fn second_algo(arg: i32) -> String {
       eprintln!("[Error] A worker thread of an Ohua algorithm has panicked!");
     }
   }
-  match a_0_0_rx.recv() {
+  match as_string_0_0_0_0_rx.recv() {
     Ok(res) => res,
     Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
   }

@@ -69,16 +69,17 @@ fn test(i: i32) -> i32 {
       RunError::RecvFailed
     }
   }
-  let (g_0_0_tx, g_0_0_rx) = std::sync::mpsc::channel();
-  let (a_0_0_0_0_tx, a_0_0_0_0_rx) = std::sync::mpsc::channel();
+  let (g_0_0_tx, g_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (a_0_0_0_0_tx, a_0_0_0_0_rx) = std::sync::mpsc::channel::<  bool,>();
   let (b_0_0_0_tx, b_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
-  let (ctrlTrue_0_tx, ctrlTrue_0_rx) = std::sync::mpsc::channel::<  (_, _),>();
+  let (ctrlTrue_0_tx, ctrlTrue_0_rx) =
+    std::sync::mpsc::channel::<  (bool, usize),>();
   let (c_0_0_0_tx, c_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (ctrlFalse_0_tx, ctrlFalse_0_rx) =
-    std::sync::mpsc::channel::<  (_, _),>();
-  let (f_0_0_tx, f_0_0_rx) = std::sync::mpsc::channel();
-  let (e_0_0_tx, e_0_0_rx) = std::sync::mpsc::channel();
-  let (a_0_0_0_1_tx, a_0_0_0_1_rx) = std::sync::mpsc::channel();
+    std::sync::mpsc::channel::<  (bool, usize),>();
+  let (f_0_0_tx, f_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (e_0_0_tx, e_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (a_0_0_0_1_tx, a_0_0_0_1_rx) = std::sync::mpsc::channel::<  bool,>();
   let (result_0_tx, result_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
     Vec::new();
@@ -213,13 +214,15 @@ fn test(i: i32) -> i32 {
       RunError::RecvFailed
     }
   }
-  let (e_0_0_tx, e_0_0_rx) = std::sync::mpsc::channel();
-  let (a_0_0_0_0_tx, a_0_0_0_0_rx) = std::sync::mpsc::channel();
-  let (ctrlTrue_0_tx, ctrlTrue_0_rx) = std::sync::mpsc::channel();
-  let (ctrlFalse_0_tx, ctrlFalse_0_rx) = std::sync::mpsc::channel();
-  let (c_0_0_tx, c_0_0_rx) = std::sync::mpsc::channel();
-  let (b_0_0_tx, b_0_0_rx) = std::sync::mpsc::channel();
-  let (a_0_0_0_1_tx, a_0_0_0_1_rx) = std::sync::mpsc::channel();
+  let (e_0_0_tx, e_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (a_0_0_0_0_tx, a_0_0_0_0_rx) = std::sync::mpsc::channel::<  bool,>();
+  let (ctrlTrue_0_tx, ctrlTrue_0_rx) =
+    std::sync::mpsc::channel::<  (bool, usize),>();
+  let (ctrlFalse_0_tx, ctrlFalse_0_rx) =
+    std::sync::mpsc::channel::<  (bool, usize),>();
+  let (c_0_0_tx, c_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (b_0_0_tx, b_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (a_0_0_0_1_tx, a_0_0_0_1_rx) = std::sync::mpsc::channel::<  bool,>();
   let (result_0_tx, result_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
     Vec::new();

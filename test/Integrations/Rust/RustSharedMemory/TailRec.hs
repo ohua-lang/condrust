@@ -187,8 +187,8 @@ fn test() -> i32 {
       RunError::RecvFailed
     }
   }
-  let (c_0_0_tx, c_0_0_rx) = std::sync::mpsc::channel();
-  let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel();
+  let (c_0_0_tx, c_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel::<  bool,>();
   let (i_0_0_0_tx, i_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (j_0_0_0_tx, j_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
@@ -265,8 +265,8 @@ fn test() -> i32 {
       RunError::RecvFailed
     }
   }
-  let (c_0_0_tx, c_0_0_rx) = std::sync::mpsc::channel();
-  let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel();
+  let (c_0_0_tx, c_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel::<  bool,>();
   let (one_0_0_0_tx, one_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (two_0_0_0_tx, two_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (j_0_0_0_tx, j_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
@@ -372,9 +372,10 @@ fn test() -> i32 {
       RunError::RecvFailed
     }
   }
-  let (c_0_0_tx, c_0_0_rx) = std::sync::mpsc::channel();
-  let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel();
-  let (ctrl_0_0_0_tx, ctrl_0_0_0_rx) = std::sync::mpsc::channel();
+  let (c_0_0_tx, c_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel::<  bool,>();
+  let (ctrl_0_0_0_tx, ctrl_0_0_0_rx) =
+    std::sync::mpsc::channel::<  (bool, usize),>();
   let (one_0_0_0_tx, one_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (j_0_0_0_tx, j_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (i_0_0_0_tx, i_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
