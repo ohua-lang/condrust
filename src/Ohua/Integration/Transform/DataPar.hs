@@ -176,9 +176,9 @@ liftPureFunctions = rewriteSMap
     collectSMap (DFL.Let app cont) =
       case app of
         -- loop body has ended
-        (PureDFFun _ (FunRef fn _ _) (_ :| [DFVar _ result]))
+        (PureDFFun _ (FunRef fn _ _) (_ :| [DFVar rty result]))
           | fn == DFRef.collect ->
-            pure (DFL.Var $ unwrapABnd result, app, cont)
+            pure (DFL.Var (unwrapABnd result) rty, app, cont)
         SMapFun{} ->
             unsupported "Nested smap expressions"
         _ -> do
