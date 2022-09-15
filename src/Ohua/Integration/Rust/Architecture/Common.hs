@@ -12,6 +12,7 @@ import Ohua.Integration.Rust.Types
 import Ohua.Integration.Rust.Util
 import Ohua.Prelude
 import System.FilePath (takeFileName)
+import Language.Rust.Data.Ident
 
 serialize ::
   CompM m =>
@@ -42,3 +43,18 @@ serialize (Module path (SourceFile modName atts items)) ns createProgram placeho
             Fn atts vis ident decl header gen (span <$ createProgram algo) span
           Nothing -> f
       i -> i
+
+
+toRustTy :: ArgType TE.RustTypeAnno -> Rust.Ty ()
+-- ToDo: We have a distinction between 'single' types and tuples but beyond that do not care
+-- if it's a Path expression a Self or whatever. Currently we don't allow fancy return types so
+-- maybe that's Ok but I have to evaluate later!!
+toRustTy TypeVar = Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "_" Nothing ()] ()) ()
+toRustTy (Type (TE.Self ty _ _ )) = ty
+toRustTy (Type (TE.Normal ty)) = ty
+toRustTy (TupleTy types) = Rust.TupTy (toList $ map toRustTy types) ()
+toRustTy TypeNat = Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "usize" Nothing ()] ()) ()
+toRustTy TypeBool = Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "bool" Nothing ()] ()) ()
+toRustTy TypeUnit = Rust.TupTy [] ()
+toRustTy (TypeList itemType) =  PathTy Nothing (Path False [PathSegment "Vec" (Just (AngleBracketed [TypeArg (toRustTy itemType)] [] ())) ()] ()) ()
+  
