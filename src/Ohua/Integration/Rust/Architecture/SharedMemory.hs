@@ -168,7 +168,7 @@ instance Architecture (Architectures 'SharedMemory) where
 
 convertToRustType :: ArgType TE.RustTypeAnno -> Maybe Sub.RustType 
 convertToRustType = \case 
-          --TypeVar -> Nothing
+          TypeVar -> Nothing
           otherType -> Just $ Sub.RustType $ toRustTy otherType
 
 
