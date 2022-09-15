@@ -5,7 +5,7 @@
 module Ohua.Core.DFLang.Lang where
 
 import qualified Data.List.NonEmpty as NE
-import Ohua.Core.ALang.Refs as ALangRefs (recurFun, smapFun, ifFun)
+import Ohua.Core.ALang.Refs as ALangRefs (recurFun, smapFun, ifFun, collect, seqFun, select, ctrl)
 import Ohua.Core.Prelude hiding (length)
 import Ohua.Types.Vector as V hiding (map)
 import qualified Data.HashSet as HS
@@ -84,6 +84,7 @@ data DFApp (f :: FunANF) (ty :: Type) :: Type where
     DFVar 'State ty ->
     NonEmpty (DFVar 'Data ty) ->
     DFApp 'ST ty
+
   RecurFun :: --(n ~ 'Succ m) =>
   -- (final) result out
     OutData b ->
@@ -100,6 +101,7 @@ data DFApp (f :: FunANF) (ty :: Type) :: Type where
     -- | (final) result in
     DFVar 'Data ty ->
     DFApp 'Fun ty -- DFApp 'BuiltIn ty , commented BuiltIn out cause it's currently useless and messes up my monads
+
   SMapFun ::
     -- TODO the below output type is not strong enough because we want to say,
     --      that at least one of these things needs to be present.
@@ -120,8 +122,9 @@ data DFApp (f :: FunANF) (ty :: Type) :: Type where
     :: (OutData 'Data, OutData 'Data)
     -> DFVar 'Data ty
     -> DFApp 'Fun ty -- FIXME would be this: DFApp 'BuiltIn ty (fix when all IRs are fixed and I do not need to convert a Fun into a BuiltIn)
-{-
+
   CollectFun
+    -- collect :: nat ->  A -> [A]
     -- output is a list of lenght first input of elements, second input
     :: (OutData 'Data) -> 
     -- | first input as a nat
@@ -130,9 +133,27 @@ data DFApp (f :: FunANF) (ty :: Type) :: Type where
     DFVar 'Data ty -> 
     DFApp 'Fun ty 
 
--- Collect
--- Ctrl
--- Select-}
+  CtrlFun 
+    -- ctrl:: (bool, nat) -> A -> A
+    :: OutData a ->
+    -- | the  controle signal (bool, nat)
+    DFVar 'Data ty->
+    -- | the data input
+    DFVar 'Data ty -> 
+    DFApp 'Fun ty
+
+  SelectFun
+    -- select :: bool -> A -> A -> A
+    :: OutData a -> 
+    -- | the signal which one to use
+    DFVar 'Data ty ->
+    -- | the first input
+    DFVar 'Data ty ->
+    -- | the second input
+    DFVar 'Data ty ->
+    DFApp 'Fun ty
+    
+
 
 data Expr (fun :: FunANF -> Type -> Type) (ty :: Type) :: Type where
   Let :: (Show (fun a ty), Function (fun a ty)) => fun a ty -> Expr fun ty -> Expr fun ty
@@ -170,6 +191,9 @@ outsDFApp (SMapFun (dOut, collectOut, sizeOut) _) =
   maybe [] (NE.toList . toOutBnds) collectOut ++
   maybe [] (NE.toList . toOutBnds) sizeOut
 outsDFApp (IfFun (oTrue, oFalse) _) = NE.toList $ toOutBnds oTrue <> toOutBnds oFalse
+outsDFApp (CollectFun out _size _lst ) =  (NE.toList . toOutBnds) out 
+outsDFApp (SelectFun out _ _ _ ) =  (NE.toList . toOutBnds) out 
+outsDFApp (CtrlFun out _sig _data) = (NE.toList . toOutBnds) out 
 
 toOutBnds :: OutData a -> NonEmpty Binding
 toOutBnds (Destruct o) = sconcat $ NE.map toOutBnds o
@@ -190,6 +214,9 @@ insDFApp (RecurFun _ _ _ initIns recurs cond result) =
     <> extractBndsFromInputs [result]
 insDFApp (SMapFun _ dIn) = extractBndsFromInputs [dIn]
 insDFApp (IfFun _ dIn) = extractBndsFromInputs [dIn]
+insDFApp (CollectFun _ size lst ) = extractBndsFromInputs [size, lst]   
+insDFApp (SelectFun _ sign fstIn scndIn ) =   extractBndsFromInputs [sign, fstIn, scndIn ]
+insDFApp (CtrlFun _ sig dataIn) = extractBndsFromInputs [sig, dataIn]
 
 extractBndsFromInputs :: [DFVar a ty] -> [Binding]
 extractBndsFromInputs =
@@ -206,6 +233,9 @@ insAndTypesDFApp (RecurFun _ _ _ initIns recurs cond result) =
     <> extractBndsAndTypesFromInputs [result]
 insAndTypesDFApp (SMapFun _ dIn) = extractBndsAndTypesFromInputs [dIn]
 insAndTypesDFApp (IfFun _ dIn) = extractBndsAndTypesFromInputs [dIn]
+insAndTypesDFApp (CollectFun _ size lst ) = extractBndsAndTypesFromInputs [size, lst]   
+insAndTypesDFApp (SelectFun _ sign fstIn scndIn ) =   extractBndsAndTypesFromInputs [sign, fstIn, scndIn ]
+insAndTypesDFApp (CtrlFun _ sig dataIn) = extractBndsAndTypesFromInputs [sig, dataIn]
 
 extractBndsAndTypesFromInputs :: [DFVar a ty] -> [(ArgType ty, Binding)]
 extractBndsAndTypesFromInputs =
@@ -314,6 +344,9 @@ instance Function (DFApp ty a) where
       RecurFun {} -> ALangRefs.recurFun
       SMapFun {} -> ALangRefs.smapFun
       IfFun {} -> ALangRefs.ifFun
+      CollectFun {} -> ALangRefs.collect
+      SelectFun {} -> ALangRefs.select
+      CtrlFun {} -> ALangRefs.ctrl
 
 transformExpr :: forall ty. (NormalizedDFExpr ty -> NormalizedDFExpr ty) -> NormalizedDFExpr ty -> NormalizedDFExpr ty
 transformExpr f = runIdentity . transformExprM go
@@ -379,7 +412,9 @@ substitute strat (from,to) e = evalState (mapFunsM go e) False
                                -- we need a better representation for these.
     go (SMapFun o i) = check =<< SMapFun o <$> replace i
     go (IfFun o i) = check =<< IfFun o <$> replace i
-
+    go (CollectFun o fstIn scdIn) = check =<< CollectFun o <$> replace fstIn <*> replace scdIn
+    go (CtrlFun o ctrlIn dataIn) = check =<< CtrlFun o <$> replace ctrlIn <*> replace dataIn
+    go (SelectFun o sign fstIn scdIn) = check =<< SelectFun o <$> replace sign <*> replace fstIn <*> replace scdIn
     replace :: DFVar t ty -> State Bool (DFVar t ty)
     replace d@(DFVar t bnd) | unwrapABnd bnd == from = do
                               s <- get
