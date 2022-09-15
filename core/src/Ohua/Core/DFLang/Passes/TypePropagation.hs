@@ -112,10 +112,20 @@ typeBottomUp pf@(Let (PureDFFun out@(Direct outBnd) f@(FunRef fun _fid fTy) inpu
 
   | fun == Refs.collect = do
             -- collect :: (nat, A) -> [A]
-            aVar <- maybeUpdate outBnd scndIn 
+            -- FIXME: Current assumption -> A is always Unit, cause the combination of
+            -- of collect and seq is merely to keep calculation going when no actual result is returned from the
+            -- loop
+            let aVar = case scndIn of 
+                  (DFVar _ty bnd) -> DFVar TypeUnit bnd
+                  (DFEnvVar _ty lit) -> DFEnvVar TypeUnit lit
+
+            case scndIn of 
+                  (DFVar _ty scndBnd) -> updateContext scndBnd TypeUnit
+                  _ -> return ()
 
             let natVar = DFVar TypeNat fstBnd
             updateContext fstBnd TypeNat
+
             return $ Let (PureDFFun out f (natVar :| [aVar])) inCont
             
   | fun == Refs.runSTCLangSMap = do
@@ -138,7 +148,7 @@ typeBottomUp pf@(Let (PureDFFun out@(Direct outBnd) f@(FunRef fun _fid fTy) inpu
                       Just (Exists (DFVar ty' _)) -> ty'
                       Just (Exists (DFEnvVar ty' _)) -> ty'
                       Nothing -> TypeVar
-                    otherwise -> undefined
+                    _ -> undefined
 
             let realFunType = TypeBool :| [realOutTy, realOutTy]
             -- Type Input vars 
@@ -168,11 +178,11 @@ typeBottomUp pf@(Let (PureDFFun out@(Direct outBnd) f@(FunRef fun _fid fTy) inpu
             traceM "Hit a normal function. Should learn from function type"
             let dataInps' = 
                   case fTy of
-                    (FunType (Right types)) -> 
+                    (FunType (Right ftypes)) -> 
                         NE.map (\case
                               (DFVar _ bnd, ty') -> DFVar ty' bnd
                               (DFEnvVar _ lit, ty') -> DFEnvVar ty' lit
-                          ) $ NE.zip inputs types
+                          ) $ NE.zip inputs ftypes
                     _ -> inputs
           -- Then we add all the variables and their newly assigned types (which may still be TypeVar) to the context
           -- As we go bottom up, those variables will be the output of some function in outer scope, so we can type these
