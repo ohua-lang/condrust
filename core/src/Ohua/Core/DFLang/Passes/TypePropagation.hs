@@ -133,7 +133,7 @@ typeBottomUp pf@(Let (PureDFFun out@(Direct outBnd) f@(FunRef fun _fid fTy) inpu
             -- This node collects state mutations from a loop i.e. it might be the last point in code 
             -- where this state is used and hence we won't get type information 'bottom up' here. 
             -- But we can try while we're at it 
-            let ctrlVar' = DFVar TypeBool fstBnd
+            let ctrlVar' = DFVar TypeNat fstBnd
             modify (HM.insert (unwrapABnd fstBnd) $ Exists ctrlVar')
             dataInp' <- maybeUpdate outBnd scndIn
             return $ Let (PureDFFun out f (ctrlVar' :| [dataInp'])) inCont
@@ -219,21 +219,11 @@ typeBottomUp e'@(Let (PureDFFun _out (FunRef bnd _ _fty) _params) _inCont) = do
   return e'
 
 -- SMap
-typeBottomUp (Let (SMapFun out@(Just (Direct dOut), _, _) (DFVar ty scndBnd)) inCont) = do
-      traceM $ "Typing smapFun"
-      -- Smap is used to collect actions on a state from a loop
-      -- This means, it is guaranteed, the the state was used (type assigned) before, but
-      -- not necessarily after SMap. Hence it makes more sense to type it in a top down, than in a bottom up pass.
-      vars <- get
-      let dataInp' = case HM.lookup (unwrapABnd dOut) vars of
-            Just (Exists (DFVar ty' _)) -> DFVar ty' scndBnd
-            _ -> DFVar ty scndBnd
-      modify (HM.insert (unwrapABnd scndBnd) $ Exists dataInp')
-      return $ Let (SMapFun out dataInp') inCont
-
-typeBottomUp e'@(Let (SMapFun (outData, outControle, outSize) inp) inCont) = do
-  traceM $ "Not typing SMap function" <> show e'
-  return e'
+typeBottomUp smf@(Let (SMapFun out@(_fst,_scnd, _trd) iterableVar ) inCont) = do
+  -- Typing smapFun is not usefull. It's outputs are allready typed and it's 
+  -- input, the 'iterable something' we iterate over is fused into the smap node.
+  -- SO it's never send and we don't need a typed channel for it
+  return smf 
 
 -- Stateful Functions
 typeBottomUp (Let (StateDFFun (mState, mData) f@(FunRef fun _ (STFunType sty tyInfo)) stateIn dataIn) inCont) = do
@@ -266,7 +256,7 @@ typeBottomUp (Let (StateDFFun (mState, mData) f@(FunRef fun _ (STFunType sty tyI
   return $ Let (StateDFFun (mState, mData) f stateIn' dataIn') inCont
 
 typeBottomUp e'@(Let (StateDFFun _oBnds _stFun _stateIn _dataIn) _inCont)  = do
-  traceM $ "Not typing StateDF function" <> show e'
+  traceM $ "Not typing StateDF function" 
   return e'
   
 -- Recursion
@@ -311,7 +301,7 @@ typeBottomUp _e'@(Let (IfFun (Direct o1, Direct o2) inVar ) inCont) = do
   -- already, but we can make sure non the less
   
   let inVar' = case inVar of 
-          (DFVar _ty bnd) -> trace ("Typing input "<> show bnd<> " of IfFun")  DFVar TypeBool bnd
+          (DFVar _ty bnd) -> DFVar TypeBool bnd
           other_v -> other_v -- otherwise its a DFEnvVar
   
   case inVar' of 
@@ -324,6 +314,15 @@ typeBottomUp _e'@(Let (IfFun (Direct o1, Direct o2) inVar ) inCont) = do
   return $ Let (IfFun (Direct o1, Direct o2) inVar' ) inCont
 
 typeBottomUp e'@(Let (IfFun _  _ ) _) = error $ "Generated IfFun produces wrong outputs" <> show e'
+typeBottomUp e'@(Let (SelectFun out sign inOne inTwo) inCont) = 
+  -- Currently not used 
+  return e'
+typeBottomUp e'@(Let (CtrlFun out sigIn dataIn) inCont) = 
+  -- Currently not used 
+  return e'
+typeBottomUp e'@(Let (CollectFun out sizeIn unitIn ) inCont ) = 
+    -- Currently not used 
+  return e'
 
 typeBottomUp e'@(Var bnd ty) = do
       ctxt <- get
