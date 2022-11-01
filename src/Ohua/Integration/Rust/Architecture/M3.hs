@@ -23,6 +23,7 @@ import qualified Ohua.Integration.Rust.Backend.Subset as Sub
 import qualified Ohua.Integration.Rust.TypeExtraction as TE
 import qualified Ohua.Integration.Rust.Types as RT
 import Ohua.Prelude
+import Ohua.Integration.Rust.Backend.Passes (propagateMut)
 
 instance Architecture (Architectures 'M3) where
   type Lang (Architectures 'M3) = Language 'Rust
@@ -213,5 +214,8 @@ instance Architecture (Architectures 'M3) where
 asQualBind :: Binding -> QualifiedBinding
 asQualBind = QualifiedBinding (makeThrow [])
 
-instance Transform (Architectures 'M3)
+instance Transform (Architectures 'M3) where
+  -- transformTaskExpr = id
+  transformTask _ _ = propagateMut
+
 
