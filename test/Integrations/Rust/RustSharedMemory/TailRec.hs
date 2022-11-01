@@ -73,6 +73,50 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:" contextFunction
                 compiled `shouldBe` expected)
+   
+
+        it "returning a unit" $
+            (showCode "Compiled: " =<< compileCodeWithRec  [sourceFile|
+                use funs::*;
+
+                fn rec(one: i32) -> () {
+                    let i:i32 = h(one);
+                    let k:() = h2(i);
+                    if check(k) {
+                        rec(i)
+                    } else {
+                        k
+                    }
+                }
+
+                fn test() -> () {
+                    rec(42)
+                }
+                |]) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" return_unit
+                compiled `shouldBe` expected)
+                
+        it "Return local unused local result" $
+            (showCode "Compiled: " =<< compileCodeWithRec  [sourceFile|
+                use funs::*;
+
+                fn rec(one: i32) -> () {
+                    let i:i32 = h(one);
+                    let k:() = h2(i);
+                    if check(i) {
+                        rec(i)
+                    } else {
+                        k
+                    }
+                }
+
+                fn test() -> () {
+                    rec(42)
+                }
+                |])`shouldThrow` anyException
+
+
         -- FIXME: [ERROR] Rec like imperative while - because we return a tuple  
         it "[ERROR] Rec like imperative while - because we return a tuple  " $
             (showCode "Compiled: " =<< compileCodeWithRec  [sourceFile|
@@ -461,3 +505,92 @@ fn test() -> i32 {
   }
 }
                     |]
+
+return_unit = [sourceFile|
+use funs::*;
+
+fn rec(one: i32) -> () {
+  let i: i32 = h(one);
+  let k: () = h2(i);
+  if check(k) { rec(i) } else { k }
+}
+
+fn test() -> () {
+  #[derive(Debug)]
+  enum RunError {
+    SendFailed,
+    RecvFailed,
+  }
+  impl<  T: Send,> From<  std::sync::mpsc::SendError<  T,>,> for RunError {
+    fn from(_err: std::sync::mpsc::SendError<  T,>) -> Self {
+      RunError::SendFailed
+    }
+  }
+  impl From<  std::sync::mpsc::RecvError,> for RunError {
+    fn from(_err: std::sync::mpsc::RecvError) -> Self {
+      RunError::RecvFailed
+    }
+  }
+  let (c_0_0_tx, c_0_0_rx) = std::sync::mpsc::channel::<  (),>();
+  let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel::<  bool,>();
+  let (one_0_0_0_tx, one_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (i_0_0_0_tx, i_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (k_0_0_0_tx, k_0_0_0_rx) = std::sync::mpsc::channel::<  (),>();
+  let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
+    Vec::new();
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
+        let var_0 = k_0_0_0_rx.recv()?;
+        let a_0_0 = check(var_0);
+        a_0_0_tx.send(a_0_0)?;
+        ()
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
+        let var_0 = i_0_0_0_rx.recv()?;
+        let k_0_0_0 = h2(var_0);
+        k_0_0_0_tx.send(k_0_0_0)?;
+        ()
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
+        let var_0 = one_0_0_0_rx.recv()?;
+        let i_0_0_0 = h(var_0);
+        i_0_0_0_tx.send(i_0_0_0)?;
+        ()
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      one_0_0_0_tx.send(42)?;
+      while a_0_0_rx.recv()? {
+        k_0_0_0_rx.recv()?;
+        let loop_res_0 = i_0_0_0_rx.recv()?;
+        one_0_0_0_tx.send(loop_res_0)?;
+        ()
+      };
+      i_0_0_0_rx.recv()?;
+      let finalResult = k_0_0_0_rx.recv()?;
+      Ok(c_0_0_tx.send(finalResult)?)
+    }));
+  let handles: Vec<  std::thread::JoinHandle<  _,>,> =
+    tasks
+      .into_iter()
+      .map(|t| { std::thread::spawn(move || { let _ = t(); }) })
+      .collect();
+  for h in handles {
+    if let Err(_) = h.join() {
+      eprintln!("[Error] A worker thread of an Ohua algorithm has panicked!");
+    }
+  }
+  match c_0_0_rx.recv() {
+    Ok(res) => res,
+    Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
+  }
+}
+|]
