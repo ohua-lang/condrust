@@ -53,6 +53,10 @@ newtype FnId =
 --   They must be mapped to the according types of the host language in the backend or, in 
 --   in case of TypeVar might need to be eliminated for Backends requiring typed channels.
 data ArgType ty = TypeVar |TypeNat | TypeBool | TypeUnit | TypeList (ArgType ty) |Type ty | TupleTy (NonEmpty (ArgType ty)) deriving (Lift, Generic)
+-- ToDo: This is just a helper until we get types of control nodes right
+controlSignalType :: ArgType ty
+controlSignalType = TupleTy $ TypeBool:| [TypeNat]
+
 data FunType ty where
      Untyped :: FunType ty
      FunType :: Either Unit (NonEmpty (ArgType ty)) -> FunType ty
