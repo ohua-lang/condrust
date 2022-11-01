@@ -29,7 +29,7 @@ spec =
                 compiled `shouldBe` expected)
 
         it "(For)Loop Scope Bindings" $
-         (showCode "Compiled: " =<< compileCodeWithDebug  
+         (showCode "Compiled: " =<< compileCode
             [sourceFile|
 
                 fn test() -> i32 {
