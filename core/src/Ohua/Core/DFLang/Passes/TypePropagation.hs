@@ -13,10 +13,10 @@ type BindingContext ty = (HM.HashMap Binding (Exists ty))
 
 showContext :: BindingContext ty -> Text
 showContext hm = show (HM.keys hm)
-
+{-
 controlSignalType :: ArgType ty
 controlSignalType = TupleTy $ TypeBool:| [TypeNat]
-
+-}
 returnBinding:: Binding
 returnBinding = "finalReturnType"
 
