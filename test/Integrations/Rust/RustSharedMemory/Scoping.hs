@@ -100,6 +100,53 @@ spec =
                 expected <- showCode "Expected:" scoped_static
                 compiled `shouldBe` expected)
 
+        it "Global vs local shadowing" $
+         (showCode "Compiled: " =<< compileCode  
+            [sourceFile|
+
+                const global:i32 = 9;
+                static st_thing:Char = 'V';
+
+                fn test() -> i32 {
+                    let first:i32 = fun(global);
+                    let global:String = f();
+                    let y:String = second_algo(global);
+                    h(y)
+                }
+            |]) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" scoped_global_local
+                compiled `shouldBe` expected)
+
+        it "local vs local shadowing" $
+         (showCode "Compiled: " =<< compileCode  
+            [sourceFile|
+
+                fn test() -> i32 {
+                    let x:i32 = f();
+                    let x:String = fun_call(x);
+                    h(x)
+                }
+            |])  `shouldThrow` anyException
+
+        it "local vs inner local shadowing" $
+         (showCode "Compiled: " =<< compileCode  
+            [sourceFile|
+
+                fn test() -> i32 {
+                    let x:i32 = f(); 
+                    let y:String = {
+                        let x:String = fun_call();
+                        x
+                    };
+                    h(x,y)
+                }
+            |]) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" scoped_local_inner
+                compiled `shouldBe` expected)
+
+
         it "Error on mutable globals" $
          compileCode  
             [sourceFile|
@@ -527,4 +574,134 @@ fn second_algo(arg: i32) -> String {
   }
 }
 |]
+scoped_global_local :: SourceFile Span
+scoped_global_local = [sourceFile|
+const global: i32 = 9;
 
+static st_thing: Char = 'V';
+
+fn test() -> i32 {
+  #[derive(Debug)]
+  enum RunError {
+    SendFailed,
+    RecvFailed,
+  }
+  impl<  T: Send,> From<  std::sync::mpsc::SendError<  T,>,> for RunError {
+    fn from(_err: std::sync::mpsc::SendError<  T,>) -> Self {
+      RunError::SendFailed
+    }
+  }
+  impl From<  std::sync::mpsc::RecvError,> for RunError {
+    fn from(_err: std::sync::mpsc::RecvError) -> Self {
+      RunError::RecvFailed
+    }
+  }
+  let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (global_0_0_0_tx, global_0_0_0_rx) =
+    std::sync::mpsc::channel::<  String,>();
+  let (y_0_0_0_tx, y_0_0_0_rx) = std::sync::mpsc::channel::<  String,>();
+  let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
+    Vec::new();
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
+        let var_0 = y_0_0_0_rx.recv()?;
+        let a_0_0 = h(var_0);
+        a_0_0_tx.send(a_0_0)?;
+        ()
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
+        let var_0 = global_0_0_0_rx.recv()?;
+        let y_0_0_0 = second_algo(var_0);
+        y_0_0_0_tx.send(y_0_0_0)?;
+        ()
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      let global_0_0_0 = f();
+      global_0_0_0_tx.send(global_0_0_0)?;
+      Ok(())
+    }));
+  let handles: Vec<  std::thread::JoinHandle<  _,>,> =
+    tasks
+      .into_iter()
+      .map(|t| { std::thread::spawn(move || { let _ = t(); }) })
+      .collect();
+  for h in handles {
+    if let Err(_) = h.join() {
+      eprintln!("[Error] A worker thread of an Ohua algorithm has panicked!");
+    }
+  }
+  match a_0_0_rx.recv() {
+    Ok(res) => res,
+    Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
+  }
+}
+
+|]
+
+scoped_local_inner :: SourceFile Span
+scoped_local_inner = [sourceFile|
+fn test() -> i32 {
+  #[derive(Debug)]
+  enum RunError {
+    SendFailed,
+    RecvFailed,
+  }
+  impl<  T: Send,> From<  std::sync::mpsc::SendError<  T,>,> for RunError {
+    fn from(_err: std::sync::mpsc::SendError<  T,>) -> Self {
+      RunError::SendFailed
+    }
+  }
+  impl From<  std::sync::mpsc::RecvError,> for RunError {
+    fn from(_err: std::sync::mpsc::RecvError) -> Self {
+      RunError::RecvFailed
+    }
+  }
+  let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (x_1_0_0_tx, x_1_0_0_rx) = std::sync::mpsc::channel::<  String,>();
+  let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
+    Vec::new();
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
+        let var_0 = x_0_0_0_rx.recv()?;
+        let var_1 = x_1_0_0_rx.recv()?;
+        let a_0_0 = h(var_0, var_1);
+        a_0_0_tx.send(a_0_0)?;
+        ()
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      let x_1_0_0 = fun_call();
+      x_1_0_0_tx.send(x_1_0_0)?;
+      Ok(())
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      let x_0_0_0 = f();
+      x_0_0_0_tx.send(x_0_0_0)?;
+      Ok(())
+    }));
+  let handles: Vec<  std::thread::JoinHandle<  _,>,> =
+    tasks
+      .into_iter()
+      .map(|t| { std::thread::spawn(move || { let _ = t(); }) })
+      .collect();
+  for h in handles {
+    if let Err(_) = h.join() {
+      eprintln!("[Error] A worker thread of an Ohua algorithm has panicked!");
+    }
+  }
+  match a_0_0_rx.recv() {
+    Ok(res) => res,
+    Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
+  }
+}
+|]
