@@ -18,6 +18,12 @@ data Ctxt =
   (HM.HashMap Binding Action) -- ctxt
   (HM.HashMap Binding Action) -- local ctxt
 
+-- REMINDER: This function was supposed to check programming model compliance.
+-- However there was no test case that triggert relevant errors so it is commented out to
+-- avoid confusion.
+
+{-
+
 checkLinearUsage :: CompM m => Expr ty -> m ()
 checkLinearUsage expr = f (Ctxt HM.empty HM.empty) expr >> return ()
   where
@@ -82,3 +88,4 @@ checkLinearUsage expr = f (Ctxt HM.empty HM.empty) expr >> return ()
       (foldl (\c b -> HM.insert b (Zero,Zero) c) ctxt $ HM.keys loc)
       HM.empty
 
+-}
