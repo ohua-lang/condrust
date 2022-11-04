@@ -356,7 +356,7 @@ noUndefinedBindings = flip runReaderT mempty . cata go
     go e@(BindStateF _a _b ) = (trace $ "Passes: BindState ") sequence_ e 
     -- go (Li)
     --go e = sequence_ e
-    registerBinding b = (trace $ "AL.Passes: Registering "<> show b) (local . HS.insert) b
+    registerBinding b = (local . HS.insert) b
 
 checkProgramValidity :: MonadOhua m => Expr ty -> m ()
 checkProgramValidity e = do

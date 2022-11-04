@@ -89,7 +89,7 @@ typeBottomUp pf@(Let (PureDFFun out@(Direct outBnd) f@(FunRef fun _fid fTy) inpu
   -- Also we know the controle signal type
   | fun == Refs.ctrl = do
             -- ctrl:: (bool, nat) -> A -> A
-            traceM  $ "Typing controle function " <> show fun
+            -- traceM  $ "Typing controle function " <> show fun
             knownVars <- get
 
             -- We can type the control input cause it has to be a (bool, nat)
@@ -129,7 +129,7 @@ typeBottomUp pf@(Let (PureDFFun out@(Direct outBnd) f@(FunRef fun _fid fTy) inpu
             return $ Let (PureDFFun out f (natVar :| [aVar])) inCont
             
   | fun == Refs.runSTCLangSMap = do
-            traceM "Typing rustSTCLangSMap function"
+            -- traceM "Typing rustSTCLangSMap function"
             -- This node collects state mutations from a loop i.e. it might be the last point in code 
             -- where this state is used and hence we won't get type information 'bottom up' here. 
             -- But we can try while we're at it 
@@ -140,7 +140,7 @@ typeBottomUp pf@(Let (PureDFFun out@(Direct outBnd) f@(FunRef fun _fid fTy) inpu
 
   | fun == Refs.select = do
             -- select :: bool -> A -> A -> A
-            traceM $ "Typing select"
+            -- traceM $ "Typing select"
     
             knownVars <- get
             let realOutTy = case out of
@@ -175,7 +175,7 @@ typeBottomUp pf@(Let (PureDFFun out@(Direct outBnd) f@(FunRef fun _fid fTy) inpu
             return $ Let (PureDFFun out f (listInput :| [scndIn])) inCont
               
   | otherwise = do
-            traceM "Hit a normal function. Should learn from function type"
+            -- traceM "Hit a normal function. Should learn from function type"
             let dataInps' = 
                   case fTy of
                     (FunType (Right ftypes)) -> 
@@ -196,7 +196,7 @@ typeBottomUp pf@(Let (PureDFFun out@(Direct outBnd) f@(FunRef fun _fid fTy) inpu
 typeBottomUp _fo@(Let (PureDFFun out f@(FunRef fun _fId (FunType (Right inputTypes))) vars) inCont) = do
   -- We hit a select function of type (bool, a, a) -> a. So we type it's first input type
   -- and try to derive the second and third from their usages saved in the context
-    traceM $ "Typing pure function " <> show fun
+    -- traceM $ "Typing pure function " <> show fun
     -- We hit any pure function. So we check it's input types and annotate the corresponding variable names.
     let dataInps' = NE.map (\case
                               (DFVar _ bnd, ty') -> DFVar ty' bnd
@@ -227,7 +227,7 @@ typeBottomUp smf@(Let (SMapFun out@(_fst,_scnd, _trd) iterableVar ) inCont) = do
 
 -- Stateful Functions
 typeBottomUp (Let (StateDFFun (mState, mData) f@(FunRef fun _ (STFunType sty tyInfo)) stateIn dataIn) inCont) = do
-  traceM $ "Typing stateful function " <> show fun <> " on obj type " <> show sty
+  -- traceM $ "Typing stateful function " <> show fun <> " on obj type " <> show sty
   let stateIn' = case stateIn of
         (DFVar ty bnd) -> DFVar (maxType ty sty) bnd
   let dataIn' = case tyInfo of
@@ -256,7 +256,7 @@ typeBottomUp (Let (StateDFFun (mState, mData) f@(FunRef fun _ (STFunType sty tyI
   return $ Let (StateDFFun (mState, mData) f stateIn' dataIn') inCont
 
 typeBottomUp e'@(Let (StateDFFun _oBnds _stFun _stateIn _dataIn) _inCont)  = do
-  traceM $ "Not typing StateDF function" 
+  -- traceM $ "Not typing StateDF function" 
   return e'
   
 -- Recursion
@@ -294,7 +294,6 @@ typeBottomUp (Let (RecurFun finalOut recCtrl argOuts initIns recIns cond result)
   return $ Let (RecurFun finalOut recCtrl argOuts newInits newRets cond' result') inCont
 
 typeBottomUp _e'@(Let (IfFun (Direct o1, Direct o2) inVar ) inCont) = do
-  traceM $ "Tying ifFun"
   -- We know that ifFun is type bool -> (control signal, controle signal).
   -- So we can make sure the input is typed correctly. 
   -- We also know the output type obv. This is not particularly useful in bottom up pass because we've probably typed the two outputs
@@ -360,7 +359,8 @@ updateVars (DFVar t bnd, DFEnvVar t2 lit) =
   in (DFVar newTy bnd, DFEnvVar newTy lit)
 updateVars (DFEnvVar t lit, DFVar t2 bnd2) =
   let newTy = maxType t t2
-  in trace ("Updating vars with literals, maxtype is "<> show newTy)(DFEnvVar newTy lit, DFVar newTy bnd2)
+  -- in trace ("Updating vars with literals, maxtype is "<> show newTy)(DFEnvVar newTy lit, DFVar newTy bnd2)
+  in (DFEnvVar newTy lit, DFVar newTy bnd2)
 updateVars (v1@DFEnvVar{}, v2@DFEnvVar{}) = (v1, v2)
 
 -- | In case the binding is present in the context and in case the varaible is not a literal (yes, it might be)
@@ -385,7 +385,7 @@ maybeUpdate reference var = do
 
 updateContext:: MonadState (HashMap Binding (Exists ty)) m => ABinding semTy -> ArgType ty -> m ()
 updateContext aBnd newType  = do
-  traceM $ "Updating binding " <> show aBnd <> " to type " <> show newType
+  -- traceM $ "Updating binding " <> show aBnd <> " to type " <> show newType
   modify (HM.insert (unwrapABnd aBnd) $ Exists (DFVar newType aBnd)) 
 
   
