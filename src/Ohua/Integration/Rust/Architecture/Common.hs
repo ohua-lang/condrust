@@ -2,9 +2,10 @@ module Ohua.Integration.Rust.Architecture.Common where
 
 import qualified Data.ByteString.Lazy.Char8 as L
 import qualified Data.HashMap.Lazy as HM
-import Data.Text.Prettyprint.Doc
+import Data.Text.Prettyprint.Doc hiding (Pretty)
 import Data.Text.Prettyprint.Doc.Render.Text
-import Language.Rust.Pretty (pretty')
+import Data.Text.Lazy (unpack)
+import Language.Rust.Pretty (pretty', Resolve, Pretty)
 import Language.Rust.Syntax as Rust hiding (Rust)
 import Ohua.Backend.Types
 import qualified Ohua.Integration.Rust.TypeExtraction  as TE
@@ -25,12 +26,6 @@ serialize ::
 serialize (Module path (SourceFile modName atts items)) ns createProgram placeholder =
   let algos' = HM.fromList $ map (\(Algo name expr _ _) -> (name, expr)) $ ns ^. algos
       src = SourceFile modName atts $ map (replaceAlgo algos') items
-      render =
-        encodeUtf8
-          . (<> "\n")
-          . renderLazy
-          . layoutSmart defaultLayoutOptions
-          . pretty'
       path' = takeFileName path -- TODO verify this!
       (Module libname lib) = placeholder 
    in return $ (path', render src) :| [(libname, render lib)]
@@ -43,6 +38,21 @@ serialize (Module path (SourceFile modName atts items)) ns createProgram placeho
             Fn atts vis ident decl header gen (span <$ createProgram algo) span
           Nothing -> f
       i -> i
+
+render :: (Resolve a, Pretty a) => a -> L.ByteString
+render =
+  encodeUtf8
+    . (<> "\n")
+    . renderLazy
+    . layoutSmart defaultLayoutOptions
+    . pretty'
+
+renderStr :: (Resolve a, Pretty a) => a -> String
+renderStr =
+    unpack
+    . renderLazy
+    . layoutSmart defaultLayoutOptions
+    . pretty'
 
 
 toRustTy :: ArgType TE.RustTypeAnno -> Rust.Ty ()
