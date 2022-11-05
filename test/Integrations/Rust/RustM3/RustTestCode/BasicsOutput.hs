@@ -5,37 +5,22 @@ import Language.Rust.Quote (sourceFile)
 import Language.Rust.Syntax (SourceFile)
 import Language.Rust.Data.Position (Span)
 
--- QUESTION: This code doesn't seem to be valid anymore.e.g. there is no new_child_vpe in VPE
--- REMINDER : Examples for gate use at https://github.com/TUD-OS/M3/blob/3c6acd4e7a462ef4d832e83cc17ed29998b2b484/src/apps/rust/unittests/src/tsgate.rs
--- QUESTION: Why do we use gates, not pipes?
 hello_world :: SourceFile Span
 hello_world = [sourceFile|
 use funs::hello_world;
 
 fn test() -> String {
-  let (a_0_0_tx, a_0_0_rx) =
-    {
-      let mut rgate =
-        wv_assert_ok!(
-          RecvGate::new(math::next_log2(256), math::next_log2(256))
-        );
-      let sgate =
-        wv_assert_ok!(SendGate::new_with(SGateArgs::new(&rgate).credits(1)));
-      (sgate, rgate)
-    };
-  {
-    let mut vpe = VPE::new_child_vpe().unwrap();
-    vpe.delegate_obj(a_0_0.sel()).unwrap();
-    vpe
-      .run(Box::new(move || -> _ {
-        a_0_0.activate().unwrap();
-        let a_0_0 = hello_world();
-        a_0_0_tx.send_msg(a_0_0).unwrap();
-        ()
-      }))
-      .unwrap()
-  };
-  a_0_0_rx.recv_msg::<String,>().unwrap()
+    let (a_0_0_tx, mut a_0_0_rx) = channel(); 
+    activity!(
+        (static move |a_0_0_child_tx: Sender| {     
+            let a_0_0 = hello_world();
+            a_0_0_child_tx.send(a_0_0)?;
+            Ok(())
+          }
+        ) (a_0_0_tx)  
+    );  
+    a_0_0_rx.activate()?;
+    a_0_0_rx.recv::<String,>()?
 }
                 |]
 
