@@ -45,12 +45,27 @@ convertChan rxMutability (SRecv _ty (SChan bnd)) =
           []
           noSpan
 
+convertReceive :: Binding -> Com 'Recv TE.RustArgType -> Sub.Expr
+convertReceive suffix (SRecv (Type typ) (SChan channel)) =
+  let ty' = case typ of 
+              (TE.Self ty _ _mut) -> noSpan <$ ty
+              -- error "Not yet implemented: Recv of reference type"
+              (TE.Normal ty) -> noSpan <$ ty
+                -- ISSUE: Find correct reaction here. For now I'll pretend channel.recv::<(ty1, ty2 ...)>().unwrap() is ok
+              -- _ -> toRustTy $ Type typ
+      rcv =
+        Sub.MethodCall
+          (Sub.Var $ channel <> suffix)
+          (Sub.CallRef (asQualBind "recv") $ Just $ Sub.AngleBracketed [Sub.TypeArg $ Sub.RustType ty'])
+          []
+  in Sub.Try rcv
+
 instance Architecture (Architectures 'M3) where
   type Lang (Architectures 'M3) = Language 'Rust
   type Chan (Architectures 'M3) = Rust.Stmt ()
   type ATask (Architectures 'M3) = Rust.Expr ()
 
-  convertChannel SM3 = convertChan Sub.Immutable 
+  convertChannel    SM3 = convertChan Sub.Immutable
   convertRetChannel SM3 = convertChan Sub.Mutable
 
   -- QUESTION: This 'invariant' is probably imposed by M3 requiring 'turbo fish'
@@ -61,21 +76,8 @@ instance Architecture (Architectures 'M3) where
   convertRecv SM3 (SRecv TypeVar (SChan channel)) = 
       error $ "A TypeVar was introduced for channel" <>  show channel <> ". This is a compiler error, please report (fix if you are me :-))"
     
-  -- ToDo: Refactor when case handling is clear to get rid of duplicate code  
-  -- QUESTION: Can we use the same pattern here as for SM? I'll just use it for now to keep on working with the test code. 
-  convertRecv SM3 (SRecv (Type typ) (SChan channel)) =
-    let ty' = case typ of 
-                (TE.Self ty _ _mut) -> noSpan <$ ty
-                -- error "Not yet implemented: Recv of reference type"
-                (TE.Normal ty) -> noSpan <$ ty
-                  -- ISSUE: Find correct reaction here. For now I'll pretend channel.recv::<(ty1, ty2 ...)>().unwrap() is ok
-                -- _ -> toRustTy $ Type typ
-        rcv =
-          Sub.MethodCall
-            (Sub.Var $ channel <> "_rx0")
-            (Sub.CallRef (asQualBind "recv") $ Just $ Sub.AngleBracketed [Sub.TypeArg $ Sub.RustType ty'])
-            []
-    in Sub.Try rcv
+  convertRecv    SM3 r = convertReceive "_child_rx" r
+  convertRetRecv SM3 r = convertReceive "_rx"       r 
 
   -- QUESTION: Why is sending a binding (Right binding) undefined and (Left Lit ty) is ok?
   -- REMINDER: To make progress in testing stuff I'll adopt the handling from SM here. Check if
@@ -91,7 +93,7 @@ instance Architecture (Architectures 'M3) where
     where 
       asMethodCall item = 
         Sub.Try
-              (Sub.MethodCall (Sub.Var $ channel <> "_tx") (Sub.CallRef (asQualBind "send") Nothing) [item])
+              (Sub.MethodCall (Sub.Var $ channel <> "_child_tx") (Sub.CallRef (asQualBind "send") Nothing) [item])
 
   build SM3 (RT.Module _ (Rust.SourceFile _ _ _items)) ns =
     return $ ns & algos %~ map (\algo -> algo & algoCode %~ createTasksAndRetChan)
@@ -115,12 +117,12 @@ instance Architecture (Architectures 'M3) where
                     (Rust.PathTy Nothing (convertQualBnd ty) noSpan)
                     noSpan)
                 vars
-          cParams = (closureParams sends "Sender" extractSend) <> 
-                    (closureParams recvs "Receiver" extractRecv)
+          cParams = (closureParams sends (asQualBind "Sender") ((<> "_child_tx") . extractSend)) <> 
+                    (closureParams recvs (asQualBind "Receiver") ((<> "_child_tx") . extractRecv))
           closureArgs vars extract =
             map (convertExp . Sub.Var  . extract) vars
-          cArgs = (closureArgs sends extractSend) <> 
-                  (closureArgs recvs extractRecv)
+          cArgs = (closureArgs sends ((<> "_tx") . extractSend)) <> 
+                  (closureArgs recvs ((<> "_rx") . extractRecv))
           taskCode = Rust.BlockExpr [] (convertBlock taskE) Nothing noSpan
           taskClosure =
             Rust.Closure
@@ -136,22 +138,28 @@ instance Architecture (Architectures 'M3) where
         in 
           Rust.MacExpr 
             [] 
-            (Rust.Mac (convertQualBnd "activity") (exprToTokenStream taskCall) noSpan) 
+            (Rust.Mac (convertQualBnd $ asQualBind "activity") (exprToTokenStream taskCall) noSpan) 
             noSpan
-
 
   -- REMINDER: Replace Placeholder
   serialize SM3 mod placeholder ns = C.serialize mod ns createProgram placeholder
     where
-      createProgram (Program chans resultExpr tasks) = case resultExpr of
-       (Sub.Try resultExpr') -> 
-        let taskStmts = map (flip Rust.Semi noSpan . taskExpression) tasks
-            program = toList chans ++ taskStmts
-         in Rust.Block (program ++ [Rust.NoSemi (convertExp resultExpr') noSpan]) Rust.Normal noSpan
-       anyExpr ->
-        let taskStmts = map (flip Rust.Semi noSpan . taskExpression) tasks
-            program = toList chans ++ taskStmts
-         in Rust.Block (program ++ [Rust.NoSemi (convertExp anyExpr) noSpan]) Rust.Normal noSpan
+      createProgram (Program chans resultExpr tasks) = 
+        let 
+          taskStmts = map (flip Rust.Semi noSpan . taskExpression) tasks
+          retChan = case [v | v@(Sub.Var bnd) <- universe resultExpr] of
+                      [r] -> r
+                      _ -> error "invariant broken"
+          activation = flip Rust.Semi noSpan
+            $ convertExp 
+            $ Sub.Try 
+            $ Sub.MethodCall retChan (Sub.CallRef (asQualBind "activate") Nothing) []
+          -- TODO activate source channels (once they are in place)
+          -- TODO wait for activity completion
+          resultStmt = Rust.NoSemi (convertExp resultExpr) noSpan
+          program = toList chans <> taskStmts <> [activation, resultStmt] 
+        in 
+          Rust.Block program Rust.Normal noSpan
 
 
 
