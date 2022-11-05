@@ -7,7 +7,7 @@ import Language.Rust.Data.Ident (mkIdent)
 import Language.Rust.Quote
 import Language.Rust.Parser (parse', inputStreamFromString)
 import qualified Language.Rust.Syntax as Rust hiding (Rust)
-import Ohua.Backend.Lang (Com (..), ComType(..))
+import Ohua.Backend.Lang (Com (..), ComType(..), Channel)
 import Ohua.Backend.Types hiding (Expr, convertExpr)
 import Ohua.Integration.Architecture
 import Ohua.Integration.Lang hiding (Lang)
@@ -30,25 +30,29 @@ import qualified Ohua.Integration.Rust.Types as RT
 import Ohua.Prelude
 import Ohua.Integration.Rust.Backend.Passes (propagateMut)
 
-instance Architecture (Architectures 'M3) where
-  type Lang (Architectures 'M3) = Language 'Rust
-  type Chan (Architectures 'M3) = Rust.Stmt ()
-  type ATask (Architectures 'M3) = Rust.Expr ()
-
-  -- TODO make result channel mutable
-  convertChannel SM3 (SRecv _ty (SChan bnd)) =
+convertChan :: Sub.BindingMode -> Channel TE.RustTypeAnno -> Rust.Stmt ()
+convertChan rxMutability (SRecv _ty (SChan bnd)) =
     let channel = noSpan <$ [expr| channel() |]
      in Rust.Local
           ( convertPat $
               Sub.TupP
                 [ Sub.IdentPat Sub.Immutable $ bnd <> "_tx",
-                  Sub.IdentPat Sub.Immutable $ bnd <> "_rx"
+                  Sub.IdentPat rxMutability $ bnd <> "_rx"
                 ]
           )
           Nothing
           (Just channel)
           []
           noSpan
+
+instance Architecture (Architectures 'M3) where
+  type Lang (Architectures 'M3) = Language 'Rust
+  type Chan (Architectures 'M3) = Rust.Stmt ()
+  type ATask (Architectures 'M3) = Rust.Expr ()
+
+  convertChannel SM3 = convertChan Sub.Immutable 
+  convertRetChannel SM3 = convertChan Sub.Mutable
+
   -- QUESTION: This 'invariant' is probably imposed by M3 requiring 'turbo fish'
   -- typing for the recv. calls i.e. a_0_0_rx.recv_msg::<String,>().unwrap() so if any return
     -- type is unknown to Ohua, this will blow up
