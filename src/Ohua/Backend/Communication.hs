@@ -19,7 +19,7 @@ lowerRetCom arch ns = ns & algos %~ map (\algo -> algo & algoCode %~ convertComm
         convertCommunication (Program chans retChan tasks) =
             Program
                 chans
-                (convertRecv arch retChan)
+                (convertRetRecv arch retChan)
                 tasks
 
 lowerChannels ::
