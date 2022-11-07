@@ -30,6 +30,7 @@ import qualified Ohua.Integration.Rust.TypeExtraction as TE
 import qualified Ohua.Integration.Rust.Types as RT
 import Ohua.Prelude
 import Ohua.Integration.Rust.Backend.Passes (propagateMut)
+import Data.Text (unpack, unlines)
 
 convertChan :: Sub.BindingMode -> Channel TE.RustTypeAnno -> Rust.Stmt ()
 convertChan rxMutability (SRecv _ty (SChan bnd)) =
@@ -59,7 +60,7 @@ convertReceive suffix (SRecv (Type typ) (SChan channel)) =
           (Sub.Var $ channel <> suffix)
           (Sub.CallRef (asQualBind "recv") $ Just $ Sub.AngleBracketed [Sub.TypeArg $ Sub.RustType ty'])
           []
-  in Sub.Try rcv
+  in rcv
 
 instance Architecture (Architectures 'M3) where
   type Lang (Architectures 'M3) = Language 'Rust
@@ -77,8 +78,16 @@ instance Architecture (Architectures 'M3) where
   convertRecv SM3 (SRecv TypeVar (SChan channel)) = 
       error $ "A TypeVar was introduced for channel" <>  show channel <> ". This is a compiler error, please report (fix if you are me :-))"
     
-  convertRecv    SM3 r = convertReceive "_child_rx" r
-  convertRetRecv SM3 r = convertReceive "_rx"       r 
+  convertRecv    SM3 r = Sub.Try $ convertReceive "_child_rx" r
+  convertRetRecv SM3 r = 
+    Sub.MethodCall 
+      (convertReceive "_rx" r) 
+      (Sub.CallRef (asQualBind "expect") Nothing)
+      [Sub.Lit $ StringLit $ unpack $ unlines 
+        ["The retrieval of the result value failed."
+        ,"Ohua turned your sequential program into a distributed one."
+        ,"Hence, all Ohua can do at this point is error out."
+        ,"If you would like to have support for handligng these errors in your application then please submit an issue."]]
 
   -- QUESTION: Why is sending a binding (Right binding) undefined and (Left Lit ty) is ok?
   -- REMINDER: To make progress in testing stuff I'll adopt the handling from SM here. Check if
@@ -138,9 +147,9 @@ instance Architecture (Architectures 'M3) where
           taskClosure =
             Rust.Closure
               []
-              Rust.Value
+              Rust.Ref
               Rust.NotAsync
-              Rust.Immovable
+              Rust.Movable
               (Rust.FnDecl cParams Nothing False noSpan)
               taskCode
               noSpan
