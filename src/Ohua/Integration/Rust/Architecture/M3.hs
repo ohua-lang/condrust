@@ -165,7 +165,13 @@ instance Architecture (Architectures 'M3) where
   serialize SM3 mod placeholder ns = C.serialize mod ns createProgram placeholder
     where
       createProgram (Program chans resultExpr tasks) = 
-        let 
+        let
+          (Rust.Block prelude _ _) =
+            void
+              [block| {
+                use m3::com::channel::{Sender, Receiver};
+                use m3::activity;
+              }|]
           taskStmts = map (flip Rust.Semi noSpan . taskExpression) tasks
           retChan = case [v | v@(Sub.Var bnd) <- universe resultExpr] of
                       [r] -> r
@@ -177,7 +183,7 @@ instance Architecture (Architectures 'M3) where
           -- TODO activate source channels (once they are in place)
           -- TODO wait for activity completion
           resultStmt = Rust.NoSemi (convertExp resultExpr) noSpan
-          program = toList chans <> taskStmts <> [activation, resultStmt] 
+          program = prelude <> toList chans <> taskStmts <> [activation, resultStmt] 
         in 
           Rust.Block program Rust.Normal noSpan
 
