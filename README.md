@@ -15,12 +15,15 @@ Required tools:
 ### Instructions
 
 1. Clone the repository
-
-    `git clone https://github.com/ohua-dev/ohuac`
+```
+git clone https://github.com/ohua-dev/ohuac
+```
 
 2. Build the program
 
-   `stack install`
+```
+stack install
+```
 
    This downloads and builds all dependencies, as well as the Haskell compiler
    `ghc`, should it not be present already. It should not interfere with any
@@ -39,4 +42,14 @@ Check out the test cases in the `test` folder for our existing integrations.
 
 You may run individual test cases using stack like so:
 
-    `stack test --ta '--match "/Rust Integration/TailRec/contexted function/"'`
+```
+stack test --ta '--match "/Rust Integration/TailRec/contexted function/"'
+```
+
+Also, we do run our CI based on Nix. For development, you may want to build and run tests without Nix.
+You can do so via
+```
+stack build --no-nix
+stack test --no-nix
+```
+You can read up on it in the (section on Nix integration of the stack documentation)[https://docs.haskellstack.org/en/stable/nix_integration/].
