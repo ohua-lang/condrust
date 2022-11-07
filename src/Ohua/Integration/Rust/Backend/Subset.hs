@@ -65,9 +65,9 @@ transformExprInBlockM f = goBlock
     go (While e block) = While e <$> goBlock block
     go e = pure e
 
-    goBlock (RustBlock stmts unsafety) = do
+    goBlock (RustBlock unsafety stmts) = do
       stmts' <- reverse <$> mapM goStmt (reverse stmts)
-      return $ RustBlock stmts' unsafety
+      return $ RustBlock unsafety stmts'
 
     goStmt (Local p ty e) = Local p ty <$> transformM (f <=< go) e
     goStmt (Semi e) = Semi <$> transformM (f <=< go) e

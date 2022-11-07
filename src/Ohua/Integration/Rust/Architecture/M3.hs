@@ -12,6 +12,7 @@ import Ohua.Backend.Types hiding (Expr, convertExpr)
 import Ohua.Integration.Architecture
 import Ohua.Integration.Lang hiding (Lang)
 import Ohua.Integration.Rust.Architecture.Common as C
+import Ohua.Integration.Rust.Common.Subset as CSub
 import Ohua.Integration.Rust.Backend
 import Ohua.Integration.Rust.Backend.Convert
   ( convertBlock,
@@ -117,13 +118,23 @@ instance Architecture (Architectures 'M3) where
                     (Rust.PathTy Nothing (convertQualBnd ty) noSpan)
                     noSpan)
                 vars
-          cParams = (closureParams sends (asQualBind "Sender") ((<> "_child_tx") . extractSend)) <> 
+          cParams = (closureParams sends (asQualBind "Sender")   ((<> "_child_tx") . extractSend)) <> 
                     (closureParams recvs (asQualBind "Receiver") ((<> "_child_tx") . extractRecv))
           closureArgs vars extract =
             map (convertExp . Sub.Var  . extract) vars
           cArgs = (closureArgs sends ((<> "_tx") . extractSend)) <> 
                   (closureArgs recvs ((<> "_rx") . extractRecv))
-          taskCode = Rust.BlockExpr [] (convertBlock taskE) Nothing noSpan
+          monadicTaskCode (CSub.RustBlock u []) = CSub.RustBlock u []
+          monadicTaskCode (CSub.RustBlock u (hd:tl)) = 
+            let 
+              stmtsRev = reverse tl
+              (last,heads) = case stmtsRev of
+                              [] -> (hd, [])
+                              (l:h) -> (l, hd : reverse h)
+              last' = (\l -> Sub.Call (Sub.CallRef (asQualBind "Ok") Nothing) [l]) <$> last
+            in 
+              CSub.RustBlock u $ heads ++ [last']
+          taskCode = Rust.BlockExpr [] (convertBlock (monadicTaskCode taskE)) Nothing noSpan
           taskClosure =
             Rust.Closure
               []

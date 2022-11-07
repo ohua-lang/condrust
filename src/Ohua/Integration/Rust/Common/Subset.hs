@@ -23,7 +23,7 @@ data Stmt e
   | StandaloneSemi
   deriving (Eq, Generic, Functor, Foldable, Traversable, Show)
 
-data Block e = RustBlock [Stmt e] Unsafety
+data Block e = RustBlock Unsafety [Stmt e]
   deriving (Eq, Generic, Functor, Foldable, Traversable, Show)
 
 data Unsafety = Normal deriving (Eq, Generic, Show)

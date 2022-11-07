@@ -15,7 +15,7 @@ runtime = "rt"
 
 spawnWork :: Block -> Block
 spawnWork block =
-  let (RustBlock blockExpr' unsafety, par) = runState (transformExprInBlockM go block) False
+  let (RustBlock unsafety blockExpr', par) = runState (transformExprInBlockM go block) False
    in case par of
         True ->
           let rt =
@@ -39,14 +39,14 @@ spawnWork block =
                         (CallRef (mkFunRefUnqual "unwrap") Nothing)
                         []
                     ]
-           in RustBlock (rt : blockExpr') unsafety
-        False -> RustBlock blockExpr' unsafety
+           in RustBlock unsafety (rt : blockExpr')
+        False -> RustBlock unsafety blockExpr' 
   where
     -- (fun:rt:args') -> -- would be cleaner
     go (Call (CallRef f _) (Lit (FunRefLit (FunRef qb _ _)) : args))
       | f == spawnFuture = do
         modify $ const True
-        return $ BlockExpr $ RustBlock (spawnComp $ Call (CallRef qb Nothing) args) Normal
+        return $ BlockExpr $ RustBlock Normal $ spawnComp $ Call (CallRef qb Nothing) args
     go (Call (CallRef f _) [future])
       | f == joinFuture =
         pure $
@@ -68,13 +68,13 @@ spawnWork block =
         Local (IdentP $ IdentPat Immutable "work") Nothing $
           Async $
             RustBlock
+              Normal
               [ NoSemi $
                   MethodCall
                     (MethodCall (Var "tx") (CallRef (mkFunRefUnqual "send") Nothing) [comp])
                     (CallRef (mkFunRefUnqual "unwrap") Nothing)
                     []
-              ]
-              Normal,
+              ],
         Semi $ MethodCall (Var runtime) (CallRef (mkFunRefUnqual "spawn") Nothing) [Var "work"],
         NoSemi $ Var "rx"
       ]
@@ -86,12 +86,13 @@ amorphous = transformExprInBlock go
       | f == takeN =
         BlockExpr $
           RustBlock
+            Normal
             [ Local
                 (IdentP $ IdentPat Immutable "sp")
                 Nothing
                 ( If
                     (Binary Lt (MethodCall v (CallRef (mkFunRefUnqual "len") Nothing) []) n)
-                    (RustBlock [NoSemi $ MethodCall v (CallRef (mkFunRefUnqual "len") Nothing) []] Normal)
+                    (RustBlock Normal [NoSemi $ MethodCall v (CallRef (mkFunRefUnqual "len") Nothing) []])
                     $ Just n
                 ),
               Local
@@ -100,11 +101,11 @@ amorphous = transformExprInBlock go
                 (MethodCall v (CallRef (mkFunRefUnqual "split_off") Nothing) [Var "sp"]),
               NoSemi (Tuple [v, Var "chunk"])
             ]
-            Normal
     go (Call (CallRef f _) [results, rest])
       | f == concat =
         BlockExpr $
           RustBlock
+            Normal
             [ Semi $
                 MethodCall
                   results
@@ -112,5 +113,4 @@ amorphous = transformExprInBlock go
                   [MethodCall rest (CallRef (mkFunRefUnqual "into_iter") Nothing) []], -- assumes Vec
               NoSemi results
             ]
-            Normal
     go e = e

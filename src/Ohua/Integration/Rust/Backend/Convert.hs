@@ -78,12 +78,12 @@ convertExp (Sub.Async block) =
 prependToBlock :: [Sub.Stmt] -> Sub.Expr -> Sub.Expr
 prependToBlock stmts cont =
   case cont of
-    Sub.BlockExpr (Sub.RustBlock contStmts unsafety) ->
-      Sub.BlockExpr $ Sub.RustBlock (stmts ++ contStmts) unsafety
-    _ -> Sub.BlockExpr $ Sub.RustBlock (stmts ++ [Sub.NoSemi cont]) Sub.Normal
+    Sub.BlockExpr (Sub.RustBlock unsafety contStmts) ->
+      Sub.BlockExpr $ Sub.RustBlock unsafety (stmts ++ contStmts)
+    _ -> Sub.BlockExpr $ Sub.RustBlock Sub.Normal (stmts ++ [Sub.NoSemi cont])
 
 convertBlock :: Sub.Block -> Rust.Block ()
-convertBlock (Sub.RustBlock stmts unsafety) =
+convertBlock (Sub.RustBlock unsafety stmts) =
   Rust.Block (map convertStmt stmts) (convertUnsafety unsafety) noSpan
 
 convertUnsafety :: Sub.Unsafety -> Rust.Unsafety

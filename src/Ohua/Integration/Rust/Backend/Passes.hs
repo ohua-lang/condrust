@@ -39,12 +39,12 @@ propagateMut block =
     go (While e block) = While e <$> goBlock block
     go e = pure e
 
-    goBlock (RustBlock stmts unsafety) =
+    goBlock (RustBlock unsafety stmts) =
       let (stmts', states) =
             runState (reverse <$> mapM goStmt (reverse stmts)) HS.empty
       in do
         modify $ HS.union states
-        return $ RustBlock stmts' unsafety
+        return $ RustBlock unsafety stmts'
 
     goStmt (Local p ty e) = do
       e' <- transformM go e

@@ -379,7 +379,7 @@ instance ConvertExpr Sub.Expr where
   convertExpr (Sub.Var bnd) = return $ VarE bnd
 
 instance ConvertExpr Sub.Block where
-  convertExpr (Sub.RustBlock stmts Sub.Normal) =
+  convertExpr (Sub.RustBlock Sub.Normal stmts) =
     evalStateT (convertStmts stmts) =<< get
     where
       convertStmts [] = return $ LitE UnitLit

@@ -26,7 +26,7 @@ convertIntoBlock arch expr =
   let expr' = convertExpr arch expr
    in case expr' of
         Sub.BlockExpr block -> block
-        e -> Sub.RustBlock [Sub.NoSemi e] Sub.Normal
+        e -> Sub.RustBlock Sub.Normal [Sub.NoSemi e]
 
 instance Integration (Language 'Rust) where
   type HostModule (Language 'Rust) = Module
