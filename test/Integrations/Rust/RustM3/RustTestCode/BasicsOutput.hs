@@ -30,57 +30,38 @@ simple_composition :: SourceFile Span
 simple_composition = [sourceFile|
 use funs::{f, g};
 
+
 fn test() -> String {
-  let (a_0_0_tx, a_0_0_rx) =
-    {
-      let mut rgate =
-        wv_assert_ok!(
-          RecvGate::new(math::next_log2(256), math::next_log2(256))
-        );
-      let sgate =
-        wv_assert_ok!(SendGate::new_with(SGateArgs::new(&rgate).credits(1)));
-      (sgate, rgate)
-    };
-  let (x_0_0_0_tx, x_0_0_0_rx) =
-    {
-      let mut rgate =
-        wv_assert_ok!(
-          RecvGate::new(math::next_log2(256), math::next_log2(256))
-        );
-      let sgate =
-        wv_assert_ok!(SendGate::new_with(SGateArgs::new(&rgate).credits(1)));
-      (sgate, rgate)
-    };
-  {
-    let mut vpe = VPE::new_child_vpe().unwrap();
-    vpe.delegate_obj(a_0_0.sel()).unwrap();
-    vpe.delegate_obj(x_0_0_0.sel()).unwrap();
-    vpe
-      .run(Box::new(move || -> _ {
-        a_0_0.activate().unwrap();
-        x_0_0_0.activate().unwrap();
-        loop {
-          let var_0 = x_0_0_0_rx.recv_msg::<  i32,>().unwrap();
-          let a_0_0 = g(var_0);
-          a_0_0_tx.send_msg(a_0_0).unwrap();
-          ()
-        }
-      }))
-      .unwrap()
-  };
-  {
-    let mut vpe = VPE::new_child_vpe().unwrap();
-    vpe.delegate_obj(x_0_0_0.sel()).unwrap();
-    vpe
-      .run(Box::new(move || -> _ {
-        x_0_0_0.activate().unwrap();
+  let (a_0_0_tx, mut a_0_0_rx) = channel();
+  let (x_0_0_0_tx, x_0_0_0_rx) = channel();
+  activity!(
+    (
+      |a_0_0_child_tx: Sender, x_0_0_0_child_tx: Receiver| {
+       
+ Ok(
+          loop {
+            let var_0 = x_0_0_0_child_rx.recv::<  i32,>()?;
+            let a_0_0 = g(var_0);
+            a_0_0_child_tx.send(a_0_0)?;
+            ()
+          }
+        )
+      }
+    )(a_0_0_tx, x_0_0_0_rx)
+  );
+  activity!(
+    (
+      |x_0_0_0_child_tx: Sender| {
         let x_0_0_0 = f();
-        x_0_0_0_tx.send_msg(x_0_0_0).unwrap();
-        ()
-      }))
-      .unwrap()
-  };
-  a_0_0_rx.recv_msg::<  String,>().unwrap()
+        x_0_0_0_child_tx.send(x_0_0_0)?;
+        Ok(())
+      }
+    )(x_0_0_0_tx)
+  );
+  a_0_0_rx.activate()?;
+  a_0_0_rx
+    .recv::<  String,>()
+    .expect("The retrieval of the result value failed.\nOhua turned your sequential program into a distributed one.\nHence, all Ohua can do at this point is error out.\nIf you would like to have support for handligng these errors in your application then please submit an issue.\n")
 }
                 |]
 

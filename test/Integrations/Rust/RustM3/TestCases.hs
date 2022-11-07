@@ -14,13 +14,13 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.hello_world
                 compiled `shouldBe` expected)
-{-                
+ 
         it "simple composition" $ 
             (showCode "Compiled: " =<< compileCodeWithDebug Input.simple_composition) >>=
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.simple_composition
                 compiled `shouldBe` expected)
-
+{-
         it "While Loop" $ 
             (showCode "Compiled: " =<< compileCodeWithRecWithDebug Input.smap_while) >>=
             (\compiled -> do
