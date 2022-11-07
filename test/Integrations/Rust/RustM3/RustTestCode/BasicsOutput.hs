@@ -12,15 +12,17 @@ use funs::hello_world;
 fn test() -> String {
     let (a_0_0_tx, mut a_0_0_rx) = channel(); 
     activity!(
-        (static move |a_0_0_child_tx: Sender| {     
-            let a_0_0 = hello_world();
-            a_0_0_child_tx.send(a_0_0)?;
-            Ok(())
+        (|a_0_0_child_tx: Sender| {    
+         let a_0_0 = hello_world();
+        a_0_0_child_tx.send(a_0_0)?;
+        Ok(())
           }
-        ) (a_0_0_tx)  
-    );  
+        )(a_0_0_tx)
+    );
     a_0_0_rx.activate()?;
-    a_0_0_rx.recv::<String,>()?
+    a_0_0_rx
+    .recv::<String,>()
+    .expect("The retrieval of the result value failed.\nOhua turned your sequential program into a distributed one.\nHence, all Ohua can do at this point is error out.\nIf you would like to have support for handligng these errors in your application then please submit an issue.\n")
 }
                 |]
 
