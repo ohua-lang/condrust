@@ -10,7 +10,9 @@ hello_world = [sourceFile|
 use funs::hello_world;
 
 fn test() -> String {
-    let (a_0_0_tx, mut a_0_0_rx) = channel(); 
+   use m3::com::channel::{Sender, Receiver};
+   use m3::activity;
+   let (a_0_0_tx, mut a_0_0_rx) = channel(); 
     activity!(
         (|a_0_0_child_tx: Sender| {    
          let a_0_0 = hello_world();
@@ -32,6 +34,8 @@ use funs::{f, g};
 
 
 fn test() -> String {
+  use m3::com::channel::{Sender, Receiver};
+  use m3::activity;
   let (a_0_0_tx, mut a_0_0_rx) = channel();
   let (x_0_0_0_tx, x_0_0_0_rx) = channel();
   activity!(
