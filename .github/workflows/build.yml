@@ -10,43 +10,49 @@ jobs:
 
     steps:
       - name: Checkout ohuac
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
+          node-version: 16
           repository: 'ohua-lang/ohuac'
           token: ${{ secrets.PULL_TOKEN }}
           fetch-depth: 0
           path: 'ohuac'
       - name: Checkout ohuac-commons
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
+          node-version: 16
           repository: 'ohua-lang/ohuac-commons'
           token: ${{ secrets.PULL_TOKEN }}
           fetch-depth: 0
           path: 'ohuac-commons'
       - name: Checkout ohua-frontend
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
+          node-version: 16
           repository: 'ohua-lang/ohua-frontend'
           token: ${{ secrets.PULL_TOKEN }}
           fetch-depth: 0
           path: 'ohua-frontend'
       - name: Checkout ohua-backend
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
+          node-version: 16
           repository: 'ohua-lang/ohua-backend'
           token: ${{ secrets.PULL_TOKEN }}
           fetch-depth: 0
           path: 'ohua-backend'
       - name: Checkout ohua-core
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
+          node-version: 16
           repository: 'ohua-lang/ohua-core'
           token: ${{ secrets.PULL_TOKEN }}
           fetch-depth: 0
           path: 'ohua-core'
       - name: Checkout ohuac-integrations
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
+          node-version: 16
           repository: 'ohua-lang/ohuac-integrations'
           token: ${{ secrets.PULL_TOKEN }}
           fetch-depth: 0
@@ -72,15 +78,16 @@ jobs:
 
       # set up nix
       - name: Install nix
-        uses: cachix/install-nix-action@v17
+        uses: cachix/install-nix-action@v18
         with:
+          node-version: 16
           install_url: https://github.com/NixOS/nixpkgs/archive/b6966d911da89e5a7301aaef8b4f0a44c77e103c.tar.gz
           #nix_path: nixpkgs=channel:nixos-unstable
 
       - name: Get nixpkgs hash
         id: nixpkgs-hash
         run: |
-          echo "::set-output name=hash::$(nix-instantiate --eval -E '(import <nixpkgs> {}).lib.version')"
+          echo "name=hash::$(nix-instantiate --eval -E '(import <nixpkgs> {}).lib.version')" >> $GITHUB_OUTPUT
         shell: bash
       
       - name: Cache Haskell build artifacts for dependencies
