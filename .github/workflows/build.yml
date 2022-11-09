@@ -12,7 +12,6 @@ jobs:
       - name: Checkout ohuac
         uses: actions/checkout@v3
         with:
-          node-version: 16
           repository: 'ohua-lang/ohuac'
           token: ${{ secrets.PULL_TOKEN }}
           fetch-depth: 0
@@ -20,7 +19,6 @@ jobs:
       - name: Checkout ohuac-commons
         uses: actions/checkout@v3
         with:
-          node-version: 16
           repository: 'ohua-lang/ohuac-commons'
           token: ${{ secrets.PULL_TOKEN }}
           fetch-depth: 0
@@ -28,7 +26,6 @@ jobs:
       - name: Checkout ohua-frontend
         uses: actions/checkout@v3
         with:
-          node-version: 16
           repository: 'ohua-lang/ohua-frontend'
           token: ${{ secrets.PULL_TOKEN }}
           fetch-depth: 0
@@ -36,7 +33,6 @@ jobs:
       - name: Checkout ohua-backend
         uses: actions/checkout@v3
         with:
-          node-version: 16
           repository: 'ohua-lang/ohua-backend'
           token: ${{ secrets.PULL_TOKEN }}
           fetch-depth: 0
@@ -44,7 +40,6 @@ jobs:
       - name: Checkout ohua-core
         uses: actions/checkout@v3
         with:
-          node-version: 16
           repository: 'ohua-lang/ohua-core'
           token: ${{ secrets.PULL_TOKEN }}
           fetch-depth: 0
@@ -52,7 +47,6 @@ jobs:
       - name: Checkout ohuac-integrations
         uses: actions/checkout@v3
         with:
-          node-version: 16
           repository: 'ohua-lang/ohuac-integrations'
           token: ${{ secrets.PULL_TOKEN }}
           fetch-depth: 0
@@ -80,7 +74,6 @@ jobs:
       - name: Install nix
         uses: cachix/install-nix-action@v18
         with:
-          node-version: 16
           #install_url: https://github.com/NixOS/nixpkgs/archive/b6966d911da89e5a7301aaef8b4f0a44c77e103c.tar.gz
           nix_path: nixpkgs=channel:nixos-unstable
 
