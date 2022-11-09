@@ -36,7 +36,7 @@ compile :: CompM m
         => FilePath           -- ^ Input: path to the file to be compiled
         -> CompilationScope   -- ^ Frontend config: scope of the current compilation
         -> CoreEnv.Options    -- ^ Core config
-        -> IConfig.Config       -- ^ Integration configuration
+        -> IConfig.Config     -- ^ Integration configuration
         -> FilePath           -- ^ Output: path to the file to be generated
         -> m ()
 compile inFile compScope coreOpts integConf outDir =
@@ -47,10 +47,14 @@ compile inFile compScope coreOpts integConf outDir =
 
 compilation :: forall (lang::Lang) (arch::Arch) m.
     (CompM m, FullIntegration lang arch)
-    =>
-    FilePath -> CompilationScope -> Options -> FilePath
+    => FilePath 
+    -> CompilationScope 
+    -> CoreEnv.Options 
+    -> FilePath
     -> Maybe CConfig.CustomPasses
-    -> Language lang -> Architectures arch -> m ()
+    -> Language lang 
+    -> Architectures arch 
+    -> m ()
 compilation inFile compScope coreOpts outDir optimizations integration arch = do
     -- frontend: extract all algorithms (function definitions) from the given scope and
     --           transform them into the frontend language
