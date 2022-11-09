@@ -67,19 +67,19 @@ instance Architecture (Architectures 'M3) where
   type Chan (Architectures 'M3) = Rust.Stmt ()
   type ATask (Architectures 'M3) = Rust.Expr ()
 
-  convertChannel    SM3 = convertChan Sub.Immutable
-  convertRetChannel SM3 = convertChan Sub.Mutable
+  convertChannel    SM3{} = convertChan Sub.Immutable
+  convertRetChannel SM3{} = convertChan Sub.Mutable
 
   -- QUESTION: This 'invariant' is probably imposed by M3 requiring 'turbo fish'
   -- typing for the recv. calls i.e. a_0_0_rx.recv_msg::<String,>().unwrap() so if any return
     -- type is unknown to Ohua, this will blow up
-    -- &&convertRecv SM3 (SRecv TypeVar (SChan channel)) = (trace $ show channel) error "Invariant broken!"
+    -- &&convertRecv SM3{} (SRecv TypeVar (SChan channel)) = (trace $ show channel) error "Invariant broken!"
   -- ISSUE: To make progress, I'll insert a paceholder type annotation. The real type needs to be derived earlier!!
-  convertRecv SM3 (SRecv TypeVar (SChan channel)) = 
+  convertRecv SM3{} (SRecv TypeVar (SChan channel)) = 
       error $ "A TypeVar was introduced for channel" <>  show channel <> ". This is a compiler error, please report (fix if you are me :-))"
     
-  convertRecv    SM3 r = Sub.Try $ convertReceive "_child_rx" r
-  convertRetRecv SM3 r = 
+  convertRecv    SM3{} r = Sub.Try $ convertReceive "_child_rx" r
+  convertRetRecv SM3{} r = 
     Sub.MethodCall 
       (convertReceive "_rx" r) 
       (Sub.CallRef (asQualBind "expect") Nothing)
@@ -92,7 +92,7 @@ instance Architecture (Architectures 'M3) where
   -- QUESTION: Why is sending a binding (Right binding) undefined and (Left Lit ty) is ok?
   -- REMINDER: To make progress in testing stuff I'll adopt the handling from SM here. Check if
     -- thats valid and replace otherwise 
-  convertSend SM3 (SSend (SChan channel) toSend) = case toSend of
+  convertSend SM3{} (SSend (SChan channel) toSend) = case toSend of
     Right num@NumericLit{} -> asMethodCall $ Sub.Lit num
     Right b@BoolLit{} -> asMethodCall $ Sub.Lit b
     Right s@StringLit{} -> asMethodCall $ Sub.Lit s
@@ -105,7 +105,7 @@ instance Architecture (Architectures 'M3) where
         Sub.Try
               (Sub.MethodCall (Sub.Var $ channel <> "_child_tx") (Sub.CallRef (asQualBind "send") Nothing) [item])
 
-  build SM3 (RT.Module _ (Rust.SourceFile _ _ _items)) ns =
+  build SM3{} (RT.Module _ (Rust.SourceFile _ _ _items)) ns =
     return $ ns & algos %~ map (\algo -> algo & algoCode %~ createTasksAndRetChan)
     where
       createTasksAndRetChan (Program chans retChan tasks) =
@@ -162,7 +162,7 @@ instance Architecture (Architectures 'M3) where
             noSpan
 
   -- REMINDER: Replace Placeholder
-  serialize SM3 mod placeholder ns = C.serialize mod ns createProgram placeholder
+  serialize SM3{} mod placeholder ns = C.serialize mod ns createProgram placeholder
     where
       createProgram (Program chans resultExpr tasks) = 
         let
@@ -171,7 +171,7 @@ instance Architecture (Architectures 'M3) where
               [block| {
                 use m3::com::channel::{Sender, Receiver};
                 use m3::activity;
-              }|]
+               }|]
           taskStmts = map (flip Rust.Semi noSpan . taskExpression) tasks
           retChan = case [v | v@(Sub.Var bnd) <- universe resultExpr] of
                       [r] -> r

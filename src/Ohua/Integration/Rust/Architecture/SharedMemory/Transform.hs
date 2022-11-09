@@ -10,4 +10,4 @@ import Ohua.Integration.Rust.Backend.Passes (propagateMut)
 
 instance Transform (Architectures 'SharedMemory) where
   transformTaskExpr = lowerTaskPar
-  transformTask _ _ = propagateMut . amorphous . spawnWork
+  transformTask _ arch = propagateMut . amorphous . (spawnWork arch)

@@ -5,7 +5,7 @@ module Ohua.Integration.Transform.DataPar where
 
 -- import Ohua.Core.DFLang.PPrint (prettyExprM)
 
-import qualified Ohua.Integration.Config as IConf
+import qualified Ohua.Integration.Options as IOpt
 
 import Data.Functor.Foldable (cata, embed)
 import qualified Data.HashSet as HS
@@ -22,8 +22,8 @@ import qualified Ohua.Core.DFLang.Refs as DFRef
 import Ohua.Core.Feature.TailRec.Passes.ALang as TR (y)
 import Ohua.Core.Prelude hiding (concat, rewrite)
 
-dataPar :: IConf.Options -> CustomPasses
-dataPar (IConf.Options dpar amorph) =
+dataPar :: IOpt.Options -> CustomPasses
+dataPar (IOpt.Options dpar amorph) =
   CustomPasses
   pure
   (case amorph of

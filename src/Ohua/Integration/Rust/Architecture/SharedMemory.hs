@@ -30,7 +30,7 @@ instance Architecture (Architectures 'SharedMemory) where
   type Chan (Architectures 'SharedMemory) = Sub.Stmt
   type ATask (Architectures 'SharedMemory) = Rust.Expr ()
 
-  convertChannel SSharedMemory (SRecv argTy (SChan bnd)) =
+  convertChannel SSharedMemory{} (SRecv argTy (SChan bnd)) =
     -- help out the type inference of Rust a little here
     let chanTy = 
           case convertToRustType argTy of
@@ -51,13 +51,13 @@ instance Architecture (Architectures 'SharedMemory) where
             )
             []
 
-  convertRecv SSharedMemory (SRecv _type (SChan channel)) =
+  convertRecv SSharedMemory{} (SRecv _type (SChan channel)) =
     Sub.Try $
       Sub.MethodCall
         (Sub.Var $ channel <> "_rx")
         (Sub.CallRef (mkFunRefUnqual "recv") Nothing)
         []
-  convertSend SSharedMemory (SSend (SChan channel) d) = case d of
+  convertSend SSharedMemory{} (SSend (SChan channel) d) = case d of
     Left bnd -> trySend $ Sub.Var bnd
     Right num@NumericLit{} -> trySend $ Sub.Lit num
     Right b@BoolLit{} -> trySend $ Sub.Lit b
@@ -72,7 +72,7 @@ instance Architecture (Architectures 'SharedMemory) where
                     (Sub.CallRef (mkFunRefUnqual "send") Nothing)
                     [bnd]
 
-  build SSharedMemory (Module _ (Rust.SourceFile _ _ _items)) ns =
+  build SSharedMemory{} (Module _ (Rust.SourceFile _ _ _items)) ns =
     return $ ns & algos %~ map (\algo -> algo & algoCode %~ createTasksAndChannels)
     where
       createTasksAndChannels (Program chans retChan tasks) =
@@ -89,7 +89,7 @@ instance Architecture (Architectures 'SharedMemory) where
           (Rust.BlockExpr [] (convertBlock code) Nothing noSpan)
           noSpan
   -- REMINDER: Replace placeholder
-  serialize SSharedMemory mod  placeholder ns  = C.serialize mod ns createProgram placeholder
+  serialize SSharedMemory{} mod  placeholder ns  = C.serialize mod ns createProgram placeholder
     where
       createProgram (Program chans (Sub.Try resultExpr) tasks) =
         let taskInitStmt =

@@ -59,7 +59,7 @@ class Apply integration where
         -> m a
 
 instance Apply Integration where
-    apply (I lang arch config) comp = comp config lang arch
+    apply (I lang arch customCorePasses) comp = comp customCorePasses lang arch
 
 runIntegration :: CompM m
                 => Text
@@ -69,9 +69,9 @@ runIntegration :: CompM m
 runIntegration ext (Config arch options) comp = do
   integration <- case ext of
     ".rs" -> case arch of
-               SharedMemory -> return $ I SRust SSharedMemory $ Just $ RustPasses.passes options
-               M3 -> return $ I SRust SM3 Nothing
+               SharedMemory -> return $ I SRust (SSharedMemory options) $ Just $ RustPasses.passes options
+               M3 -> return $ I SRust (SM3 options) Nothing
     ".py" -> case arch of
-               MultiProcessing-> return $ I SPython SMultiProc $ Just $ PyPasses.passes options
+               MultiProcessing-> return $ I SPython (SMultiProc options) $ Just $ PyPasses.passes options
     _ -> throwError $ "No language integration defined for files with extension '" <> ext <> "'"
   apply integration comp

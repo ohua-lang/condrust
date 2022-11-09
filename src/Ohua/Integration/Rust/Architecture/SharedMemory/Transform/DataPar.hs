@@ -3,18 +3,17 @@
 module Ohua.Integration.Rust.Architecture.SharedMemory.Transform.DataPar where
 
 import Ohua.Integration.Rust.Architecture.SharedMemory ()
+import Ohua.Integration.Architecture
 import Ohua.Integration.Rust.Backend
 import Ohua.Integration.Rust.Backend.Subset
 import Ohua.Integration.Transform.DataPar (concat, joinFuture, spawnFuture, takeN)
+import Ohua.Integration.Options (Options(..))
 import Ohua.Prelude hiding (concat)
-
--- TODO define via a configuration
-threadCount = 1
 
 runtime = "rt"
 
-spawnWork :: Block -> Block
-spawnWork block =
+spawnWork :: Architectures 'SharedMemory -> Block -> Block
+spawnWork (SSharedMemory Options{..}) block =
   let (RustBlock unsafety blockExpr', par) = runState (transformExprInBlockM go block) False
    in case par of
         True ->
@@ -29,9 +28,9 @@ spawnWork block =
                                     (Call (CallRef "tokio.runtime.Builder/new" Nothing) [])
                                     (CallRef (mkFunRefUnqual "threaded_scheduler") Nothing)
                                     []
-                                )
+                                ) 
                                 (CallRef (mkFunRefUnqual "core_threads") Nothing)
-                                [Lit $ NumericLit threadCount]
+                                [Lit $ NumericLit $ fromMaybe 1 dataPar]
                             )
                             (CallRef (mkFunRefUnqual "build") Nothing)
                             []

@@ -40,10 +40,10 @@ instance Architecture (Architectures 'MultiProcessing) where
     {- | Convert a backend channel i.e. an arc in the DFG to an expression of the target architecture
          that instantiates the according process communication channel
     -}
-    convertChannel SMultiProc (SRecv argTy( SChan bnd))=
-        let expr = unwrapSubStmt $ convertExpr SMultiProc $ Apply $ Stateless (QualifiedBinding (makeThrow []) "mp.Pipe") []
-            send = unwrapSubStmt $ convertExpr SMultiProc $ TCLang.Var $ bnd <> "_sender"
-            recv = unwrapSubStmt $ convertExpr SMultiProc $ TCLang.Var $ bnd <> "_receiver"
+    convertChannel a@SMultiProc{} (SRecv argTy( SChan bnd))=
+        let expr = unwrapSubStmt $ convertExpr a $ Apply $ Stateless (QualifiedBinding (makeThrow []) "mp.Pipe") []
+            send = unwrapSubStmt $ convertExpr a $ TCLang.Var $ bnd <> "_sender"
+            recv = unwrapSubStmt $ convertExpr a $ TCLang.Var $ bnd <> "_receiver"
         in Sub.Assign [Sub.Tuple [send, recv]] expr
 
     {- | Converts an 'incomming edge' of a backend channel into an expression of the target architecture
@@ -52,9 +52,9 @@ instance Architecture (Architectures 'MultiProcessing) where
     -- Todo: Rust wraps that in a 'try'. Receiving is blocking 
     -- and raises EOFError if there's nothing left to receive and the sender is allready closed
         -- > Do I need to wrap this also?
-    convertRecv SMultiProc  (SRecv _type (SChan channel)) =
+    convertRecv a@SMultiProc{}  (SRecv _type (SChan channel)) =
      -- currently this will yield $channel_reciever.recv()           
-        convertExpr SMultiProc $
+        convertExpr a $
             Apply $ Stateful (TCLang.Var $ channel <> "_receiver") (toQualBinding "recv") []
 
     {- | Converts the 'outgoing edge' of a backend channel into an expression of the target architecture
@@ -63,18 +63,18 @@ instance Architecture (Architectures 'MultiProcessing) where
     -- Todo: Sending is only valid for picklable objects, i.e. basic Types, things def'd at TL of a module
         -- and ADTs thereof. Restriction on the Frontend should actualy prohibit non-TL def's. Also objects 
         -- must not exceed ~ 32MiB. I might need to catch PickleError's or ValueError's here
-    convertSend SMultiProc  (SSend (SChan chnlName) toSend) =
+    convertSend a@SMultiProc{}  (SSend (SChan chnlName) toSend) =
         let sendItem = case toSend of
                 Left varBnd -> TCLang.Var varBnd
                 Right literal -> TCLang.Lit literal
-        in convertExpr SMultiProc $
+        in convertExpr a $
             Apply $ Stateful (TCLang.Var $ chnlName <> "_sender") (toQualBinding "send") [sendItem]
 
 
     {- | Wraps the tasks i.e. codeblocks of host language function calls and 'wiring' to send and
          receive into actual independent tasks, in this case named closures because lambdas are to limited in python  
     -}
-    build SMultiProc (Module fPath (Py.Module stmts)) ns =
+    build SMultiProc{} (Module fPath (Py.Module stmts)) ns =
         return $ ns & algos %~ map (\algo -> algo & algoCode %~ createTasksAndChannels)
         where
             -- ^ Tasks are enumerated to create named functions task_1, task_2 ...
@@ -103,7 +103,7 @@ instance Architecture (Architectures 'MultiProcessing) where
          as 'algo_parallel' and b) contains all original function calls with function bodies replaced by a 
          call to the respective parallel module         
     -}
-    serialize  SMultiProc srcModule placeholder ns  = return $ callerModule:| ([lib_from_frontend] ++ algoModules)
+    serialize SMultiProc{} srcModule placeholder ns  = return $ callerModule:| ([lib_from_frontend] ++ algoModules)
         where
 
             convertedAlgoInfos =
