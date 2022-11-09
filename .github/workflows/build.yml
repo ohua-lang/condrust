@@ -81,8 +81,8 @@ jobs:
         uses: cachix/install-nix-action@v18
         with:
           node-version: 16
-          install_url: https://github.com/NixOS/nixpkgs/archive/b6966d911da89e5a7301aaef8b4f0a44c77e103c.tar.gz
-          #nix_path: nixpkgs=channel:nixos-unstable
+          #install_url: https://github.com/NixOS/nixpkgs/archive/b6966d911da89e5a7301aaef8b4f0a44c77e103c.tar.gz
+          nix_path: nixpkgs=channel:nixos-unstable
 
       - name: Get nixpkgs hash
         id: nixpkgs-hash
