@@ -4,6 +4,7 @@ module Ohua.Types
     , NSRef(..)
     , QualifiedBinding(..)
     , ArgType(..)
+    , controlSignalType
     , FunType(..)
     , toFilePath
     , symbolFromString
