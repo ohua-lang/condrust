@@ -1,5 +1,5 @@
 {-# LANGUAGE QuasiQuotes #-}
-module Integrations.Rust.RustM3.RustTestCode.KVAppCompiled where
+module Integrations.Rust.M3.TestCode.KVAppCompiled where
 
 import Language.Rust.Quote (sourceFile)
 import Language.Rust.Syntax (SourceFile)

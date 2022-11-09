@@ -1,5 +1,5 @@
 {-# LANGUAGE QuasiQuotes #-}
-module Integrations.Rust.RustM3.RustTestCode.HelperFiles where
+module Integrations.Rust.M3.TestCode.HelperFiles where
 
 import Data.Text as T (Text)
 import Language.Rust.Quote

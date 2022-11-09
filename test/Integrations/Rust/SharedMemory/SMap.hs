@@ -1,9 +1,9 @@
 {-# LANGUAGE QuasiQuotes #-}
-module Integrations.Rust.RustSharedMemory.SMap where
+module Integrations.Rust.SharedMemory.SMap where
 
 import Ohua.Prelude
 
-import Integrations.Rust.RustSharedMemory.RustSetup
+import Integrations.Rust.SharedMemory.Setup
 
 
 spec :: Spec

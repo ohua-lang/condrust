@@ -1,8 +1,8 @@
 {-# LANGUAGE QuasiQuotes #-}
-module Integrations.Rust.RustSharedMemory.Control where
+module Integrations.Rust.SharedMemory.Control where
 
 import Ohua.Prelude ( ($), Monad((>>=)), (=<<) )
-import Integrations.Rust.RustSharedMemory.RustSetup
+import Integrations.Rust.SharedMemory.Setup
 import Language.Rust.Syntax (SourceFile)
 import Language.Rust.Data.Position (Span)
 

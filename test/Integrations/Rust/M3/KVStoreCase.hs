@@ -1,11 +1,11 @@
-module Integrations.Rust.RustM3.KVStoreCase where
+module Integrations.Rust.M3.KVStoreCase where
 
 
 import Ohua.Prelude ( ($), Monad((>>=)), (=<<) )
 
-import Integrations.Rust.RustM3.RustM3Setup
-import Integrations.Rust.RustM3.RustTestCode.KVAppCode as Input
-import Integrations.Rust.RustM3.RustTestCode.KVAppCompiled as Expect
+import Integrations.Rust.M3.Setup
+import Integrations.Rust.M3.TestCode.KVAppCode as Input
+import Integrations.Rust.M3.TestCode.KVAppCompiled as Expect
 
 spec :: Spec
 spec =

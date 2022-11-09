@@ -1,9 +1,9 @@
 {-# LANGUAGE QuasiQuotes #-}
-module Integrations.Rust.RustSharedMemory.If where
+module Integrations.Rust.SharedMemory.If where
 
 import Ohua.Prelude
 
-import Integrations.Rust.RustSharedMemory.RustSetup
+import Integrations.Rust.SharedMemory.Setup
 import Language.Rust.Syntax (SourceFile)
 import Language.Rust.Data.Position (Span)
 

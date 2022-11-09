@@ -1,4 +1,4 @@
-module Integrations.Rust.RustSharedMemory.RustSetup
+module Integrations.Rust.SharedMemory.Setup
   ( renderRustCode,
     showCode,
     showCodeWithDiff,
@@ -23,6 +23,7 @@ import Language.Rust.Syntax
 import Ohua.Compile.Compiler (compile)
 import qualified Ohua.Integration.Architecture as Arch
 import qualified Ohua.Integration.Config as IC
+import qualified Ohua.Integration.Options as O
 import Ohua.Prelude
 import System.Directory (copyFile, createDirectory, setCurrentDirectory)
 import System.Exit (ExitCode (..))
@@ -56,7 +57,7 @@ renderRustCode =
 
 
 integrationOptions :: IC.Config
-integrationOptions = IC.Config Arch.SharedMemory $ IC.Options Nothing Nothing
+integrationOptions = IC.Config Arch.SharedMemory $ O.Options Nothing Nothing
 
 
 compileModule :: SourceFile Span -> Options -> CompilationType -> ReaderT DebugOptions IO (SourceFile Span)

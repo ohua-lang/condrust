@@ -1,8 +1,8 @@
 {-# LANGUAGE QuasiQuotes #-}
-module Integrations.Rust.RustSharedMemory.Scoping where
+module Integrations.Rust.SharedMemory.Scoping where
 
 import Ohua.Prelude ( ($), Monad((>>=)), (=<<) )
-import Integrations.Rust.RustSharedMemory.RustSetup
+import Integrations.Rust.SharedMemory.Setup
 import Language.Rust.Syntax (SourceFile)
 import Language.Rust.Parser (Span)
 

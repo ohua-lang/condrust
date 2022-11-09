@@ -10,6 +10,7 @@ import Ohua.Compile.Config as C
 import Ohua.Compile.Compiler as Comp
 
 import Ohua.Integration.Config as IC
+import Ohua.Integration.Options as O
 import Ohua.Integration.Architecture as IA
 
 import qualified Data.Yaml as Y
@@ -50,7 +51,7 @@ spec =
                 { compilationScope = HM.fromList [ (["some","other","ns","module"],".go")
                                                 , (["some","ns","module"],".go")]
                 , extraFeatures = ["tail-recursion"]
-                , integrationFeatures = IC.Config IA.SharedMemory $ IC.Options (Just 42) (Just 13)
+                , integrationFeatures = IC.Config IA.SharedMemory $ O.Options (Just 42) (Just 13)
                 , debug = C.DebugOptions { logLevel = LevelOther "verbose"
                                         , stageHandlingOpt = C.defaultStageHandling
                                         }
@@ -139,7 +140,7 @@ spec =
                 C.CompilerOptions
                 { compilationScope = HM.empty
                 , extraFeatures = []
-                , integrationFeatures = IC.Config IA.M3 $ IC.Options Nothing Nothing
+                , integrationFeatures = IC.Config IA.M3 $ O.Options Nothing Nothing
                 , debug = C.DebugOptions { logLevel = LevelWarn
                                         , stageHandlingOpt = C.defaultStageHandling
                                         }
@@ -154,7 +155,7 @@ spec =
                 C.CompilerOptions
                 { compilationScope = HM.empty
                 , extraFeatures = []
-                , integrationFeatures = IC.Config IA.M3 $ IC.Options Nothing Nothing
+                , integrationFeatures = IC.Config IA.M3 $ O.Options Nothing Nothing
                 , debug = C.DebugOptions { logLevel = LevelWarn
                                         , stageHandlingOpt = C.defaultStageHandling
                                         }
@@ -170,7 +171,7 @@ spec =
                 C.CompilerOptions
                 { compilationScope = HM.empty
                 , extraFeatures = []
-                , integrationFeatures = IC.Config IA.M3 $ IC.Options (Just 42) Nothing
+                , integrationFeatures = IC.Config IA.M3 $ O.Options (Just 42) Nothing
                 , debug = C.DebugOptions { logLevel = LevelWarn
                                         , stageHandlingOpt = C.defaultStageHandling
                                         }
@@ -186,7 +187,7 @@ spec =
                 C.CompilerOptions
                 { compilationScope = HM.empty
                 , extraFeatures = []
-                , integrationFeatures = IC.Config IA.M3 $ IC.Options Nothing (Just 42)
+                , integrationFeatures = IC.Config IA.M3 $ O.Options Nothing (Just 42)
                 , debug = C.DebugOptions { logLevel = LevelWarn
                                         , stageHandlingOpt = C.defaultStageHandling
                                         }

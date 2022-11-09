@@ -1,8 +1,8 @@
 {-# LANGUAGE QuasiQuotes #-}
-module Integrations.Rust.RustSharedMemory.Benchmark where
+module Integrations.Rust.SharedMemory.Benchmark where
 
 import Ohua.Prelude  ( ($), Monad((>>=)), (=<<) )
-import Integrations.Rust.RustSharedMemory.RustSetup
+import Integrations.Rust.SharedMemory.Setup
 
 spec :: Spec
 spec =

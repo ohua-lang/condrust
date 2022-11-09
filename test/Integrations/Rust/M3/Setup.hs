@@ -1,4 +1,4 @@
-module Integrations.Rust.RustM3.RustM3Setup
+module Integrations.Rust.M3.Setup
   ( renderRustCode,
     showCode,
     showCodeWithDiff,
@@ -15,7 +15,8 @@ import Ohua.Prelude
 import Ohua.Compile.Compiler (compile)
 import qualified Ohua.Integration.Architecture as Arch
 import qualified Ohua.Integration.Config as IC
-import Ohua.Core.Types (Options)
+import Ohua.Core.Types 
+import qualified Ohua.Integration.Options as O (Options(..))
 
 
 import qualified Data.ByteString.Lazy.Char8 as L
@@ -38,8 +39,8 @@ import Test.Hspec
 import TestOptions 
 
 import Integrations.TestSetup (Testable(..))
-import Integrations.Rust.RustM3.RustTestCode.HelperFiles
-import Integrations.Rust.RustM3.RustTestCode.KVAppCode ()
+import Integrations.Rust.M3.TestCode.HelperFiles
+import Integrations.Rust.M3.TestCode.KVAppCode ()
 
 
 
@@ -67,7 +68,7 @@ renderRustCode =
 
 
 integrationOptions :: IC.Config
-integrationOptions = IC.Config Arch.M3 $ IC.Options Nothing Nothing
+integrationOptions = IC.Config Arch.M3 $ O.Options Nothing Nothing
 
 
 compileModule :: SourceFile Span -> Options -> CompilationType -> ReaderT DebugOptions IO (SourceFile Span)

@@ -12,6 +12,7 @@ import Ohua.Core.Types.Environment (Options)
 import Ohua.Compile.Compiler (compile)
 
 import qualified Ohua.Integration.Config as IC
+import qualified Ohua.Integration.Options as O
 import qualified Ohua.Integration.Architecture as Arch
 
 
@@ -48,7 +49,7 @@ renderPython:: (PyPretty.Pretty a) => a -> Text
 renderPython = T.pack . prettyText
 
 integrationOptions :: IC.Config
-integrationOptions = IC.Config Arch.MultiProcessing $ IC.Options Nothing Nothing
+integrationOptions = IC.Config Arch.MultiProcessing $ O.Options Nothing Nothing
 
 
 compileModule ::  Module SrcSpan -> Options -> CompilationType -> ReaderT DebugOptions IO (Module SrcSpan)

@@ -1,11 +1,11 @@
-module Integrations.Rust.RustM3.WIPCases where
+module Integrations.Rust.M3.WIPCases where
 
 import Ohua.Prelude ( ($), Monad((>>=)), (=<<) )
 
-import Integrations.Rust.RustM3.RustM3Setup
-import Integrations.Rust.RustM3.RustTestCode.WIPCode as Input
-import Integrations.Rust.RustM3.RustTestCode.WIPOutput as WIPExpect
-import Integrations.Rust.RustM3.RustTestCode.BasicsOutput as Expect
+import Integrations.Rust.M3.Setup
+import Integrations.Rust.M3.TestCode.WIPCode as Input
+import Integrations.Rust.M3.TestCode.WIPOutput as WIPExpect
+import Integrations.Rust.M3.TestCode.BasicsOutput as Expect
 
 spec :: Spec
 spec =

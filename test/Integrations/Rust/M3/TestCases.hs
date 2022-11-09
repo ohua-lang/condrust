@@ -1,10 +1,10 @@
-module Integrations.Rust.RustM3.TestCases where
+module Integrations.Rust.M3.TestCases where
 
 import Ohua.Prelude ( ($), Monad((>>=)), (=<<) )
 
-import Integrations.Rust.RustM3.RustM3Setup
-import Integrations.Rust.RustM3.RustTestCode.BasicsCode as Input
-import Integrations.Rust.RustM3.RustTestCode.BasicsOutput as Expect
+import Integrations.Rust.M3.Setup
+import Integrations.Rust.M3.TestCode.BasicsCode as Input
+import Integrations.Rust.M3.TestCode.BasicsOutput as Expect
 
 spec :: Spec
 spec =

@@ -4,8 +4,8 @@ import Test.Hspec
 
 import qualified LoweringSpec as Lowering
 import qualified ConfigSpec as Config
-import qualified Integrations.Rust.RustSharedMemory.Spec as Rust
-import qualified Integrations.Rust.RustM3.Spec as RustM3
+import qualified Integrations.Rust.SharedMemory.Spec as Rust
+import qualified Integrations.Rust.M3.Spec as RustM3
 import qualified Integrations.Python.Spec as Python
 
 
