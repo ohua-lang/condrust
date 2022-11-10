@@ -70,5 +70,5 @@ seqFunSf = Lit $ FunRefLit $ FunRef Refs.seqFun Nothing $ FunType $ Right $ Type
 --             <> " This is a broken compiler invariant. Please report it."
 -- seqRewrite e = return e
 
-seqRewrite :: (Monad m, MonadGenBnd m) => Expr ty -> m (Expr ty)
+seqRewrite :: (Monad m) => Expr ty -> m (Expr ty)
 seqRewrite = pure

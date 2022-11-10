@@ -30,6 +30,7 @@ stage stName code = do
         boundary = "\n" <> T.concat (replicate 20 ("-"::T.Text)) <> "\n"
         stageHeader = "stage: " <> fromStrict stName <> "\n\n"
 
+genSolo :: Pretty a => a -> T.Text
 genSolo code = renderLazy $ layoutSmart ohuaDefaultLayoutOpts $ pretty code
 
 resolvedAlang :: StageName

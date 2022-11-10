@@ -30,7 +30,6 @@ module Ohua.Core.Util
     , traceShowId
     , forceAndReport
     , forceTraceReport
-    -- , intentionally_not_implemented
     , isDebug
     , debugOr
     , whenDebug
@@ -171,15 +170,6 @@ forceAndReport msg val = val `deepseq` liftIO (putStrLn msg)
 -- | Force the evaluation of a value and then print a message using 'trace'.
 forceTraceReport :: (Applicative f, NFData a) => String -> a -> f ()
 forceTraceReport msg val = val `deepseq` traceShow msg (pure ())
-
-
--- -- | An 'error' call to indicate a certain class method is
--- -- intentionally not implemented. Mostly used when 'Num' is
--- -- implemented for a type to get the overloaded integer syntax but the
--- -- type does not actually support numeric operations.
--- intentionally_not_implemented :: a
--- intentionally_not_implemented =
---     error "This is intentionally not implemented, don't use it!"
 
 
 

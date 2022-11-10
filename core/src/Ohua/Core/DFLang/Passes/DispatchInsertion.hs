@@ -11,7 +11,7 @@ import Ohua.Core.Prelude hiding (Nat)
 import Ohua.Types.Vector 
 
 
-data UsageSite = Pure| StateThread | SMap | If | Rec deriving Eq
+data UsageSite = Pure| StateThread | SMap | If | Rec | Collect | Select | Ctrl deriving Eq
 data Record where
   Record :: NonEmpty UsageSite -> SNat ('Succ n) -> Record
 type FreeVars = HM.HashMap Binding Record
@@ -22,6 +22,10 @@ fromApp StateDFFun{} = StateThread
 fromApp SMapFun{} = SMap
 fromApp IfFun{} = If
 fromApp RecurFun{} = Rec
+-- We'll need them later
+fromApp CollectFun{} = Collect
+fromApp SelectFun{} = Select
+fromApp CtrlFun{} = Ctrl 
 
 addUsageSite :: UsageSite -> Record -> Record
 addUsageSite a (Record u n) = Record (u |> a) (SSucc n)
