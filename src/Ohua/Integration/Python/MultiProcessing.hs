@@ -8,7 +8,7 @@ import Ohua.Backend.Types
 import Ohua.Backend.Lang as TCLang
 import Ohua.Integration.Lang hiding (Lang)
 import Ohua.Integration.Architecture
-import Ohua.Integration.Python.NewBackend
+import Ohua.Integration.Python.Backend
 import Ohua.Integration.Python.Backend.Subset as Sub
 import Ohua.Integration.Python.Backend.Convert
 import Ohua.Integration.Python.Util

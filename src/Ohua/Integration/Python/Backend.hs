@@ -1,4 +1,4 @@
-module Ohua.Integration.Python.NewBackend where
+module Ohua.Integration.Python.Backend where
 import Ohua.Prelude
 
 import Ohua.Backend.Lang as TCLang
@@ -69,6 +69,7 @@ instance Integration (Language 'Python) where
     convertExpr _ (TCLang.Var bnd) = wrapSubExpr $ Sub.Var bnd
     convertExpr _ (TCLang.Lit (NumericLit i)) = wrapSubExpr $ Sub.Int i
     convertExpr _ (TCLang.Lit (BoolLit b)) = wrapSubExpr $ Sub.Bool b
+    convertExpr _ (TCLang.Lit (StringLit str)) = wrapSubExpr $ Sub.Strings [str]
     convertExpr _ (TCLang.Lit UnitLit) = wrapSubExpr Sub.None
     convertExpr _ (TCLang.Lit (EnvRefLit _hostExpr)) = error "Host expression encountered! This is a compiler error. Please report!"
 

@@ -120,18 +120,15 @@ instance Integration (Language 'Rust) where
         Block Span ->
         m (FrLang.Expr RustArgType)
       extractAlgo (FnDecl args _ _ _) block = do
-        ctxt <- get
-        -- traceM $ "Context before parsing arguments :" <> show ctxt <> "\n"
+        -- Add the parameters and their types to the context
         args' <- mapM (convertPat <=< SubC.convertArg) args
-        ctxt <- get
-        -- traceM $ "Context after parsing arguments :" <> show ctxt <> "\n"
+        -- Convert the function block
         block' <- convertIntoFrExpr block
         return $ LamE args' block'
 
       convertIntoFrExpr :: SubC.ConvertM m => Block Span -> m (FrLang.Expr RustArgType)
       convertIntoFrExpr rustBlock = do
         subsetExpr <- SubC.convertBlock rustBlock
-        -- ToDo: This should not start with an empty Context but prefilled with the types of the arguments
         convertExpr subsetExpr
 
       toBindings p@(Path _ segments _) =
@@ -139,7 +136,7 @@ instance Integration (Language 'Rust) where
           (PathSegment ident Nothing _) -> return $ toBinding ident
           (PathSegment _ (Just _) _) -> error $ "We currently do not support import paths with path parameters.\n" <> show p
       
-      getReturn :: FnDecl Span	-> RustArgType
+      getReturn :: FnDecl Span -> RustArgType
       -- FIXME: We may need more elaborate patterns for the type here
       -- Currently we only care for pure functions as algos and do nto support tuple
       -- returns (or any sort of elaborate types in the composition). If this changes, we need to 
@@ -280,6 +277,7 @@ getArgType (Sub.Var bnd) = do
 getArgType (Sub.Lit lit) = case lit of
   Sub.Bool b -> return $ Type . TE.Normal $ PathTy Nothing (Path False [PathSegment "bool" Nothing ()] ()) ()
   Sub.Int i ->  return $ Type . TE.Normal $ PathTy Nothing (Path False [PathSegment "i32" Nothing ()] ()) ()
+  -- Sub.String s ->  return $ Type . TE.Normal $ PathTy Nothing (Path False [PathSegment "String" Nothing ()] ()) ()
   -- ToDo: Add other literals
 getArgType e = error $ "No type info found for" <> show e
 
@@ -304,7 +302,7 @@ instance ConvertExpr Sub.Expr where
         -- traceM $ "Context at parsing function " <> show bnd <> ": \n" <> show ctxt <> "\n"
         ty <- argTypesFromContext args
         return $ LitE (FunRefLit (FunRef qBnd Nothing $ FunType ty))
-      _ -> (trace$"Not the fun I expected: "<> show fun <> "\n") return fun'
+      _ -> return fun'
     args' <- mapM convertExpr args
     return $ fun'' `AppE` args'
   -- ToDo: Type function literal here 
@@ -448,6 +446,7 @@ asBinSymbol Sub.Lte =  "<="
 asBinSymbol Sub.Gte =  ">="
 asBinSymbol Sub.Gt =  ">"
 asBinSymbol Sub.EqOp =  "=="
+asBinSymbol Sub.OrOp =  "||"
 
 asUnSymbol::Sub.UnOp -> Binding
 asUnSymbol Sub.Deref =  "*"

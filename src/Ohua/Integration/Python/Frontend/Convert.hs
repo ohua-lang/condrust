@@ -283,11 +283,13 @@ binOpToSub Py.BinaryOr{} = return Sub.BinaryOr
 binOpToSub Py.Xor{} = return Sub.Xor
 binOpToSub Py.ShiftLeft{} = return Sub.ShiftLeft
 binOpToSub Py.ShiftRight{} = return Sub.ShiftRight
+binOpToSub op  = error $ "Unexpected binary operation " <> show op
 
 
 unOpToSub :: (Monad m, MonadError Error m) => Py.Op SrcSpan -> m Sub.UnOp
 unOpToSub Py.Not{}  = return Sub.Not
 unOpToSub Py.Invert{} = return Sub.Invert
+unOpToSub op  = error $ "Unexpected unary operation " <> show op
 
 
 isNoReturn:: (Monad m, MonadError Error m) => Py.Statement SrcSpan -> m (Py.Statement SrcSpan)
@@ -306,14 +308,10 @@ chainBindings:: String -> Py.Expr SrcSpan -> String
 chainBindings lst (Py.Var ident anno) = Py.ident_string ident
 chainBindings lst (Py.Dot expr ident annot) =
     chainBindings (Py.ident_string ident++"."++ lst) expr
+chainBindings _ _ = error "Currently we do not support function references other than variable names <x> or dotted expressions <x.y.z> "
 
 
 makeLoopRef :: String -> SrcSpan -> String
 makeLoopRef loopKind loc = loopKind ++ "_"
-{-
-data UnsupportedSyntaxError a = (Show a)=> UnsupportedSyntax String a
-instance Error (UnsupportedSyntaxError a) where
-    noMsg = UnsupportedSyntax ""
-    strMsg s = UnsupportedSyntax s
--}
+
 

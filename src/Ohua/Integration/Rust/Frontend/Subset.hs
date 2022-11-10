@@ -36,6 +36,7 @@ data Expr
   | Lit Lit
   deriving (Show, Eq, Generic)
 
+-- ToDo: Add other literals, find solution for unit
 data Lit = Int Integer | Bool Bool deriving (Show, Eq, Generic)
 type VarRef = Binding
 data Arg = Arg Pat RustType deriving (Show, Eq, Generic)
