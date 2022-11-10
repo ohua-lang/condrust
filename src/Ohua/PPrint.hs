@@ -48,6 +48,7 @@ prettyLit =
         UnitLit -> "()"
         EnvRefLit he -> "$" <> pretty he
         BoolLit b -> pretty b
+        StringLit str -> pretty str
 
 instance Pretty FnId where
     pretty = pretty . unwrap
