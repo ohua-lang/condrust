@@ -110,10 +110,8 @@ unzip3 ((x, y, z) :> xyzs) = case unzip3 xyzs of
 
 filter :: (a -> Bool) -> Vec n a -> ExVec a
 filter f VNil = MkEV VNil
-filter f (x :> xs) = case f x of
-  True -> case filter f xs of
-    MkEV v -> MkEV (x :> v)
-  False -> filter f xs
+filter f (x :> xs) = if f x then (case filter f xs of
+                            MkEV v -> MkEV (x :> v)) else filter f xs
 
 nlength :: [a] -> Nat
 nlength [] = Zero
@@ -124,7 +122,7 @@ replicate Zero _ = []
 replicate (Succ n) x = x : replicate n x
 
 replicateNE :: SNat ('Succ n) -> a -> NonEmpty a
-replicateNE (SSucc n) x = x :| (replicate (fromSing n) x)
+replicateNE (SSucc n) x = x :| replicate (fromSing n) x
 
 withSing :: Nat -> (forall n. SNat n -> a) -> a
 withSing n f = case toSing n of
@@ -133,6 +131,7 @@ withSing n f = case toSing n of
 withSuccSing :: Nat -> (forall n.SNat ('Succ n) -> a) -> a
 withSuccSing n f = case toSing n of
                      SomeSing s@(SSucc _) -> f s
+                     
 
 natToInt :: Nat -> Int
 natToInt Zero = 0
