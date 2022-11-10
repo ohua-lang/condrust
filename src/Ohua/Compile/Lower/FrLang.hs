@@ -84,7 +84,7 @@ whileToRecursion =
         WhileE cond body -> Just <$> do
             loopName <- generateLoopName body
             let (branchingFunction, stateVars) = generateIfSplit loopName cond body
-            let whileLoopFunction = (trace $ "WHILE TRANSFORM: "<> show stateVars) 
+            let whileLoopFunction = -- (trace $ "WHILE TRANSFORM: "<> show stateVars) 
                                      LamE (map VarP stateVars) $ StmtE body branchingFunction 
             return $ LetE (VarP loopName) whileLoopFunction branchingFunction
         _ -> return Nothing
