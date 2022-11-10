@@ -16,7 +16,7 @@ spec =
                 compiled `shouldBe` expected)
  
         it "simple composition" $ 
-            (showCode "Compiled: " =<< compileCodeWithDebug Input.simple_composition) >>=
+            (showCode "Compiled: " =<< compileCode Input.simple_composition) >>=
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.simple_composition
                 compiled `shouldBe` expected)
@@ -34,14 +34,14 @@ spec =
                 compiled `shouldBe` expected)
 
         it "FAIL: While Loop as If-Recursion only recursive call in branches" $ 
-            (showCode "Compiled: " =<< compileCodeWithRecWithDebug Input.if_recursion_only_call_in_branch) >>=
+            (showCode "Compiled: " =<< compileCodeWithRec Input.if_recursion_only_call_in_branch) >>=
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.if_recursion_only_call_in_branch
                 compiled `shouldBe` expected)
 
 
         it "if condition with binop" $ 
-            (showCode "Compiled: " =<< compileCodeWithDebug Input.if_binop) >>=
+            (showCode "Compiled: " =<< compileCode Input.if_binop) >>=
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.simple_composition
                 compiled `shouldBe` expected)
@@ -61,42 +61,43 @@ spec =
 {-
         
         it "function with two calculated params" $ 
-            (showCode "Compiled: " =<< compileCodeWithDebug Input.multi_var) >>=
+            (showCode "Compiled: " =<< compileCode Input.multi_var) >>=
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.multi_var
                 compiled `shouldBe` expected)
         it "Arc and clone local var" $ 
-            (showCode "Compiled: " =<< compileCodeWithDebug Input.multi_var_read_only) >>=
+            (showCode "Compiled: " =<< compileCode Input.multi_var_read_only) >>=
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.multi_var_read_only
                 compiled `shouldBe` expected)
         it "Clone local var" $ 
-            (showCode "Compiled: " =<< compileCodeWithDebug Input.multi_var_expl_clone) >>=
+            (showCode "Compiled: " =<< compileCode Input.multi_var_expl_clone) >>=
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.multi_var_expl_clone
                 compiled `shouldBe` expected)
         it "Use imported function" $ 
-            (showCode "Compiled: " =<< compileCodeWithDebug Input.env_vars) >>=
+            (showCode "Compiled: " =<< compileCode Input.env_vars) >>=
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.env_vars
                 compiled `shouldBe` expected)
         it "Use algo in other algo" $ 
-            (showCode "Compiled: " =<< compileCodeWithDebug Input.algo_loading) >>=
+            (showCode "Compiled: " =<< compileCode Input.algo_loading) >>=
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.algo_loading
                 compiled `shouldBe` expected)
         it "Use algo with imported function in other algo" $ 
-            (showCode "Compiled: " =<< compileCodeWithDebug Input.algo_loading_env) >>=
+            (showCode "Compiled: " =<< compileCode Input.algo_loading_env) >>=
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.algo_loading_env
                 compiled `shouldBe` expected)
         it "Tuple destruct from unit fun" $ 
-            (showCode "Compiled: " =<< compileCodeWithDebug Input.tuple_from_unit_fun) >>=
+            (showCode "Compiled: " =<< compileCode Input.tuple_from_unit_fun) >>=
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.tuple_from_unit_fun
                 compiled `shouldBe` expected)
+                
         it "Tuple destruct from param fun" $ 
-            (showCode "Compiled: " =<< compileCodeWithDebug Input.tuple_from_param) >>=
+            (showCode "Compiled: " =<< compileCode Input.tuple_from_param) >>=
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.tuple_from_param
                 compiled `shouldBe` expected)     

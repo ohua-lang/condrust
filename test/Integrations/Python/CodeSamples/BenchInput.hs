@@ -1,9 +1,9 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module Integrations.Python.PythonCodeSamples.BenchInput where
+module Integrations.Python.CodeSamples.BenchInput where
 
-import Integrations.Python.PythonCodeSamples.SimpleQuoter
+import Integrations.Python.CodeSamples.SimpleQuoter
 
 blackScholes = [pythonModule|
 from bs_lib import calulateForOption, refl

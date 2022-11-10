@@ -2,8 +2,8 @@ module Integrations.Python.TestCases.ErrorCases where
 
 import Ohua.Prelude ( ($), Monad((>>=)), (=<<), Either(..))
 
-import Integrations.Python.PythonSetup
-import qualified Integrations.Python.PythonCodeSamples.ErrorInputs as Input
+import Integrations.Python.Setup
+import qualified Integrations.Python.CodeSamples.ErrorInputs as Input
 
 -- Everthing in here is expected to throw an error or
 -- produce invalid Python. As we agreed to keep tests green those tests 

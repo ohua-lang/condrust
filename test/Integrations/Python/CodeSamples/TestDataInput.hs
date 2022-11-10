@@ -1,9 +1,9 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module Integrations.Python.PythonCodeSamples.TestDataInput where
+module Integrations.Python.CodeSamples.TestDataInput where
 
-import Integrations.Python.PythonCodeSamples.SimpleQuoter
+import Integrations.Python.CodeSamples.SimpleQuoter
 import Language.Python.Common.AST (ModuleSpan)
 
 testLib :: ModuleSpan

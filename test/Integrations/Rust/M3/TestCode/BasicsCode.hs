@@ -137,7 +137,7 @@ tuple_from_param = [sourceFile|
                 use funs::*;
 
                 fn test() -> i32 {
-                    let (x0,y0):(i32,String) = f_tup(i32);
+                    let (x0,y0):(i32,String) = f_tup(23);
                     let x1:i32 = f0(x0);
                     let y1:String = f1(y0);
                     h2(x1,y1)
@@ -151,7 +151,8 @@ smap_for_unbound = [sourceFile|
                 fn test(i:i32) -> () {
                     let s:State = S::new_state();
                     for e in range_from(i) {
-                        let r:i32 = h(e);
+                        let e1:i32 = e;
+                        let r:i32 = h(e1);
                         s.gs(r);
                     }
                 }
@@ -162,11 +163,12 @@ smap_for_bound :: SourceFile Span
 smap_for_bound = [sourceFile|
                 use funs::*;
 
-                fn test() -> S {
+                fn test() -> State {
                     let s:State = S::new_state();
                     let stream:Iter<i32> = iter_i32();
                     for e in stream {
-                        let r:i32 = h(e);
+                        let e1:i32 = e;
+                        let r:i32 = h(e1);
                         s.gs(r);
                     }
                     s
@@ -190,32 +192,14 @@ smap_while = [sourceFile|
                 }
 |]      
 
-if_recursion:: SourceFile Span
-if_recursion = [sourceFile|
-                use funs::*;
-
-                fn algo_rec(i:i32, state:S) -> S{
-                    if islowerthan23(i) {
-                        state.gs(i);
-                        algo_rec(add(i,1), state)
-                    } else {
-                        state
-                    }
-                }
-
-                fn test(i:i32) -> S {
-                    let mut state:State = S::new_state();
-                    algo_rec(i, state) 
-                }
-|]
 
 if_recursion_only_call_in_branch:: SourceFile Span
 if_recursion_only_call_in_branch = [sourceFile|
                 use funs::*;
 
-                fn algo_rec(i:i32, state:S) -> S{
+                fn algo_rec(i:i32, state:State) -> State{
                     state.gs(i);
-                    let i_new = add(i, 1);
+                    let i_new:i32 = add(i, 1);
                     if islowerthan23(i) {
                         algo_rec(i_new, state)
                     } else {
@@ -223,8 +207,8 @@ if_recursion_only_call_in_branch = [sourceFile|
                     }
                 }
 
-                fn test(i:i32) -> S {
-                    let mut state = S::new_state();
+                fn test(i:i32) -> State {
+                    let mut state:State = State::new_state();
                     algo_rec(i, state) 
                 }
 |]

@@ -2,12 +2,12 @@ module Integrations.Python.TestCases.WIP where
 
 import Ohua.Prelude ( ($), Monad((>>=)), (=<<), Either(..))
 
-import Integrations.Python.PythonSetup
-import qualified Integrations.Python.PythonCodeSamples.TestDataInput as Input
-import qualified Integrations.Python.PythonCodeSamples.TestDataOutput as Expect
+import Integrations.Python.Setup
+import qualified Integrations.Python.CodeSamples.TestDataInput as Input
+import qualified Integrations.Python.CodeSamples.TestDataOutput as Expect
 
-import qualified Integrations.Python.PythonCodeSamples.BenchInput as BIn
-import qualified Integrations.Python.PythonCodeSamples.BenchOutput as BExpect
+import qualified Integrations.Python.CodeSamples.BenchInput as BIn
+import qualified Integrations.Python.CodeSamples.BenchOutput as BExpect
 
 
 

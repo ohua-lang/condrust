@@ -11,42 +11,29 @@ scope = [sourceFile|
 fn test() -> i32 {
   let (a_0_0_tx, a_0_0_rx) =
     {
-      let mut rgate =
-        wv_assert_ok!(
-          RecvGate::new(math::next_log2(256), math::next_log2(256))
-        );
-      let sgate =
-        wv_assert_ok!(SendGate::new_with(SGateArgs::new(&rgate).credits(1)));
+      let mut rgate = RecvGate::new(math::next_log2(256), math::next_log2(256));
+      let sgate = SendGate::new_with(SGateArgs::new(&rgate).credits(1));
       (sgate, rgate)
     };
   let (x_1_0_0_tx, x_1_0_0_rx) =
     {
       let mut rgate =
-        wv_assert_ok!(
-          RecvGate::new(math::next_log2(256), math::next_log2(256))
-        );
-      let sgate =
-        wv_assert_ok!(SendGate::new_with(SGateArgs::new(&rgate).credits(1)));
+         RecvGate::new(math::next_log2(256), math::next_log2(256));
+      let sgate = SendGate::new_with(SGateArgs::new(&rgate).credits(1));
       (sgate, rgate)
     };
   let (s_0_0_1_tx, s_0_0_1_rx) =
     {
       let mut rgate =
-        wv_assert_ok!(
-          RecvGate::new(math::next_log2(256), math::next_log2(256))
-        );
-      let sgate =
-        wv_assert_ok!(SendGate::new_with(SGateArgs::new(&rgate).credits(1)));
+         RecvGate::new(math::next_log2(256), math::next_log2(256));
+      let sgate =SendGate::new_with(SGateArgs::new(&rgate).credits(1));
       (sgate, rgate)
     };
   let (x_0_0_0_tx, x_0_0_0_rx) =
     {
       let mut rgate =
-        wv_assert_ok!(
-          RecvGate::new(math::next_log2(256), math::next_log2(256))
-        );
-      let sgate =
-        wv_assert_ok!(SendGate::new_with(SGateArgs::new(&rgate).credits(1)));
+         RecvGate::new(math::next_log2(256), math::next_log2(256));
+      let sgate = SendGate::new_with(SGateArgs::new(&rgate).credits(1));
       (sgate, rgate)
     };
   {
@@ -129,61 +116,43 @@ fn test() -> i32 {
   let (c_0_0_tx, c_0_0_rx) =
     {
       let mut rgate =
-        wv_assert_ok!(
-          RecvGate::new(math::next_log2(256), math::next_log2(256))
-        );
-      let sgate =
-        wv_assert_ok!(SendGate::new_with(SGateArgs::new(&rgate).credits(1)));
+         RecvGate::new(math::next_log2(256), math::next_log2(256));
+      let sgate = SendGate::new_with(SGateArgs::new(&rgate).credits(1));
       (sgate, rgate)
     };
   let (s_0_0_1_tx, s_0_0_1_rx) =
     {
       let mut rgate =
-        wv_assert_ok!(
-          RecvGate::new(math::next_log2(256), math::next_log2(256))
-        );
-      let sgate =
-        wv_assert_ok!(SendGate::new_with(SGateArgs::new(&rgate).credits(1)));
+         RecvGate::new(math::next_log2(256), math::next_log2(256));
+      let sgate = SendGate::new_with(SGateArgs::new(&rgate).credits(1));
       (sgate, rgate)
     };
   let (ctrl_0_0_tx, ctrl_0_0_rx) =
     {
       let mut rgate =
-        wv_assert_ok!(
-          RecvGate::new(math::next_log2(256), math::next_log2(256))
-        );
-      let sgate =
-        wv_assert_ok!(SendGate::new_with(SGateArgs::new(&rgate).credits(1)));
+         RecvGate::new(math::next_log2(256), math::next_log2(256));
+      let sgate = SendGate::new_with(SGateArgs::new(&rgate).credits(1));
       (sgate, rgate)
     };
   let (ctrl_0_1_tx, ctrl_0_1_rx) =
     {
       let mut rgate =
-        wv_assert_ok!(
-          RecvGate::new(math::next_log2(256), math::next_log2(256))
-        );
-      let sgate =
-        wv_assert_ok!(SendGate::new_with(SGateArgs::new(&rgate).credits(1)));
+         RecvGate::new(math::next_log2(256), math::next_log2(256));
+      let sgate = SendGate::new_with(SGateArgs::new(&rgate).credits(1));
       (sgate, rgate)
     };
   let (x_1_0_0_tx, x_1_0_0_rx) =
     {
       let mut rgate =
-        wv_assert_ok!(
-          RecvGate::new(math::next_log2(256), math::next_log2(256))
-        );
-      let sgate =
-        wv_assert_ok!(SendGate::new_with(SGateArgs::new(&rgate).credits(1)));
+         RecvGate::new(math::next_log2(256), math::next_log2(256));
+      let sgate = SendGate::new_with(SGateArgs::new(&rgate).credits(1));
       (sgate, rgate)
     };
   let (x_0_0_0_tx, x_0_0_0_rx) =
     {
       let mut rgate =
-        wv_assert_ok!(
-          RecvGate::new(math::next_log2(256), math::next_log2(256))
-        );
-      let sgate =
-        wv_assert_ok!(SendGate::new_with(SGateArgs::new(&rgate).credits(1)));
+         RecvGate::new(math::next_log2(256), math::next_log2(256));
+      let sgate = SendGate::new_with(SGateArgs::new(&rgate).credits(1));
       (sgate, rgate)
     };
   {
@@ -347,31 +316,22 @@ fn test() -> i32 {
   let (a_0_0_tx, a_0_0_rx) =
     {
       let mut rgate =
-        wv_assert_ok!(
-          RecvGate::new(math::next_log2(256), math::next_log2(256))
-        );
-      let sgate =
-        wv_assert_ok!(SendGate::new_with(SGateArgs::new(&rgate).credits(1)));
+         RecvGate::new(math::next_log2(256), math::next_log2(256));
+      let sgate = SendGate::new_with(SGateArgs::new(&rgate).credits(1));
       (sgate, rgate)
     };
   let (x_0_0_0_tx, x_0_0_0_rx) =
     {
       let mut rgate =
-        wv_assert_ok!(
-          RecvGate::new(math::next_log2(256), math::next_log2(256))
-        );
-      let sgate =
-        wv_assert_ok!(SendGate::new_with(SGateArgs::new(&rgate).credits(1)));
+         RecvGate::new(math::next_log2(256), math::next_log2(256));
+      let sgate = SendGate::new_with(SGateArgs::new(&rgate).credits(1));
       (sgate, rgate)
     };
   let (y_0_0_0_tx, y_0_0_0_rx) =
     {
       let mut rgate =
-        wv_assert_ok!(
-          RecvGate::new(math::next_log2(256), math::next_log2(256))
-        );
-      let sgate =
-        wv_assert_ok!(SendGate::new_with(SGateArgs::new(&rgate).credits(1)));
+         RecvGate::new(math::next_log2(256), math::next_log2(256));
+      let sgate = SendGate::new_with(SGateArgs::new(&rgate).credits(1));
       (sgate, rgate)
     };
   {
@@ -434,41 +394,29 @@ fn test() -> i32 {
   let (a_0_0_tx, a_0_0_rx) =
     {
       let mut rgate =
-        wv_assert_ok!(
-          RecvGate::new(math::next_log2(256), math::next_log2(256))
-        );
-      let sgate =
-        wv_assert_ok!(SendGate::new_with(SGateArgs::new(&rgate).credits(1)));
+         RecvGate::new(math::next_log2(256), math::next_log2(256));
+      let sgate = SendGate::new_with(SGateArgs::new(&rgate).credits(1));
       (sgate, rgate)
     };
   let (x_0_0_0_tx, x_0_0_0_rx) =
     {
       let mut rgate =
-        wv_assert_ok!(
-          RecvGate::new(math::next_log2(256), math::next_log2(256))
-        );
-      let sgate =
-        wv_assert_ok!(SendGate::new_with(SGateArgs::new(&rgate).credits(1)));
+         RecvGate::new(math::next_log2(256), math::next_log2(256));
+      let sgate = SendGate::new_with(SGateArgs::new(&rgate).credits(1));
       (sgate, rgate)
     };
   let (as_string_0_0_1_tx, as_string_0_0_1_rx) =
     {
       let mut rgate =
-        wv_assert_ok!(
-          RecvGate::new(math::next_log2(256), math::next_log2(256))
-        );
-      let sgate =
-        wv_assert_ok!(SendGate::new_with(SGateArgs::new(&rgate).credits(1)));
+         RecvGate::new(math::next_log2(256), math::next_log2(256));
+      let sgate = SendGate::new_with(SGateArgs::new(&rgate).credits(1));
       (sgate, rgate)
     };
   let (y_0_0_0_tx, y_0_0_0_rx) =
     {
       let mut rgate =
-        wv_assert_ok!(
-          RecvGate::new(math::next_log2(256), math::next_log2(256))
-        );
-      let sgate =
-        wv_assert_ok!(SendGate::new_with(SGateArgs::new(&rgate).credits(1)));
+         RecvGate::new(math::next_log2(256), math::next_log2(256));
+      let sgate = SendGate::new_with(SGateArgs::new(&rgate).credits(1));
       (sgate, rgate)
     };
   {
@@ -541,21 +489,15 @@ fn second_algo(arg: i32) -> String {
   let (a_0_0_tx, a_0_0_rx) =
     {
       let mut rgate =
-        wv_assert_ok!(
-          RecvGate::new(math::next_log2(256), math::next_log2(256))
-        );
-      let sgate =
-        wv_assert_ok!(SendGate::new_with(SGateArgs::new(&rgate).credits(1)));
+         RecvGate::new(math::next_log2(256), math::next_log2(256));
+      let sgate = SendGate::new_with(SGateArgs::new(&rgate).credits(1));
       (sgate, rgate)
     };
   let (as_string_0_0_1_tx, as_string_0_0_1_rx) =
     {
       let mut rgate =
-        wv_assert_ok!(
-          RecvGate::new(math::next_log2(256), math::next_log2(256))
-        );
-      let sgate =
-        wv_assert_ok!(SendGate::new_with(SGateArgs::new(&rgate).credits(1)));
+         RecvGate::new(math::next_log2(256), math::next_log2(256));
+      let sgate = SendGate::new_with(SGateArgs::new(&rgate).credits(1));
       (sgate, rgate)
     };
   {

@@ -1,9 +1,9 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module Integrations.Python.PythonCodeSamples.ErrorInputs where
+module Integrations.Python.CodeSamples.ErrorInputs where
 
-import Integrations.Python.PythonCodeSamples.SimpleQuoter
+import Integrations.Python.CodeSamples.SimpleQuoter
 
 -- Interesting Error: Variables 'lit_unit_0_1' and 'lit_unit_0_2' are "invented" including according channels
 -- Those variables are/should be received before fun1()/fun2() are called. 

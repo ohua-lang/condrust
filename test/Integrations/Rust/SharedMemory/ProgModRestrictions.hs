@@ -160,7 +160,7 @@ spec =
                 compiled `shouldBe` expected)
 
         it "States can be used multiple times but NOT in loops" $
-         compileCode  
+         (showCode "Compiled: " =<< compileCode  
             [sourceFile|
                     
                     fn test(i:i32) -> String {
@@ -173,8 +173,10 @@ spec =
                         } 
                         x
                     }
-            |]  `shouldThrow` anyException
-
+            |] )>>=
+            (\compiled -> do
+                expected <- showCode "Expected:" loop_uses_state
+                compiled `shouldBe` expected)
 
 
 ----------- Testoutput ------------------------------------------
