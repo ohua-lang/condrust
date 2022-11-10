@@ -78,6 +78,8 @@ instance IsString (Expr ty) where
 instance IsList (Expr ty) where
     type Item (Expr ty) = Expr ty
     fromList = TupE
+    toList e = error $ "Ohua tired to convert the expresssion "
+                <>show e <>"into a list, which is not supported"
 
 instance IsString Pat where
     fromString = VarP . fromString
@@ -85,4 +87,6 @@ instance IsString Pat where
 instance IsList Pat where
     type Item Pat = Pat
     fromList = TupP
+    toList p = error $ "Ohua tired to convert the pattern "
+                <>show p <>"into a list, which is not supported"
 
