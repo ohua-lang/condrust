@@ -1,4 +1,4 @@
-module Ohua.Integration.Python.NewBackend where
+module Ohua.Integration.Python.Backend where
 import Ohua.Prelude
 
 import Ohua.Backend.Lang as TCLang

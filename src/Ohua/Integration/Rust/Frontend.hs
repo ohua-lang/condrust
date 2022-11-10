@@ -120,18 +120,15 @@ instance Integration (Language 'Rust) where
         Block Span ->
         m (FrLang.Expr RustArgType)
       extractAlgo (FnDecl args _ _ _) block = do
-        ctxt <- get
-        -- traceM $ "Context before parsing arguments :" <> show ctxt <> "\n"
+        -- Add the parameters and their types to the context
         args' <- mapM (convertPat <=< SubC.convertArg) args
-        ctxt <- get
-        -- traceM $ "Context after parsing arguments :" <> show ctxt <> "\n"
+        -- Convert the function block
         block' <- convertIntoFrExpr block
         return $ LamE args' block'
 
       convertIntoFrExpr :: SubC.ConvertM m => Block Span -> m (FrLang.Expr RustArgType)
       convertIntoFrExpr rustBlock = do
         subsetExpr <- SubC.convertBlock rustBlock
-        -- ToDo: This should not start with an empty Context but prefilled with the types of the arguments
         convertExpr subsetExpr
 
       toBindings p@(Path _ segments _) =
@@ -280,6 +277,7 @@ getArgType (Sub.Var bnd) = do
 getArgType (Sub.Lit lit) = case lit of
   Sub.Bool b -> return $ Type . TE.Normal $ PathTy Nothing (Path False [PathSegment "bool" Nothing ()] ()) ()
   Sub.Int i ->  return $ Type . TE.Normal $ PathTy Nothing (Path False [PathSegment "i32" Nothing ()] ()) ()
+  -- Sub.String s ->  return $ Type . TE.Normal $ PathTy Nothing (Path False [PathSegment "String" Nothing ()] ()) ()
   -- ToDo: Add other literals
 getArgType e = error $ "No type info found for" <> show e
 
@@ -448,6 +446,7 @@ asBinSymbol Sub.Lte =  "<="
 asBinSymbol Sub.Gte =  ">="
 asBinSymbol Sub.Gt =  ">"
 asBinSymbol Sub.EqOp =  "=="
+asBinSymbol Sub.OrOp =  "||"
 
 asUnSymbol::Sub.UnOp -> Binding
 asUnSymbol Sub.Deref =  "*"
