@@ -29,11 +29,11 @@ import Ohua.Core.Prelude
 runCorePasses :: (MonadOhua m) => NormalizedExpr ty -> m (NormalizedDFExpr ty)
 runCorePasses = removeNth
 
---finalPasses :: (MonadOhua m) =>  NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
---finalPasses = insertDispatch >=> eliminate >=> (return . propagateTypes) 
-
-finalPassesWithTy :: (MonadOhua m) =>  NormalizedDFExpr ty -> ty -> m (NormalizedDFExpr ty)
-finalPassesWithTy = \expr retTy -> insertDispatch >=> eliminate >=> (return . propagateTypesWithRetTy retTy) $ expr
+finalPasses :: (MonadOhua m) =>  NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
+finalPasses = insertDispatch >=> eliminate
+ 
+typePropagation :: (MonadOhua m) => ty -> NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
+typePropagation retTy = pure . propagateTypesWithRetTy retTy
 
 -- I really should not have to do this in the first place.
 -- All transformations that need an Nth node because they introduce functions whose output

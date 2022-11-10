@@ -22,6 +22,6 @@ intoFusable = mapFunsM (pure . f)
       | fun == Refs.runSTCLangSMap = PureDFFun out r (sIn :| [])
     f e = e
 
-load :: CustomPasses -> CustomPasses
+load :: CustomPasses ty -> CustomPasses ty
 load (CustomPasses alang alangNorm dfLang) =
   CustomPasses alang alangNorm (dfLang >=> intoFusable)

@@ -34,9 +34,8 @@ forceLog :: (MonadLogger m, NFData a) => Text -> a -> m ()
 forceLog msg a = a `deepseq` logDebugN msg
 
 -- | The canonical order of transformations and lowerings performed in a full compilation.
--- REMINDER: Remove duplicate when done whith type propagation 
-pipelineWithRetTy :: CustomPasses -> ALang.Expr ty -> ty -> OhuaM (NormalizedDFExpr ty)
-pipelineWithRetTy CustomPasses {..} e returnType = do
+pipeline :: CustomPasses ty -> ty -> ALang.Expr ty -> OhuaM (NormalizedDFExpr ty)
+pipeline CustomPasses {..} returnType e = do
     stage resolvedAlang e
     ssaE <- SSA.performSSA e
     stage ssaAlang ssaE
@@ -57,26 +56,25 @@ pipelineWithRetTy CustomPasses {..} e returnType = do
     stage initialDflang dfE
     -- Ohua.Core.DFLang.Verify.verify dfE
     whenDebug $ DFPasses.checkSSA dfE
-    coreDfE <- DFPasses.runCorePasses dfE
+    coreDfE <- DFPasses.typePropagation returnType =<< DFPasses.runCorePasses dfE
     stage coreDflang coreDfE
     dfAfterCustom <- passAfterDFLowering coreDfE
     stage customDflang dfAfterCustom
     whenDebug $ DFPasses.checkSSA dfAfterCustom
-    dfFinal <- DFPasses.finalPassesWithTy dfAfterCustom returnType -- here we do the type propagation, that needs the return type
+    dfFinal <- DFPasses.typePropagation returnType =<< DFPasses.finalPasses dfAfterCustom
     stage finalDflang dfFinal
     whenDebug $ DFPasses.checkSSA dfFinal
     pure dfFinal
 
 -- | Run the pipeline in an arbitrary monad that supports error reporting.
--- REMINDER: Remove duplicate when done  whith type propagation 
-compileWithRetTy :: CompM m => Options -> CustomPasses -> (ALang.Expr ty, ty)-> m (NormalizedDFExpr ty)
-compileWithRetTy opts passes (expr, returnType) = do
+compile :: CompM m => Options -> CustomPasses ty -> ty -> ALang.Expr ty-> m (NormalizedDFExpr ty)
+compile opts passes returnType expr = do
     logFn <- askLoggerIO
     let passes' =
             flip loadTailRecPasses passes $
             view transformRecursiveFunctions opts
     either throwError pure =<<
-        liftIO (runLoggingT (runFromExprAndType opts (pipelineWithRetTy passes') expr returnType) logFn)
+        liftIO (runLoggingT (runFromExprAndType opts (pipeline passes') expr returnType) logFn)
 
 
 

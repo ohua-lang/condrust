@@ -6,7 +6,7 @@ module Ohua.Core.DFLang.Lang where
 
 import qualified Data.List.NonEmpty as NE
 import Ohua.Core.ALang.Refs as ALangRefs (recurFun, smapFun, ifFun, collect, seqFun, select, ctrl)
-import Ohua.Core.Prelude hiding (length)
+import Ohua.Core.Prelude hiding (length, universe)
 import Ohua.Types.Vector as V hiding (map)
 import qualified Data.HashSet as HS
 
@@ -153,7 +153,10 @@ data DFApp (f :: FunANF) (ty :: Type) :: Type where
     DFVar 'Data ty ->
     DFApp 'Fun ty
     
-
+class Function a where
+  outBindings :: a -> [Binding]
+  inBindings :: a -> [Binding]
+  funRef :: a -> QualifiedBinding
 
 data Expr (fun :: FunANF -> Type -> Type) (ty :: Type) :: Type where
   Let :: (Show (fun a ty), Function (fun a ty)) => fun a ty -> Expr fun ty -> Expr fun ty
@@ -278,15 +281,18 @@ instance Eq (App ty a) where
 -- We should think about these implications a little harder though!
 -- deriving instance Lift (App a)
 
+type NormalizedExpr ty = Expr App ty
+
+type NormalizedDFExpr ty = Expr DFApp ty
+
 deriving instance Show (NormalizedExpr ty)
 
 -- deriving instance Eq (NormalizedExpr ty)
--- deriving instance Lift NormalizedExpr
--- makeBaseFunctor ''NormalizedExpr
+--deriving instance Lift (NormalizedExpr ty)
+--makeBaseFunctor ''NormalizedExpr
 -- deriving instance Lift a => Lift (NormalizedExprF a)
 
--- instance Plated NormalizedExpr where
---   plate = gplate
+--instance Plated NormalizedExpr where plate = gplate
 
 deriving instance Show (DFApp ty a)
 
@@ -309,25 +315,19 @@ deriving instance Show (NormalizedDFExpr ty)
 -- deriving instance Lift NormalizedDFExpr
 -- makeBaseFunctor ''NormalizedDFExpr
 -- deriving instance Lift a => Lift (NormalizedDFExprF a)
+-- instance Plated (NormalizedDFExpr ty) where plate = gplate
+-- makeBaseFunctor ''Expr
+-- instance Plated (Expr a ty) where plate = gplate
 
 ----------------------------------
 -- Types and traversals/helpers
 ----------------------------------
-
-type NormalizedExpr ty = Expr App ty
-
-type NormalizedDFExpr ty = Expr DFApp ty
 
 -- TODO
 -- data family Expression (a::FunANF -> Type)
 -- data instance Expression (a::FunANF -> Type) where
 --     NormalizedExpr :: Expression App
 --     NormalizedDFExpr :: Expression DFApp
-
-class Function a where
-  outBindings :: a -> [Binding]
-  inBindings :: a -> [Binding]
-  funRef :: a -> QualifiedBinding
 
 instance Function (App ty a) where
   outBindings = NE.toList . outsApp
@@ -378,6 +378,10 @@ mapFunsM _ v = return v
 
 mapFuns :: (forall a. DFApp a ty -> DFApp a ty) -> NormalizedDFExpr ty -> NormalizedDFExpr ty
 mapFuns f e = runIdentity (mapFunsM (pure . f) e)
+
+universe' :: NormalizedDFExpr ty -> [NormalizedDFExpr ty]
+universe' l@(Let app cont) = l : universe' cont
+universe' _ = []
 
 -- This is what I want!
 -- paraExpr :: ('Let -> a -> a) -> ('Var -> a) -> NormalizedDFExpr -> a

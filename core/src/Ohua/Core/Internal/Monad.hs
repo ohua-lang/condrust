@@ -140,14 +140,14 @@ runFromExpr opts f tree =
 runFromExprAndType ::
     Options -> 
     -- | a (compiler step) function on an algorithm and it's return type
-    (Expr ty -> ty -> OhuaM result) ->
+    (ty -> Expr ty -> OhuaM result) ->
     -- | an algorithm in its current compile step representation
     Expr ty -> 
     -- | the algorithms output type
     ty ->
     LoggingT IO (Either Error result)
 runFromExprAndType opts f tree ty =
-    runFromBindings opts (f tree ty) $ HS.fromList [b | Var b <- universe tree]
+    runFromBindings opts (f ty tree) $ HS.fromList [b | Var b <- universe tree]
 
 runFromBindings ::
        Options
