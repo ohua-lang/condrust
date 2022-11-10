@@ -6,6 +6,8 @@ import Ohua.Integration.Architecture
 import Ohua.Integration.Transform.DataPar
 import Ohua.Integration.Python.MultiProcessing
 
+instance TypePropagation (Architectures 'MultiProcessing)
+
 instance Transform (Architectures 'MultiProcessing) where
-  transformTaskExpr = lowerTaskPar
+  transformTaskExprAndChans = lowerTaskPar
   transformTask _ _ = id

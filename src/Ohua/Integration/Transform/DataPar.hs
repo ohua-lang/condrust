@@ -7,11 +7,12 @@ module Ohua.Integration.Transform.DataPar where
 
 import qualified Ohua.Integration.Options as IOpt
 
-import Data.Functor.Foldable (cata, embed)
+import Data.Functor.Foldable (cata, embed, cataA)
 import qualified Data.HashSet as HS
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Text.Prettyprint.Doc as PP
 import qualified Ohua.Backend.Lang as B
+import Ohua.Backend.Types as BT (FullTask(..), Architecture, Lang, Type)
 import Ohua.Core.ALang.Lang as AL
 import Ohua.Core.ALang.Refs as ALRefs
 import Ohua.Core.ALang.Util (destructure, findFreeBindings, findFreeVariables, lambdaArgsAndBody, substitute)
@@ -22,15 +23,16 @@ import qualified Ohua.Core.DFLang.Refs as DFRef
 import Ohua.Core.Feature.TailRec.Passes.ALang as TR (y)
 import Ohua.Core.Prelude hiding (concat, rewrite)
 
-dataPar :: IOpt.Options -> CustomPasses
-dataPar (IOpt.Options dpar amorph) =
+
+dataPar :: forall ty. IOpt.Options -> (ty -> ty) -> CustomPasses ty
+dataPar (IOpt.Options dpar amorph) dparLift =
   CustomPasses
   pure
   (case amorph of
      Just n -> amorphous n
      _ -> pure)
   ( case dpar of
-      Just n -> liftPureFunctions
+      Just n -> liftPureFunctions dparLift
       _ -> pure)
 
 invariantBroken :: Text -> OhuaM a
@@ -143,18 +145,18 @@ spawnFuture = "ohua.lang/spawnFuture"
 joinFuture :: QualifiedBinding
 joinFuture = "ohua.lang/collectFuture"
 
-liftPureFunctions ::
-  forall ty.
-  NormalizedDFExpr ty ->
-  OhuaM (NormalizedDFExpr ty)
-liftPureFunctions = rewriteSMap
+liftPureFunctions :: forall ty.
+                     (ty -> ty)
+                  -> NormalizedDFExpr ty 
+                  -> OhuaM (NormalizedDFExpr ty)
+liftPureFunctions liftCollectTy = rewriteSMap
   where
     rewriteSMap :: NormalizedDFExpr ty -> OhuaM (NormalizedDFExpr ty)
     rewriteSMap (DFL.Let app cont) =
       case app of
         SMapFun{} ->
             let rewriteIt smap@(SMap _ smapBody _) = do
-                  smap'@(SMap app' smapBody' coll') <- rewrite smap
+                  smap'@(SMap app' smapBody' coll') <- rewrite liftCollectTy smap
                   case DFL.length smapBody of
                     -- TODO a stronger termination metric would be better
                     l | l /= DFL.length smapBody' -> rewriteIt smap'
@@ -185,16 +187,34 @@ liftPureFunctions = rewriteSMap
           (contBody, coll, cont') <- collectSMap cont
           return (DFL.Let app contBody, coll, cont')
 
-rewrite :: forall ty. SMap ty -> OhuaM (SMap ty)
-rewrite (SMap smapF body collectF) = do
+rewrite :: forall ty. (ty -> ty) -> SMap ty -> OhuaM (SMap ty)
+rewrite liftCollectTy (SMap smapF body collectF) = do
   body' <- transformExprM rewriteBody body
   return $ SMap smapF body' collectF
   where
     rewriteBody :: NormalizedDFExpr ty -> OhuaM (NormalizedDFExpr ty)
     rewriteBody (DFL.Let fun@PureDFFun {} cont)
-      | not (isIgnorable $ funRef fun) =
-        liftFunction fun cont
+      | not (isIgnorable $ funRef fun) = do
+        outTy <- findOutTy fun cont
+        let outTy' = liftOutTy outTy
+        liftFunction outTy' fun cont
     rewriteBody e = pure e
+    
+    findOutTy :: DFApp 'Fun ty -> NormalizedDFExpr ty -> OhuaM (ArgType ty)
+    findOutTy fun cont = 
+        case DFL.insDFApp fun of
+            [bnd] -> case findOutTy' bnd cont of
+                        [] -> invariantBroken "found unused output" 
+                        (t:_) -> return t
+            _ -> unsupported "Multiple outputs to pure fun."
+    
+    findOutTy' :: Binding -> NormalizedDFExpr ty -> [ArgType ty]
+    findOutTy' bnd cont = [ t | DFL.Let app c <- universe' cont
+                              , (t,a) <- insAndTypesDFApp app
+                              , a == bnd] 
+
+    liftOutTy (Type t) = Type $ liftCollectTy t
+    liftOutTy t = t
 
 appendExpr ::
   NormalizedDFExpr ty ->
@@ -207,12 +227,12 @@ isIgnorable :: QualifiedBinding -> Bool
 isIgnorable (QualifiedBinding (NSRef ["ohua", "lang"]) _) = True
 isIgnorable _ = False
 
-liftFunction ::
-  forall ty.
-  DFApp 'Fun ty ->
-  NormalizedDFExpr ty ->
-  OhuaM (NormalizedDFExpr ty)
-liftFunction (PureDFFun out fun inp) cont = do
+liftFunction :: forall ty.
+                ArgType ty
+             -> DFApp 'Fun ty
+             -> NormalizedDFExpr ty 
+             -> OhuaM (NormalizedDFExpr ty)
+liftFunction collectTy (PureDFFun out fun inp) cont = do
   futuresBnd <- DataBinding <$> generateBindingWith "futures"
   outBound <- handleOutputSide futuresBnd
   let spawned = handleFun futuresBnd
@@ -224,7 +244,7 @@ liftFunction (PureDFFun out fun inp) cont = do
       DFL.Let
         ( PureDFFun
             out
-            (FunRef joinFuture Nothing (FunType $ Right $ TypeVar :| []))
+            (FunRef joinFuture Nothing (FunType $ Right $ collectTy :| []))
             (DFVar TypeVar futuresBnd :| [])
         )
         cont
@@ -242,30 +262,36 @@ liftFunction (PureDFFun out fun inp) cont = do
     getNewFunType (FunRef _ _ (FunType (Left Unit))) = FunType $ Right $ TypeVar NE.:| []
     getNewFunType (FunRef _ _ (FunType (Right xs))) = FunType $ Right (TypeVar NE.<| xs)
 
--- TODO
--- DFLang transformations:
--- 1. create_runtime is just as a single node in the graph that gets executed once.
---    it dispatches its output to the spawn! (do we already fuse such things due to microservices???)
--- 2. don't collect any data! `spawn` wants to just issue a single call, so do it already!
---    there is absolutely no need to collect the data for the calls. `spawn` is just
---    a function in the loop!
--- 3. Same for collectWork!
+class (Architecture arch) => TypePropagation arch where
+    liftRecvType :: (ty ~ BT.Type (BT.Lang arch)) => arch -> B.Channel ty -> B.Channel ty
+    liftRecvType _ c = c 
 
 -- |
 -- All that the language and backend requires to support this transformations are
 -- the implementations of the below functions.
-lowerTaskPar :: lang -> arch -> B.TaskExpr ty -> B.TaskExpr ty
-lowerTaskPar _ _ = cata $
-  \case
-    -- we need to do this on the Rust level because
-    -- it would be hard to construct this call.
-    e@(B.ApplyF (B.Stateless qb _args))
-      | qb == spawnFuture -> embed e
-    -- there is nothing to be done here.
-    -- because we can implement this function easily in Rust.
-    e@(B.ApplyF (B.Stateless qb _args))
-      | qb == joinFuture -> embed e
-    e -> embed e
+lowerTaskPar :: forall lang arch ty. (TypePropagation arch, ty ~ BT.Type (BT.Lang arch))
+             => lang -> arch -> FullTask ty (B.TaskExpr ty) -> FullTask ty (B.TaskExpr ty)
+lowerTaskPar _ arch = go 
+    where
+        go (FullTask sends recvs taskE) = 
+            case  go' taskE of
+                (taskE', False) -> FullTask sends recvs taskE'
+                (taskE', True ) -> 
+                    let recvs' = case recvs of
+                                    [recv] -> [liftRecvType arch recv]
+                                    _ -> error $ "Invariant broken: DataPar.collect must have exactly one incoming and outgoing channel. Detected: " <> show recvs
+                    in FullTask sends recvs' taskE'
+        go'  = flip runState False . cataA go''
+        go'' :: B.TaskExprF ty (State Bool (B.TaskExpr ty)) -> (State Bool (B.TaskExpr ty))
+        go'' = \case
+                -- we need to do this on the Rust level because
+                -- it would be hard to construct this call.
+                e@(B.ApplyF (B.Stateless qb _args)) | qb == spawnFuture -> embed <$> sequence e
+               
+                -- there is nothing to be done here.
+                -- because we can implement this function easily in Rust.
+                e@(B.ApplyF (B.Stateless qb _args)) | qb == joinFuture -> do { put True; embed <$> sequence e }
+                e -> embed <$> sequence e
 
 takeN :: QualifiedBinding
 takeN = "ohua.lang/takeN"

@@ -14,6 +14,7 @@ import Ohua.Integration.Architecture
 import qualified Ohua.Integration.Rust.Backend.Passes as RustPasses
 import Ohua.Integration.Rust.Architecture.SharedMemory ()
 import Ohua.Integration.Rust.Architecture.SharedMemory.Transform ()
+import Ohua.Integration.Rust.Architecture.SharedMemory.Transform.DataPar (liftCollectType)
 import Ohua.Integration.Rust.Architecture.M3 ()
 import Ohua.Integration.Rust.Frontend ()
 import Ohua.Integration.Rust.Backend ()
@@ -42,7 +43,7 @@ type FullIntegration lang arch =
 
 type Compiler m a = (forall lang arch.
                      FullIntegration lang arch
-                    => Maybe CConfig.CustomPasses
+                    => Maybe (CConfig.CustomPasses (B.Type (Language lang)))
                     -> Language lang
                     -> Architectures arch
                     -> m a)
@@ -50,7 +51,9 @@ type Compiler m a = (forall lang arch.
 data Integration =
     forall (lang::Lang) (arch::Arch).
     FullIntegration lang arch =>
-    I (Language lang) (Architectures arch) (Maybe CConfig.CustomPasses)
+    I (Language lang) 
+        (Architectures arch) 
+        (Maybe (CConfig.CustomPasses (B.Type (Language lang))))
 
 class Apply integration where
     apply :: CompM m
@@ -69,9 +72,9 @@ runIntegration :: CompM m
 runIntegration ext (Config arch options) comp = do
   integration <- case ext of
     ".rs" -> case arch of
-               SharedMemory -> return $ I SRust (SSharedMemory options) $ Just $ RustPasses.passes options
+               SharedMemory -> return $ I SRust (SSharedMemory options) $ Just $ RustPasses.passes options liftCollectType
                M3 -> return $ I SRust (SM3 options) Nothing
     ".py" -> case arch of
-               MultiProcessing-> return $ I SPython (SMultiProc options) $ Just $ PyPasses.passes options
+               MultiProcessing-> return $ I SPython (SMultiProc options) $ Just $ PyPasses.passes options id
     _ -> throwError $ "No language integration defined for files with extension '" <> ext <> "'"
   apply integration comp

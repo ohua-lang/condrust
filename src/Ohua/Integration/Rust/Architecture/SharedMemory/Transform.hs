@@ -8,6 +8,8 @@ import Ohua.Integration.Transform.DataPar hiding (amorphous)
 import Ohua.Integration.Rust.Architecture.SharedMemory.Transform.DataPar
 import Ohua.Integration.Rust.Backend.Passes (propagateMut)
 
+instance TypePropagation (Architectures 'SharedMemory)
+
 instance Transform (Architectures 'SharedMemory) where
-  transformTaskExpr = lowerTaskPar
-  transformTask _ arch = propagateMut . amorphous . (spawnWork arch)
+  transformTaskExprAndChans = lowerTaskPar
+  transformTask _ arch = propagateMut . amorphous . spawnWork arch

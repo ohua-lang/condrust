@@ -3,6 +3,7 @@
 module Ohua.Integration.Rust.Architecture.SharedMemory.Transform.DataPar where
 
 import Ohua.Integration.Rust.Architecture.SharedMemory ()
+import qualified Ohua.Integration.Rust.TypeExtraction as RT
 import Ohua.Integration.Architecture
 import Ohua.Integration.Rust.Backend
 import Ohua.Integration.Rust.Backend.Subset
@@ -11,6 +12,9 @@ import Ohua.Integration.Options (Options(..))
 import Ohua.Prelude hiding (concat)
 
 runtime = "rt"
+
+liftCollectType :: RT.RustTypeAnno -> RT.RustTypeAnno
+liftCollectType t = t -- TODO
 
 spawnWork :: Architectures 'SharedMemory -> Block -> Block
 spawnWork (SSharedMemory Options{..}) block =
