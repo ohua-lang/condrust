@@ -80,7 +80,7 @@ typeBottomUp ::
     --                DFEnvVar :: ArgType ty -> Lit ty -> DFVar 'Data ty
     --                DFVar :: ArgType ty -> ABinding a -> DFVar a ty
 
-typeBottomUp pf@(Let (PureDFFun out@(Direct outBnd) f@(FunRef fun _fid fTy) inputs@(DFVar _fstTy fstBnd :| scndIn: _)) inCont)
+typeBottomUp (Let (PureDFFun out@(Direct outBnd) f@(FunRef fun _fid fTy) inputs@(DFVar _fstTy fstBnd :| scndIn: _)) inCont)
   -- In this case, the function is an Ohua control node. Those nodes allways take two inputs
   -- an nat (0 or 1) and a variable and outputs the variable based on the signal.
   
@@ -97,7 +97,7 @@ typeBottomUp pf@(Let (PureDFFun out@(Direct outBnd) f@(FunRef fun _fid fTy) inpu
             updateContext fstBnd controlSignalType 
                         -- We can type the data input using the output, cause they have to have the same type
             let dataInput = case scndIn of 
-                  (DFVar ty bnd) -> 
+                  (DFVar _ty bnd) -> 
                       case HM.lookup (unwrapABnd outBnd) knownVars of
                           Just (Exists (DFVar ty' _)) -> DFVar ty' bnd
                           Just (Exists (DFEnvVar ty' _)) ->  DFVar ty' bnd
@@ -148,7 +148,7 @@ typeBottomUp pf@(Let (PureDFFun out@(Direct outBnd) f@(FunRef fun _fid fTy) inpu
                       Just (Exists (DFVar ty' _)) -> ty'
                       Just (Exists (DFEnvVar ty' _)) -> ty'
                       Nothing -> TypeVar
-                    _ -> undefined
+                    _ -> unhandledCaseError
 
             let realFunType = TypeBool :| [realOutTy, realOutTy]
             -- Type Input vars 
@@ -193,7 +193,7 @@ typeBottomUp pf@(Let (PureDFFun out@(Direct outBnd) f@(FunRef fun _fid fTy) inpu
                 ) dataInps'
             return $ Let (PureDFFun out f dataInps') inCont
 
-typeBottomUp _fo@(Let (PureDFFun out f@(FunRef fun _fId (FunType (Right inputTypes))) vars) inCont) = do
+typeBottomUp _fo@(Let (PureDFFun out f@(FunRef _fun _fId (FunType (Right inputTypes))) vars) inCont) = do
   -- We hit a select function of type (bool, a, a) -> a. So we type it's first input type
   -- and try to derive the second and third from their usages saved in the context
     -- traceM $ "Typing pure function " <> show fun
@@ -211,7 +211,7 @@ typeBottomUp _fo@(Let (PureDFFun out f@(FunRef fun _fId (FunType (Right inputTyp
         ) dataInps'
     return $ Let (PureDFFun out f dataInps') inCont
 
-typeBottomUp e'@(Let (PureDFFun _out (FunRef bnd _ _fty) _params) _inCont) = do
+typeBottomUp e'@(Let (PureDFFun _out (FunRef _bnd _ _fty) _params) _inCont) = do
   -- We hit a pure function that is either Untyped, or has no inputs (FunType Left Unit)
   -- So we can not learn from it's type.
   -- Also, by definition it's parameters havn't been ued elsewhere, so we can not type
@@ -219,14 +219,14 @@ typeBottomUp e'@(Let (PureDFFun _out (FunRef bnd _ _fty) _params) _inCont) = do
   return e'
 
 -- SMap
-typeBottomUp smf@(Let (SMapFun out@(_fst,_scnd, _trd) iterableVar ) inCont) = do
+typeBottomUp smf@(Let (SMapFun _out@(_fst,_scnd, _trd) _iterableVar ) _inCont) = do
   -- Typing smapFun is not usefull. It's outputs are allready typed and it's 
   -- input, the 'iterable something' we iterate over is fused into the smap node.
   -- SO it's never send and we don't need a typed channel for it
   return smf 
 
 -- Stateful Functions
-typeBottomUp (Let (StateDFFun (mState, mData) f@(FunRef fun _ (STFunType sty tyInfo)) stateIn dataIn) inCont) = do
+typeBottomUp (Let (StateDFFun (mState, mData) f@(FunRef _fun _ (STFunType sty tyInfo)) stateIn dataIn) inCont) = do
   -- traceM $ "Typing stateful function " <> show fun <> " on obj type " <> show sty
   let stateIn' = case stateIn of
         (DFVar ty bnd) -> DFVar (maxType ty sty) bnd
@@ -249,7 +249,7 @@ typeBottomUp (Let (StateDFFun (mState, mData) f@(FunRef fun _ (STFunType sty tyI
           Just (Dispatch stateBnds) -> error $ "Saw dispatch of "<> show (NE.length stateBnds) <> ". Please report/handle!"
           Nothing -> return () 
   mapM_ (\case
-            v@(DFVar ty bnd) -> updateContext bnd ty 
+            (DFVar ty bnd) -> updateContext bnd ty 
             _ -> return ()
         ) dataIn'
   -- That's it here. We can't learn the/from the potentially existing mData output
@@ -285,11 +285,11 @@ typeBottomUp (Let (RecurFun finalOut recCtrl argOuts initIns recIns cond result)
   
   case cond of
         (DFVar _ty bnd) -> modify (HM.insert (unwrapABnd bnd) $ Exists cond)
-        (DFEnvVar _ty lit) -> return ()
+        (DFEnvVar _ty _lit) -> return ()
 
   case result' of
         (DFVar _ty bnd) -> modify (HM.insert (unwrapABnd bnd) $ Exists result')
-        (DFEnvVar _ty lit) -> return ()
+        (DFEnvVar _ty _lit) -> return ()
 
   return $ Let (RecurFun finalOut recCtrl argOuts newInits newRets cond' result') inCont
 
@@ -313,17 +313,17 @@ typeBottomUp _e'@(Let (IfFun (Direct o1, Direct o2) inVar ) inCont) = do
   return $ Let (IfFun (Direct o1, Direct o2) inVar' ) inCont
 
 typeBottomUp e'@(Let (IfFun _  _ ) _) = error $ "Generated IfFun produces wrong outputs" <> show e'
-typeBottomUp e'@(Let (SelectFun out sign inOne inTwo) inCont) = 
+typeBottomUp e'@(Let (SelectFun _out _sign _inOne _inTwo) _inCont) = 
   -- Currently not used 
   return e'
-typeBottomUp e'@(Let (CtrlFun out sigIn dataIn) inCont) = 
+typeBottomUp e'@(Let (CtrlFun _out _sigIn _dataIn) _inCont) = 
   -- Currently not used 
   return e'
-typeBottomUp e'@(Let (CollectFun out sizeIn unitIn ) inCont ) = 
+typeBottomUp e'@(Let (CollectFun _out _sizeIn _unitIn ) _inCont ) = 
     -- Currently not used 
   return e'
 
-typeBottomUp e'@(Var bnd ty) = do
+typeBottomUp (Var bnd _ty) = do
       ctxt <- get
       let newReturnType =  case HM.lookup returnBinding ctxt of
               Just (Exists (DFVar returnTy _rB)) -> returnTy
@@ -343,8 +343,8 @@ maybeUpdateByOutData =
                         Direct bnd -> do
                            newVar <- maybeUpdate bnd inVar
                            return newVar
-                        Destruct _ -> fuckIt
-                        Dispatch _ -> fuckIt
+                        Destruct _ -> unhandledCaseError
+                        Dispatch _ -> unhandledCaseError
     
 
 -- | Updates the type signatures of two zipped DFVars to match them, 
@@ -403,4 +403,5 @@ maxType t TypeVar = t
 maxType TypeVar t = t
 maxType t _  = t
 
-fuckIt = error $ "Sorry I didn't handle that case"
+unhandledCaseError :: error
+unhandledCaseError = error $ "Sorry I didn't handle that case"
