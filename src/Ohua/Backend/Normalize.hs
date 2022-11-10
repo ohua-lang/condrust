@@ -47,9 +47,9 @@ normalizeIndirect = transformNoState go
       let
         newExpr = substitute (x, y) ct
       in
-        case containsBinding newExpr x of
-          True -> traceShow ("Note: Aborted a normalization of variable " <> show x <> " because I couldn't rename all occurences.") $ Let x y ct
-          False -> newExpr
+        if containsBinding newExpr x then 
+          -- traceShow ("Note: Aborted a normalization of variable " <> show x <> " because I couldn't rename all occurences.") $
+          Let x y ct else newExpr
     go e = e
 
 -- |

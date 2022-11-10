@@ -184,4 +184,4 @@ fusedFunReceives (STFusable r vars _ _ _) = extractAll $ r:vars
 fusedFunReceives (IdFusable r _) = extractAll [r]
 
 fuseFuns :: FusableFunction ty -> FusableFunction ty -> FusableFunction ty
-fuseFuns = undefined
+fuseFuns = error "Unimplemented function called. Please report"
