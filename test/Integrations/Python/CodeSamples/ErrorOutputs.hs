@@ -1,5 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module Integrations.Python.PythonCodeSamples.ErrorOutputs where
+module Integrations.Python.CodeSamples.ErrorOutputs where
 

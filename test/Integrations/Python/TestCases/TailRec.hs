@@ -1,10 +1,10 @@
 module Integrations.Python.TestCases.TailRec where
 
 import Ohua.Prelude ( ($), Monad((>>=)), (=<<) )
-import Integrations.Python.PythonSetup
+import Integrations.Python.Setup
 
-import qualified Integrations.Python.PythonCodeSamples.TestDataInput as Input
-import qualified Integrations.Python.PythonCodeSamples.TestDataOutput as Expect
+import qualified Integrations.Python.CodeSamples.TestDataInput as Input
+import qualified Integrations.Python.CodeSamples.TestDataOutput as Expect
 
 
 spec :: Spec

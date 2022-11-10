@@ -1,4 +1,4 @@
-module Integrations.Python.PythonSetup (
+module Integrations.Python.Setup (
     renderPython, showCode, compileCode, compileCodeWithRec,compileCodeWithRecWithDebug, compileAndRun,
     module Test.Hspec,
 ) where
@@ -24,8 +24,8 @@ import Language.Python.Common.SrcLocation (SrcSpan)
 import qualified Language.Python.Common.Pretty as PyPretty
 
 import Integrations.TestSetup (Testable(..))
-import qualified Integrations.Python.PythonCodeSamples.TestDataInput as Input
-import qualified Integrations.Python.PythonCodeSamples.TestDataOutput as Output
+import qualified Integrations.Python.CodeSamples.TestDataInput as Input
+import qualified Integrations.Python.CodeSamples.TestDataOutput as Output
 
 import System.FilePath
 import System.IO.Temp

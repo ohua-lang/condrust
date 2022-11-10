@@ -1,9 +1,9 @@
 module Integrations.Python.TestCases.State where
 import Ohua.Prelude ( ($), Monad((>>=)), (=<<), Either(..))
 
-import Integrations.Python.PythonSetup
-import qualified Integrations.Python.PythonCodeSamples.TestDataInput as Input
-import qualified Integrations.Python.PythonCodeSamples.TestDataOutput as Expect
+import Integrations.Python.Setup
+import qualified Integrations.Python.CodeSamples.TestDataInput as Input
+import qualified Integrations.Python.CodeSamples.TestDataOutput as Expect
 
 spec :: Spec
 spec =

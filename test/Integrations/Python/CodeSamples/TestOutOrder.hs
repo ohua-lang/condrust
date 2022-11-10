@@ -1,9 +1,9 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module Integrations.Python.PythonCodeSamples.TestOutOrder where
+module Integrations.Python.CodeSamples.TestOutOrder where
 
-import Integrations.Python.PythonCodeSamples.SimpleQuoter
+import Integrations.Python.CodeSamples.SimpleQuoter
 
 callAFunction = [pythonModule|
 import multiprocessing as mp
