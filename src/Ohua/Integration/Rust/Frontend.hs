@@ -136,7 +136,7 @@ instance Integration (Language 'Rust) where
           (PathSegment ident Nothing _) -> return $ toBinding ident
           (PathSegment _ (Just _) _) -> error $ "We currently do not support import paths with path parameters.\n" <> show p
       
-      getReturn :: FnDecl Span	-> RustArgType
+      getReturn :: FnDecl Span -> RustArgType
       -- FIXME: We may need more elaborate patterns for the type here
       -- Currently we only care for pure functions as algos and do nto support tuple
       -- returns (or any sort of elaborate types in the composition). If this changes, we need to 
@@ -302,7 +302,7 @@ instance ConvertExpr Sub.Expr where
         -- traceM $ "Context at parsing function " <> show bnd <> ": \n" <> show ctxt <> "\n"
         ty <- argTypesFromContext args
         return $ LitE (FunRefLit (FunRef qBnd Nothing $ FunType ty))
-      _ -> (trace$"Not the fun I expected: "<> show fun <> "\n") return fun'
+      _ -> return fun'
     args' <- mapM convertExpr args
     return $ fun'' `AppE` args'
   -- ToDo: Type function literal here 

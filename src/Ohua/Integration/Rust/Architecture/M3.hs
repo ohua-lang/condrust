@@ -48,13 +48,13 @@ convertChan rxMutability (SRecv _ty (SChan bnd)) =
           noSpan
 
 convertReceive :: Binding -> Com 'Recv TE.RustArgType -> Sub.Expr
-convertReceive suffix (SRecv (Type typ) (SChan channel)) =
-  let ty' = case typ of 
-              (TE.Self ty _ _mut) -> noSpan <$ ty
+convertReceive suffix (SRecv argType (SChan channel)) =
+  let ty' = case argType of
+              (Type (TE.Self ty _ _mut)) -> noSpan <$ ty
               -- error "Not yet implemented: Recv of reference type"
-              (TE.Normal ty) -> noSpan <$ ty
+              (Type (TE.Normal ty)) -> noSpan <$ ty
                 -- ISSUE: Find correct reaction here. For now I'll pretend channel.recv::<(ty1, ty2 ...)>().unwrap() is ok
-              -- _ -> toRustTy $ Type typ
+              _ -> error $ "We currently do not handle receive channels of type" <> show argType
       rcv =
         Sub.MethodCall
           (Sub.Var $ channel <> suffix)
@@ -75,15 +75,15 @@ instance Architecture (Architectures 'M3) where
     -- type is unknown to Ohua, this will blow up
     -- &&convertRecv SM3{} (SRecv TypeVar (SChan channel)) = (trace $ show channel) error "Invariant broken!"
   -- ISSUE: To make progress, I'll insert a paceholder type annotation. The real type needs to be derived earlier!!
-  convertRecv SM3{} (SRecv TypeVar (SChan channel)) = 
+  convertRecv SM3{} (SRecv TypeVar (SChan channel)) =
       error $ "A TypeVar was introduced for channel" <>  show channel <> ". This is a compiler error, please report (fix if you are me :-))"
-    
+
   convertRecv    SM3{} r = Sub.Try $ convertReceive "_child_rx" r
-  convertRetRecv SM3{} r = 
-    Sub.MethodCall 
-      (convertReceive "_rx" r) 
+  convertRetRecv SM3{} r =
+    Sub.MethodCall
+      (convertReceive "_rx" r)
       (Sub.CallRef (asQualBind "expect") Nothing)
-      [Sub.Lit $ StringLit $ unpack $ unlines 
+      [Sub.Lit $ StringLit $ unpack $ unlines
         ["The retrieval of the result value failed."
         ,"Ohua turned your sequential program into a distributed one."
         ,"Hence, all Ohua can do at this point is error out."
@@ -100,8 +100,8 @@ instance Architecture (Architectures 'M3) where
     Right (EnvRefLit bnd) -> asMethodCall $ Sub.Var bnd
     Right (FunRefLit _) -> error "Invariant broken: Got asked to send a function reference via channel which should have been caught in the backend."
     (Left d) -> asMethodCall $ Sub.Var d
-    where 
-      asMethodCall item = 
+    where
+      asMethodCall item =
         Sub.Try
               (Sub.MethodCall (Sub.Var $ channel <> "_child_tx") (Sub.CallRef (asQualBind "send") Nothing) [item])
 
@@ -115,33 +115,33 @@ instance Architecture (Architectures 'M3) where
 
       createActivity' (FullTask sends recvs taskE) =
         let
-          extractSend :: Com 'Send t -> Binding 
+          extractSend :: Com 'Send t -> Binding
           extractSend (SSend (SChan c) _) = c
           extractRecv :: Com 'Recv t -> Binding
           extractRecv (SRecv _ (SChan c)) = c
           closureParams vars ty extract =
             map (\v ->
                   Rust.Arg
-                    [] 
-                    (Just $ convertIdentPat $ Sub.IdentPat Sub.Immutable $ extract v) 
+                    []
+                    (Just $ convertIdentPat $ Sub.IdentPat Sub.Immutable $ extract v)
                     (Rust.PathTy Nothing (convertQualBnd ty) noSpan)
                     noSpan)
                 vars
-          cParams = (closureParams sends (asQualBind "Sender")   ((<> "_child_tx") . extractSend)) <> 
-                    (closureParams recvs (asQualBind "Receiver") ((<> "_child_tx") . extractRecv))
+          cParams = closureParams sends (asQualBind "Sender")   ((<> "_child_tx") . extractSend) <>
+                    closureParams recvs (asQualBind "Receiver") ((<> "_child_tx") . extractRecv)
           closureArgs vars extract =
             map (convertExp . Sub.Var  . extract) vars
-          cArgs = (closureArgs sends ((<> "_tx") . extractSend)) <> 
-                  (closureArgs recvs ((<> "_rx") . extractRecv))
+          cArgs = closureArgs sends ((<> "_tx") . extractSend) <>
+                  closureArgs recvs ((<> "_rx") . extractRecv)
           monadicTaskCode (CSub.RustBlock u []) = CSub.RustBlock u []
-          monadicTaskCode (CSub.RustBlock u (hd:tl)) = 
-            let 
+          monadicTaskCode (CSub.RustBlock u (hd:tl)) =
+            let
               stmtsRev = reverse tl
               (last,heads) = case stmtsRev of
                               [] -> (hd, [])
                               (l:h) -> (l, hd : reverse h)
               last' = (\l -> Sub.Call (Sub.CallRef (asQualBind "Ok") Nothing) [l]) <$> last
-            in 
+            in
               CSub.RustBlock u $ heads ++ [last']
           taskCode = Rust.BlockExpr [] (convertBlock (monadicTaskCode taskE)) Nothing noSpan
           taskClosure =
@@ -155,16 +155,16 @@ instance Architecture (Architectures 'M3) where
               noSpan
           taskCall = Rust.Call [] taskClosure cArgs noSpan
           exprToTokenStream = parse' @Rust.TokenStream . inputStreamFromString . C.renderStr
-        in 
-          Rust.MacExpr 
-            [] 
-            (Rust.Mac (convertQualBnd $ asQualBind "activity") (exprToTokenStream taskCall) noSpan) 
+        in
+          Rust.MacExpr
+            []
+            (Rust.Mac (convertQualBnd $ asQualBind "activity") (exprToTokenStream taskCall) noSpan)
             noSpan
 
   -- REMINDER: Replace Placeholder
   serialize SM3{} mod placeholder ns = C.serialize mod ns createProgram placeholder
     where
-      createProgram (Program chans resultExpr tasks) = 
+      createProgram (Program chans resultExpr tasks) =
         let
           (Rust.Block prelude _ _) =
             void
@@ -177,14 +177,14 @@ instance Architecture (Architectures 'M3) where
                       [r] -> r
                       _ -> error "invariant broken"
           activation = flip Rust.Semi noSpan
-            $ convertExp 
-            $ Sub.Try 
+            $ convertExp
+            $ Sub.Try
             $ Sub.MethodCall retChan (Sub.CallRef (asQualBind "activate") Nothing) []
           -- TODO activate source channels (once they are in place)
           -- TODO wait for activity completion
           resultStmt = Rust.NoSemi (convertExp resultExpr) noSpan
-          program = prelude <> toList chans <> taskStmts <> [activation, resultStmt] 
-        in 
+          program = prelude <> toList chans <> taskStmts <> [activation, resultStmt]
+        in
           Rust.Block program Rust.Normal noSpan
 
 
