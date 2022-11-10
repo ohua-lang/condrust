@@ -18,9 +18,10 @@ import qualified  Ohua.Frontend as Fr (frontend)
 import Ohua.Frontend.Types (CompilationScope)
 import Ohua.Core.Types.Environment as CoreEnv
 import Ohua.Core.Compile.Configuration as CoreConfig
-import Ohua.Core.Compile as Core (compileWithRetTy)
+import Ohua.Core.Compile as Core (compile)
 import qualified Ohua.Core.Compile.Configuration as CConfig
 import qualified Ohua.Backend as B (backend)
+import qualified Ohua.Backend.Types as BT
 import Ohua.Compile.Lower.FrLang (toAlang)
 import Ohua.Compile.Lower.DFLang (toTCLang)
 
@@ -51,7 +52,7 @@ compilation :: forall (lang::Lang) (arch::Arch) m.
     -> CompilationScope 
     -> CoreEnv.Options 
     -> FilePath
-    -> Maybe CConfig.CustomPasses
+    -> Maybe (CConfig.CustomPasses (BT.Type (Language lang)))
     -> Language lang 
     -> Architectures arch 
     -> m ()
@@ -68,8 +69,8 @@ compilation inFile compScope coreOpts outDir optimizations integration arch = do
     B.backend outDir extracted_algos_final ctxt arch enc_module
 
     where
-        -- core ::forall (lang::Lang) (arch::Arch) m ty. (CompM m, FullIntegration lang arch) => ALang.Expr ty -> ty -> m (DFLang.NormalizedDFExpr ty)
-        core = Core.compileWithRetTy coreOpts coreOptimizations
+        -- core ::forall (lang::Lang) (arch::Arch) m ty. (CompM m, FullIntegration lang arch) => ty -> ALang.Expr ty -> m (DFLang.NormalizedDFExpr ty)
+        core = Core.compile coreOpts coreOptimizations
         coreOptimizations =
           case optimizations of
             Nothing -> def
