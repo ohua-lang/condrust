@@ -7,7 +7,7 @@ import Ohua.Backend.Lang
 import Ohua.Backend.Normalize (normalize)
 import Ohua.Backend.Communication as Com
 import Ohua.Backend.Fusion (fuse, FusableExpr)
-import Ohua.Backend.Transform (transformTaskExprs, transformTasks)
+import Ohua.Backend.Transform (transformTaskExprsAndChans, transformTasks)
 import qualified Data.ByteString.Lazy.Char8 as L
 import qualified Data.Text as T
 import System.FilePath as Path ((</>))
@@ -31,9 +31,9 @@ backend ::
         -> m ()
 backend outDir compiled lang arch placeholder =
     fuse compiled >>=
-    (pure . transformTaskExprs lang arch) >>=
-    (pure . normalize) >>=
     (pure . Com.intoProgram) >>=
+    (pure . transformTaskExprsAndChans lang arch) >>=
+    (pure . normalize) >>=
     Types.lower lang arch >>=
     (pure . transformTasks lang arch) >>=
     (pure . Com.lowerRetCom arch . Com.lowerChannels arch) >>=

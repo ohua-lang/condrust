@@ -46,8 +46,4 @@ intoProgram ns = ns & algos %~ map (\algo -> algo & algoCode %~ convert)
         convert (TCProgram chans retChan tasks) =
             Program chans retChan (map createFullTask tasks)
 
-        createFullTask taskExpr =
-            FullTask
-                [s | SendData s <- universe taskExpr]
-                [r | ReceiveData r <- universe taskExpr]
-                taskExpr
+

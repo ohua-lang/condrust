@@ -4,7 +4,7 @@ import Ohua.Prelude hiding (Type)
 
 import Ohua.Backend.Lang
 import qualified Data.ByteString.Lazy.Char8 as L
-
+import qualified Data.HashMap.Lazy as HM
 
 -- data TaskType = PureTask | STTask
 
@@ -43,6 +43,14 @@ data FullTask ty expr =
         [Com 'Recv ty] -- TODO Do not unwrap the binding to understand where state comes from!
         expr
     deriving (Functor)
+
+
+createFullTask :: TaskExpr ty -> FullTask ty (TaskExpr ty)
+createFullTask taskExpr =
+    FullTask
+        [s | SendData s <- universe taskExpr]
+        [r | ReceiveData r <- universe taskExpr]
+        taskExpr
 
 taskExpression :: FullTask ty expr -> expr
 taskExpression (FullTask _ _ e) = e
@@ -116,15 +124,15 @@ class Architecture arch where
 
 
 class (Architecture arch) => Transform arch where
-  transformTaskExpr :: ( Lang arch ~ lang
-                       , Integration lang
-                       , ty ~ Type lang
-                       )
-                    => HostModule lang
-                    -> arch
-                    -> TaskExpr ty
-                    -> TaskExpr ty
-  transformTaskExpr _ _ = id
+  transformTaskExprAndChans :: ( Lang arch ~ lang
+                               , Integration lang
+                               , ty ~ Type lang
+                               )
+                            => HostModule lang
+                            -> arch
+                            -> FullTask ty (TaskExpr ty)
+                            -> FullTask ty (TaskExpr ty)
+  transformTaskExprAndChans _ _ = id
 
   transformTask :: ( Lang arch ~ lang
                    , Integration lang
@@ -136,19 +144,38 @@ class (Architecture arch) => Transform arch where
                 -> Task lang
   transformTask _ _ = id
 
-
 updateTaskExprs :: (expr1 -> expr2)
-                -> Namespace (TCProgram chan recv expr1) anno ty
-                -> Namespace (TCProgram  chan recv expr2) anno ty
+                -> Namespace (Program chan recv expr1 ty) anno ty
+                -> Namespace (Program chan recv expr2 ty) anno ty
 updateTaskExprs f ns =
   ns & algos %~ map (\algo -> algo & algoCode %~ go)
   where
-    go (TCProgram chans resultChan exprs) =
-      TCProgram chans resultChan $ map f exprs
+   go (Program chans resultChan exprs) =
+      Program chans resultChan $ map (f <$>) exprs
+
+updateTaskExprsAndChans 
+  :: (FullTask ty expr1 -> FullTask ty expr2)
+  -> Namespace (Program (Channel ty) (Com 'Recv ty) expr1 ty) anno ty
+  -> Namespace (Program (Channel ty) (Com 'Recv ty) expr2 ty) anno ty
+updateTaskExprsAndChans f ns =
+  ns & algos %~ map (\algo -> algo & algoCode %~ go)
+  where
+    go (Program chans resultChan exprs) =
+      let 
+        tasks' = map f exprs
+        nChanReg = 
+            HM.fromList
+            $ map (\(SRecv t c) -> (c,t)) 
+            $ resultChan : concatMap (\(FullTask _ recvs _) -> recvs) tasks'
+        updateChan (SRecv t c) =
+            flip SRecv c $ fromMaybe t $ HM.lookup c nChanReg
+        chans' = map updateChan chans
+      in
+        Program chans' resultChan tasks'
 
 updateTasks :: (expr1 -> expr2)
             -> Namespace (Program chan recv expr1 ty) anno ty
-            -> Namespace (Program  chan recv expr2 ty) anno ty
+            -> Namespace (Program chan recv expr2 ty) anno ty
 updateTasks f ns =
   ns & algos %~ map (\algo -> algo & algoCode %~ go)
   where

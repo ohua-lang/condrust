@@ -6,7 +6,7 @@ import Ohua.Backend.Types
 import Ohua.Backend.Lang
 
 
-transformTaskExprs
+transformTaskExprsAndChans
   :: ( Architecture arch
      , Lang arch ~ lang
      , Integration lang
@@ -15,9 +15,9 @@ transformTaskExprs
      , Transform arch
      )
   => HostModule lang -> arch
-  -> Namespace (TCProgram (Channel ty) (Com 'Recv ty) (TaskExpr ty)) anno ty
-  -> Namespace (TCProgram (Channel ty) (Com 'Recv ty) (TaskExpr ty)) anno ty
-transformTaskExprs lang arch = updateTaskExprs (transformTaskExpr lang arch)
+  -> Namespace (Program (Channel ty) (Com 'Recv ty) (TaskExpr ty) ty) anno ty
+  -> Namespace (Program (Channel ty) (Com 'Recv ty) (TaskExpr ty) ty) anno ty
+transformTaskExprsAndChans lang arch = updateTaskExprsAndChans (transformTaskExprAndChans lang arch)
 
 transformTasks
   :: ( Architecture arch
