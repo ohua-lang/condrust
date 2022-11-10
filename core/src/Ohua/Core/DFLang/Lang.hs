@@ -5,7 +5,7 @@
 module Ohua.Core.DFLang.Lang where
 
 import qualified Data.List.NonEmpty as NE
-import Ohua.Core.ALang.Refs as ALangRefs (recurFun, smapFun, ifFun, collect, seqFun, select, ctrl)
+import Ohua.Core.ALang.Refs as ALangRefs (recurFun, smapFun, ifFun, collect, select, ctrl)
 import Ohua.Core.Prelude hiding (length)
 import Ohua.Types.Vector as V hiding (map)
 import qualified Data.HashSet as HS
@@ -180,12 +180,12 @@ outsDFApp (StateDFFun (Nothing, Nothing) _ _ _) = []
 outsDFApp (StateDFFun (Nothing, Just out) _ _ _) = NE.toList $ toOutBnds out
 outsDFApp (StateDFFun (Just stateOut, Nothing) _ _ _) = NE.toList $ toOutBnds stateOut
 outsDFApp (StateDFFun (Just stateOut, Just out) _ _ _) = NE.toList $ toOutBnds stateOut <> toOutBnds out
-outsDFApp (RecurFun result ctrl recurs _ _ _ _) =
+outsDFApp (RecurFun result recCtrl recurs _ _ _ _) =
   let (x :| xs) = toOutBnds result
    in ( NE.toList $
           (x :| (xs <> join (map (NE.toList . toOutBnds) $ V.toList recurs)))
       )
-        ++ maybe [] (NE.toList . toOutBnds) ctrl
+        ++ maybe [] (NE.toList . toOutBnds) recCtrl
 outsDFApp (SMapFun (dOut, collectOut, sizeOut) _) =
   maybe [] (NE.toList . toOutBnds) dOut ++
   maybe [] (NE.toList . toOutBnds) collectOut ++

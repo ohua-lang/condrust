@@ -116,6 +116,9 @@ replaceLit e (Lit old, new) =
                                           other -> other)
                        _ -> f
         other -> other
+replaceLit _e other = error $ "Called 'replaceLit' with " <> show other 
+                        <> ", which is not a Literal. Please report"
+
 
 -- FIXME pattern match failure because ALang not precise enough (see issue #8)
 renameVar :: Expr ty -> (Expr ty, Binding) -> Expr ty
@@ -124,6 +127,8 @@ renameVar e (Var old, new) =
         Var v
             | v == old -> Var new
         other -> other
+renameVar _e other = error $ "Called 'renameVar' with " <> show other 
+                        <> ", which is not a Variable. Please report"
 
 -- | All bindings defined in an expression *with duplicates*
 definedBindings :: Expr ty -> [Binding]
