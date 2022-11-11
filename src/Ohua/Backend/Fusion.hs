@@ -325,9 +325,11 @@ fuseSMaps (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ go e
           Just $ genFused $ fuseSMap (FunCtrl cIn (p:|[])) $ SMap.fuse b smap
     -- we could of course also fuse if the function returns a tuple or a dispatch but let's
     -- not do this for now.
-    getAndDrop smap inp (Fun fun@(PureFusable _ _ ((SendResult c@(SChan b)) :| [])))
+    getAndDrop smap inp (Fun fun@(PureFusable args _ ((SendResult c@(SChan b)) :| [])))
       | c == inp =
-          Just $ genFun' (SMap.gen $ SMap.fuse b smap) $ toFuseFun fun
+          -- this is fragile because I'm just assuming that every TaskExpr was a literal!
+          let smapGen = if hasReceive args then SMap.gen else SMap.gen'
+          in Just $ genFun' (smapGen $ SMap.fuse b smap) $ toFuseFun fun
     getAndDrop smap inp (Fun st@(STFusable sIn dIn app dOut sOut)) =
       case sOut of
         (Just c@(SChan b))
@@ -342,6 +344,11 @@ fuseSMaps (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ go e
                 in Just $ genFun' (Stmt send' $ SMap.gen' $ SMap.fuse b smap) $ toFuseFun st
             _ -> Nothing
     getAndDrop _ _ _ = Nothing
+    hasReceive args = and $ map (\case 
+                                Arg{} -> True
+                                (Drop (Left _)) -> True
+                                _ -> False 
+                            ) args
 
 -- REMINDER: (Maybe as a result of fusion) There might be no nodes without input i.e. nodes requireing input might send 
 -- input fo rother before requireing to receive. Hence we can't just sort them by satisfied input requirements
