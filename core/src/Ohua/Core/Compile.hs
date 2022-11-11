@@ -61,7 +61,8 @@ pipeline CustomPasses {..} returnType e = do
     dfAfterCustom <- passAfterDFLowering coreDfE
     stage customDflang dfAfterCustom
     whenDebug $ DFPasses.checkSSA dfAfterCustom
-    dfFinal <- DFPasses.typePropagation returnType =<< DFPasses.finalPasses dfAfterCustom
+    dfFinal <- DFPasses.typePropagation returnType =<< 
+               DFPasses.finalPasses dfAfterCustom
     stage finalDflang dfFinal
     whenDebug $ DFPasses.checkSSA dfFinal
     pure dfFinal

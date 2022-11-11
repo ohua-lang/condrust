@@ -380,7 +380,7 @@ mapFuns :: (forall a. DFApp a ty -> DFApp a ty) -> NormalizedDFExpr ty -> Normal
 mapFuns f e = runIdentity (mapFunsM (pure . f) e)
 
 universe' :: NormalizedDFExpr ty -> [NormalizedDFExpr ty]
-universe' l@(Let app cont) = l : universe' cont
+universe' l@(Let _ cont) = l : universe' cont
 universe' _ = []
 
 -- This is what I want!
