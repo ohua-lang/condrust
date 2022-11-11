@@ -8,5 +8,5 @@ import Ohua.Integration.Python.MultiProcessing
 
 
 instance Transform (Architectures 'MultiProcessing) where
-  transformTaskExprAndChans = lowerTaskPar
+  transformTaskExpr = lowerTaskPar
   transformTask _ _ = id

@@ -263,12 +263,12 @@ liftFunction collectTy (PureDFFun out fun inp) cont = do
 -- All that the language and backend requires to support this transformations are
 -- the implementations of the below functions.
 lowerTaskPar :: forall lang arch ty. (ty ~ BT.Type (BT.Lang arch))
-             => lang -> arch -> FullTask ty (B.TaskExpr ty) -> FullTask ty (B.TaskExpr ty)
+             => lang -> arch -> FullTask ty (B.TaskExpr ty) -> B.TaskExpr ty
 lowerTaskPar _ arch = go 
     where
-        go (FullTask sends recvs taskE) = 
+        go (FullTask _sends _recvs taskE) = 
             case  go' taskE of
-                (taskE', _) -> FullTask sends recvs taskE'
+                (taskE', _) -> taskE'
 
         -- This implementation does not need this state return anymore.
         -- I leave it in nevertheless to show how to work with cataA.
