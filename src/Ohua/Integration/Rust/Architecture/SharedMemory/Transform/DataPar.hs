@@ -7,6 +7,8 @@ import qualified Ohua.Integration.Rust.TypeExtraction as RT
 import Ohua.Integration.Architecture
 import Ohua.Integration.Rust.Backend
 import Ohua.Integration.Rust.Backend.Subset
+import Ohua.Integration.Rust.Common.Subset (TyRef(..), GenericArgs(..), RustType(..), GenericArg(..))
+import Ohua.Integration.Rust.Backend.Convert (convertTyRef)
 import Ohua.Integration.Transform.DataPar (concat, joinFuture, spawnFuture, takeN)
 import Ohua.Integration.Options (Options(..))
 import Ohua.Prelude hiding (concat)
@@ -14,7 +16,13 @@ import Ohua.Prelude hiding (concat)
 runtime = "rt"
 
 liftCollectType :: RT.RustTypeAnno -> RT.RustTypeAnno
-liftCollectType t = t -- TODO
+liftCollectType (RT.Normal t) =
+    RT.Normal 
+    $ convertTyRef 
+    $ TyRef "std.sync.mpsc/Receiver"
+    $ Just
+    $ AngleBracketed [TypeArg $ RustType t]
+liftCollectType t = t
 
 spawnWork :: Architectures 'SharedMemory -> Block -> Block
 spawnWork (SSharedMemory Options{..}) block =

@@ -202,9 +202,9 @@ rewrite liftCollectTy (SMap smapF body collectF) = do
     
     findOutTy :: DFApp 'Fun ty -> NormalizedDFExpr ty -> OhuaM (ArgType ty)
     findOutTy fun cont = 
-        case DFL.insDFApp fun of
+        case DFL.outsDFApp fun of
             [bnd] -> case findOutTy' bnd cont of
-                        [] -> invariantBroken "found unused output" 
+                        [] -> invariantBroken $ "found unused output:" <> show bnd <> " for function: " <> show fun
                         (t:_) -> return t
             _ -> unsupported "Multiple outputs to pure fun."
     
@@ -253,34 +253,25 @@ liftFunction collectTy (PureDFFun out fun inp) cont = do
     handleFun futuresBnd =
       PureDFFun
         (Direct futuresBnd)
-        (FunRef spawnFuture Nothing (getNewFunType fun))
+        (FunRef spawnFuture Nothing $ getSpawnFunType fun)
         (DFEnvVar TypeVar (FunRefLit fun) NE.<| inp)
 
-    -- TODO the warning here is because there is no tight connection between the types and
-    --      the terms
-    getNewFunType :: FunRef ty -> FunType ty
-    getNewFunType (FunRef _ _ (FunType (Left Unit))) = FunType $ Right $ TypeVar NE.:| []
-    getNewFunType (FunRef _ _ (FunType (Right xs))) = FunType $ Right (TypeVar NE.<| xs)
-
-class (Architecture arch) => TypePropagation arch where
-    liftRecvType :: (ty ~ BT.Type (BT.Lang arch)) => arch -> B.Channel ty -> B.Channel ty
-    liftRecvType _ c = c 
+    getSpawnFunType (FunRef _ _ (FunType (Left Unit))) = FunType $ Right $ TypeVar NE.:| []
+    getSpawnFunType (FunRef _ _ (FunType (Right xs))) = FunType $ Right (TypeVar NE.<| xs)
 
 -- |
 -- All that the language and backend requires to support this transformations are
 -- the implementations of the below functions.
-lowerTaskPar :: forall lang arch ty. (TypePropagation arch, ty ~ BT.Type (BT.Lang arch))
+lowerTaskPar :: forall lang arch ty. (ty ~ BT.Type (BT.Lang arch))
              => lang -> arch -> FullTask ty (B.TaskExpr ty) -> FullTask ty (B.TaskExpr ty)
 lowerTaskPar _ arch = go 
     where
         go (FullTask sends recvs taskE) = 
             case  go' taskE of
-                (taskE', False) -> FullTask sends recvs taskE'
-                (taskE', True ) -> 
-                    let recvs' = case recvs of
-                                    [recv] -> [liftRecvType arch recv]
-                                    _ -> error $ "Invariant broken: DataPar.collect must have exactly one incoming and outgoing channel. Detected: " <> show recvs
-                    in FullTask sends recvs' taskE'
+                (taskE', _) -> FullTask sends recvs taskE'
+
+        -- This implementation does not need this state return anymore.
+        -- I leave it in nevertheless to show how to work with cataA.
         go'  = flip runState False . cataA go''
         go'' :: B.TaskExprF ty (State Bool (B.TaskExpr ty)) -> (State Bool (B.TaskExpr ty))
         go'' = \case

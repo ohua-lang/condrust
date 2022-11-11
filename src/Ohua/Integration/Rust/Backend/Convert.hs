@@ -119,8 +119,8 @@ convertQualBnd (QualifiedBinding ns bnd) =
     )
     noSpan
 
-convertCallRef :: Sub.CallRef -> Expr ()
-convertCallRef (Sub.CallRef f ty) =
+convertRef :: QualifiedBinding -> Maybe Sub.GenericArgs -> Path ()
+convertRef f ty =
   let (Path b segs s) = convertQualBnd f
       attach (PathSegment i _ s) = PathSegment i (convertGenericArgs <$> ty) s
       segs' = case segs of
@@ -128,7 +128,15 @@ convertCallRef (Sub.CallRef f ty) =
         (a : as) ->
           let (l :| prev) = NE.reverse $ a :| as
            in NE.toList $ NE.reverse $ attach l :| prev
-   in PathExpr [] Nothing (Path b segs' s) noSpan
+   in Path b segs' s
+
+convertCallRef :: Sub.CallRef -> Expr ()
+convertCallRef (Sub.CallRef f ty) =
+   PathExpr [] Nothing (convertRef f ty) noSpan
+
+convertTyRef :: Sub.TyRef -> Ty ()
+convertTyRef (Sub.TyRef f ty) =
+   PathTy Nothing (convertRef f ty) noSpan
 
 convertGenericArgs :: Sub.GenericArgs -> GenericArgs ()
 convertGenericArgs (Sub.AngleBracketed args) =
