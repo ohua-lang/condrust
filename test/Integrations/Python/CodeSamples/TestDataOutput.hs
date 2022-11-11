@@ -958,23 +958,22 @@ def task_1(c_0_0_sender, mob_0_1_1_receiver):
         c_0_0_sender.send(c_0_0)
 def task_2(ctrl_0_0_sender, d_1_sender):
     g_0_0_0 = some_invented_iter_function()
-    while True:
-        hasSize = True if hasattr(g_0_0_0, '__len__') else False
-        if hasSize:
-            size = len(g_0_0_0)
-            ctrl = True, size
+    hasSize = True if hasattr(g_0_0_0, '__len__') else False
+    if hasSize:
+        size = len(g_0_0_0)
+        ctrl = True, size
+        ctrl_0_0_sender.send(ctrl)
+        for d in g_0_0_0:
+            d_1_sender.send(d)
+    else:
+        size = 0
+        for d in g_0_0_0:
+            d_1_sender.send(d)
+            ctrl = False, 1
             ctrl_0_0_sender.send(ctrl)
-            for d in g_0_0_0:
-                d_1_sender.send(d)
-        else:
-            size = 0
-            for d in g_0_0_0:
-                d_1_sender.send(d)
-                ctrl = False, 1
-                ctrl_0_0_sender.send(ctrl)
-                size = size + 1
-            ctrl = True, 0
-            ctrl_0_0_sender.send(ctrl)
+            size = size + 1
+        ctrl = True, 0
+        ctrl_0_0_sender.send(ctrl)
 def task_3(mob_0_0_1_sender):
     mob_0_0_1 = MObs(a)
     mob_0_0_1_sender.send(mob_0_0_1)
@@ -1031,29 +1030,28 @@ def task_1(x_0_0_0_sender, mob2_0_0_0_receiver, ctrl_0_0_receiver, d_1_receiver)
             renew = renew_next_time
 def task_2(ctrl_0_0_sender, ctrl_0_1_sender, d_1_sender):
     g_0_0_0 = some_invented_iter_function()
-    while True:
-        hasSize = True if hasattr(g_0_0_0, '__len__') else False
-        if hasSize:
-            size = len(g_0_0_0)
-            ctrl = True, size
+    hasSize = True if hasattr(g_0_0_0, '__len__') else False
+    if hasSize:
+        size = len(g_0_0_0)
+        ctrl = True, size
+        ctrl_0_0_sender.send(ctrl)
+        ctrl = True, size
+        ctrl_0_1_sender.send(ctrl)
+        for d in g_0_0_0:
+            d_1_sender.send(d)
+    else:
+        size = 0
+        for d in g_0_0_0:
+            d_1_sender.send(d)
+            ctrl = False, 1
             ctrl_0_0_sender.send(ctrl)
-            ctrl = True, size
+            ctrl = False, 1
             ctrl_0_1_sender.send(ctrl)
-            for d in g_0_0_0:
-                d_1_sender.send(d)
-        else:
-            size = 0
-            for d in g_0_0_0:
-                d_1_sender.send(d)
-                ctrl = False, 1
-                ctrl_0_0_sender.send(ctrl)
-                ctrl = False, 1
-                ctrl_0_1_sender.send(ctrl)
-                size = size + 1
-            ctrl = True, 0
-            ctrl_0_0_sender.send(ctrl)
-            ctrl = True, 0
-            ctrl_0_1_sender.send(ctrl)
+            size = size + 1
+        ctrl = True, 0
+        ctrl_0_0_sender.send(ctrl)
+        ctrl = True, 0
+        ctrl_0_1_sender.send(ctrl)
 def task_3(mob2_0_0_0_sender, mob_0_0_1_0_sender, mob_0_0_2_receiver):
     while True:
         var_0 = mob_0_0_2_receiver.recv()
@@ -1114,23 +1112,22 @@ def task_1(r_0_0_0_sender, d_0_receiver):
         r_0_0_0_sender.send(r_0_0_0)
 def task_2(ctrl_0_0_sender, d_0_sender):
     stream_0_0_0 = some_invented_iter_function()
-    while True:
-        hasSize = True if hasattr(stream_0_0_0, '__len__') else False
-        if hasSize:
-            size = len(stream_0_0_0)
-            ctrl = True, size
+    hasSize = True if hasattr(stream_0_0_0, '__len__') else False
+    if hasSize:
+        size = len(stream_0_0_0)
+        ctrl = True, size
+        ctrl_0_0_sender.send(ctrl)
+        for d in stream_0_0_0:
+            d_0_sender.send(d)
+    else:
+        size = 0
+        for d in stream_0_0_0:
+            d_0_sender.send(d)
+            ctrl = False, 1
             ctrl_0_0_sender.send(ctrl)
-            for d in stream_0_0_0:
-                d_0_sender.send(d)
-        else:
-            size = 0
-            for d in stream_0_0_0:
-                d_0_sender.send(d)
-                ctrl = False, 1
-                ctrl_0_0_sender.send(ctrl)
-                size = size + 1
-            ctrl = True, 0
-            ctrl_0_0_sender.send(ctrl)
+            size = size + 1
+        ctrl = True, 0
+        ctrl_0_0_sender.send(ctrl)
 def task_3(s_0_0_1_sender):
     s_0_0_1 = MObs(42)
     s_0_0_1_sender.send(s_0_0_1)
@@ -1257,23 +1254,22 @@ def task_3(x_0_0_0_sender, d_1_receiver):
         x_0_0_0_sender.send(x_0_0_0)
 def task_4(ctrl_0_0_sender, d_1_sender):
     a_0_0 = range(0, i)
-    while True:
-        hasSize = True if hasattr(a_0_0, '__len__') else False
-        if hasSize:
-            size = len(a_0_0)
-            ctrl = True, size
+    hasSize = True if hasattr(a_0_0, '__len__') else False
+    if hasSize:
+        size = len(a_0_0)
+        ctrl = True, size
+        ctrl_0_0_sender.send(ctrl)
+        for d in a_0_0:
+            d_1_sender.send(d)
+    else:
+        size = 0
+        for d in a_0_0:
+            d_1_sender.send(d)
+            ctrl = False, 1
             ctrl_0_0_sender.send(ctrl)
-            for d in a_0_0:
-                d_1_sender.send(d)
-        else:
-            size = 0
-            for d in a_0_0:
-                d_1_sender.send(d)
-                ctrl = False, 1
-                ctrl_0_0_sender.send(ctrl)
-                size = size + 1
-            ctrl = True, 0
-            ctrl_0_0_sender.send(ctrl)
+            size = size + 1
+        ctrl = True, 0
+        ctrl_0_0_sender.send(ctrl)
 def task_5(result_0_0_1_sender):
     result_0_0_1 = []
     result_0_0_1_sender.send(result_0_0_1)

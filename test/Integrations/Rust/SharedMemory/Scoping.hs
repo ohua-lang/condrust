@@ -318,36 +318,34 @@ fn test() -> i32 {
   tasks
     .push(Box::new(move || -> _ {
       let mut a_0_0 = iter();
-      loop {
-        let hasSize =
-          {
-            let tmp_has_size = a_0_0.iter().size_hint();
-            tmp_has_size.1.is_some()
-          };
-        if hasSize {
-          let size = a_0_0.len();
-          let ctrl = (true, size);
+      let hasSize =
+        {
+          let tmp_has_size = a_0_0.iter().size_hint();
+          tmp_has_size.1.is_some()
+        };
+      Ok(if hasSize {
+        let size = a_0_0.len();
+        let ctrl = (true, size);
+        ctrl_0_0_tx.send(ctrl)?;
+        let ctrl = (true, size);
+        ctrl_0_1_tx.send(ctrl)?;
+        ()
+      } else {
+        let mut size = 0;
+        for d in a_0_0 {
+          let ctrl = (false, 1);
           ctrl_0_0_tx.send(ctrl)?;
-          let ctrl = (true, size);
+          let ctrl = (false, 1);
           ctrl_0_1_tx.send(ctrl)?;
+          size = size + 1;
           ()
-        } else {
-          let mut size = 0;
-          for d in a_0_0 {
-            let ctrl = (false, 1);
-            ctrl_0_0_tx.send(ctrl)?;
-            let ctrl = (false, 1);
-            ctrl_0_1_tx.send(ctrl)?;
-            size = size + 1;
-            ()
-          };
-          let ctrl = (true, 0);
-          ctrl_0_0_tx.send(ctrl)?;
-          let ctrl = (true, 0);
-          ctrl_0_1_tx.send(ctrl)?;
-          ()
-        }
-      }
+        };
+        let ctrl = (true, 0);
+        ctrl_0_0_tx.send(ctrl)?;
+        let ctrl = (true, 0);
+        ctrl_0_1_tx.send(ctrl)?;
+        ()
+      })
     }));
   tasks
     .push(Box::new(move || -> _ {
