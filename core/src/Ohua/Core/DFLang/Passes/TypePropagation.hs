@@ -312,7 +312,10 @@ typeBottomUp _e'@(Let (IfFun (Direct o1, Direct o2) inVar ) inCont) = do
   updateContext o2 controlSignalType 
   return $ Let (IfFun (Direct o1, Direct o2) inVar' ) inCont
 
-typeBottomUp e'@(Let (IfFun _  _ ) _) = error $ "Generated IfFun produces wrong outputs" <> show e'
+typeBottomUp (Let (IfFun (_outs) _inVar ) _inCont) = error $ "Encountered ill formed output for if-expression"<>
+  ". Maybe you used an if without an else branch or if iside a loop, which currently doesn't work. Otherwise it's a compiler bug. Please report then"
+
+
 typeBottomUp e'@(Let (SelectFun _out _sign _inOne _inTwo) _inCont) = 
   -- Currently not used 
   return e'
