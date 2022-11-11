@@ -8,7 +8,7 @@ import Ohua.Prelude hiding (First, Second)
 normalize ::
   Namespace (Program chan recv (TaskExpr ty) ty) anno ty ->
   Namespace (Program chan recv (TaskExpr ty) ty) anno ty
-normalize = updateTaskExprs normalizeTaskExpr
+normalize = updateTaskExprs' normalizeTaskExpr
 
 normalizeTaskExpr :: TaskExpr ty -> TaskExpr ty
 normalizeTaskExpr = normalizeLits . normalizeIndirect

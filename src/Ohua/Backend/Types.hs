@@ -124,15 +124,15 @@ class Architecture arch where
 
 
 class (Architecture arch) => Transform arch where
-  transformTaskExprAndChans :: ( Lang arch ~ lang
-                               , Integration lang
-                               , ty ~ Type lang
-                               )
-                            => HostModule lang
-                            -> arch
-                            -> FullTask ty (TaskExpr ty)
-                            -> FullTask ty (TaskExpr ty)
-  transformTaskExprAndChans _ _ = id
+  transformTaskExpr :: ( Lang arch ~ lang
+                       , Integration lang
+                       , ty ~ Type lang
+                       )
+                    => HostModule lang
+                    -> arch
+                    -> FullTask ty (TaskExpr ty)
+                    -> TaskExpr ty
+  transformTaskExpr _ _ (FullTask _ _ e) = e
 
   transformTask :: ( Lang arch ~ lang
                    , Integration lang
@@ -144,34 +144,27 @@ class (Architecture arch) => Transform arch where
                 -> Task lang
   transformTask _ _ = id
 
-updateTaskExprs :: (expr1 -> expr2)
-                -> Namespace (Program chan recv expr1 ty) anno ty
-                -> Namespace (Program chan recv expr2 ty) anno ty
-updateTaskExprs f ns =
+updateTaskExprs' :: (expr1 -> expr2)
+                 -> Namespace (Program chan recv expr1 ty) anno ty
+                 -> Namespace (Program chan recv expr2 ty) anno ty
+updateTaskExprs' f ns =
   ns & algos %~ map (\algo -> algo & algoCode %~ go)
   where
    go (Program chans resultChan exprs) =
       Program chans resultChan $ map (f <$>) exprs
 
-updateTaskExprsAndChans 
-  :: (FullTask ty expr1 -> FullTask ty expr2)
-  -> Namespace (Program (Channel ty) (Com 'Recv ty) expr1 ty) anno ty
-  -> Namespace (Program (Channel ty) (Com 'Recv ty) expr2 ty) anno ty
-updateTaskExprsAndChans f ns =
+updateTaskExprs 
+  :: (FullTask ty expr -> expr)
+  -> Namespace (Program (Channel ty) (Com 'Recv ty) expr ty) anno ty
+  -> Namespace (Program (Channel ty) (Com 'Recv ty) expr ty) anno ty
+updateTaskExprs f ns =
   ns & algos %~ map (\algo -> algo & algoCode %~ go)
   where
     go (Program chans resultChan exprs) =
       let 
-        tasks' = map f exprs
-        nChanReg = 
-            HM.fromList
-            $ map (\(SRecv t c) -> (c,t)) 
-            $ resultChan : concatMap (\(FullTask _ recvs _) -> recvs) tasks'
-        updateChan (SRecv t c) =
-            flip SRecv c $ fromMaybe t $ HM.lookup c nChanReg
-        chans' = map updateChan chans
+        tasks' = map (\ft@(FullTask s r t) -> FullTask s r $ f ft) exprs
       in
-        Program chans' resultChan tasks'
+        Program chans resultChan tasks'
 
 updateTasks :: (expr1 -> expr2)
             -> Namespace (Program chan recv expr1 ty) anno ty
