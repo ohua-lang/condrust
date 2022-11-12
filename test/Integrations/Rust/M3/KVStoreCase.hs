@@ -11,10 +11,13 @@ spec :: Spec
 spec =
     describe "KVApplication should compile" $ do
         it "two-component base case" $
-            (showCode "Compiled: " =<< compileCodeWithRec Input.k_v_application) >>=
+            (showCode "Compiled: " =<< compileCodeWithRec Input.k_v_application_1_2_components) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" Expect.k_v_application
+                expected <- showCode "Expected:" Expect.k_v_application_1_2_components
                 compiled `shouldBe` expected)
+
+        it "two-component base case" $
+            (compileCodeWithRec Input.k_v_application_2_poll_loop_rec) `shouldThrow` anyException
 
 -- **********************************************************************************************
 -- + From here on it's test cases for the old k-v-code
