@@ -31,6 +31,7 @@ import qualified Ohua.Integration.Rust.Types as RT
 import Ohua.Prelude
 import Ohua.Integration.Rust.Backend.Passes (propagateMut)
 import Data.Text (unpack, unlines)
+import Ohua.Integration.Rust.Architecture.SharedMemory (convertToRustType)
 
 convertChan :: Sub.BindingMode -> Channel TE.RustTypeAnno -> Rust.Stmt ()
 convertChan rxMutability (SRecv _ty (SChan bnd)) =
@@ -53,8 +54,9 @@ convertReceive suffix (SRecv argType (SChan channel)) =
               (Type (TE.Self ty _ _mut)) -> noSpan <$ ty
               -- error "Not yet implemented: Recv of reference type"
               (Type (TE.Normal ty)) -> noSpan <$ ty
-                -- ISSUE: Find correct reaction here. For now I'll pretend channel.recv::<(ty1, ty2 ...)>().unwrap() is ok
-              _ -> error $ "We currently do not handle receive channels of type" <> show argType
+              internalType -> case convertToRustType internalType of 
+                  Just (Sub.RustType ty) -> ty
+                  Nothing -> error $ "We currently do not handle receive channels of type" <> show argType
       rcv =
         Sub.MethodCall
           (Sub.Var $ channel <> suffix)
