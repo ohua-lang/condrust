@@ -22,7 +22,7 @@ integration-features:
         data-parallelism: 42
         amorphous: 13
 debug:
-    log-level: verbose
+    log-level: info | warn | debug | error
     core-stages:
         - stage: "before-normalization"
           dump: yes
