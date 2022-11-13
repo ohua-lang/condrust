@@ -32,7 +32,7 @@ dataPar (IOpt.Options dpar amorph) dparLift =
      Just n -> amorphous n
      _ -> pure)
   ( case dpar of
-      Just n -> liftPureFunctions dparLift
+      Just _n -> liftPureFunctions dparLift >=> typeAmorphous
       _ -> pure)
 
 invariantBroken :: Text -> OhuaM a
@@ -287,12 +287,12 @@ lowerTaskPar _ arch = go
 takeN :: QualifiedBinding
 takeN = "ohua.lang/takeN"
 
-takeNLit = Lit $ FunRefLit $ FunRef takeN Nothing $ FunType $ Right $ TypeVar :| [TypeVar]
+takeNLit ty = Lit $ FunRefLit $ FunRef takeN Nothing $ FunType $ Right $ ty :| [TypeVar]
 
 concat :: QualifiedBinding
 concat = "ohua.lang/concat"
 
-concatLit = Lit $ FunRefLit $ FunRef concat Nothing $ FunType $ Right $ TypeVar :| [TypeVar]
+concatLit ty = Lit $ FunRefLit $ FunRef concat Nothing $ FunType $ Right $ ty :| [ty]
 
 -- | This transformation adds a limit on the tries per round and therewith provides
 --   a tuning knob to control the number of invalid (colliding) computation per round.
@@ -344,64 +344,52 @@ amorphous numRetries targetExpr =
     rewriteIrregularApp lam =
       let (ctxt, body) = lambdaArgsAndBody lam
        in case ctxt of
-            ctxt' | length ctxt' < 2 ->
-              pure lam
+            ctxt' | length ctxt' < 2 -> pure lam
             ctxt' -> do
---              traceM $ "Found lambda body with sufficient length"
-              result <- case findResult body of
-                [r] ->
-                  pure r
-                _ ->
-                  throwError $
-                    "apparently, the recursion is not well-formed."
-                      <> " invariant broken."
+              traceM $ "Recursion lambda args: " <> show ctxt'
+              --traceM $ "Found lambda body with sufficient length"
+              stateResult <- case findResult body of
+                               [r] -> pure r
+                               _   -> throwError $ "apparently, the recursion is not well-formed." <> " invariant broken."
               let ctxtHS = HS.fromList ctxt'
-              if HS.member result ctxtHS
-                && isUsedState result body then (do
---                  traceM $ "result is in ctxt and used in body"
-                case findLoops body of
-                  [] -> pure lam
-                  loops -> do
---                      traceM $ "Detected loops: " <> show loops
-                    case filter ((`HS.member` ctxtHS) . snd3) loops of
-                      [] -> pure lam
-                      loops' -> do
---                          traceM $ "Result after filtering with ctxtHS: " <> show loops'
-                        case filter (isUsedState result . fst3) loops' of
-                          -- TODO this only checks for calls to the state but it should
-                          --      really also check that the result of the loop is input to the same call
-                          [] -> case filter (isUsedState result . third3) loops' of
-                                  [] -> pure lam
-                                  -- FIXME cleanup this code and merge it with the below version
-                                  [(_, inp,_)] -> do
-                                    recArgs <- findRecursionArgs body
-                                    workResult <-
-                                      findWorked body inp result recArgs
-                                    rest <- generateBindingWith "rest"
---                                      traceM $ "state: " <> show result
---                                      traceM $ "wl: " <> show workResult
-                                    case workResult of
-                                      Just workResult' -> do
-                                        lam' <- transformM (takeNRewrite' inp workResult' rest) lam
-                                        transformM (concatRewrite result workResult' rest) lam'
-                                      _ -> pure lam
-
-                                  --FIXME I don't think we should error here but just not perform the transfomation.
-                                  _ -> throwError $ "invariant broken: "
-                                       <> "more than a single loop over the worklist found."
-                          [(_, inp,_)] -> do
---                              traceM $ "Detected State usage: " <> show inp
-                            recArgs <- findRecursionArgs body
-                            workResult <-
-                              findWorked body inp result recArgs
-                            case workResult of
-                              Just workResult' ->
-                                transformM (doRewrite inp workResult') lam
-                              _ -> pure lam
-                          _ ->
-                            throwError $
-                              "invariant broken: "
-                                <> "state inside a context can only be used once!") else pure lam
+              if HS.member stateResult ctxtHS
+                && isUsedState stateResult body
+                then (do
+                         -- traceM $ "result is in ctxt and used in body"
+                         case findLoops body of
+                           [] -> pure lam
+                           loops -> do
+                             -- traceM $ "Detected loops: " <> show loops
+                             -- refine to loops that use ctxt variables, i.e., state
+                             case filter ((`HS.member` ctxtHS) . snd3) loops of
+                               [] -> pure lam
+                               loops' -> do
+                                 -- traceM $ "Result after filtering with ctxtHS: " <> show loops'
+                                 traceM $ "state: " <> show stateResult
+                                 case filter (isUsedState stateResult . fst3) loops' of
+                                   [(loopBody, loopInp, _)] -> do
+                                     traceM $ "Detected State usage in loop over: " <> show loopInp
+                                     -- recArgs <- findRecursionArgs body
+                                     -- traceM $ "Recursion call args:" <> show recArgs
+                                     recCallArgs <- findRecursionCallArgs body
+                                     traceM $ "Recursion call args':" <> show recCallArgs
+                                     wlRec <- case map snd $ filter (\(p,a) -> p == loopInp) $ zip ctxt recCallArgs of
+                                                [i] -> pure i
+                                                _ -> throwError "invariant broken" -- we detected that already above!
+                                     let loopResults = findFreeStateVars loopBody
+                                     case HS.member wlRec $ HS.fromList loopResults of
+                                       -- the loop is the creator. concat right after it.
+                                       True -> transformM (rewriteAfterLoop loopInp wlRec) lam
+                                       -- concat to the creator of the new worklist
+                                       False -> do
+                                         rest <- generateBindingWith "rest"
+                                         body' <- transformM (takeNRewrite loopInp rest) lam
+                                         transformM (concatRewrite wlRec rest) lam
+                                   _ -> do
+                                     traceM "To enable amorphous parallelism please pass the worklist directly into the loop and do the modifications after the loop."
+                                     pure lam
+                     )
+                else pure lam
 
     findResult body =
       [ s | (AL.Let _ cond (AL.Var _)) <- universe body, ( Apply
@@ -414,63 +402,85 @@ amorphous numRetries targetExpr =
                                                            universe cond, ifTE == ALRefs.ifThenElse && idF == ALRefs.id
       ]
 
-    findRecursionArgs body =
+--    findRecursionArgs body =
+--      let calls =
+--            [ recursion
+--              | (AL.Let _ cond (AL.Var _)) <- universe body,
+--                (Apply (Apply (PureFunction ifTE Nothing) t) recursion) <- universe cond,
+--                ifTE == ALRefs.ifThenElse
+--            ]
+--       in case calls of
+--            [call] -> return $ findDerivations (HS.fromList $ findFreeBindings call) body
+--            _ -> throwError "invariant broken. recursion is not well-formed."
+
+    findRecursionCallArgs body =
       let calls =
             [ recursion
               | (AL.Let _ cond (AL.Var _)) <- universe body,
                 (Apply (Apply (PureFunction ifTE Nothing) t) recursion) <- universe cond,
                 ifTE == ALRefs.ifThenElse
             ]
-       in case calls of
-            [call] -> return $ findDerivations (HS.fromList $ findFreeBindings call) body
+      in case calls of
+            [AL.Lambda _ (AL.Let _ recCall _)] -> do
+              traceM $ "recursive branch: " <> show recCall
+              return $ gatherArgs recCall
             _ -> throwError "invariant broken. recursion is not well-formed."
 
-    findDerivations args expr =
-      let args1 =
-            [ b' | (AL.Let b (Apply (PureFunction _ _) (AL.Var b')) _) <- universe expr, HS.member b args
-            ]
-          args2 =
-            [ b' | (AL.Let b (Apply (StatefulFunction _ _ (AL.Var b')) (Lit UnitLit)) _) <- universe expr, HS.member b args
-            ]
-       in case args1 ++ args2 of
-            [] -> args
-            args' -> HS.union args $ findDerivations (HS.fromList args') expr
+    gatherArgs (Apply a (AL.Var b)) = gatherArgs a ++ [b]
+    gatherArgs _ = []
 
-    findWorked body inp result recArgs = do
-      (b, smapBody,cont) <-
-        case [ (b, smapBody,cont)
-               | AL.Let
-                   b
-                   ( Apply
-                       ( Apply
-                           (PureFunction smapF Nothing)
-                           smapBody
-                         )
-                       (AL.Var inp')
-                     )
-                   cont <-
-                   universe body,
-                 inp == inp'
-             ] of
-          [] -> throwError "invariant broken. I could not detext the already detected smap."
-          [x] -> return x
-          _ -> throwError "invariant broken. no ssa"
-      case HS.member b recArgs of
-        True -> return $ Just b -- functional case
-        _ ->
-          -- imperative case
-          let fv = findFreeBindings smapBody
-              fv' = filter (`isUsedState'` smapBody) fv
-              fv'' = filter (/= result) fv'
-          in case filter (`HS.member` recArgs) fv'' of
-               [b'] -> return $ Just b'
-               _ -> case fv'' of
-                      [b'] -> case getWLPrime cont b' result of
-                                [b''] | HS.member b'' recArgs -> return $ Just b'
-                                _ -> return Nothing
-                      bs ->
-                        throwError $ "I was unable to detect the work variable: " <> show bs
-    --return Nothing
+--    findDerivations args expr =
+--      let args1 =
+--            [ b' | (AL.Let b (Apply (PureFunction _ _) (AL.Var b')) _) <- universe expr, HS.member b args
+--            ]
+--          args2 =
+--            [ b' | (AL.Let b (Apply (StatefulFunction _ _ (AL.Var b')) (Lit UnitLit)) _) <- universe expr, HS.member b args
+--            ]
+--       in case args1 ++ args2 of
+--            [] -> args
+--            args' -> HS.union args $ findDerivations (HS.fromList args') expr
+
+    findFreeStateVars :: AL.Expr ty -> [Binding]
+    findFreeStateVars e =
+      let fv = findFreeBindings e
+          fv' = filter (`isUsedState'` e) fv
+      in fv'
+
+--    findWorked body inp result recArgs = do
+--      (b, smapBody,cont) <-
+--        case [ (b, smapBody,cont)
+--               | AL.Let
+--                   b
+--                   ( Apply
+--                       ( Apply
+--                           (PureFunction smapF Nothing)
+--                           smapBody
+--                         )
+--                       (AL.Var inp')
+--                     )
+--                   cont <-
+--                   universe body,
+--                 inp == inp'
+--             ] of
+--          [] -> throwError "invariant broken. I could not detext the already detected smap."
+--          [x] -> return x
+--          _ -> throwError "invariant broken. no ssa"
+--      case HS.member b recArgs of
+--        True -> return $ Just b -- functional case
+--        _ ->
+--          -- imperative case
+--          let fv = findFreeBindings smapBody
+--              fv' = filter (`isUsedState'` smapBody) fv
+--              fv'' = filter (/= result) fv'
+--          in case filter (`HS.member` recArgs) fv'' of
+--               [b'] -> return $ Just b'
+--               _ -> case fv'' of
+--                      [b'] -> case getWLPrime cont b' result of
+--                                [b''] | HS.member b'' recArgs -> return $ Just b'
+--                                _ -> return Nothing
+--                      bs ->
+--                        throwError $ "I was unable to detect the work variable: " <> show bs
+--    --return Nothing
 
     getWLPrime t wl result =
       [ v | (AL.Let
@@ -497,81 +507,92 @@ amorphous numRetries targetExpr =
           smapF == ALRefs.smap
       ]
 
-    doRewrite
-      inp
-      worked
+    rewriteAfterLoop
+      loopInp
+      wl'
       ( AL.Let
           v
-          (Apply f@(Apply (PureFunction smapF Nothing) _) (AL.Var inp'))
+          (Apply f@(Apply
+                    (PureFunctionTy smapF _ (FunType (Right (inpTy :| _))) )
+                    _)
+                 (AL.Var loopInp'))
           cont
         )
-        | smapF == ALRefs.smap && inp == inp' = do
+        | smapF == ALRefs.smap && loopInp == loopInp' = do
           taken <- generateBindingWith "n_taken"
-          takenInp <- generateBindingWith $ inp <> "_n"
+          takenInp <- generateBindingWith $ loopInp <> "_n"
           rest <- generateBindingWith "rest"
           nResults <- generateBindingWith "n_results"
-          pendingWork <- generateBindingWith worked
+          pendingWork <- generateBindingWith wl'
           return $
             AL.Let
               taken
               ( Apply
-                  (Apply takeNLit $ AL.Var inp)
+                  (Apply (takeNLit inpTy) $ AL.Var loopInp)
                   $ Lit $ NumericLit numRetries
               )
               $ destructure (AL.Var taken) [takenInp, rest] $
 
-                -- FIXME this assumes we take the result of an smap. but for an imperative case
-                --       it is some state altered inside this smap!
                 AL.Let v (Apply f $ AL.Var takenInp) $
                   AL.Let
                     pendingWork
-                    (Apply (Apply concatLit $ AL.Var worked) $ AL.Var rest)
-                    (substitute worked (AL.Var pendingWork) cont)
-    doRewrite _ _ e = pure e
+                    (Apply (Apply (concatLit inpTy) $ AL.Var wl') $ AL.Var rest)
+                    (substitute wl' (AL.Var pendingWork) cont)
+    rewriteAfterLoop _ _ e = pure e
 
-    takeNRewrite'
-      inp
-      worked
+    takeNRewrite
+      loopInp
       rest
       ( AL.Let
           v
-          (Apply f@(Apply (PureFunction smapF Nothing) _) (AL.Var inp'))
+           (Apply f@(Apply
+                    (PureFunctionTy smapF _ (FunType (Right (inpTy :| _))))
+                    _)
+                 (AL.Var loopInp'))
           cont
         )
-        | smapF == ALRefs.smap && inp == inp' = do
+        | smapF == ALRefs.smap && loopInp == loopInp' = do
           taken <- generateBindingWith "n_taken"
-          takenInp <- generateBindingWith $ inp <> "_n"
+          takenInp <- generateBindingWith $ loopInp <> "_n"
           nResults <- generateBindingWith "n_results"
           return $
             AL.Let
               taken
               ( Apply
-                  (Apply takeNLit $ AL.Var inp)
-                  $ Lit $ NumericLit 10
+                  (Apply (takeNLit inpTy) $ AL.Var loopInp)
+                  $ Lit $ NumericLit numRetries
               )
               $ destructure (AL.Var taken) [takenInp, rest] $ -- TODO take the value from the specification of lang (maybe via a type class)
                 AL.Let v (Apply f $ AL.Var takenInp) cont
-    takeNRewrite' _ _ _ e = pure e
+    takeNRewrite _ _ e = pure e
 
-    concatRewriteOn worked rest cont = do
+    concatRewrite wl' rest
+      (AL.Let
+          v
+          f -- @(Apply (StatefulFunctionTy _ _ (FunType (Right (_:| (inpTy:_)))) (AL.Var s)) (AL.Var d))
+          cont)
+      | wl' == v
+      = do
+          cont' <- concatRewriteOn v {- inpTy --} rest cont
+          return $ AL.Let v f cont'
+    concatRewrite _ _ e = pure e
+
+    concatRewriteOn worked {- inpTy -} rest cont = do
       pendingWork <- generateBindingWith worked
       return $
         AL.Let pendingWork
-        (Apply (Apply concatLit $ AL.Var worked) $ AL.Var rest)
+        (Apply (Apply (concatLit {- inpTy -} TypeVar) $ AL.Var worked) $ AL.Var rest)
         (substitute worked (AL.Var pendingWork) cont)
 
-
-    concatRewrite state worked rest
-      (AL.Let
-          v
-          f@(Apply (StatefulFunction _ _ (AL.Var s)) (AL.Var d))
-          cont)
-      | state == s && worked == d
-      = do
-          cont' <- concatRewriteOn v rest cont
-          return $ AL.Let v f cont'
-    concatRewrite _ _ _ e = pure e
-
-fst3 (a,_,_) = a
-snd3 (_,b,_) = b
+fst3   (a,_,_) = a
+snd3   (_,b,_) = b
 third3 (_,_,c) = c
+
+typeAmorphous :: NormalizedDFExpr ty -> OhuaM (NormalizedDFExpr ty)
+typeAmorphous = return . mapFuns go
+    where
+        go (PureDFFun outs (FunRef f id (FunType (Right (a:|(b:c)) )) ) ins) | f == concat =
+            PureDFFun outs (FunRef f id (FunType (Right (TypeList TypeVar :|(TypeList TypeVar:c)) )) ) ins
+        go (PureDFFun outs (FunRef f id (FunType (Right (a :| b) )) ) ins) | f == takeN =
+            PureDFFun outs (FunRef f id (FunType (Right (TypeList TypeVar :| b) )) ) ins
+        go a = a
