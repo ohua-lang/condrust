@@ -408,8 +408,11 @@ rewriteCallExpr e = do
   --               r
   -- this breaks haddock |]
     ctrls <- generateBindingWith "ctrls"
+    let argTypes = case callArgs of
+            [] -> error "I don't know whats wrong but args must not be empty here"
+            _args ->  genFunType callArgs
     return $
-        Let ctrls (fromListToApply (FunRef recurStartMarker Nothing $ genFunType callArgs) callArgs) $
+        Let ctrls (fromListToApply (FunRef recurStartMarker Nothing $ argTypes) callArgs) $
         mkDestructured (recurCtrl : recurVars) ctrls expr'
   where
     rewriteLastCond :: Expr ty -> Expr ty
