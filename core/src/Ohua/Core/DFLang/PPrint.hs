@@ -7,6 +7,7 @@ import qualified Ohua.Types.Vector as V
 
 import Data.Text.Prettyprint.Doc as PP
 
+import Ohua.Types.Reference ()
 import Ohua.Core.ALang.PPrint ()
 import Ohua.Core.DFLang.Lang
 
@@ -98,4 +99,4 @@ instance Pretty (OutData a) where
 instance Pretty (DFVar a ty) where
     pretty = \case
         DFEnvVar _ he -> pretty he
-        DFVar _ b -> pretty b
+        DFVar ty b -> hsep [pretty b, angles $ pretty ty]

@@ -36,10 +36,11 @@ module Ohua.Core.ALang.Lang
   ( Expr(..)
   , AExpr
   -- ** Convenience patterns
-  , pattern PureFunction, pattern PureFunctionF
-  , pattern StatefulFunction, pattern StatefulFunctionF
+  , pattern PureFunction, pattern PureFunctionTy, pattern PureFunctionF
+  , pattern StatefulFunction, pattern StatefulFunctionTy, pattern StatefulFunctionF
+ -- ** Conveniencefunctions
   , pureFunction
-  -- ** The recursion schemes base functor
+ -- ** The recursion schemes base functor
   , ExprF(..)
   -- ** Additional Traversals
   , lrPostwalkExpr
@@ -85,8 +86,8 @@ instance Container (ExprF ty a)
 pattern PureFunction :: QualifiedBinding -> Maybe FnId -> Expr ty
 pattern PureFunction bnd ident <- Lit (FunRefLit (FunRef bnd ident _))
 
-pureFunction :: QualifiedBinding -> Maybe FnId -> FunType ty -> Expr ty
-pureFunction bnd ident ty = Lit (FunRefLit (FunRef bnd ident ty))
+pattern PureFunctionTy :: QualifiedBinding -> Maybe FnId -> FunType ty -> Expr ty
+pattern PureFunctionTy bnd ident ty <- Lit (FunRefLit (FunRef bnd ident ty))
 
 pattern PureFunctionF :: QualifiedBinding -> Maybe FnId -> ExprF ty a
 pattern PureFunctionF bnd ident <- LitF (FunRefLit (FunRef bnd ident _))
@@ -94,8 +95,18 @@ pattern PureFunctionF bnd ident <- LitF (FunRefLit (FunRef bnd ident _))
 pattern StatefulFunction :: QualifiedBinding -> Maybe FnId -> Expr ty -> Expr ty
 pattern StatefulFunction bnd ident expr <- BindState expr (Lit (FunRefLit (FunRef bnd ident _)))
 
+pattern StatefulFunctionTy :: QualifiedBinding -> Maybe FnId ->FunType ty -> Expr ty -> Expr ty
+pattern StatefulFunctionTy bnd ident ty expr <- BindState expr (Lit (FunRefLit (FunRef bnd ident ty)))
+
 pattern StatefulFunctionF :: QualifiedBinding -> Maybe FnId -> Expr ty -> ExprF ty (Expr ty)
 pattern StatefulFunctionF bnd ident expr <- BindStateF expr (Lit (FunRefLit (FunRef bnd ident _)))
+
+
+-------------------- Convenience functions --------------------
+
+pureFunction :: QualifiedBinding -> Maybe FnId -> FunType ty -> Expr ty
+pureFunction bnd ident ty = Lit (FunRefLit (FunRef bnd ident ty))
+
 
 -------------------- Additional type class instances --------------------
 

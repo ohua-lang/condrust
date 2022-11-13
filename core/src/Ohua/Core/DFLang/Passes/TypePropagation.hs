@@ -219,11 +219,15 @@ typeBottomUp e'@(Let (PureDFFun _out (FunRef _bnd _ _fty) _params) _inCont) = do
   return e'
 
 -- SMap
-typeBottomUp smf@(Let (SMapFun _out@(_fst,_scnd, _trd) _iterableVar ) _inCont) = do
+typeBottomUp smf@(Let (SMapFun out@(_fst,_scnd,_trd) iterableVar ) inCont) = do
   -- Typing smapFun is not usefull. It's outputs are allready typed and it's 
   -- input, the 'iterable something' we iterate over is fused into the smap node.
   -- SO it's never send and we don't need a typed channel for it
-  return smf 
+    let iterableVarTy = TypeList TypeVar
+    let iterableVar' = case iterableVar of
+                        DFVar _ b -> DFVar iterableVarTy b
+                        DFEnvVar _ l -> DFEnvVar iterableVarTy l
+    return $ Let (SMapFun out iterableVar') inCont
 
 -- Stateful Functions
 typeBottomUp (Let (StateDFFun (mState, mData) f@(FunRef _fun _ (STFunType sty tyInfo)) stateIn dataIn) inCont) = do
