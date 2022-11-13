@@ -351,9 +351,9 @@ noUndefinedBindings = flip runReaderT mempty . cata go
         unless isDefined $ failWith $ "Not in scope " <> show bnd
         
     go (LambdaF b body) = registerBinding b body
-    go e@(LitF _a ) = (trace $ "Passes: Lift " ) sequence_ e
-    go e@(ApplyF _a _b ) = (trace $ "Passes: Apply ") sequence_ e
-    go e@(BindStateF _a _b ) = (trace $ "Passes: BindState ") sequence_ e 
+    go e@(LitF _a ) = sequence_ e
+    go e@(ApplyF _a _b ) = sequence_ e
+    go e@(BindStateF _a _b ) = sequence_ e 
     -- go (Li)
     --go e = sequence_ e
     registerBinding b = (local . HS.insert) b
