@@ -5,6 +5,7 @@ import Universum
 import Ohua.Types.Literal
 import Ohua.Types.Reference
 import Ohua.Types.Make
+import Ohua.Types.Classes
 import Ohua.LensClasses
 
 import Data.Text as T hiding (map)
@@ -12,7 +13,7 @@ import Data.Text.Prettyprint.Doc as PP
 import Data.Text.Prettyprint.Doc.Render.Text as PP
 
 import qualified Data.Text.IO as LT
-
+import Data.List.NonEmpty ( (<|) )
 
 ohuaDefaultLayoutOpts :: PP.LayoutOptions
 ohuaDefaultLayoutOpts =
@@ -38,7 +39,7 @@ flexText = PP.vsep . map (PP.fillSep . map PP.pretty . words) . lines
 
 
 prettyFunRef :: FunRef ty -> Doc ann
-prettyFunRef (FunRef sf fid _) = pretty sf <> maybe emptyDoc (angles . pretty) fid
+prettyFunRef (FunRef sf fid ty) = pretty sf <> angles (pretty ty)  <> maybe emptyDoc (angles . pretty) fid
 
 prettyLit :: Lit ty -> Doc ann
 prettyLit =
@@ -49,6 +50,21 @@ prettyLit =
         EnvRefLit he -> "$" <> pretty he
         BoolLit b -> pretty b
         StringLit str -> pretty str
+
+prettyFunType :: FunType ty -> Doc ann
+prettyFunType = 
+    \case
+        Untyped -> "?"
+        FunType (Left _) -> "()"
+        FunType (Right args) -> hsep $ punctuate comma $ toList $ map pretty args
+        STFunType argTy (Left _) -> hsep $ punctuate comma [pretty argTy  <> "()"]
+        STFunType argTy (Right args) -> prettyFunType $ FunType $ Right (argTy <| args) 
+
+instance Pretty (ArgType ty) where
+    pretty = flexText . showNoType
+
+instance Pretty (FunType ty) where
+    pretty = prettyFunType
 
 instance Pretty FnId where
     pretty = pretty . unwrap
