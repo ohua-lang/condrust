@@ -248,7 +248,15 @@ generateNodeCode e@(PureDFFun out (FunRef fun _ _) inp) | fun == Refs.unitFun = 
             Ops.IdFusable (Ops.Converted $ Lit l) out'
    (DFEnvVar _t (FunRefLit pr@FunRef{}) :| [v]) -> -- FIXME this feels like a bug to me. why do we take this detour via unitFun???
      generateFunctionCode $ PureDFFun out pr (v:|[])
-   _ -> invariantBroken $ "unknown function as first argument or wrong number of arguments (expetced 2) to unitFun:\n" <> show e
+   _ -> invariantBroken $ "unknown function as first argument or wrong number of arguments (expected 2) to unitFun:\n" <> show e
+
+-- REMINDER:
+-- At this point we transition from DFLang (has no literals) to the backend lang (has literals)
+-- However we can not (at least not trivially) remove the id() wrapper again here, because
+-- at this point it is still a node, that will only be fused i.e. become a simple expression again 
+-- after the backend fusion pass :-( 
+generateNodeCode e@(PureDFFun out (FunRef fun _ _) (inp:|[])) | fun == Refs.id = generateFunctionCode e
+
 
 -- generateNodeCode e@LetExpr {functionRef=f} | f == runSTCLang = do
 --     (sizeIn, dataIn, stateIn, collectFun) <-
@@ -295,5 +303,8 @@ generateNodeCode e@(RecurFun resultOut ctrlOut recArgsOuts recInitArgsIns recArg
         varToChan (DFVar t v) = return $ SRecv t $ SChan $ unwrapABnd v
         -- FIXME the below case needs to be checked during checking the well-formedness of the recursion and then carried along properly in the type.
         varToChan v = invariantBroken $ "environment variable not allowed in this position for recursion: " <> show v
+
+
+
 generateNodeCode e = generateFunctionCode e
 
