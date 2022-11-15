@@ -234,28 +234,24 @@ generateNodeCode e@(PureDFFun out (FunRef fun _ _) inp) | fun == Refs.seqFun = d
             "Seq must have two inputs where the second is a literal:\n" <> show e
 
 generateNodeCode e@(PureDFFun out (FunRef fun _ _) inp) | fun == Refs.unitFun = do
-  out' <- pureOut fun out
   case inp of
-   DFEnvVar _t (FunRefLit (FunRef p _ _)) :| [v] | p == Refs.id ->
-     case v of
-        (DFVar t bnd) ->
-          return $
-            Fusion.Fun $
-            Ops.IdFusable (Ops.Arg $ SRecv t $ SChan $ unwrapABnd bnd) out'
-        (DFEnvVar _ l) ->
-          return $
-            Fusion.Fun $
-            Ops.IdFusable (Ops.Converted $ Lit l) out'
+   DFEnvVar _t (FunRefLit f@(FunRef p _ _)) :| [v] | p == Refs.id ->
+     generateNodeCode $ PureDFFun out f (v:|[])
    (DFEnvVar _t (FunRefLit pr@FunRef{}) :| [v]) -> -- FIXME this feels like a bug to me. why do we take this detour via unitFun???
      generateFunctionCode $ PureDFFun out pr (v:|[])
    _ -> invariantBroken $ "unknown function as first argument or wrong number of arguments (expected 2) to unitFun:\n" <> show e
 
--- REMINDER:
--- At this point we transition from DFLang (has no literals) to the backend lang (has literals)
--- However we can not (at least not trivially) remove the id() wrapper again here, because
--- at this point it is still a node, that will only be fused i.e. become a simple expression again 
--- after the backend fusion pass :-( 
-generateNodeCode e@(PureDFFun out (FunRef fun _ _) (inp:|[])) | fun == Refs.id = generateFunctionCode e
+generateNodeCode e@(PureDFFun out (FunRef fun _ _) (inp:|[])) | fun == Refs.id = do
+  out' <- pureOut fun out
+  case inp of
+    DFEnvVar _t l ->
+      return $
+      Fusion.Fun $
+      Ops.IdFusable (Ops.Converted $ Lit l) out'
+    DFVar t bnd ->
+      return $
+      Fusion.Fun $
+      Ops.IdFusable (Ops.Arg $ SRecv t $ SChan $ unwrapABnd bnd) out'
 
 
 -- generateNodeCode e@LetExpr {functionRef=f} | f == runSTCLang = do
