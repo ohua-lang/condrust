@@ -404,11 +404,13 @@ updateContext aBnd newType  = do
 -- over the first i.e. maxtype new old. 
 -- a
 maxType :: ArgType ty -> ArgType ty -> ArgType ty
--- ToDo: host language types should be prefered over TypeNat and TypeBool as well
+maxType host_ty@(Type _) _t = host_ty
+maxType _t host_ty@(Type _)= host_ty
 maxType TypeVar TypeVar = TypeVar
 maxType t TypeVar = t
 maxType TypeVar t = t
 maxType t _  = t
+
 
 unhandledCaseError :: error
 unhandledCaseError = error $ "Sorry I didn't handle that case"
