@@ -94,11 +94,10 @@ generateArcsCode = go
 -- FIXME see sertel/ohua-core#7: all these errors would immediately go away
 generateNodeCode :: CompM m => DFApp semTy ty ->  LoweringM m (FusableExpr ty)
 generateNodeCode e@(SMapFun (dOut,ctrlOut,sizeOut) inp) = do
-    input <-
-      case inp of
-        (DFVar t v) -> return $ SRecv t $ SChan $ unwrapABnd v
-        -- FIXME Why not allow an env var as well?!
-        _ -> invariantBroken $ "Input to SMap must be var not literal:\n" <> show e
+    let input =
+          case inp of
+            (DFVar t v) -> Ops.Receive $ SRecv t $ SChan $ unwrapABnd v
+            (DFEnvVar _t l) -> Ops.Expr $ Lit l
     dOut'    <- intoChan dOut
     dOut''   <- sequence (serializeDataOut <$> dOut')
     ctrlOut' <- maybe [] toList <$> intoChan ctrlOut
