@@ -6,6 +6,7 @@ module Ohua.Backend.Operators.SMap
   , fuse
   , gen, gen'
   , getInput
+  , DataIn(..)
   ) where
 
 import Ohua.Prelude
@@ -36,8 +37,8 @@ data Op ty
 
 deriving instance Hashable (Op ty)
 
-smapFun :: Input ty -> DataOut ty -> CtrlOut ty -> CollectOut ty -> Op ty
-smapFun input = SMap (Receive input)
+smapFun :: DataIn ty -> DataOut ty -> CtrlOut ty -> CollectOut ty -> Op ty
+smapFun = SMap
 
 collect :: DataInput ty -> SizeInput ty -> CollectedOutput ty -> Op ty
 collect dataInput = Collect (Receive dataInput)
