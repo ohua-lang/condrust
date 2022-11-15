@@ -40,5 +40,5 @@ literalsToFunctions e =
         mkFun v lit body = return $ 
             Let
                 v
-                ((Lit $ FunRefLit $ FunRef R.id Nothing Untyped) `Apply` lit)
+                ((Lit $ FunRefLit $ FunRef R.id Nothing (FunType $ Right (TypeVar:|[]))) `Apply` lit)
                 body
