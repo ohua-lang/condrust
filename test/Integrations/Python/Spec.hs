@@ -22,5 +22,5 @@ spec =
     Loops.spec >>
     TailRec.spec >>
     State.spec  >>
-    ToDos.spec -- >>
-    -- WIP.spec
+    ToDos.spec  >>
+    WIP.spec
