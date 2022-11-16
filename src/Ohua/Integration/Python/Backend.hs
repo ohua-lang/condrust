@@ -152,15 +152,18 @@ instance Integration (Language 'Python) where
     convertExpr arch (TCLang.ListOp (Append bnd expr)) =
         convertExpr arch $ Apply $ Stateful (Var bnd) (toQualBinding "append") [expr]
     
-    convertExpr arch (TCLang.Tuple one two) =
+    convertExpr arch (TCLang.Tuple itms) =
         let conv =  unwrapSubStmt . convertExpr arch . either TCLang.Var TCLang.Lit
-        in  wrapSubExpr $ Sub.Tuple [conv one, conv two]
+        in  wrapSubExpr $ Sub.Tuple $ toList (map conv itms)
 
+    convertExpr arch (TCLang.Indexing bnd num) = wrapSubExpr $
+        Sub.Subscript  (Sub.Var bnd) (Sub.Int num)
+{-
     convertExpr arch (TCLang.First bnd) =  wrapSubExpr $
         Sub.Subscript  (Sub.Var bnd) (Sub.Int 0)
     convertExpr arch (TCLang.Second bnd) = wrapSubExpr $
         Sub.Subscript (Sub.Var bnd) (Sub.Int 1)
-
+-}
     convertExpr arch (TCLang.Increment bnd) =
         convertExpr arch $
             Apply $ Stateless (toQualBinding "+") [Var bnd, TCLang.Lit $ NumericLit 1]

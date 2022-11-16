@@ -15,7 +15,7 @@ import Ohua.Integration.Rust.TypeExtraction as TE (RustArgType (Normal), RustTyp
 import Ohua.Integration.Rust.Types
 import Ohua.Integration.Rust.Util
 import Ohua.Prelude
-import Ohua.Types.Vector (Nat (..))
+import Ohua.Types.Vector (Nat (..), intToNat)
 
 convertIntoBlock ::
   (Architecture arch, Lang arch ~ Language 'Rust) =>
@@ -103,11 +103,16 @@ instance Integration (Language 'Rust) where
     convertExpr arch $ Apply $ Stateful (Var bnd) (mkFunRefUnqual "push") [expr]
   convertExpr arch (TCLang.Size bnd) =
     convertExpr arch $ Apply $ Stateful (Var bnd) (mkFunRefUnqual "len") []
-  convertExpr arch (TCLang.Tuple one two) =
-    let conv = convertExpr arch . either TCLang.Var TCLang.Lit
-     in Sub.Tuple [conv one, conv two]
+
+  convertExpr arch (TCLang.Tuple itms) =
+      let conv =  convertExpr arch . either TCLang.Var TCLang.Lit
+      in  Sub.Tuple $ toList (map conv itms)
+{-
   convertExpr arch (TCLang.First bnd) = Sub.TupleField (convertExpr arch $ Var bnd) Zero
   convertExpr arch (TCLang.Second bnd) = Sub.TupleField (convertExpr arch $ Var bnd) $ Succ Zero
+-}
+  convertExpr arch (TCLang.Indexing bnd num) = Sub.TupleField (convertExpr arch $ Var bnd) $ intToNat num
+
   convertExpr arch (TCLang.Increment bnd) =
     convertExpr arch $
       Apply $ Stateless (mkFunRefUnqual "+") [Var bnd, TCLang.Lit $ NumericLit 1]
@@ -117,7 +122,11 @@ instance Integration (Language 'Rust) where
   convertExpr arch (TCLang.Not expr) = convertExpr arch $ Apply $ Stateless (mkFunRefUnqual "!") [expr]
   convertExpr arch (TCLang.HasSize bnd) =
     let intermediate = toBinding "tmp_has_size"
-     in convertExpr arch $ Let intermediate (Apply $ Stateful (Apply $ Stateful (Var bnd) (mkFunRefUnqual "iter") []) (mkFunRefUnqual "size_hint") []) (Apply $ Stateful (Second intermediate) (mkFunRefUnqual "is_some") [])
+    in convertExpr arch $ 
+      Let intermediate (
+        Apply $ Stateful (Apply $ Stateful (Var bnd) (mkFunRefUnqual "iter") []) 
+        (mkFunRefUnqual "size_hint") []) 
+        (Apply $ Stateful (secondIndexing intermediate) (mkFunRefUnqual "is_some") [])
 
 -- In the old runtime this was implemented using the `size_hint` function in Rust
 -- What I want here:
