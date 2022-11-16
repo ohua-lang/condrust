@@ -46,12 +46,12 @@ spec =
             compileCode ifElseLoopState' `shouldThrow` anyException
 
         it "ERROR: Unsupported multiple outputs, for different methods of object" $
-            compileCode ifElseLoopStates `shouldThrow` anyException
+            compileCode loopEnvVarBranching `shouldThrow` anyException
 
         it "ERROR: SMap EnvVarInput is just ignored -> Output Code is wrong" $
             compileCode ifElseLoopStates' `shouldThrow` anyException
 
-        it "FAIL: Because some 'ohua.lang.id(current)' made it into the output code" $
+        it "FAIL: Tries to return variable from if-else but sends uninitialized variable, was ohua.lang.id(current) before" $
             compileCode ifElseLikeTailRec `shouldThrow` anyException
 
         it "ERROR: Host expression encountered ... 'This is a compiler error please report'" $
@@ -205,9 +205,8 @@ def algo(i):
 |]
 
 
--- [Error] Unsupported multiple outputs for state on stateful function
-ifElseLoopStates :: ModuleSpan
-ifElseLoopStates =  [pythonModule|
+loopEnvVarBranching :: ModuleSpan
+loopEnvVarBranching =  [pythonModule|
 from helpers.library_proxy import *
 
 

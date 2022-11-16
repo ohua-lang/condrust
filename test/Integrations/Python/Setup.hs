@@ -83,8 +83,8 @@ compileModule inCode opts compType = do
                     -- newMain <-readFile (outDir </> "test.py")
                     -- putStr newMainStr
                     -- putStr $ newMain  <> "\n"
-                    putStr algoModStr 
-                    putStr producedFile
+                    -- putStr algoModStr 
+                    -- putStr producedFile
                     -- test the produced code by compiling it, runnning it or just compare it
                     case compType of
                         OhuaOnly -> pure ()

@@ -4,7 +4,8 @@ module Integrations.Rust.SharedMemory.SMap where
 import Ohua.Prelude
 
 import Integrations.Rust.SharedMemory.Setup
-
+import Language.Rust.Syntax (SourceFile)
+import Language.Rust.Parser (Span)
 
 spec :: Spec
 spec =
@@ -107,6 +108,7 @@ spec =
 --                      }
 --                    |]
 --                compiled `shouldBe` expected)-}
+
         it "imperative" $
             (showCode "Compiled: " =<< compileCode  [sourceFile|
                 use funs::*;
@@ -125,6 +127,25 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:" imperative
                 compiled `shouldBe` expected)
+--- FIXME: Produces Output, but Output is wrong
+        it "FAIL: Loop over Algo Parameter (EnvVar)-\"stream\" is ignored" $
+            (showCode "Compiled: " =<< compileCode [sourceFile|
+                use funs::*;
+
+                fn test(stream: Box<Iterator>) -> S {
+                    let s:S = S::new_state();
+                    for e in stream {
+                        let e1: S = e; 
+                        let r: i32 = h(e1);
+                        s.gs(r);
+                    }
+                    s
+                }
+                |]) `shouldThrow` anyException
+            {- }>>=
+            (\compiled -> do
+                expected <- showCode "Expected:" loop_envvar
+                compiled `shouldBe` expected)-}
  {-      it "imperative while " $
             (showCode "Compiled: " =<< compileCodeWithRec  [sourceFile|
                 use funs::*;
@@ -150,6 +171,7 @@ spec =
 
 
 ------------ Testoutput ------------------------
+imperative :: SourceFile Span
 imperative =  [sourceFile|
 use funs::*;
 
@@ -256,3 +278,84 @@ fn test() -> S {
   }
 }
                     |]
+
+loop_envvar :: SourceFile Span
+loop_envvar = [sourceFile|
+use funs::*;
+
+fn test(stream: Box<  Iterator,>) -> S {
+  #[derive(Debug)]
+  enum RunError {
+    SendFailed,
+    RecvFailed,
+  }
+  impl<  T: Send,> From<  std::sync::mpsc::SendError<  T,>,> for RunError {
+    fn from(_err: std::sync::mpsc::SendError<  T,>) -> Self {
+      RunError::SendFailed
+    }
+  }
+  impl From<  std::sync::mpsc::RecvError,> for RunError {
+    fn from(_err: std::sync::mpsc::RecvError) -> Self {
+      RunError::RecvFailed
+    }
+  }
+  let (s_0_1_0_tx, s_0_1_0_rx) = std::sync::mpsc::channel::<  S,>();
+  let (s_0_0_1_tx, s_0_0_1_rx) = std::sync::mpsc::channel::<  S,>();
+  let (ctrl_0_0_tx, ctrl_0_0_rx) =
+    std::sync::mpsc::channel::<  (bool, usize),>();
+  let (d_0_tx, d_0_rx) = std::sync::mpsc::channel::<  S,>();
+  let (r_0_0_0_tx, r_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
+    Vec::new();
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
+        let var_0 = d_0_rx.recv()?;
+        let r_0_0_0 = h(var_0);
+        r_0_0_0_tx.send(r_0_0_0)?;
+        ()
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      let s_0_0_1 = S::new_state();
+      s_0_0_1_tx.send(s_0_0_1)?;
+      Ok(())
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
+        let mut renew = false;
+        let mut s_0_0_1_0 = s_0_0_1_rx.recv()?;
+        while !renew {
+          let sig = ctrl_0_0_rx.recv()?;
+          let count = sig.1;
+          for _ in 0 .. count {
+            let var_1 = r_0_0_0_rx.recv()?;
+            s_0_0_1_0.gs(var_1);
+            ()
+          };
+          let renew_next_time = sig.0;
+          renew = renew_next_time;
+          ()
+        };
+        s_0_1_0_tx.send(s_0_0_1_0)?;
+        ()
+      }
+    }));
+  let handles: Vec<  std::thread::JoinHandle<  _,>,> =
+    tasks
+      .into_iter()
+      .map(|t| { std::thread::spawn(move || { let _ = t(); }) })
+      .collect();
+  for h in handles {
+    if let Err(_) = h.join() {
+      eprintln!("[Error] A worker thread of an Ohua algorithm has panicked!");
+    }
+  }
+  match s_0_1_0_rx.recv() {
+    Ok(res) => res,
+    Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
+  }
+}
+|]

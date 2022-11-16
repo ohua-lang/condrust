@@ -10,7 +10,7 @@ spec :: Spec
 spec =
     describe "Basic Constructs" $ do
         it "hello world" $ 
-            (showCode "Compiled: " =<< compileCodeWithDebug Input.hello_world) >>=
+            (showCode "Compiled: " =<< compileCode Input.hello_world) >>=
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.hello_world
                 compiled `shouldBe` expected)

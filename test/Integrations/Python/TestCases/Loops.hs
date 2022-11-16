@@ -33,10 +33,11 @@ spec =
                 expected <- showCode "Expected:" Expect.loop3
                 compiled `shouldBe` expected)
 
+
         it "ERROR: Nested For-Loop, updating State"$
             compileCode nested `shouldThrow` anyException
             {-
-            (showCode "Compiled: " =<< compileCode Input.nested) >>=
+            (showCode "Compiled: " =<< compileCode nested) >>=
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.loopIterObj
                 compiled `shouldBe` expected)
@@ -52,7 +53,7 @@ spec =
         it "ERROR: ForLoop with comma separated vars" $
             compileCode loopCommaPattern `shouldThrow` anyException
         {-
-            (showCode "Compiled: " =<< compileCode Input.loopCommaPattern) >>=
+            (showCode "Compiled: " =<< compileCode loopCommaPattern) >>=
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.loopCommaPattern
                 compiled `shouldBe` expected)
@@ -61,7 +62,7 @@ spec =
         it "ERROR: While loop" $
             compileCodeWithRec whileLoop `shouldThrow` anyException
             {-
-            (showCode "Compiled: " =<< compileCodeWithRec Input.whileLoop) >>=
+            (showCode "Compiled: " =<< compileCodeWithRec whileLoop) >>=
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.whileLoop
                 compiled `shouldBe` expected)

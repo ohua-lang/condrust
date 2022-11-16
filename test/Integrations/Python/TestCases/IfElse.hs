@@ -28,7 +28,7 @@ spec =
    
         {-uncaught exception: PatternMatchFail
          src/Ohua/Core/ALang/Util.hs:(90,13)-(94,49): Non-exhaustive patterns in case-}
-        it "ERROR: ALang Pattern Match Fail - Ite/Expr comparison as condition" $
+        it "FAIL: Ite/Expr comparison as condition - sends uninitialized variable, was ohua.lang.id(current) before" $
             compileCode condExprComCond `shouldThrow` anyException
         {-  (showCode "Compiled: " =<< compileCode condExprComCond) >>=
             (\compiled -> do
@@ -49,7 +49,7 @@ spec =
                 expected <- showCode "Expected:" Expect.condContextFunction
                 compiled `shouldBe` expected)
 
-        it "ERROR: Ite/Expr literal return values " $
+        it "FAIL: Ite/Expr literal return values - sends uninitialized variable, was ohua.lang.id(current) before " $
             compileCode condExprLit `shouldThrow` anyException
         {-  (showCode "Compiled: " =<< compileCode condExprLit) >>=
             (\compiled -> do
