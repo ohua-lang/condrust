@@ -4,6 +4,7 @@ module Integrations.Python.TestCases.ErrorCases where
 
 import Ohua.Prelude ( ($), Monad((>>=)), (=<<), Either(..))
 
+import Integrations.TestSetup
 import Integrations.Python.Setup
 import Integrations.Python.CodeSamples.SimpleQuoter
 import Language.Python.Common.AST (ModuleSpan)
@@ -51,8 +52,8 @@ spec =
         it "ERROR: SMap EnvVarInput is just ignored -> Output Code is wrong" $
             compileCode ifElseLoopStates' `shouldThrow` anyException
 
-        it "FAIL: Tries to return variable from if-else but sends uninitialized variable, was ohua.lang.id(current) before" $
-            compileCode ifElseLikeTailRec `shouldThrow` anyException
+        it "return variable" $ -- "FAIL: Tries to return variable from if-else but sends uninitialized variable, was ohua.lang.id(current) before" $
+            (showCodeWithDiff "Compiled" =<< compileCodeWithDebug ifElseLikeTailRec) `shouldThrow` anyException
 
         it "ERROR: Host expression encountered ... 'This is a compiler error please report'" $
             compileCodeWithRec tailRec' `shouldThrow` anyException

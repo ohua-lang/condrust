@@ -127,21 +127,23 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:" imperative
                 compiled `shouldBe` expected)
---- FIXME: Produces Output, but Output is wrong
-        it "FAIL: Loop over Algo Parameter (EnvVar)-\"stream\" is ignored" $
+        it "env var" $
             (showCode "Compiled: " =<< compileCode [sourceFile|
                 use funs::*;
 
-                fn test(stream: Box<Iterator>) -> S {
+                fn test(stream: Vec<i32>) -> S {
                     let s:S = S::new_state();
                     for e in stream {
-                        let e1: S = e; 
+                        let e1: i32 = e;
                         let r: i32 = h(e1);
                         s.gs(r);
                     }
                     s
                 }
-                |]) `shouldThrow` anyException
+                |]) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" envVar
+                compiled `shouldBe` expected)
             {- }>>=
             (\compiled -> do
                 expected <- showCode "Expected:" loop_envvar
@@ -279,11 +281,11 @@ fn test() -> S {
 }
                     |]
 
-loop_envvar :: SourceFile Span
-loop_envvar = [sourceFile|
+envVar :: SourceFile Span
+envVar = [sourceFile|
 use funs::*;
 
-fn test(stream: Box<  Iterator,>) -> S {
+fn test(stream: Vec<  i32,>) -> S {
   #[derive(Debug)]
   enum RunError {
     SendFailed,
@@ -303,10 +305,38 @@ fn test(stream: Box<  Iterator,>) -> S {
   let (s_0_0_1_tx, s_0_0_1_rx) = std::sync::mpsc::channel::<  S,>();
   let (ctrl_0_0_tx, ctrl_0_0_rx) =
     std::sync::mpsc::channel::<  (bool, usize),>();
-  let (d_0_tx, d_0_rx) = std::sync::mpsc::channel::<  S,>();
+  let (d_0_tx, d_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (r_0_0_0_tx, r_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
     Vec::new();
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
+        let hasSize =
+          {
+            let tmp_has_size = stream.iter().size_hint();
+            tmp_has_size.1.is_some()
+          };
+        if hasSize {
+          let size = stream.len();
+          let ctrl = (true, size);
+          ctrl_0_0_tx.send(ctrl)?;
+          for d in stream { d_0_tx.send(d)?; () }
+        } else {
+          let mut size = 0;
+          for d in stream {
+            d_0_tx.send(d)?;
+            let ctrl = (false, 1);
+            ctrl_0_0_tx.send(ctrl)?;
+            size = size + 1;
+            ()
+          };
+          let ctrl = (true, 0);
+          ctrl_0_0_tx.send(ctrl)?;
+          ()
+        }
+      }
+    }));
   tasks
     .push(Box::new(move || -> _ {
       loop {
