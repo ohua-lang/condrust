@@ -90,7 +90,7 @@ data TaskExpr ty
 
 instance Hashable (TaskExpr ty)
 
-
+-- FIXME remove this code ASAP
 containsBinding :: TaskExpr ty -> Binding -> Bool
 containsBinding (Var bnd ) b = b == bnd
 containsBinding Lit{} _ = False

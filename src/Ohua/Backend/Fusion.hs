@@ -306,7 +306,7 @@ fuseSMaps (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ go e
           case getAndDrop smap c e of
             Just task -> Unfusable task : expressions
             Nothing -> e : getAndDropIt expressions smap
-        _ -> e:expressions
+        _ -> e:expressions ++ [SMap smap] -- if the input is resolved then we can not drop the smap
     getAndDropIt [] smap = [SMap smap] -- this should actually never happen!
 
     isSMap SMap{} = True

@@ -13,10 +13,10 @@ normalize = updateTaskExprs' normalizeTaskExpr
 normalizeTaskExpr :: TaskExpr ty -> TaskExpr ty
 normalizeTaskExpr = normalizeLits . normalizeIndirect
 
--- TODO(feliix42): The name no longer makes sense since we are indeed renaming state variables :D
-transformNoState :: (TaskExpr ty -> TaskExpr ty) -> TaskExpr ty -> TaskExpr ty
-transformNoState f = (`evalState` HS.empty) . transformM go
+transformWithState :: (TaskExpr ty -> TaskExpr ty) -> TaskExpr ty -> TaskExpr ty
+transformWithState f = (`evalState` HS.empty) . transformM go
   where
+    -- This restricts the whole transformation to stateful functions only! Why?!
     go e@(Apply (Stateful (Var v) _ _)) = do
       return $ f e
     go e@(Assign b _) = do
@@ -39,12 +39,13 @@ transformNoState f = (`evalState` HS.empty) . transformM go
 --   [x |-> y]t
 -- @
 normalizeIndirect :: TaskExpr ty -> TaskExpr ty
-normalizeIndirect = transformNoState go
+normalizeIndirect = transformWithState go
   where
     go (Let x y@Var {} ct) =
       -- NOTE(feliix42): Don't do the substitution if a subsequent check shows remaining bindings in the Expr. This is to avoid producing invalid code.
       -- FIXME (Sebastian): This is a hack. I do not understand the problem here. Please explain and open an issue.
       let
+        -- FIXME substitutation is just broken here. Just do not substitute when the var is redefined somewhere.
         newExpr = substitute (x, y) ct
       in
         if containsBinding newExpr x then 
@@ -63,7 +64,7 @@ normalizeIndirect = transformNoState go
 -- @
 -- for every literal.
 normalizeLits :: TaskExpr ty -> TaskExpr ty
-normalizeLits = transformNoState go
+normalizeLits = transformWithState go
   where
     go (Let bnd l@Lit {} ct) = substitute (bnd, l) ct
     go e = e
@@ -86,7 +87,8 @@ substitute (bnd, e) = transform go
       (Lit (FunRefLit _)) -> error $ "Internal error: Cannot substitute " <> show bnd <> " with a function reference: " <> show e
       (Lit l) -> SendData $ SSend chan $ Right l
 
-    go (ForEach item iterator body) | iterator == bnd = ForEach item (replaceWhenVar iterator e) $ transform go body
+    -- FIXME this is broken: what if item == bnd?!
+    go (ForEach item iterator body) | iterator == bnd = ForEach item (replaceWhenVar iterator e) body -- ForEach item (replaceWhenVar iterator e) $ transform go body
     go (HasSize sbnd) | sbnd == bnd = HasSize $ replaceWhenVar sbnd e
     go (Size sbnd) | sbnd == bnd = Size $ replaceWhenVar sbnd e
     go (ListOp (Append b e)) = ListOp $ Append b $ transform go e
@@ -99,12 +101,14 @@ substitute (bnd, e) = transform go
 
     replaceEither (Left b) | b == bnd = case e of
                                (Var newBnd) -> Left newBnd
+                               (Lit (EnvRefLit l)) -> Left l
                                -- NOTE(feliix42): Not sure if it makes sense to check for `FunRefLit` here
                                (Lit l) -> Right l
     replaceEither e' = e'
 
     replaceWhenVar :: Binding -> TaskExpr ty -> Binding
     replaceWhenVar b (Var newBnd) = newBnd
+    replaceWhenVar b (Lit (EnvRefLit newBnd)) = newBnd
     replaceWhenVar b _ = b
 
     updateVar (Var b) | b == bnd = e
