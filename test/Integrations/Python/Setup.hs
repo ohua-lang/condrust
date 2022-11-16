@@ -1,5 +1,11 @@
 module Integrations.Python.Setup (
-    renderPython, showCode, compileCode, compileCodeWithRec,compileCodeWithRecWithDebug, compileAndRun,
+    renderPython, 
+    showCode, 
+    compileCode, 
+    compileCodeWithDebug, 
+    compileCodeWithRec,
+    compileCodeWithRecWithDebug, 
+    compileAndRun,
     module Test.Hspec,
 ) where
 

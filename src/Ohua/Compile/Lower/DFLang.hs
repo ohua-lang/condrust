@@ -67,11 +67,19 @@ generateFunctionCode = \case
 
 pureOut :: (CompM m, Show a) => a -> OutData semTy -> LoweringM m (NonEmpty (Ops.Result ty))
 pureOut _ (Direct out) = return ((Ops.SendResult $ SChan (unwrapABnd out)) :| [])
-pureOut _ (Destruct (Direct out1 :| [Direct out2])) =
-  return ((Ops.SendResult $ SChan (unwrapABnd out1)) :| [Ops.SendResult $ SChan $ unwrapABnd out2])
+pureOut _ (Destruct outs) = do 
+  send_results <- mapM directToSendResult outs
+  return send_results
 pureOut _ (Dispatch outs) = return $ (Ops.DispatchResult $ map (SChan . unwrapABnd) outs) :| []
 -- TODO support nested dispatch output for destruct (and limit it in DFLang. see issue ohua-core#28)
 pureOut fn e = throwError $ "Unsupported output configuration on function " <> show fn <> ": " <> show e
+
+-- Basically the same as the above, but will error on non-directs for now, to not support
+-- nested outputs 
+-- ToDo: Check if restriction is needed
+directToSendResult :: (CompM m ) => OutData semTy -> m ( Ops.Result ty)
+directToSendResult  (Direct out) = return (Ops.SendResult $ SChan (unwrapABnd out))
+directToSendResult  e = throwError $ "Unsupported output configuration on: " <> show e
 
 
 generateReceive :: DFVar semTy ty -> Ops.CallArg ty
