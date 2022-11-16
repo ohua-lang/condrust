@@ -90,9 +90,8 @@ substitute (bnd, e) = transform go
     go (HasSize sbnd) | sbnd == bnd = HasSize $ replaceWhenVar sbnd e
     go (Size sbnd) | sbnd == bnd = Size $ replaceWhenVar sbnd e
     go (ListOp (Append b e)) = ListOp $ Append b $ transform go e
-    go (Tuple fst snd) = Tuple (replaceEither fst) (replaceEither snd)
-    go (First sbnd) | sbnd == bnd = First $ replaceWhenVar sbnd e
-    go (Second sbnd) | sbnd == bnd = Second $ replaceWhenVar sbnd e
+    go (Tuple itms) = Tuple ( map replaceEither itms)
+    go (Indexing sbnd num) | sbnd == bnd = Indexing (replaceWhenVar sbnd e) num
     go (Increment sbnd) | sbnd == bnd = Increment $ replaceWhenVar sbnd e
     go (Decrement sbnd) | sbnd == bnd = Decrement $ replaceWhenVar sbnd e
     go e' = e'

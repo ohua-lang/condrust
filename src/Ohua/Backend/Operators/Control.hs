@@ -346,7 +346,7 @@ genCtrl (FunCtrl ctrlInput vars) =
         receiveVars = toList $ NE.map (first (("var_" <>) . show) . second snd) $ NE.zip [0..] vars
         sendCode =
             foldr (\(bnd, OutputChannel ch) c -> Stmt (SendData $ SSend ch $ Left bnd) c) (Lit UnitLit) sendVars
-        sendVars = NE.map (first (("var_" <>) . show) . second fst) $ NE.zip [0..] vars
+        sendVars = NE.map (bimap (("var_" <>) . show) fst) $ NE.zip [0..] vars
 
 genLitCtrl :: FusedLitCtrl ty -> TaskExpr ty
 genLitCtrl (FusedLitCtrl ctrlInput (OutputChannel (SChan output), input) comp) =
@@ -401,12 +401,12 @@ sigStateInit bnd = Let bnd (Lit $ BoolLit False)
 sigStateRecv ::  CtrlInput ty -> TaskExpr ty -> TaskExpr ty
 sigStateRecv (CtrlInput ctrlInput) cont =
     Let "sig" (ReceiveData ctrlInput) $
-    Let "count" (L.Second "sig") cont
+    Let "count" (L.secondIndexing "sig") cont
 
 ctxtLoop :: TaskExpr ty -> TaskExpr ty
 ctxtLoop = Repeat $ Left "count"
 
 sigStateRenew :: Binding -> TaskExpr ty
 sigStateRenew bnd =
-    Let "renew_next_time" (L.First "sig") $
+    Let "renew_next_time" (L.firstIndexing "sig") $
     Assign bnd $ Var "renew_next_time"

@@ -1,4 +1,4 @@
-{-# LANGUAGE DataKinds, ScopedTypeVariables, DeriveAnyClass #-}
+{-# LANGUAGE DataKinds, ScopedTypeVariables #-}
 module Ohua.Backend.Operators.State where
 
 import Ohua.Prelude

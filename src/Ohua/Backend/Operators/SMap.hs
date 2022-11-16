@@ -29,6 +29,7 @@ data DataIn ty = Var Binding | Receive (Input ty) | Expr (TaskExpr ty)
 
 deriving instance Hashable (DataIn ty)
 
+
 -- This could easily be turned into something more general.
 data Op ty
   = SMap (DataIn ty) (DataOut ty) (CtrlOut ty) (CollectOut ty)
@@ -60,7 +61,7 @@ gen' (SMap input dataOut ctrlOut collectOut) =
     (
       Let "size" (Size "data") $
       g collectOut (\c -> Stmt $ SendData $ SSend c $ Left "size") $
-      g ctrlOut (\c -> Let "ctrl" (Tuple (Right $ BoolLit True) (Left "size")) .
+      g ctrlOut (\c -> Let "ctrl" (ctrlTuple True (Left "size")) . -- (Tuple $ Right (BoolLit True):|[Left "size"]) .
                        Stmt (SendData $ SSend c $ Left "ctrl") ) $
       f dataOut (\dOut -> ForEach "d" "data" .
                           Stmt (SendData $ SSend dOut $ Left "d"))
@@ -73,11 +74,11 @@ gen' (SMap input dataOut ctrlOut collectOut) =
       (ForEach "d" "data" $
         f dataOut (\dOut -> Stmt $ SendData $ SSend dOut $ Left "d") $
         g ctrlOut
-        (\c -> Let "ctrl" (Tuple (Right $ BoolLit False) (Right $ NumericLit 1)) .
+        (\c -> Let "ctrl" (ctrlTuple False (Right 1)) . -- (Tuple (Right $ BoolLit False) (Right $ NumericLit 1)) .
                Stmt (SendData $ SSend c $ Left "ctrl"))
         $ Assign "size" $ Increment "size") $
       g collectOut (\c -> Stmt $ SendData $ SSend c $ Left "size") $
-      g ctrlOut (\c -> Let "ctrl" (Tuple (Right $ BoolLit True) (Right $ NumericLit 0)) .
+      g ctrlOut (\c -> Let "ctrl" (ctrlTuple True (Right 0)) . -- (Tuple (Right $ BoolLit True) (Right $ NumericLit 0)) .
                          Stmt (SendData $ SSend c $ Left "ctrl"))
       $ Lit UnitLit
     )
