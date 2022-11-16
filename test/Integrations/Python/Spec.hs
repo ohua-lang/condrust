@@ -13,7 +13,6 @@ import qualified Integrations.Python.TestCases.State as State
 import qualified Integrations.Python.TestCases.TailRec as TailRec
 import qualified Integrations.Python.TestCases.ErrorCases as ToDos
 import qualified Integrations.Python.TestCases.WIP as WIP
-import qualified Integrations.Python.TestCases.Benchmarks as BMs
 
 
 spec :: Spec
@@ -24,6 +23,4 @@ spec =
     TailRec.spec >>
     State.spec  >>
     ToDos.spec -- >>
-    -- BMs.spec -- >>
-
     -- WIP.spec

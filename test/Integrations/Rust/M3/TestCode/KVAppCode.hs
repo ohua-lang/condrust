@@ -67,7 +67,7 @@ fn loop_as_rec(
     let (should_continue, sockets_do_app_stuff): ((), SocketSet) = app.do_app_stuff(sockets_poll, poll_res);
 
     if is_not_unit(should_continue) {
-        loop_as_rec(app, ip_stack, device_poll, sockets_do_app_stuff)
+        loop_as_rec(app, ip_stack_poll, device_poll, sockets_do_app_stuff)
     } else {should_continue}
 }
 

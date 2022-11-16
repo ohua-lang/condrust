@@ -24,7 +24,7 @@ import Language.Python.Common.SrcLocation (SrcSpan)
 import qualified Language.Python.Common.Pretty as PyPretty
 
 import Integrations.TestSetup (Testable(..))
-import qualified Integrations.Python.CodeSamples.TestDataInput as Input
+import qualified Integrations.Python.CodeSamples.TestLib as Lib
 import qualified Integrations.Python.CodeSamples.TestDataOutput as Output
 
 import System.FilePath
@@ -61,7 +61,7 @@ compileModule inCode opts compType = do
             setCurrentDirectory testDir
             writeFile
                 (testDir </> "testLib.py") 
-                (renderPython Input.testLib)
+                (renderPython Lib.testLib)
             let inFile = testDir </> "test.py"
             writeFile
                 inFile
@@ -83,8 +83,8 @@ compileModule inCode opts compType = do
                     -- newMain <-readFile (outDir </> "test.py")
                     -- putStr newMainStr
                     -- putStr $ newMain  <> "\n"
-                    -- putStr algoModStr 
-                    -- putStr producedFile
+                    putStr algoModStr 
+                    putStr producedFile
                     -- test the produced code by compiling it, runnning it or just compare it
                     case compType of
                         OhuaOnly -> pure ()
@@ -112,7 +112,7 @@ runCode testDir outDir = do
 
     writeFile
         ( outDir </> "testLib.py") 
-        ( renderPython Input.testLib)
+        ( renderPython Lib.testLib)
 
     compiledResult <- readProcessWithExitCode "timeout" ["5s", "python", outDir </> "test.py"] ""
 
