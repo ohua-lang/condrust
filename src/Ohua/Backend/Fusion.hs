@@ -51,7 +51,13 @@ fuse ns =
         go :: TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (VarCtrl ty) (LitCtrl ty))
            -> TCProgram (Channel ty) (Com 'Recv ty) (TaskExpr ty)
         go = evictUnusedChannels . concludeFusion . fuseStateThreads . fuseSMaps
-
+{-
+removeIdFun :: TCProgram (Channel ty1) (Com 'Recv ty1) (TaskExpr ty1) -> TCProgram (Channel ty1) (Com 'Recv ty1) (TaskExpr ty1)
+removeIdFun (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ map idTraversal exprs
+    where 
+        idTraversal expr = traverse remID expr
+        remID = id
+-}
 
 
 concludeFusion :: TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty))
@@ -344,14 +350,15 @@ fuseSMaps (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ go e
                 in Just $ genFun' (Stmt send' $ SMap.gen' $ SMap.fuse b smap) $ toFuseFun st
             _ -> Nothing
     getAndDrop _ _ _ = Nothing
-    hasReceive args = and $ map (\case 
+    hasReceive args = all (\case
                                 Arg{} -> True
                                 (Drop (Left _)) -> True
-                                _ -> False 
+                                _ -> False
                             ) args
 
--- REMINDER: (Maybe as a result of fusion) There might be no nodes without input i.e. nodes requireing input might send 
--- input fo rother before requireing to receive. Hence we can't just sort them by satisfied input requirements
+-- REMINDER: (Maybe as a result of fusion) There might be no nodes without input i.e. nodes requiring input might send 
+-- before requiring to receive. Hence we can't just sort them by satisfied input requirements
+
 sortByDependency :: TCProgram (Channel ty1) (Com 'Recv ty1) (TaskExpr ty1) -> TCProgram (Channel ty1) (Com 'Recv ty1) (TaskExpr ty1)
 sortByDependency (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ orderTasks exprs HS.empty
     where
@@ -360,7 +367,7 @@ sortByDependency (TCProgram chans resultChan exprs) = TCProgram chans resultChan
             let taskInOut = map (\t -> (t, findInputs t, findReturns t)) tasks
                 toBeScheduled = filter (\(t, ins, outs) -> ins `HS.intersection` fulfilledDependencies == ins) taskInOut
                 fulfilled = HS.fromList $ concatMap (\(t, ins, outs) -> outs) toBeScheduled
-                scheduled = (map (\(t, ins, outs) -> t) toBeScheduled)
+                scheduled = map (\(t, ins, outs) -> t) toBeScheduled
                 remaining = filter (`notElem` scheduled) tasks
             in scheduled ++ orderTasks remaining (fulfilledDependencies `HS.union` fulfilled)
 

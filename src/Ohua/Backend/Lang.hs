@@ -78,9 +78,8 @@ data TaskExpr ty
 
   | ListOp (List (TaskExpr ty))
 
-  | Tuple (Either Binding (Lit ty)) (Either Binding (Lit ty))
-  | First Binding
-  | Second Binding
+  | Tuple ( NonEmpty (Either Binding (Lit ty)))
+  | Indexing Binding Integer
 
   | Increment Binding -- a + 1;
   | Decrement Binding -- a - 1;
@@ -89,6 +88,16 @@ data TaskExpr ty
   deriving (Show,Eq,Generic)
 
 instance Hashable (TaskExpr ty)
+
+-- To ease adaption of code sites using the former First and Second
+-- ToDo: Obviously doing it this way we loose the 'type-control' of indexing
+-- maybe we can restore that later using Singletons? 
+firstIndexing:: Binding -> TaskExpr ty
+firstIndexing bnd = Indexing bnd 0
+
+secondIndexing:: Binding -> TaskExpr ty
+secondIndexing bnd = Indexing bnd 1
+
 
 -- FIXME remove this code ASAP
 containsBinding :: TaskExpr ty -> Binding -> Bool
@@ -113,12 +122,17 @@ containsBinding (HasSize bnd) b = bnd == b
 containsBinding (Size bnd) b = bnd == b
 containsBinding (ListOp Create) _ = False
 containsBinding (ListOp (Append bnd expr)) b = bnd == b || containsBinding expr b
-containsBinding (Tuple fs sc) b = either (== b) (const False) fs || either (== b) (const False) sc
-containsBinding (First bnd) b = bnd == b
-containsBinding (Second bnd) b = bnd == b
+containsBinding (Tuple bndsOrLits) b = foldl' (\found v -> found || containsB v b) False bndsOrLits
+containsBinding (Indexing bnd _idx) b = bnd == b
 containsBinding (Increment bnd) b = bnd == b
 containsBinding (Decrement bnd) b = bnd == b
 containsBinding (Not expr) b = containsBinding expr b
+
+containsB:: Either Binding (Lit ty)-> Binding -> Bool
+containsB v b = case v of
+  Left bnd -> bnd == b
+  Right _ -> False
+
 
 
 -------------------- Recursion schemes support --------------------

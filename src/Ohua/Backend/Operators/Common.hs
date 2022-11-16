@@ -46,3 +46,10 @@ toExpr rVars sVars  = map (second f) rVars
         f (SRecv _ ch@(SChan bnd)) | HS.member ch ctrled = Var bnd
         f r  = ReceiveData r
         ctrled = HS.fromList $ map unwrapChan sVars
+
+ctrlTuple:: Bool -> Either Binding Integer -> TaskExpr ty
+ctrlTuple bl eth = 
+  let second = case eth of 
+        Left bind -> Left bind
+        Right n -> Right (NumericLit n)
+  in (Tuple $ Right (BoolLit bl):|[second]) 

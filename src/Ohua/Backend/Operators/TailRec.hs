@@ -6,6 +6,7 @@ module Ohua.Backend.Operators.TailRec where
 import Data.Either
 import Ohua.Backend.Lang
 import Ohua.Prelude
+import Ohua.Backend.Operators.Common (ctrlTuple)
 
 data RecFun ty where
   RecFun ::
@@ -37,6 +38,7 @@ mkRecFun (RecFun resultOut ctrlOut recArgsOuts recInitArgsIns recArgsIns recCond
       loopBody = case dedupChans [recResultIn] recArgsIns of
         [] -> innerBody
         [_] -> Stmt resultRecv innerBody
+        _more -> error "Compiler Error: Conversion from RecFun to Task Expression failed. Please report"
       finalRecv =
         Let finalResult resultRecv $
           SendData $ SSend resultOut $ Left finalResult
@@ -57,15 +59,13 @@ mkRecFun (RecFun resultOut ctrlOut recArgsOuts recInitArgsIns recArgsIns recCond
     --   In every iteration of the endless loop the argument will be sent, creating ownership problems after the first iteration.
     --   My solution to this was to switch the `loop` definition.
     --   I'm happy to discuss a integration-specific solution, though.
-    loop c = case any isRight recInitArgsIns of
-      True -> c
-      False -> EndlessLoop c
+    loop c = if any isRight recInitArgsIns then c else EndlessLoop c
     -- this loop stuff may go away once we start fusing recur
     -- loop c = case filter isLeft recInitArgsIns of
     --   [] -> c
     --   _ -> EndlessLoop c
-    contSig = Tuple (Right $ BoolLit True) (Right $ NumericLit 1)
-    stopSig = Tuple (Right $ BoolLit False) (Right $ NumericLit 0)
+    contSig = ctrlTuple True (Right 1) -- Tuple (Right $ BoolLit True) (Right $ NumericLit 1)
+    stopSig = ctrlTuple False (Right 0) --  Tuple (Right $ BoolLit False) (Right $ NumericLit 0)
     dispatchCtrlSig sig c =
       case ctrlOut of
         Just cOut ->

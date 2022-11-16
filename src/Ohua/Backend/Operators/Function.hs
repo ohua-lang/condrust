@@ -89,22 +89,25 @@ genSend = \case
               NE.zipWith (curry generateReceiveCode) (0 :| [1 ..]) $ stateRecv :| receives
             stateArg = (\(_,v,_) -> v) $ NE.head varsAndReceives
         in dataOut sendRes $
-           maybe (Lit UnitLit) (SendData . (`SSend` (Left stateArg))) sendState
+           maybe (Lit UnitLit) (SendData . (`SSend` Left stateArg)) sendState
     (IdFusable _ o) -> dataOut (toList o) $ Lit UnitLit
     where
       dataOut :: [Result ty] -> TaskExpr ty -> TaskExpr ty
       dataOut [] ct = ct
       dataOut [DropResult] ct = ct
       dataOut [SendResult (SChan b)] ct = Stmt (SendData $ SSend (SChan b) (Left b)) ct
-      dataOut [out1, out2] ct =
-        getOut out1 First $
-        getOut out2 Second $
-        ct
       dataOut [DispatchResult chans] ct =
         foldr
         (\chan cont -> Stmt (SendData $ SSend chan (Left result)) cont)
         ct
         chans
+      dataOut [out1, out2] ct =
+        getOut out1 firstIndexing $
+        getOut out2 secondIndexing $
+        ct
+      dataOut outs ct = foldr 
+        (\(out, num) expr -> getOut out (`Indexing` num) $ expr) ct (zip outs [0 ..])
+
       dataOut _ _ = error "unsupported: more than tuple"
 
       getOut :: Result ty -> (Binding -> TaskExpr ty) -> TaskExpr ty -> TaskExpr ty
