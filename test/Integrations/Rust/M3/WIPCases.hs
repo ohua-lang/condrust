@@ -12,47 +12,47 @@ spec =
     describe "Work in Progress Tests" $ do
         describe "We need to fix type extraction" $ do
             it "Generic types" $
-                (showCode "Compiled: " =<< compileCodeWithDebug Input.generic_types) >>=
+                (showCode "Compiled: " =<< compileCode Input.generic_types) >>=
                 (\compiled -> do
                     expected <- showCode "Expected:" Expect.assign_literal
                     compiled `shouldBe` expected) 
             it "Trait objects" $
-                (showCode "Compiled: " =<< compileCodeWithDebug Input.trait_object_types) >>=
+                (showCode "Compiled: " =<< compileCode Input.trait_object_types) >>=
                 (\compiled -> do
                     expected <- showCode "Expected:" Expect.assign_literal
                     compiled `shouldBe` expected) 
             it "Reference Types" $
-                (showCode "Compiled: " =<< compileCodeWithDebug Input.reference_types) >>=
+                (showCode "Compiled: " =<< compileCode Input.reference_types) >>=
                 (\compiled -> do
                     expected <- showCode "Expected:" Expect.assign_literal
                     compiled `shouldBe` expected) 
             it "Reference Mut Types" $
-                (showCode "Compiled: " =<< compileCodeWithDebug Input.reference_mut_types) >>=
+                (showCode "Compiled: " =<< compileCode Input.reference_mut_types) >>=
                 (\compiled -> do
                     expected <- showCode "Expected:" Expect.assign_literal
                     compiled `shouldBe` expected) 
             it "Mut Types" $
-                (showCode "Compiled: " =<< compileCodeWithDebug Input.mut_types) >>=
+                (showCode "Compiled: " =<< compileCode Input.mut_types) >>=
                 (\compiled -> do
                     expected <- showCode "Expected:" Expect.assign_literal
                     compiled `shouldBe` expected) 
             it "Raw Pointers" $
-                (showCode "Compiled: " =<< compileCodeWithDebug Input.raw_pointer_types) >>=
+                (showCode "Compiled: " =<< compileCode Input.raw_pointer_types) >>=
                 (\compiled -> do
                     expected <- showCode "Expected:" Expect.assign_literal
                     compiled `shouldBe` expected) 
             it "Mutable raw pointers" $
-                (showCode "Compiled: " =<< compileCodeWithDebug Input.raw_pointer_types_mut) >>=
+                (showCode "Compiled: " =<< compileCode Input.raw_pointer_types_mut) >>=
                 (\compiled -> do
                     expected <- showCode "Expected:" Expect.assign_literal
                     compiled `shouldBe` expected) 
             it "Funnction Pointers" $
-                (showCode "Compiled: " =<< compileCodeWithDebug Input.function_pointer_types) >>=
+                (showCode "Compiled: " =<< compileCode Input.function_pointer_types) >>=
                 (\compiled -> do
                     expected <- showCode "Expected:" Expect.assign_literal
                     compiled `shouldBe` expected) 
             it "Function Pointers used as var" $
-                (showCode "Compiled: " =<< compileCodeWithDebug Input.function_pointer_2_types) >>=
+                (showCode "Compiled: " =<< compileCode Input.function_pointer_2_types) >>=
                 (\compiled -> do
                     expected <- showCode "Expected:" Expect.assign_literal
                     compiled `shouldBe` expected) 

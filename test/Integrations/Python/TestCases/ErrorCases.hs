@@ -34,8 +34,6 @@ spec =
                 expected <- showCode "Expected:" ifElseLoop''
                 compiled `shouldBe` compiled)
 
-        it "ERROR: Usupported output configuration, triple output" $ do
-            compileCode ifElseLoop''' `shouldThrow` anyException
 
         it "FAIL: Object channels are not initialized " $
             (showCode "Compiled: " =<< compileCode ifElseLoopState) >>=
@@ -49,8 +47,6 @@ spec =
         it "ERROR: Unsupported multiple outputs, for different methods of object" $
             compileCode loopEnvVarBranching `shouldThrow` anyException
 
-        it "ERROR: SMap EnvVarInput is just ignored -> Output Code is wrong" $
-            compileCode ifElseLoopStates' `shouldThrow` anyException
 
         it "return variable" $
             (showCode "Compiled" =<< compileCode ifElseLikeTailRec) >>=
@@ -65,20 +61,25 @@ spec =
         
 --- Test Inputs ---------------------------------------
 
-ifElseLoopStates' :: ModuleSpan
-ifElseLoopStates' =  [pythonModule|
 
+
+-- Very interessting Error: Channels 'obj_0_0_2_3_sender' and 'obj_0_0_2_4_sender' are used (and obvioulsy 
+-- also appear in the channels per task) but not intialized. This means they are present in channels per task
+-- but not in the channels list of the whole program
+ifElseLoopState :: ModuleSpan
+ifElseLoopState =  [pythonModule|
 from helpers.library_proxy import *
 
-def algo(statefulObjs):
+
+def algo(i):
+    obj = MObs()
     result = []
-    for obj in statefulObjs:
-        var = obj.method()
-        d = fun1(var) if check(var) else fun2(var)
+    for j in range(i):
+        value = fun1(j)
+        d = obj.method() if value == 3 else obj.otherMethod()
         result.append(d)
     return result 
 |]
-
 
 -- Interesting Error: Variables 'lit_unit_0_1' and 'lit_unit_0_2' are "invented" including according channels
 -- Those variables are/should be received before fun1()/fun2() are called. 
@@ -116,6 +117,7 @@ def task_7(c_0_0_0_sender, c_0_0_1_sender, d_1_receiver):
         c_0_0_0_sender.send(res)
         c_0_0_1_sender.send(res)
 -}
+
 ifElseLoop' :: ModuleSpan
 ifElseLoop' =  [pythonModule|
 from helpers.library_proxy import *
@@ -157,40 +159,9 @@ def algo(i):
     return result 
 |]
 
---Error: unsupported output configuration 
-
-ifElseLoop''' :: ModuleSpan
-ifElseLoop''' =  [pythonModule|
-from helpers.library_proxy import *
 
 
-def algo(i):
-    result = []
-    for j in range(i):
-        x,y,z = triple(j)
-        d = fun1(x) if check(z) else fun2(y)
-        result.append(d)
-    return result 
-|]
 
-
--- Very interessting Error: Channels 'obj_0_0_2_3_sender' and 'obj_0_0_2_4_sender' are used (and obvioulsy 
--- also appear in the channels per task) but not intialized. This means they are present in channels per task
--- but not in the channels list of the whole program
-ifElseLoopState :: ModuleSpan
-ifElseLoopState =  [pythonModule|
-from helpers.library_proxy import *
-
-
-def algo(i):
-    obj = MObs()
-    result = []
-    for j in range(i):
-        value = fun1(j)
-        d = obj.method() if value == 3 else obj.otherMethod()
-        result.append(d)
-    return result 
-|]
 
 
 --Error: we currently do not support destructuring and dispatch for loop data
@@ -207,6 +178,7 @@ def algo(i):
         result.append(d)
     return result 
 |]
+
 
 
 loopEnvVarBranching :: ModuleSpan
@@ -257,6 +229,7 @@ def algo(i):
         result.append(d)
     return result
 |]
+
 ifElseLikeTailRecExpected :: ModuleSpan
 ifElseLikeTailRecExpected =  [pythonModule|
 import multiprocessing as mp
@@ -396,3 +369,6 @@ def main(i_1):
     list(map(mp.Process.join, processes))
     return result
 |]
+
+
+

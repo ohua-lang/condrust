@@ -25,42 +25,37 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.condExprState
                 compiled `shouldBe` expected) 
-   
-        {-uncaught exception: PatternMatchFail
-         src/Ohua/Core/ALang/Util.hs:(90,13)-(94,49): Non-exhaustive patterns in case-}
-        it "FAIL: Ite/Expr comparison as condition - sends uninitialized variable, was ohua.lang.id(current) before" $
-            compileCode condExprComCond `shouldThrow` anyException
-        {-  (showCode "Compiled: " =<< compileCode condExprComCond) >>=
-            (\compiled -> do
-                expected <- showCode "Expected:" Expect.condExpr
-                compiled `shouldBe` expected) -}
-
 
         it "Ite/Expr call as condition" $
             (showCode "Compiled: " =<< compileCode condExprFunCond) >>=
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.condExprFunCond
                 compiled `shouldBe` expected)  
-
         
         it "Ite/Expr context function" $
             (showCode "Compiled: " =<< compileCode condContextFunction) >>=
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.condContextFunction
                 compiled `shouldBe` expected)
-
-        it "FAIL: Ite/Expr literal return values - sends uninitialized variable, was ohua.lang.id(current) before " $
-            compileCode condExprLit `shouldThrow` anyException
-        {-  (showCode "Compiled: " =<< compileCode condExprLit) >>=
+        
+        it "Ite/Expr int literal branches" $
+            (showCode "Compiled: " =<< compileCode condExprLit) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" Expect.condExpr
-                compiled `shouldBe` expected) -}
+                expected <- showCode "Expected:" Expect.condExprLit
+                compiled `shouldBe` expected)
         
         it "Ite/Expr state-function return values " $
             (showCode "Compiled: " =<< compileCode condExprStateFunRet) >>=
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.condExprStateFunRet
                 compiled `shouldBe` expected) 
+
+
+        it "Ite/Expr bool literal branches" $
+            (showCode "Compiled: " =<< compileCode condExprComCond) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" Expect.condExprComCond
+                compiled `shouldBe` expected)
 
         it "Ite/Stmt - Exception on branch 'return'" $
         -- Todo: Replace as soon as we have a real 'unsuported Error'

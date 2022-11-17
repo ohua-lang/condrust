@@ -32,6 +32,18 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.loop3
                 compiled `shouldBe` expected)
+        
+        it "For loop over EnvVar" $
+            (showCode "Compiled" =<< compileCode loopEnvVar) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" Expect.loopEnvVar_out
+                compiled `shouldBe` compiled)
+
+        it " For loop over EnvVar + Branching" $
+            (showCode "Compiled" =<< compileCode ifElseLoopEnvVar) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" Expect.ifElseLoopEnvVar_out
+                compiled `shouldBe` compiled)
 
 
         it "ERROR: Nested For-Loop, updating State"$
@@ -108,6 +120,34 @@ def algo(i):
         result.append(z)
     return result
 |]
+
+loopEnvVar :: ModuleSpan
+loopEnvVar =  [pythonModule|
+from helpers.library_proxy import *
+
+
+def algo(statefulObjs):
+    result = []
+    for obj in statefulObjs:
+        d = obj.method()
+        result.append(d)
+    return result 
+|]
+
+ifElseLoopEnvVar :: ModuleSpan
+ifElseLoopEnvVar =  [pythonModule|
+
+from helpers.library_proxy import *
+
+def algo(statefulObjs):
+    result = []
+    for obj in statefulObjs:
+        var = obj.method()
+        d = fun1(var) if check(var) else fun2(var)
+        result.append(d)
+    return result 
+|]
+
 
 nested :: ModuleSpan
 nested = [pythonModule|
