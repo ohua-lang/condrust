@@ -50,7 +50,9 @@ getInput (Collect (Receive r) _ _) = Just r
 getInput _ = Nothing
 
 gen :: Op ty -> TaskExpr ty
-gen = EndlessLoop . gen'
+gen smap = case getInput smap of
+             Just _ -> EndlessLoop $ gen' smap
+             _ -> gen' smap
 
 gen' :: Op ty -> TaskExpr ty
 gen' (SMap input dataOut ctrlOut collectOut) =
