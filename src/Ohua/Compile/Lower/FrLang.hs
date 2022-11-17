@@ -1,6 +1,7 @@
 module Ohua.Compile.Lower.FrLang where
 
 import Ohua.Prelude
+import GHC.Exts
 
 import Control.Category ((>>>))
 import Control.Lens.Plated (Plated, cosmos, gplate, plate, universeOn)
@@ -103,7 +104,7 @@ whileToRecursion =
                         case usedStates of 
                             [] -> error $ "There seems to be no state change in "<> show body <> ". This loop may be pointless."
                             [sVar] -> VarE sVar
-                            sVars -> TupE (map VarE sVars)
+                            sVars -> fromList (map VarE sVars) -- no type info for tuple!
                     
                     recCall = 
                         LetE "bla" returnTuple $
@@ -181,9 +182,7 @@ trans =
         BindEF ref e -> BindState ref e
         StmtEF e1 cont -> Let "_" e1 cont
         SeqEF source target -> seqBuiltin `Apply` source `Apply` target
-        -- QUESTION: Where should this come from.
-        -- ISSUE: TypeVar may cause problems for Backends where 'type variables' are just not an option
-        TupEF parts -> foldl Apply (pureFunction mkTuple Nothing $ FunType $ Right $ TypeVar :| [TypeVar]) parts
+        TupEF fty parts -> foldl Apply (pureFunction mkTuple Nothing fty) parts
         WhileEF cond _body ->  error "While loop has not been replaced. Please file a bug"
   where
     patToBnd =

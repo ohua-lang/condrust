@@ -40,7 +40,7 @@ generateFunctionCode = \case
     (PureDFFun out fn inp) -> do
         let args = toList $ map generateReceive inp
         out' <- pureOut fn out
-        return $ Fusion.Fun $ Ops.PureFusable args fn out'
+        return $ Fusion.Fun $ Ops.PureFusable args (Ops.Call fn) out'
     (StateDFFun out fn (DFVar stateT stateIn) inp) -> do
         let args = toList $ map generateReceive inp
         (sOut, dataOut) <- stateOut fn out
@@ -72,7 +72,7 @@ pureOut _ (Destruct outs) = do
   return send_results
 pureOut _ (Dispatch outs) = return $ (Ops.DispatchResult $ map (SChan . unwrapABnd) outs) :| []
 -- TODO support nested dispatch output for destruct (and limit it in DFLang. see issue ohua-core#28)
-pureOut fn e = throwError $ "Unsupported output configuration on function " <> show fn <> ": " <> show e
+--pureOut fn e = throwError $ "Unsupported output configuration on function " <> show fn <> ": " <> show e
 
 -- Basically the same as the above, but will error on non-directs for now, to not support
 -- nested outputs 
@@ -260,6 +260,10 @@ generateNodeCode e@(PureDFFun out (FunRef fun _ _) (inp:|[])) | fun == Refs.id =
       Fusion.Fun $
       Ops.IdFusable (Ops.Arg $ SRecv t $ SChan $ unwrapABnd bnd) out'
 
+generateNodeCode e@(PureDFFun out fn@(FunRef fun _ funTy) inp) | fun == Refs.tupleFun = do
+  let args = toList $ map generateReceive inp
+  out' <- pureOut fn out
+  return $ Fusion.Fun $ Ops.PureFusable args (Ops.Tup funTy) out'
 
 -- generateNodeCode e@LetExpr {functionRef=f} | f == runSTCLang = do
 --     (sizeIn, dataIn, stateIn, collectFun) <-
