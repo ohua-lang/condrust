@@ -137,8 +137,9 @@ genFun' ct = \case
         in flip letReceives (toList varsAndReceives) $
            callWithResult sendRes call ct
     (IdFusable i o) ->
-        let varsAndReceives = zipWith (curry generateReceiveCode) [0 ..] [i]
-        in letReceives ct varsAndReceives
+        let varAndReceive@(_,v,_) = generateReceiveCode (0,i)
+        in flip letReceives [varAndReceive]
+           $ callWithResult (NE.toList o) (Var v) ct
     where
         getCallArgs (FunType (Left Unit)) _ = []
         getCallArgs (STFunType _ (Left Unit)) _ = []
