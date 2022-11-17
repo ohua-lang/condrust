@@ -322,7 +322,7 @@ fn test(i: i32) -> () {
         while !renew {
           let sig = ctrl_0_rx.recv()?;
           let count = sig.1;
-          for _ in 0 .. count { c_0_0_tx.send(c_0_0)?; () };
+          for _ in 0 .. count { c_0_0_tx.send(())?; () };
           let renew_next_time = sig.0;
           renew = renew_next_time;
           ()
@@ -435,7 +435,7 @@ fn test(i: i32) -> () {
         while !renew {
           let sig = ctrl_0_1_rx.recv()?;
           let count = sig.1;
-          for _ in 0 .. count { c_0_0_tx.send(c_0_0)?; () };
+          for _ in 0 .. count { c_0_0_tx.send(())?; () };
           let renew_next_time = sig.0;
           renew = renew_next_time;
           ()
