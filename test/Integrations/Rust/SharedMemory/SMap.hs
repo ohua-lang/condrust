@@ -311,31 +311,29 @@ fn test(stream: Vec<  i32,>) -> S {
     Vec::new();
   tasks
     .push(Box::new(move || -> _ {
-      loop {
-        let hasSize =
-          {
-            let tmp_has_size = stream.iter().size_hint();
-            tmp_has_size.1.is_some()
-          };
-        if hasSize {
-          let size = stream.len();
-          let ctrl = (true, size);
+      let hasSize =
+        {
+          let tmp_has_size = stream.iter().size_hint();
+          tmp_has_size.1.is_some()
+        };
+      Ok(if hasSize {
+        let size = stream.len();
+        let ctrl = (true, size);
+        ctrl_0_0_tx.send(ctrl)?;
+        for d in stream { d_0_tx.send(d)?; () }
+      } else {
+        let mut size = 0;
+        for d in stream {
+          d_0_tx.send(d)?;
+          let ctrl = (false, 1);
           ctrl_0_0_tx.send(ctrl)?;
-          for d in stream { d_0_tx.send(d)?; () }
-        } else {
-          let mut size = 0;
-          for d in stream {
-            d_0_tx.send(d)?;
-            let ctrl = (false, 1);
-            ctrl_0_0_tx.send(ctrl)?;
-            size = size + 1;
-            ()
-          };
-          let ctrl = (true, 0);
-          ctrl_0_0_tx.send(ctrl)?;
+          size = size + 1;
           ()
-        }
-      }
+        };
+        let ctrl = (true, 0);
+        ctrl_0_0_tx.send(ctrl)?;
+        ()
+      })
     }));
   tasks
     .push(Box::new(move || -> _ {
