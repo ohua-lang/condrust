@@ -43,7 +43,7 @@ data Expr ty
             (Expr ty) -- ^ An expression with the return value ignored
     | SeqE (Expr ty)
            (Expr ty)
-    | TupE [Expr ty] -- ^ create a tuple value that can be destructured
+    | TupE (FunType ty) [Expr ty] -- ^ create a tuple value that can be destructured
     deriving (Show, Generic)
 
 patterns :: Traversal' (Expr ty) Pat
@@ -68,7 +68,7 @@ makeBaseFunctor ''Expr
 instance Plated (Expr ty) where
     plate f =
         \case
-            TupE es -> TupE <$> traverse f es
+            TupE ty es -> TupE ty <$> traverse f es
             AppE e es -> AppE <$> f e <*> traverse f es
             other -> gplate f other
 
@@ -77,7 +77,8 @@ instance IsString (Expr ty) where
 
 instance IsList (Expr ty) where
     type Item (Expr ty) = Expr ty
-    fromList = TupE
+    fromList [] = TupE (FunType $ Left $ Unit) []
+    fromList a@(_:xs) = TupE (FunType $ Right $ TypeVar :| (map (const TypeVar) xs)) a
 
 instance IsString Pat where
     fromString = VarP . fromString
