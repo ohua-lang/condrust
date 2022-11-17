@@ -317,7 +317,9 @@ instance ConvertExpr Sub.Expr where
     return $ BindE receiver' method' `AppE` args'
   convertExpr (Sub.Tuple vars) = do
     vars' <- mapM convertExpr vars
-    return $ TupE vars'
+    argTys <- argTypesFromContext vars
+    let funTy = FunType argTys
+    return $ TupE funTy vars'
   convertExpr (Sub.Binary op left right) = do
     left' <- convertExpr left
     right' <- convertExpr right

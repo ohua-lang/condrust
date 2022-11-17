@@ -8,6 +8,7 @@
 module Ohua.Integration.Python.Frontend where
 
 import Ohua.Prelude
+import GHC.Exts
 import Ohua.Frontend.Types
 import Ohua.Frontend.Lang as FrLang
 
@@ -329,7 +330,7 @@ mappingToTuple ::ConvertM m => (Sub.Expr, Sub.Expr) -> m (FrLang.Expr PythonArgT
 mappingToTuple (key, value) = do
     key' <- subExprToIR key
     val' <- subExprToIR value
-    return $ FrLang.TupE [key', val']
+    return $ fromList [key', val']
 
 subArgToIR :: ConvertM m => Sub.Argument -> m ( FrLang.Expr PythonArgType)
 subArgToIR (Sub.Arg expr) = subExprToIR expr
