@@ -86,4 +86,6 @@ instance IsString Pat where
 instance IsList Pat where
     type Item Pat = Pat
     fromList = TupP
+    toList p = error $ "Ohua tired to convert the pattern "
+                <>show p <>"into a list, which is not supported"
 

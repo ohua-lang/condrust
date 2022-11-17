@@ -1,4 +1,4 @@
-import Prelude
+import Ohua.Prelude
 
 import Test.Hspec
 
