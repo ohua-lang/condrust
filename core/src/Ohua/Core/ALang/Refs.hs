@@ -65,3 +65,7 @@ recurFunBnd = "ohua.lang/recurFun"
 
 recurFun :: QualifiedBinding
 recurFun = recurFunBnd
+
+-- FIXME this is also defined in ParseTools and the frontend code uses that one.
+tupleFun :: QualifiedBinding
+tupleFun = "ohua.lang/(,)"

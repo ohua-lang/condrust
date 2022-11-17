@@ -40,3 +40,6 @@ runSTCLangIf = Refs.runSTCLangIf
 
 id :: QualifiedBinding
 id = Refs.id
+
+tupleFun :: QualifiedBinding
+tupleFun = Refs.tupleFun
