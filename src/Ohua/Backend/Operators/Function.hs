@@ -25,6 +25,8 @@ data Result ty
 
 instance Hashable (Result ty)
 
+data FunCall ty = Call (FunRef ty) | Tup (FunType ty) deriving (Eq, Generic, Show, Hashable)
+
 -- TODO:
 --   1) no functions in data type -> done
 --   2) deriving instance ... -> done
@@ -36,7 +38,7 @@ instance Hashable (Result ty)
 data FusFunction sin ty
     = PureFusable
         [CallArg ty]  -- data receive
-        (FunRef ty)
+        (FunCall ty)
         (NonEmpty (Result ty)) -- send result
     | STFusable
         (sin ty) -- state receive
@@ -105,10 +107,8 @@ genSend = \case
         getOut out1 firstIndexing $
         getOut out2 secondIndexing $
         ct
-      dataOut outs ct = foldr 
+      dataOut outs ct = foldr
         (\(out, num) expr -> getOut out (`Indexing` num) $ expr) ct (zip outs [0 ..])
-
-      dataOut _ _ = error "unsupported: more than tuple"
 
       getOut :: Result ty -> (Binding -> TaskExpr ty) -> TaskExpr ty -> TaskExpr ty
       getOut DropResult _ ct = ct
@@ -122,16 +122,22 @@ genFun'' fun = (\f -> genFun' (genSend f) f) $ toFuseFun fun
 
 genFun' :: TaskExpr ty -> FusedFunction ty -> TaskExpr ty
 genFun' ct = \case
-    (PureFusable receives (FunRef app _ funTy) out) ->
+    (PureFusable receives f out) ->
         let varsAndReceives = zipWith (curry generateReceiveCode) [0 ..] receives
-            callArgs = getCallArgs funTy varsAndReceives
-            call = Apply $ Stateless app callArgs
+            call = case f of
+                     (Call (FunRef app _ ty)) ->
+                       Apply $ Stateless app $ getCallArgs Var ty varsAndReceives
+                     (Tup ty) ->
+                       case getCallArgs id ty varsAndReceives of
+                         [] -> Lit UnitLit
+                         (a:as) -> Tuple  $ flip NE.map (a:|as) $ \case
+                           b -> Left b
         in flip letReceives varsAndReceives $
            callWithResult (toList out) call ct
     (STFusable stateRecv receives (FunRef app _ funTy) sendRes _sendState) ->
         let varsAndReceives =
               NE.zipWith (curry generateReceiveCode) (0 :| [1 ..]) $ stateRecv :| receives
-            callArgs = getCallArgs funTy $ NE.tail varsAndReceives
+            callArgs = getCallArgs Var funTy $ NE.tail varsAndReceives
             stateArg = (\(_,v,_) -> v) $ NE.head varsAndReceives
             call = (Apply $ Stateful (Var stateArg) app callArgs)
         in flip letReceives (toList varsAndReceives) $
@@ -141,10 +147,10 @@ genFun' ct = \case
         in flip letReceives [varAndReceive]
            $ callWithResult (NE.toList o) (Var v) ct
     where
-        getCallArgs (FunType (Left Unit)) _ = []
-        getCallArgs (STFunType _ (Left Unit)) _ = []
-        getCallArgs _ vrs =
-          map (\(_,v,_) -> Var v) $
+        getCallArgs p (FunType (Left Unit)) _ = []
+        getCallArgs p (STFunType _ (Left Unit)) _ = []
+        getCallArgs p _ vrs =
+          map (\(_,v,_) -> p v) $
           filter (\case (Drop _, _, _) -> False; _ -> True)
           vrs
         letReceives = foldr ((\ (v, r) c -> Let v r c) . (\(_,v,r) -> (v,r)))
