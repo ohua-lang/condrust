@@ -3,7 +3,7 @@ module Ohua.Core.DFLang.Passes.TypePropagation where
 import Data.HashMap.Lazy as HM hiding (map, foldl')
 import Ohua.Core.DFLang.Lang hiding (length)
 import qualified Ohua.Core.DFLang.Refs as Refs
-import Ohua.Core.Prelude 
+import Ohua.Core.Prelude
 import qualified Ohua.Types.Vector as OV
 
 import qualified Data.List.NonEmpty as NE
@@ -223,10 +223,19 @@ typeBottomUp smf@(Let (SMapFun out@(_fst,_scnd,_trd) iterableVar ) inCont) = do
   -- Typing smapFun is not usefull. It's outputs are allready typed and it's 
   -- input, the 'iterable something' we iterate over is fused into the smap node.
   -- SO it's never send and we don't need a typed channel for it
+  -- (Sebastian) Sadly this is not always so and hence we need this type.
     let iterableVarTy = TypeList TypeVar
-    let iterableVar' = case iterableVar of
-                        DFVar _ b -> DFVar iterableVarTy b
-                        DFEnvVar _ l -> DFEnvVar iterableVarTy l
+    iterableVar' <- case iterableVar of
+                      DFVar _ b -> do
+                        let v = DFVar iterableVarTy b
+                        modify $ HM.insert (unwrapABnd b) $ Exists v
+                        return v
+                      DFEnvVar _ l -> do
+                        let v = DFEnvVar iterableVarTy l
+                        case l of
+                          (EnvRefLit b) -> modify $ HM.insert b $ Exists v
+                          _ -> return ()
+                        return v
     return $ Let (SMapFun out iterableVar') inCont
 
 -- Stateful Functions
@@ -268,9 +277,7 @@ typeBottomUp (Let (RecurFun finalOut recCtrl argOuts initIns recIns cond result)
   -- using initins doesn't work (for now, because the literals are also TypeVar)
   -- let (initIns', recIns') = OV.unzip $ OV.map updateVars $ OV.zip initIns recIns
   newInits <- mapM maybeUpdateByOutData (OV.zip argOuts initIns)
-
   newRets <- mapM maybeUpdateByOutData (OV.zip argOuts recIns)
-
 
   let cond' = case cond of 
                 DFVar _ty bnd ->  DFVar TypeBool bnd
@@ -376,10 +383,13 @@ updateVars (v1@DFEnvVar{}, v2@DFEnvVar{}) = (v1, v2)
 maybeUpdate ::forall b m ty a. MonadState (HashMap Binding (Exists ty)) m => ABinding b -> DFVar a ty -> m (DFVar a ty)
 maybeUpdate reference var = do
   knownVars <- get
+  -- traceM $ "reference: " <> show reference
+  -- traceM $ "known vars: "
+  -- mapM (traceM . show) $ HM.keys knownVars
   let newVar = case var of 
           (DFVar ty bnd) -> case HM.lookup (unwrapABnd reference) knownVars of
                   Just (Exists (DFVar ty' _bnd)) -> DFVar (maxType ty ty') bnd
-                  Just (Exists (DFEnvVar ty' _bnd)) ->  DFVar (maxType ty ty') bnd
+                  Just (Exists (DFEnvVar ty' _bnd)) -> DFVar (maxType ty ty') bnd
                   Nothing -> var
           (DFEnvVar _ty _lit) -> var
     
