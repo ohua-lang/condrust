@@ -20,7 +20,7 @@ serialize ::
   Module ->
   Namespace (Program chan expr (Rust.Expr ()) TE.RustTypeAnno) anno  TE.RustTypeAnno ->
   (Program chan expr (Rust.Expr ()) TE.RustTypeAnno -> Block ()) ->
-  Module -> 
+  Module ->
   m (NonEmpty (FilePath, L.ByteString))
 -- REMINDER: Replace Placeholder. Output new library file
 serialize (Module path (SourceFile modName atts items)) ns createProgram placeholder =

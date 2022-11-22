@@ -2,7 +2,7 @@
 
 module Ohua.Integration.Rust.Architecture.SharedMemory.Transform.DataPar where
 
-import Ohua.Integration.Rust.Architecture.SharedMemory ()
+--import Ohua.Integration.Rust.Architecture.SharedMemory ()
 import qualified Ohua.Integration.Rust.TypeExtraction as RT
 import Ohua.Integration.Architecture
 import Ohua.Integration.Rust.Backend
@@ -18,40 +18,81 @@ runtime = "rt"
 liftCollectType :: RT.RustTypeAnno -> RT.RustTypeAnno
 liftCollectType (RT.Normal t) =
     RT.Normal 
-    $ convertTyRef 
+    $ convertTyRef
     $ TyRef "std.sync.mpsc/Receiver"
     $ Just
     $ AngleBracketed [TypeArg $ RustType t]
 liftCollectType t = t
 
+
+spawnCall = MethodCall (Var runtime) (CallRef (mkFunRefUnqual "spawn") Nothing) [Var "work"]
+
+getInitializers :: Architectures 'SharedMemory -> Block -> [Stmt]
+getInitializers (SSharedMemory Options{..}) block =
+  case dataPar of
+    Just parNum ->
+      case isSpawn block of
+        True ->
+          let
+            rt_arc = runtime <> "_arc"
+            rt = IdentP $ IdentPat Immutable $ runtime
+            rt_arc_stmt =
+                Local (IdentP $ IdentPat Immutable rt_arc) Nothing $
+                  Call
+                   (CallRef "std.sync.Arc/new" Nothing)
+                   [ MethodCall
+                     ( MethodCall
+                       ( MethodCall
+                         ( MethodCall
+                           (Call (CallRef "tokio.runtime.Builder/new" Nothing) [])
+                           (CallRef (mkFunRefUnqual "threaded_scheduler") Nothing)
+                           []
+                         )
+                         (CallRef (mkFunRefUnqual "core_threads") Nothing)
+                         [Lit $ NumericLit parNum]
+                       )
+                       (CallRef (mkFunRefUnqual "build") Nothing)
+                       []
+                     )
+                     (CallRef (mkFunRefUnqual "unwrap") Nothing)
+                     []
+                   ]
+            rt_stmt = Local rt Nothing $
+                        MethodCall
+                          (Var rt_arc)
+                          (CallRef (mkFunRefUnqual "clone") Nothing)
+                          []
+          in [rt_arc_stmt, rt_stmt]
+        False -> []
+    Nothing -> []
+  where
+    isSpawn (RustBlock _ stmts) =
+      let exprs = catMaybes $ map expr stmts
+      in case  [True | e <- exprs, e' <- universe e, e' == spawnCall] of
+           [] -> or $ map isSpawn $ catMaybes $ map blck [e' | e <- exprs, e' <- universe e]
+           _ -> True
+
+    expr (Semi e) = Just e
+    expr (NoSemi e) = Just e
+    expr (Local _ _ e) = Just e
+    expr _ = Nothing
+
+    blck (Loop b) = Just b
+    blck (ForLoop _ _ b) = Just b
+    blck (While _ b) = Just b
+    blck (BlockExpr b) = Just b
+    blck (If _ b _) = Just b
+    blck (Async b) = Just b
+    blck _ = Nothing
+
+
 spawnWork :: Architectures 'SharedMemory -> Block -> Block
 spawnWork (SSharedMemory Options{..}) block =
-  let (RustBlock unsafety blockExpr', par) = runState (transformExprInBlockM go block) False
-   in case par of
-        True ->
-          let rt =
-                Local (IdentP $ IdentPat Immutable runtime) Nothing $
-                  Call
-                    (CallRef "std.sync.Arc/new" Nothing)
-                    [ MethodCall
-                        ( MethodCall
-                            ( MethodCall
-                                ( MethodCall
-                                    (Call (CallRef "tokio.runtime.Builder/new" Nothing) [])
-                                    (CallRef (mkFunRefUnqual "threaded_scheduler") Nothing)
-                                    []
-                                ) 
-                                (CallRef (mkFunRefUnqual "core_threads") Nothing)
-                                [Lit $ NumericLit $ fromMaybe 1 dataPar]
-                            )
-                            (CallRef (mkFunRefUnqual "build") Nothing)
-                            []
-                        )
-                        (CallRef (mkFunRefUnqual "unwrap") Nothing)
-                        []
-                    ]
-           in RustBlock unsafety (rt : blockExpr')
-        False -> RustBlock unsafety blockExpr' 
+  case dataPar of
+    Just _ ->
+      let (RustBlock unsafety blockExpr', _par) = runState (transformExprInBlockM go block) False
+      in RustBlock unsafety blockExpr'
+    Nothing -> block
   where
     -- (fun:rt:args') -> -- would be cleaner
     go (Call (CallRef f _) (Lit (FunRefLit (FunRef qb _ _)) : args))
@@ -86,7 +127,7 @@ spawnWork (SSharedMemory Options{..}) block =
                     (CallRef (mkFunRefUnqual "unwrap") Nothing)
                     []
               ],
-        Semi $ MethodCall (Var runtime) (CallRef (mkFunRefUnqual "spawn") Nothing) [Var "work"],
+        Semi $ spawnCall,
         NoSemi $ Var "rx"
       ]
 

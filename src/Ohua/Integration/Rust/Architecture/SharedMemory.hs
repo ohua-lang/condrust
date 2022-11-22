@@ -9,6 +9,7 @@ import qualified Language.Rust.Syntax as Rust hiding (Rust)
 import Ohua.Backend.Lang (Com (..))
 import Ohua.Backend.Types hiding (convertExpr)
 import Ohua.Integration.Architecture
+import Ohua.Integration.Options
 import Ohua.Integration.Lang hiding (Lang)
 import Ohua.Integration.Rust.Architecture.Common as C
 import Ohua.Integration.Rust.Backend
@@ -22,6 +23,7 @@ import Ohua.Integration.Rust.Backend.Convert
   )
 import qualified Ohua.Integration.Rust.Backend.Subset as Sub
 import qualified Ohua.Integration.Rust.TypeExtraction as TE
+import Ohua.Integration.Rust.Architecture.SharedMemory.Transform.DataPar (getInitializers)
 import Ohua.Integration.Rust.Types as RT
 import Ohua.Prelude
 
@@ -36,7 +38,7 @@ instance Architecture (Architectures 'SharedMemory) where
           case convertToRustType argTy of
             Just rustType -> Just $
                 Sub.AngleBracketed [ Sub.TypeArg rustType ]
-            Nothing -> error $ "Couldn't type channel properly: " <> show bnd 
+            Nothing -> error $ "Couldn't type channel properly: " <> show bnd
      in Sub.Local
           ( Sub.TupP
               [ Sub.IdentPat Sub.Immutable $ bnd <> "_tx",
@@ -72,7 +74,7 @@ instance Architecture (Architectures 'SharedMemory) where
                     (Sub.CallRef (mkFunRefUnqual "send") Nothing)
                     [bnd]
 
-  build SSharedMemory{} (Module _ (Rust.SourceFile _ _ _items)) ns =
+  build arch@SSharedMemory{} (Module _ (Rust.SourceFile _ _ _items)) ns =
     return $ ns & algos %~ map (\algo -> algo & algoCode %~ createTasksAndChannels)
     where
       createTasksAndChannels (Program chans retChan tasks) =
@@ -80,16 +82,28 @@ instance Architecture (Architectures 'SharedMemory) where
 
       createTask :: Sub.Block -> Rust.Expr ()
       createTask code =
-        Rust.Closure
-          []
-          Rust.Value
-          Rust.NotAsync
-          Rust.Movable
-          (Rust.FnDecl [] (Just $ Rust.Infer noSpan) False noSpan)
-          (Rust.BlockExpr [] (convertBlock code) Nothing noSpan)
-          noSpan
+        -- TODO it would be better to have this in a type class, I suppose
+        let initializers = getInitializers arch code
+            initializers' = map convertStmt initializers
+            task = Rust.Closure
+                     []
+                     Rust.Value
+                     Rust.NotAsync
+                     Rust.Movable
+                     (Rust.FnDecl [] (Just $ Rust.Infer noSpan) False noSpan)
+                     (Rust.BlockExpr [] (convertBlock code) Nothing noSpan)
+                     noSpan
+            task' = replaceFinalStatement task
+        in case initializers' of
+             [] -> task'
+             _  -> Rust.BlockExpr
+                     []
+                     (Rust.Block (initializers' ++ [Rust.NoSemi task' noSpan]) Rust.Normal noSpan)
+                     Nothing
+                     noSpan
+
   -- REMINDER: Replace placeholder
-  serialize SSharedMemory{} mod  placeholder ns  = C.serialize mod ns createProgram placeholder
+  serialize (SSharedMemory Options{..}) mod  placeholder ns  = C.serialize mod ns createProgram placeholder
     where
       createProgram (Program chans (Sub.Try resultExpr) tasks) =
         let taskInitStmt =
@@ -138,7 +152,6 @@ instance Architecture (Architectures 'SharedMemory) where
                 ( flip Rust.Semi noSpan
                     . push
                     . box
-                    . replaceFinalStatement
                     . taskExpression
                 )
                 tasks
