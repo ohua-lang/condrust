@@ -30,7 +30,7 @@ import Ohua.Prelude
 instance Architecture (Architectures 'SharedMemory) where
   type Lang (Architectures 'SharedMemory) = Language 'Rust
   type Chan (Architectures 'SharedMemory) = Sub.Stmt
-  type ATask (Architectures 'SharedMemory) = Rust.Expr ()
+  type ATask (Architectures 'SharedMemory) = [Rust.Stmt ()]
 
   convertChannel SSharedMemory{} (SRecv argTy (SChan bnd)) =
     -- help out the type inference of Rust a little here
@@ -80,11 +80,10 @@ instance Architecture (Architectures 'SharedMemory) where
       createTasksAndChannels (Program chans retChan tasks) =
         Program chans retChan (map (createTask <$>) tasks)
 
-      createTask :: Sub.Block -> Rust.Expr ()
+      createTask :: Sub.Block -> [Rust.Stmt ()]
       createTask code =
         -- TODO it would be better to have this in a type class, I suppose
         let initializers = getInitializers arch code
-            initializers' = map convertStmt initializers
             task = Rust.Closure
                      []
                      Rust.Value
@@ -93,14 +92,36 @@ instance Architecture (Architectures 'SharedMemory) where
                      (Rust.FnDecl [] (Just $ Rust.Infer noSpan) False noSpan)
                      (Rust.BlockExpr [] (convertBlock code) Nothing noSpan)
                      noSpan
-            task' = replaceFinalStatement task
-        in case initializers' of
-             [] -> task'
-             _  -> Rust.BlockExpr
+            box task =
+              Rust.Call
+                []
+                ( Rust.PathExpr
+                    []
+                    Nothing
+                    (convertQualBnd (QualifiedBinding (makeThrow ["Box"]) "new"))
+                    noSpan
+                )
+                [task]
+                noSpan
+            push t =
+              Rust.MethodCall
+                []
+                (convertExp $ Sub.Var "tasks")
+                (Rust.PathSegment (mkIdent "push") Nothing noSpan)
+                [t]
+                noSpan
+            task' = (push . box . replaceFinalStatement) task
+        in case initializers of
+             Nothing -> [Rust.Semi task' noSpan]
+             Just (global,local) ->
+               [ convertStmt global
+               , flip Rust.Semi noSpan $
+                   Rust.BlockExpr
                      []
-                     (Rust.Block (initializers' ++ [Rust.NoSemi task' noSpan]) Rust.Normal noSpan)
+                     (Rust.Block ([convertStmt local] ++ [Rust.NoSemi task' noSpan]) Rust.Normal noSpan)
                      Nothing
                      noSpan
+               ]
 
   -- REMINDER: Replace placeholder
   serialize (SSharedMemory Options{..}) mod  placeholder ns  = C.serialize mod ns createProgram placeholder
@@ -129,32 +150,7 @@ instance Architecture (Architectures 'SharedMemory) where
                     }
                 }
                 }|]
-            box task =
-              Rust.Call
-                []
-                ( Rust.PathExpr
-                    []
-                    Nothing
-                    (convertQualBnd (QualifiedBinding (makeThrow ["Box"]) "new"))
-                    noSpan
-                )
-                [task]
-                noSpan
-            push t =
-              Rust.MethodCall
-                []
-                (convertExp $ Sub.Var "tasks")
-                (Rust.PathSegment (mkIdent "push") Nothing noSpan)
-                [t]
-                noSpan
-            taskStmts =
-              map
-                ( flip Rust.Semi noSpan
-                    . push
-                    . box
-                    . taskExpression
-                )
-                tasks
+            taskStmts = concat $ map taskExpression tasks
             (Rust.Block taskRunStmt _ _) =
               void
                 [block|{

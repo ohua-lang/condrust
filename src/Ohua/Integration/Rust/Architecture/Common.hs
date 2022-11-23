@@ -18,8 +18,8 @@ import Language.Rust.Data.Ident
 serialize ::
   CompM m =>
   Module ->
-  Namespace (Program chan expr (Rust.Expr ()) TE.RustTypeAnno) anno  TE.RustTypeAnno ->
-  (Program chan expr (Rust.Expr ()) TE.RustTypeAnno -> Block ()) ->
+  Namespace (Program chan expr stmts TE.RustTypeAnno) anno  TE.RustTypeAnno ->
+  (Program chan expr stmts TE.RustTypeAnno -> Block ()) ->
   Module ->
   m (NonEmpty (FilePath, L.ByteString))
 -- REMINDER: Replace Placeholder. Output new library file

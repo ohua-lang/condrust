@@ -17,7 +17,7 @@ runtime = "rt"
 
 liftCollectType :: RT.RustTypeAnno -> RT.RustTypeAnno
 liftCollectType (RT.Normal t) =
-    RT.Normal 
+    RT.Normal
     $ convertTyRef
     $ TyRef "std.sync.mpsc/Receiver"
     $ Just
@@ -27,7 +27,7 @@ liftCollectType t = t
 
 spawnCall = MethodCall (Var runtime) (CallRef (mkFunRefUnqual "spawn") Nothing) [Var "work"]
 
-getInitializers :: Architectures 'SharedMemory -> Block -> [Stmt]
+getInitializers :: Architectures 'SharedMemory -> Block -> Maybe (Stmt, Stmt)
 getInitializers (SSharedMemory Options{..}) block =
   case dataPar of
     Just parNum ->
@@ -62,9 +62,9 @@ getInitializers (SSharedMemory Options{..}) block =
                           (Var rt_arc)
                           (CallRef (mkFunRefUnqual "clone") Nothing)
                           []
-          in [rt_arc_stmt, rt_stmt]
-        False -> []
-    Nothing -> []
+          in Just (rt_arc_stmt, rt_stmt)
+        False -> Nothing
+    Nothing -> Nothing
   where
     isSpawn (RustBlock _ stmts) =
       let exprs = catMaybes $ map expr stmts
