@@ -120,6 +120,9 @@ genSend = \case
 genFun'' :: FusableFunction ty -> TaskExpr ty
 genFun'' fun = (\f -> genFun' (genSend f) f) $ toFuseFun fun
 
+genFunWithCont :: TaskExpr ty -> FusableFunction ty -> TaskExpr ty
+genFunWithCont ct fun = loop (funReceives fun) $ genFun' ct $ toFuseFun fun
+
 genFun' :: TaskExpr ty -> FusedFunction ty -> TaskExpr ty
 genFun' ct = \case
     (PureFusable receives f out) ->

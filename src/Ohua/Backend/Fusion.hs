@@ -335,19 +335,19 @@ fuseSMaps (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ go e
       | c == inp =
           -- this is fragile because I'm just assuming that every TaskExpr was a literal!
           let smapGen = if hasReceive args then SMap.gen else SMap.gen'
-          in Just $ genFun' (smapGen $ SMap.fuse b smap) $ toFuseFun fun
+          in Just $ genFunWithCont (smapGen $ SMap.fuse b smap) fun
     getAndDrop smap inp (Fun st@(STFusable sIn dIn app dOut sOut)) =
       case sOut of
         (Just c@(SChan b))
           | c == inp ->
             let send' = genSend $ toFuseFun $ STFusable sIn dIn app dOut Nothing
-            in Just $ genFun' (Stmt send' $ SMap.gen' $ SMap.fuse b smap) $ toFuseFun st
+            in Just $ genFunWithCont (Stmt send' $ SMap.gen' $ SMap.fuse b smap) st
         _ ->
           case dOut of
             [SendResult c@(SChan b)]
               | c == inp ->
                 let send' = genSend $ toFuseFun $ STFusable sIn dIn app [] sOut
-                in Just $ genFun' (Stmt send' $ SMap.gen' $ SMap.fuse b smap) $ toFuseFun st
+                in Just $ genFunWithCont  (Stmt send' $ SMap.gen' $ SMap.fuse b smap) st
             _ -> Nothing
     getAndDrop _ _ _ = Nothing
     hasReceive args = all (\case
