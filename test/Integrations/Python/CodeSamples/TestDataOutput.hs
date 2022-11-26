@@ -1173,25 +1173,26 @@ def task_1(n_0_0_0_sender, d_1_receiver):
         n_0_0_0 = f(var_0)
         n_0_0_0_sender.send(n_0_0_0)
 def task_2(ctrl_0_0_sender, d_1_sender, g_0_0_1_receiver):
-    var_0 = g_0_0_1_receiver.recv()
-    a_1_0 = var_0.values()
-    None
-    hasSize = True if hasattr(a_1_0, '__len__') else False
-    if hasSize:
-        size = len(a_1_0)
-        ctrl = True, size
-        ctrl_0_0_sender.send(ctrl)
-        for d in a_1_0:
-            d_1_sender.send(d)
-    else:
-        size = 0
-        for d in a_1_0:
-            d_1_sender.send(d)
-            ctrl = False, 1
+    while True:
+        var_0 = g_0_0_1_receiver.recv()
+        a_1_0 = var_0.values()
+        None
+        hasSize = True if hasattr(a_1_0, '__len__') else False
+        if hasSize:
+            size = len(a_1_0)
+            ctrl = True, size
             ctrl_0_0_sender.send(ctrl)
-            size = size + 1
-        ctrl = True, 0
-        ctrl_0_0_sender.send(ctrl)
+            for d in a_1_0:
+                d_1_sender.send(d)
+        else:
+            size = 0
+            for d in a_1_0:
+                d_1_sender.send(d)
+                ctrl = False, 1
+                ctrl_0_0_sender.send(ctrl)
+                size = size + 1
+            ctrl = True, 0
+            ctrl_0_0_sender.send(ctrl)
 def task_3(mOb_0_0_1_sender):
     mOb_0_0_1 = MObs(42)
     mOb_0_0_1_sender.send(mOb_0_0_1)
