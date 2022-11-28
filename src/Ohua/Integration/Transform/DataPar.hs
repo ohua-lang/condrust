@@ -345,48 +345,58 @@ amorphous numRetries = transformM go
        in case ctxt of
             ctxt' | length ctxt' < 2 -> pure lam
             ctxt' -> do
-              -- traceM $ "Recursion lambda args: " <> show ctxt'
+              traceM $ "Recursion lambda args: " <> show ctxt'
               stateResult <- case findResult body of
                                [r] -> pure r
                                _   -> throwError $ "apparently, the recursion is not well-formed." <> " invariant broken."
-              let ctxtHS = HS.fromList ctxt'
-              if HS.member stateResult ctxtHS
-                && isUsedState stateResult body
-                then (do
-                         -- traceM $ "result is in ctxt and used in body"
-                         case findLoops body of
-                           [] -> pure lam
-                           loops -> do
-                             -- traceM $ "Detected loops: " <> show loops
-                             -- refine to loops that use ctxt variables as their input.
-                             case filter ((`HS.member` ctxtHS) . snd3) loops of
-                               [] -> pure lam
-                               loops' -> do
-                                 -- traceM $ "Result after filtering with ctxtHS: " <> show loops'
-                                 -- traceM $ "state: " <> show stateResult
-                                 -- The state actually does not have to be updated inside the loop.
-                                 -- We just have to perform the below code for all gathered loops.
-                                 -- That way, we even support multiple worklists!
-                                 let amorph lam' (loopBody, loopInp, _) =
-                                       do
-                                         -- traceM $ "Detected State usage in loop over: " <> show loopInp
-                                         recCallArgs <- findRecursionCallArgs body
-                                         -- traceM $ "Recursion call args':" <> show recCallArgs
-                                         wlRec <- case map snd $ filter (\(p,a) -> p == loopInp) $ zip ctxt recCallArgs of
-                                                    [i] -> pure i
-                                                    _ -> throwError "invariant broken" -- we detected that already above!
-                                         let loopResults = findFreeStateVars loopBody
-                                         case HS.member wlRec $ HS.fromList loopResults of
-                                           -- the loop is the creator. concat right after it.
-                                           True -> transformM (rewriteAfterLoop loopInp wlRec) lam'
-                                           -- concat to the creator of the new worklist
-                                           False -> do
-                                             rest <- generateBindingWith "rest"
-                                             lam'' <- transformM (takeNRewrite loopInp rest) lam'
-                                             transformM (concatRewrite wlRec rest) lam''
-                                 foldM amorph lam loops'
-                     )
-                else pure lam
+              recCallArgs <- findRecursionCallArgs body
+              mStateIn <- findInParameters stateResult recCallArgs ctxt
+              case mStateIn of
+                Nothing -> do
+                  -- traceM $ "Could not detect state input for: " <> show stateResult
+                  pure lam
+                Just stateIn -> do
+                  -- traceM $ "looking for: " <> show stateIn
+                  -- traceM $ "in context: " <> show ctxt
+                  -- traceM $ "in body: " <> quickRender body
+                  let ctxtHS = HS.fromList ctxt'
+                  if HS.member stateIn ctxtHS
+                    && isUsedStateAnywhere stateIn body
+                  then (do
+                           -- traceM $ "result is in ctxt and used in body"
+                           case findLoops body of
+                             [] -> pure lam
+                             loops -> do
+                               -- traceM $ "Detected loops: " <> show loops
+                               -- refine to loops that use ctxt variables as their input.
+                               case filter ((`HS.member` ctxtHS) . snd3) loops of
+                                 [] -> pure lam
+                                 loops' -> do
+                                   -- traceM $ "Result after filtering with ctxtHS: " <> show loops'
+                                   -- traceM $ "state: " <> show stateResult
+                                   -- The state actually does not have to be updated inside the loop.
+                                   -- We just have to perform the below code for all gathered loops.
+                                   -- That way, we even support multiple worklists!
+                                   let amorph lam' (loopBody, loopInp, _) =
+                                         do
+                                           -- traceM $ "Detected State usage in loop over: " <> show loopInp
+                                           --recCallArgs <- findRecursionCallArgs body
+                                           -- traceM $ "Recursion call args':" <> show recCallArgs
+                                           wlRec <- case map snd $ filter (\(p,a) -> p == loopInp) $ zip ctxt recCallArgs of
+                                                      [i] -> pure i
+                                                      _ -> throwError "invariant broken" -- we detected that already above!
+                                           let loopResults = findFreeStateVars loopBody
+                                           case HS.member wlRec $ HS.fromList loopResults of
+                                             -- the loop is the creator. concat right after it.
+                                             True -> transformM (rewriteAfterLoop loopInp wlRec) lam'
+                                             -- concat to the creator of the new worklist
+                                             False -> do
+                                               rest <- generateBindingWith "rest"
+                                               lam'' <- transformM (takeNRewrite loopInp rest) lam'
+                                               transformM (concatRewrite wlRec rest) lam''
+                                   foldM amorph lam loops'
+                       )
+                  else pure lam
 
     findResult body =
       [ s | (AL.Let _ cond (AL.Var _)) <- universe body, ( Apply
@@ -398,6 +408,25 @@ amorphous numRetries = transformM go
                                                            ) <-
                                                            universe cond, ifTE == ALRefs.ifThenElse && idF == ALRefs.id
       ]
+
+    findInParameters stateResult recCallArgs ctxt =
+      let idx = catMaybes $ map
+                  (\(v,i) -> if v == stateResult then Just i else Nothing )
+                  $ zip recCallArgs [0..]
+      in case idx of
+           [] -> pure Nothing -- result is not part of the recursion
+           (x:[]) -> do
+             let inVars = catMaybes $ map
+                            (\(v,i) -> if i == x then Just v else Nothing)
+                            $ zip ctxt [0..]
+             case inVars of
+                [s] -> pure $ Just s
+                _ -> throwError "Invariant broken: recursion call args and recursion parameters do not have the same length."
+           _ -> do
+--             logInfoN $ "You passing the following parameter twice into the recursion: "
+--                      <> show x
+--                      <> " \nDo you really have to do that? (Aborting amorphous transaformation.) ".
+             pure Nothing
 
     findRecursionCallArgs body =
       let calls =
@@ -429,6 +458,12 @@ amorphous numRetries = transformM go
       not $
         null
           [ s | BindState (AL.Var s) _ <- universe body, s == bnd
+          ]
+
+    isUsedStateAnywhere bnd body =
+      not $
+        null
+          [ s | (AL.Var s) <- universe body, s == bnd
           ]
 
     findLoops body =
