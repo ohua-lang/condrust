@@ -303,3 +303,13 @@ fn nothing_here() -> bool {
 }
 
 |]
+
+k_v_latest:: SourceFile Span
+k_v_latest = [sourceFile|
+use M3;
+
+fn nothing_here() -> bool {
+  return false;
+}
+
+|]

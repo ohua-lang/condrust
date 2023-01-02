@@ -11,96 +11,131 @@ k_v_application_1_2_components = [sourceFile|
 use std::os::unix::io::RawFd;
 use std::time::Instant;
 
-fn main() -> () {
-    let (mut app, mut sockets):(App, SocketSet) = init_app_and_sockets();
-    let (mut ip_stack, mut device_and_fd): (OInterface, (TunTapDevice, RawFd)) = init_stack_and_device();
-    let mut device: TunTapDevice = destruct(device_and_fd);
-    loop_as_rec(app, ip_stack, device, sockets)
+
+
+fn app_iface_re(
+    mut app:App, 
+    mut ip_stack: Interface,
+    mut device:TunTapDevice, 
+    mut sockets: SocketSet) -> ()
+{
+    let mut local_app:App = id(app);
+    let mut local_ip_stack: Interface = id(ip_stack);
+    let timestamp:Instant = Instant::now();
+    let (poll_res, device_poll, sockets_poll):(Result<bool, Err>, TunTapDevice, SocketSet) =
+        local_ip_stack.poll_wrapper(timestamp, device, sockets);
+
+    let sockets_do_app_stuff:  SocketSet = local_app.do_app_stuff(sockets_poll, poll_res);
+    let pointless_var:() = pointless_function();
+    if allways_true() {
+        app_iface_rec(app, ip_stack, device_poll, sockets_do_app_stuff)
+    } else {
+        pointless_var
+    }
 }
 
+fn main() -> () {
+    let (mut app, mut sockets):(App, SocketSet) = init_app_and_sockets();
+    let (mut ip_stack, mut device, fd): (Interface, TunTapDevice, RawFd) = init_stack_and_device();
+    app_iface_rec(app, ip_stack, device, sockets)
+}
 
-fn loop_as_rec(
-    mut app:App, mut ip_stack: OInterface,
-    mut device:TunTapDevice, mut sockets: SocketSet) -> ()
-{
-    let timestamp:Instant = Instant::now();
-    let (needlessly_combined_tuple, sockets_poll):((Result<bool, Err>, TunTapDevice), SocketSet) =
-        ip_stack.poll_wrapper(timestamp, device, sockets);
-    let (poll_res, device_poll):(Result<bool, Err>, TunTapDevice) = destruct(needlessly_combined_tuple);
-    let (should_continue, sockets_do_app_stuff): ((), SocketSet) = app.do_app_stuff(sockets_poll, poll_res);
+|]
 
-    if is_not_unit(should_continue) {
-        loop_as_rec(app, ip_stack, device_poll, sockets_do_app_stuff)
-    } else {should_continue}
+just_rec = [sourceFile|
+use funs::*;
+
+fn rec(one: i32, s:String, f:FunkyType, n:NeverMind) -> () {
+    let k:() = h2();
+    let (dunno, one_new):(SomeType, i32) = s.string_mangel(one, n);
+    let n_new:NeverMind = f.funky_ride(dunno);
+    if check() {
+        rec(one_new, s, f, n_new)
+    } else {
+        k
+    }
+}
+
+fn test() -> () {
+    let (s, f):(String,FunkyType)  = say_oisann();
+    let n:NeverMind = never_mind();
+    rec(42, s, f, n)
 }
 |]
 
--- ToDo: These examples realy show we should enhance Ohuas destruct feature. Its just not acceptable to have to write this manually
+k_v_latest =  [sourceFile|
+mod ohua_util;
+use ohua_util::init_components::{App, init_app, init_stack_and_device};
+use smoltcp::{Either};
+use smoltcp::iface::{Interface, InterfaceCall, Messages, SocketHandle};
+use smoltcp::phy::{Device,TunTapInterface};
 
--- | Lets pretend we allready had made poll a function and refactored its outer loop 
---   to a recursion. It would look like this:
-k_v_application_2_poll_loop_rec:: SourceFile Span
-k_v_application_2_poll_loop_rec = [sourceFile|
-use std::os::unix::io::RawFd;
-use std::time::Instant;
+fn main() {
 
-fn main() -> () {
-    let (mut app, mut sockets):(App, SocketSet) = init_app_and_sockets();
-    let (mut ip_stack, mut device_and_fd): (Interface, (TunTapDevice, RawFd)) = init_stack_and_device();
-    let mut device: TunTapDevice = destruct(device_and_fd);
-    loop_as_rec(app, ip_stack, device, sockets)
+    let (mut ip_stack, handels, mut device):(Interface, Vec<SocketHandle>, TunTapInterface) = init_stack_and_device();
+    let mut app: App = init_app(handels);
+    let mut iface_call: InterfaceCall = InterfaceCall::InitPoll;
+
+    app_iface_rec(app, ip_stack, device, iface_call)
+
 }
 
-
-fn loop_as_rec(
-    mut app:App, 
+fn app_iface_rec(
+    mut app: App,
     mut ip_stack: Interface,
-    mut device: TunTapDevice, 
-    mut sockets: SocketSet) -> ()
-{
-    let timestamp:Instant = Instant::now();
-    let (needlessly_combined_tuple, sockets_poll): (Result<bool, Err>, (Interface, TunTapDevice), SocketSet) =
-        poll(ip_stack, timestamp, device, sockets);
+    mut device: TunTapInterface,
+    mut if_call: InterfaceCall,
+    ) -> () {
 
-    let (poll_res, device_and_interface) :(Result<bool, Err>, (Interface, TunTapDevice)) = destruct(needlessly_combined_tuple);
-    let (ip_stack_poll, device_poll):(Interface, TunTapDevice) =  destruct(device_and_interface);
-    let (should_continue, sockets_do_app_stuff): ((), SocketSet) = app.do_app_stuff(sockets_poll, poll_res);
-
-    if is_not_unit(should_continue) {
-        loop_as_rec(app, ip_stack_poll, device_poll, sockets_do_app_stuff)
-    } else {should_continue}
-}
-
-fn poll<D>(
-    ip_stack:Interface, 
-    timestamp:Instant, 
-    device: D,
-    sockets: SocketSet
-    ) -> (Result<bool, Err>, (TunTapDevice, Interface), SocketSet) 
-{
-    // We can't do this right now, needs to be fused later
-    // ip_stack.inner.now = timestamp;  
-
-    //  tuple_of_results : (Result<bool, Err>, (TunTapDevice, Interface), SocketSet)
-    let tuple_of_results: (Result<bool, Err>, (TunTapDevice, Interface), SocketSet) = poll_inner_rec(false, ip_stack, device, sockets);
-    tuple_of_results
-}
-
-fn poll_inner_rec<D>(
-    has_changed_before: bool,
-    ip_stack: Interface,
-    device: D,
-    sockets: SocketSet
-    ) -> (Result<bool, Err>, (TunTapDevice, Interface), SocketSet) 
-{
-    let has_changed: bool = ip_stack.egress_and_ingress(device, sockets);
-    let needlessly_wrapped:(Result<bool, Err>, (TunTapDevice, Interface), SocketSet) 
-            = wrap(has_changed, ip_stack, device, sockets);
-    if has_changed {
-        poll_inner_rec(has_changed, ip_stack, device, sockets)
+    let device_or_app_call: Either<DeviceCall, (bool, Messages)> = ip_stack.process_call::<TunTapInterface>(if_call);
+    // at this point we know it's a device_call
+    let dev_call: Option<DeviceCall> = as_some_call(device_or_app_call);
+    let (app_call, ip_stack_n, device_n): (Option<AppCall>, Interface, TunTapInterface)
+        = iface_device_rec(ip_stack, device, dev_call);
+    let nothing: () = dummy();
+    let answers: Messages = app.do_app_stuff(app_call);
+    let if_call_new: InterfaceCall = InterfaceCall::AnswerToSocket(answers);
+    if should_continue() {
+        app_iface_rec(app, ip_stack_n, device_n, if_call_new)
     } else {
-        needlessly_wrapped
+        nothing
     }
+}
 
+fn iface_device_rec(
+    mut ip_stack:Interface,
+    mut device: TunTapInterface,
+    mut dev_call:Option<DeviceCall>
+) -> (Option<AppCall>, Interface, TunTapInterface) {
+    let call: Either<InterfaceCall, (Option<smolDuration>, bool)> = device.process_call(dev_call);
+    let iface_call: InterfaceCall = maybe_wait(call);
+    let device_or_app_call: Either<DeviceCall, (bool, Messages)> = ip_stack.process_call::<TunTapInterface>(iface_call);
+    let (sign, optn_dev_call, optn_app_call): (bool, Option<DeviceCall>, Option<AppCall>) = unwrap_call(device_or_app_call);
+    if sign{
+        iface_device_rec(ip_stack, device, optn_dev_call)
+    } else {
+        (optn_app_call, ip_stack, device)
+    }
+}
+
+|]
+
+
+if_else_in_rec = [sourceFile|
+use funs::*;
+
+fn rec(one: i32) -> () {
+    let i:i32 = h(one);
+    let obj:Object = SomeObject();
+    let k:() = if check(i) {obj.h2(i)} else {obj.h3(i)};
+    if check(k) {
+        rec(i)
+    } else {
+        k
+    }
+}
+
+fn test() -> () {
+    rec(42)
 }
 |]

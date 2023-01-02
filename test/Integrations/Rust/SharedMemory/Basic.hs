@@ -177,6 +177,22 @@ spec =
                 expected <- showCode "Expected:" unit_fun
                 compiled `shouldBe` expected)
 
+          it "destruct > 2" $
+            (showCode "Compiled: " =<< compileCode  [sourceFile|
+                use funs::*;
+
+                fn test() -> i32 {
+                    let (a,b, c):(i32, i32, str) = f_tup();
+                    let x:i32 = f0(a);
+                    let y:i32 = f1(b);
+                    let z:sometype = g(c);
+                    h2(x, y, z)
+                }
+                |]) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" unit_fun
+                compiled `shouldBe` expected)
+
 ------------- Testouput -------------------------------------
 
 a_function :: SourceFile Span
