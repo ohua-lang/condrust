@@ -144,7 +144,25 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:" envVar
                 compiled `shouldBe` expected)
-            {- }>>=
+
+        it "ERROR: conditions and literals" $ -- typing of unit literals seems broken
+            compileCode  [sourceFile|
+               fn test() -> i32 {
+                  let s:State = new();
+                  for num in random() {
+                    let ok: bool = random_bool();
+                    let iNum:i32 =
+                      if ok {
+                        somefun()
+                      } else {
+                        otherfun()
+                      };
+                    s.update(iNum);
+                  }
+                  s.get_num()
+                }
+              |] `shouldThrow` anyException
+           {- }>>=
             (\compiled -> do
                 expected <- showCode "Expected:" loop_envvar
                 compiled `shouldBe` expected)-}
