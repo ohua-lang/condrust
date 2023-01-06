@@ -190,7 +190,7 @@ spec =
                 }
                 |]) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" unit_fun
+                expected <- showCode "Expected:" destruct
                 compiled `shouldBe` expected)
 
 ------------- Testouput -------------------------------------
@@ -950,3 +950,99 @@ fn test() -> i32 {
   }
 }
                     |]
+
+destruct :: SourceFile Span
+destruct = [sourceFile|
+use funs::*;
+
+fn test() -> i32 {
+  #[derive(Debug)]
+  enum RunError {
+    SendFailed,
+    RecvFailed,
+  }
+  impl<  T: Send,> From<  std::sync::mpsc::SendError<  T,>,> for RunError {
+    fn from(_err: std::sync::mpsc::SendError<  T,>) -> Self {
+      RunError::SendFailed
+    }
+  }
+  impl From<  std::sync::mpsc::RecvError,> for RunError {
+    fn from(_err: std::sync::mpsc::RecvError) -> Self {
+      RunError::RecvFailed
+    }
+  }
+  let (e_0_0_tx, e_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (a_0_0_0_tx, a_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (b_0_0_0_tx, b_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (c_0_0_0_tx, c_0_0_0_rx) = std::sync::mpsc::channel::<  str,>();
+  let (z_0_0_0_tx, z_0_0_0_rx) = std::sync::mpsc::channel::<  sometype,>();
+  let (y_0_0_0_tx, y_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
+    Vec::new();
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
+        let var_0 = x_0_0_0_rx.recv()?;
+        let var_1 = y_0_0_0_rx.recv()?;
+        let var_2 = z_0_0_0_rx.recv()?;
+        let e_0_0 = h2(var_0, var_1, var_2);
+        e_0_0_tx.send(e_0_0)?;
+        ()
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
+        let var_0 = c_0_0_0_rx.recv()?;
+        let z_0_0_0 = g(var_0);
+        z_0_0_0_tx.send(z_0_0_0)?;
+        ()
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
+        let var_0 = b_0_0_0_rx.recv()?;
+        let y_0_0_0 = f1(var_0);
+        y_0_0_0_tx.send(y_0_0_0)?;
+        ()
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
+        let var_0 = a_0_0_0_rx.recv()?;
+        let x_0_0_0 = f0(var_0);
+        x_0_0_0_tx.send(x_0_0_0)?;
+        ()
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      let res = f_tup();
+      let a_0_0_0 = res.0;
+      a_0_0_0_tx.send(a_0_0_0)?;
+      let b_0_0_0 = res.1;
+      b_0_0_0_tx.send(b_0_0_0)?;
+      let c_0_0_0 = res.2;
+      c_0_0_0_tx.send(c_0_0_0)?;
+      Ok(())
+    }));
+  let handles: Vec<  std::thread::JoinHandle<  _,>,> =
+    tasks
+      .into_iter()
+      .map(|t| { std::thread::spawn(move || { let _ = t(); }) })
+      .collect();
+  for h in handles {
+    if let Err(_) = h.join() {
+      eprintln!("[Error] A worker thread of an Ohua algorithm has panicked!");
+    }
+  }
+  match e_0_0_rx.recv() {
+    Ok(res) => res,
+    Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
+  }
+}
+
+|]
