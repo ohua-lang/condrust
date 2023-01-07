@@ -7,6 +7,7 @@ import Ohua.Core.Prelude
 import qualified Ohua.Types.Vector as OV
 
 import qualified Data.List.NonEmpty as NE
+import Ohua.Core.DFLang.PPrint (prettyExpr)
 
 data Exists ty = forall semTy.Exists (DFVar semTy ty) 
 type BindingContext ty = (HM.HashMap Binding (Exists ty)) 
@@ -304,7 +305,7 @@ typeBottomUp (Let (RecurFun finalOut recCtrl argOuts initIns recIns cond result)
 
   return $ Let (RecurFun finalOut recCtrl argOuts newInits newRets cond' result') inCont
 
-typeBottomUp _e'@(Let (IfFun (Direct o1, Direct o2) inVar ) inCont) = do
+typeBottomUp _e'@(Let (IfFun outs inVar ) inCont) = do
   -- We know that ifFun is type bool -> (control signal, controle signal).
   -- So we can make sure the input is typed correctly. 
   -- We also know the output type obv. This is not particularly useful in bottom up pass because we've probably typed the two outputs
@@ -318,14 +319,7 @@ typeBottomUp _e'@(Let (IfFun (Direct o1, Direct o2) inVar ) inCont) = do
         (DFVar ty bnd) -> updateContext bnd ty 
         _ -> return()
 
-  -- We know the types of the outputs so just to be sure
-  updateContext o1 controlSignalType -- (HM.insert (unwrapABnd o1) $ Exists (DFVar controlSignalType o1))
-  updateContext o2 controlSignalType 
-  return $ Let (IfFun (Direct o1, Direct o2) inVar' ) inCont
-
-typeBottomUp (Let (IfFun (_outs) _inVar ) _inCont) = error $ "Encountered ill formed output for if-expression"<>
-  ". Maybe you used an if without an else branch or if iside a loop, which currently doesn't work. Otherwise it's a compiler bug. Please report then"
-
+  return $ Let (IfFun outs inVar' ) inCont
 
 typeBottomUp e'@(Let (SelectFun _out _sign _inOne _inTwo) _inCont) = 
   -- Currently not used 

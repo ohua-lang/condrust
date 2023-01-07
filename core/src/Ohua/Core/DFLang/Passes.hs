@@ -68,6 +68,7 @@ removeNth expr = do
 
     -- Note how this makes sure to preserve the semantics of the functions!
     -- TODO we would normally say that the binding does not change its type!
+    -- FIXME This only works for destructed App output but what about SMap and Rec?!
     toDFAppFun :: App a ty
                -> State
                (HM.HashMap Binding (NonEmpty (Integer, Binding)))
