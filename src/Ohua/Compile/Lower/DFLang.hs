@@ -10,9 +10,10 @@ import Ohua.Backend.Types
 import qualified Ohua.Backend.Operators as Ops
 import Ohua.Backend.Fusion as Fusion
 
-import qualified Data.List.NonEmpty as NE ((<|), toList)
+import qualified Data.List.NonEmpty as NE (NonEmpty( (:|) ), (<|), toList, length, zip, map)
 import qualified Data.HashSet as HS
 
+import Ohua.Core.DFLang.PPrint (prettyExpr)
 
 -- Invariant in the result type: the result channel is already part of the list of channels.
 toTCLang :: CompM m => NormalizedDFExpr ty -> m (TCProgram (Channel ty) (Com 'Recv ty) (FusableExpr ty))
@@ -143,13 +144,17 @@ generateNodeCode e@(IfFun out inp) = do
         case inp of
             (DFVar xType x) -> return $ SRecv xType $ SChan $ unwrapABnd x
             _ -> invariantBroken $ "envars as conditional input not yet supported:\n" <> show e
-    (ctrlTrueOut, ctrlFalseOut) <-
+    outs <-
         case out of
-            (Direct t, Direct fa) -> return (SChan $ unwrapABnd t, SChan $ unwrapABnd fa)
-            _ -> invariantBroken $ "only direct outputs supported but got:\n" <> show e
+            (Direct t, Direct fa) -> return $ (SChan $ unwrapABnd t, SChan $ unwrapABnd fa) :| []
+            (Dispatch tr, Dispatch fa) ->
+              if NE.length tr == NE.length fa
+              then return $ NE.map (\(t,f) -> (SChan $ unwrapABnd t, SChan $ unwrapABnd t)) $ NE.zip tr fa
+              else invariantBroken $ "unbalanced control signal dispatch:\n " <> (toStrict $ prettyExpr e)
+            _ -> invariantBroken $ "conditional controls are never destructed but got:\n" <> (toStrict $ prettyExpr e)
     return $ Unfusable $
         EndlessLoop $
-            Ops.ifFun condIn ctrlTrueOut ctrlFalseOut
+            Ops.ifFun condIn outs
 
 generateNodeCode e@(PureDFFun out (FunRef fun _ _) inp) | fun == select = do
     (condIn, trueIn, falseIn) <-
