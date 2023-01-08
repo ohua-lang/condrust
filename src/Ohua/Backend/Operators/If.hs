@@ -5,29 +5,41 @@ import Ohua.Prelude
 import Ohua.Backend.Lang hiding (TCExpr)
 import Ohua.Backend.Operators.Common (ctrlTuple)
 
+import qualified Data.List.NonEmpty as NE (reverse)
+
+
 type CondInput = Com 'Recv
 type CtrlTrueOutput = Com 'Channel
 type CtrlFalseOutput = Com 'Channel
 
-ifFun :: CondInput ty -> CtrlTrueOutput ty -> CtrlFalseOutput ty -> TaskExpr ty
-ifFun condInput ctrlTrue ctrlFalse =
+ifFun :: CondInput ty -> NonEmpty (CtrlTrueOutput ty, CtrlFalseOutput ty) -> TaskExpr ty
+ifFun condInput ctrlOuts =
     Let "branchSelection" (ReceiveData condInput) $
     Cond
         (Var "branchSelection")
-        (
-            Let "ctrlTrue" (ctrlTuple True (Right 1)) $ --(Tuple (Right (BoolLit True):|[Right $ NumericLit 1])) $
-            Let "ctrlFalse" (ctrlTuple True (Right 0)) $ -- (Either Binding Integer))(Tuple (Right (BoolLit True):|[Right $ NumericLit 0])) $
-            Stmt
-                (SendData $ SSend ctrlTrue $ Left "ctrlTrue")
-                (SendData $ SSend ctrlFalse $ Left "ctrlFalse")
-        )
-        (
-            Let "ctrlTrue" (ctrlTuple True (Right 0)) $ --(Tuple (Right (BoolLit True):|[Right $ NumericLit 1])) $
-            Let "ctrlFalse" (ctrlTuple True (Right 1)) $ -- (Tuple (Right (BoolLit True):|[Right $ NumericLit 1])) $
-            Stmt
-                (SendData $ SSend ctrlTrue $ Left "ctrlTrue")
-                (SendData $ SSend ctrlFalse $ Left "ctrlFalse")
-        )
+        (dataOut (ctrlTuple True (Right 1)) (ctrlTuple True (Right 0)))
+        (dataOut (ctrlTuple True (Right 0)) (ctrlTuple True (Right 1)))
+    where
+      dataOut ctrlTrueOut ctrlFalseOut =
+        let
+          ((lastChanOutTrue, lastChanOutFalse) :| ctrls) = NE.reverse ctrlOuts
+          ctrlOuts' = reverse ctrls
+        in
+          Let "ctrlTrue" ctrlTrueOut $
+          Let "ctrlFalse" ctrlFalseOut $
+          foldr
+           (\(chanOutTrue,chanOutFalse) cont ->
+              Stmt
+                (SendData $ SSend chanOutTrue $ Left "ctrlTrue")
+                (Stmt
+                  (SendData $ SSend chanOutFalse $ Left "ctrlFalse")
+                  cont)
+           )
+           (Stmt
+             (SendData $ SSend lastChanOutTrue $ Left "ctrlTrue")
+             (SendData $ SSend lastChanOutFalse $ Left "ctrlFalse"))
+           ctrlOuts'
+
 
 type TrueBranchInput = Com 'Recv
 type FalseBranchInput = Com 'Recv

@@ -105,10 +105,10 @@ genSend = \case
         chans
       dataOut [out1, out2] ct =
         getOut out1 firstIndexing $
-        getOut out2 secondIndexing $
+        getOut out2 secondIndexing
         ct
       dataOut outs ct = foldr
-        (\(out, num) expr -> getOut out (`Indexing` num) $ expr) ct (zip outs [0 ..])
+        (\(out, num) expr -> getOut out (`Indexing` num) expr) ct (zip outs [0 ..])
 
       getOut :: Result ty -> (Binding -> TaskExpr ty) -> TaskExpr ty -> TaskExpr ty
       getOut DropResult _ ct = ct
