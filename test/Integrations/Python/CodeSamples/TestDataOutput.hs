@@ -1530,16 +1530,83 @@ from testLib import *
 # ToDo
 |] 
 
-iteStateful :: ModuleSpan
-iteStateful = [pythonModule|
+iteRustExample :: ModuleSpan
+iteRustExample = [pythonModule|
 from testLib import *
 # ToDo
 |] 
 
-iteRustExample :: ModuleSpan
-iteRustExample = [pythonModule|
+iteStateful :: ModuleSpan
+iteStateful = [pythonModule|
+import multiprocessing as mp
 from testLib import *
-# TODO
+def task_1(mob_0_0_2_3_receiver, ctrlFalse_0_0_receiver):
+    while True:
+        renew = False
+        mob_0_0_2_1 = mob_0_0_2_3_receiver.recv()
+        while not renew:
+            sig = ctrlFalse_0_0_receiver.recv()
+            count = sig[1]
+            for _ in range(0, count):
+                mob_0_0_2_1.addNum(23)
+            renew_next_time = sig[0]
+            renew = renew_next_time
+def task_2(mob_0_0_2_2_receiver, ctrlTrue_0_0_receiver):
+    while True:
+        renew = False
+        mob_0_0_2_0 = mob_0_0_2_2_receiver.recv()
+        while not renew:
+            sig = ctrlTrue_0_0_receiver.recv()
+            count = sig[1]
+            for _ in range(0, count):
+                mob_0_0_2_0.addNum(3)
+            renew_next_time = sig[0]
+            renew = renew_next_time
+def task_3(ctrlTrue_0_0_sender, ctrlTrue_0_1_sender, a_0_0_0_0_receiver):
+    while True:
+        branchSelection = a_0_0_0_0_receiver.recv()
+        if branchSelection:
+            ctrlTrue = True, 1
+            ctrlFalse = True, 0
+            ctrlTrue_0_0_sender.send(ctrlTrue)
+            ctrlTrue_0_0_sender.send(ctrlFalse)
+            ctrlTrue_0_1_sender.send(ctrlTrue)
+            ctrlTrue_0_1_sender.send(ctrlFalse)
+        else:
+            ctrlTrue = True, 0
+            ctrlFalse = True, 1
+            ctrlTrue_0_0_sender.send(ctrlTrue)
+            ctrlTrue_0_0_sender.send(ctrlFalse)
+            ctrlTrue_0_1_sender.send(ctrlTrue)
+            ctrlTrue_0_1_sender.send(ctrlFalse)
+def task_4(a_0_0_0_0_sender, a_0_0_0_1_sender):
+    res = f(i)
+    a_0_0_0_0_sender.send(res)
+    a_0_0_0_1_sender.send(res)
+def task_5(mob_0_0_2_2_sender, mob_0_0_2_3_sender):
+    res = MObs(22)
+    mob_0_0_2_2_sender.send(res)
+    mob_0_0_2_3_sender.send(res)
+def main(i_1):
+    global i
+    i, = i_1,
+    mob_0_0_2_sender, mob_0_0_2_receiver = mp.Pipe()
+    a_0_0_0_0_sender, a_0_0_0_0_receiver = mp.Pipe()
+    mob_0_0_2_2_sender, mob_0_0_2_2_receiver = mp.Pipe()
+    ctrlTrue_0_0_sender, ctrlTrue_0_0_receiver = mp.Pipe()
+    mob_0_0_2_3_sender, mob_0_0_2_3_receiver = mp.Pipe()
+    ctrlFalse_0_0_sender, ctrlFalse_0_0_receiver = mp.Pipe()
+    tasks = [task_1, task_2, task_3, task_4, task_5]
+    channels = [[mob_0_0_2_3_receiver, ctrlFalse_0_0_receiver], [mob_0_0_2_2_receiver, ctrlTrue_0_0_receiver], [ctrlTrue_0_0_sender, ctrlTrue_0_1_sender, a_0_0_0_0_receiver], [a_0_0_0_0_sender, a_0_0_0_1_sender], [mob_0_0_2_2_sender, mob_0_0_2_3_sender]]
+    processes = []
+    for task, channels in zip(tasks, channels):
+        process = mp.Process(target=task, args=channels)
+        processes.append(process)
+    list(map(mp.Process.start, processes))
+    result = mob_0_0_2_receiver.recv()
+    list(map(mp.Process.terminate, processes))
+    list(map(mp.Process.join, processes))
+    return result
 |]
 
 condExprLit :: ModuleSpan

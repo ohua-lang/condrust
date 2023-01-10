@@ -71,14 +71,11 @@ spec =
                 compiled `shouldBe` expected)
             -}
        
-        it "ERROR: Ite/Stmt- Stateful function" $
-            compileCode iteStateful `shouldThrow` anyException
-            {-
+        it "Ite/Stmt- Stateful function" $
             (showCode "Compiled: " =<< compileCode iteStateful) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" Expect.iteRustExample
+                expected <- showCode "Expected:" Expect.iteStateful
                 compiled `shouldBe` expected)  
-            -}
 
         it "ERROR: Ite/Stmt -  only if stateless" $
             compileCode iteOnlyIf `shouldThrow` anyException
