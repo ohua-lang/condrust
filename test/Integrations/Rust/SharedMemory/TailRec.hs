@@ -115,7 +115,23 @@ spec =
                     rec(42)
                 }
                 |])`shouldThrow` anyException
+        -- we turn the below code into a recursion that never ends.
+        -- the boolean to check inside the termination is input to the
+        -- initial recursive call!
+        it "endless (server) loops with state" $
+            (showCodeWithDiff "Compiled: " =<< compileCodeWithRecWithDebug  [sourceFile|
+                use funs::*;
 
+                fn test() -> () {
+                    let s:S = State::new();
+                    loop {
+                      s.io()
+                    }
+                }
+                |]) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" endless_loops_with_state
+                compiled `shouldBe` expected)
 
         -- FIXME: [ERROR] Rec like imperative while - because we return a tuple  
         it "[ERROR] Rec like imperative while - because we return a tuple  " $
@@ -589,6 +605,93 @@ fn test() -> () {
     }
   }
   match c_0_0_rx.recv() {
+    Ok(res) => res,
+    Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
+  }
+}
+|]
+
+endless_loops_with_state = [sourceFile|
+use funs::*;
+
+fn test() -> () {
+  #[derive(Debug)]
+  enum RunError {
+    SendFailed,
+    RecvFailed,
+  }
+  impl<  T: Send,> From<  std::sync::mpsc::SendError<  T,>,> for RunError {
+    fn from(_err: std::sync::mpsc::SendError<  T,>) -> Self {
+      RunError::SendFailed
+    }
+  }
+  impl From<  std::sync::mpsc::RecvError,> for RunError {
+    fn from(_err: std::sync::mpsc::RecvError) -> Self {
+      RunError::RecvFailed
+    }
+  }
+  let (b_0_0_tx, b_0_0_rx) = std::sync::mpsc::channel::<  (),>();
+  let (result_0_0_0_tx, result_0_0_0_rx) = std::sync::mpsc::channel::<  (),>();
+  let (cond_0_0_0_tx, cond_0_0_0_rx) = std::sync::mpsc::channel::<  bool,>();
+  let (s_0_1_0_tx, s_0_1_0_rx) = std::sync::mpsc::channel::<  S,>();
+  let (ctrl_0_0_0_tx, ctrl_0_0_0_rx) =
+    std::sync::mpsc::channel::<  (bool, usize),>();
+  let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
+    Vec::new();
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
+        let mut renew = false;
+        let mut s_0_0_0_1 = s_0_1_0_rx.recv()?;
+        while !renew {
+          let sig = ctrl_0_0_0_rx.recv()?;
+          let count = sig.1;
+          for _ in 0 .. count { s_0_0_0_1.io(); () };
+          let renew_next_time = sig.0;
+          renew = renew_next_time;
+          ()
+        };
+        ()
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      let ctrlSig = (true, 1);
+      ctrl_0_0_0_tx.send(ctrlSig)?;
+      cond_0_0_0_tx.send(true)?;
+      result_0_0_0_tx.send(())?;
+      while cond_0_0_0_rx.recv()? {
+        let ctrlSig = (true, 1);
+        ctrl_0_0_0_tx.send(ctrlSig)?;
+        let loop_res_0 = cond_0_0_0_rx.recv()?;
+        let loop_res_1 = result_0_0_0_rx.recv()?;
+        cond_0_0_0_tx.send(loop_res_0)?;
+        result_0_0_0_tx.send(loop_res_1)?;
+        ()
+      };
+      let ctrlSig = (false, 0);
+      ctrl_0_0_0_tx.send(ctrlSig)?;
+      cond_0_0_0_rx.recv()?;
+      let finalResult = result_0_0_0_rx.recv()?;
+      Ok(b_0_0_tx.send(finalResult)?)
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      let s_0_1_0 = State::new();
+      s_0_1_0_tx.send(s_0_1_0)?;
+      Ok(())
+    }));
+  let handles: Vec<  std::thread::JoinHandle<  _,>,> =
+    tasks
+      .into_iter()
+      .map(|t| { std::thread::spawn(move || { let _ = t(); }) })
+      .collect();
+  for h in handles {
+    if let Err(_) = h.join() {
+      eprintln!("[Error] A worker thread of an Ohua algorithm has panicked!");
+    }
+  }
+  match b_0_0_rx.recv() {
     Ok(res) => res,
     Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
   }
