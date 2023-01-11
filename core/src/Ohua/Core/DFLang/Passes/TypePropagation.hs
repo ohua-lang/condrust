@@ -374,7 +374,7 @@ updateVars (v1@DFEnvVar{}, v2@DFEnvVar{}) = (v1, v2)
 -- | In case the binding is present in the context and in case the varaible is not a literal (yes, it might be)
 --   update the type of the variable in the variable and in the scope.
 -- FIXME: Check whether we need to adhere to any correspondence among Binding type 'b' and Variable type 'a'
-maybeUpdate ::forall b m ty a. MonadState (HashMap Binding (Exists ty)) m => ABinding b -> DFVar a ty -> m (DFVar a ty)
+maybeUpdate :: forall b m ty a. MonadState (HashMap Binding (Exists ty)) m => ABinding b -> DFVar a ty -> m (DFVar a ty)
 maybeUpdate reference var = do
   knownVars <- get
   -- traceM $ "reference: " <> show reference
@@ -392,20 +392,22 @@ maybeUpdate reference var = do
                   Just (Exists (DFVar ty' _bnd)) -> DFVar (maxType ty ty') bnd
                   Just (Exists (DFEnvVar ty' _bnd)) -> DFVar (maxType ty ty') bnd
                   Nothing -> var
-          (DFEnvVar _ty lit) -> case getArgType lit of
+          (DFEnvVar TypeVar lit) -> case getArgType lit of
                                   Just ty' -> DFEnvVar ty' lit
                                   Nothing  -> var
+          (DFEnvVar _ _) -> var
 
   case newVar of
       (DFVar ty bnd) -> do
         _ <- updateContext bnd ty
         return newVar
+      (DFEnvVar TypeVar _) -> return newVar
       (DFEnvVar ty _)  -> do
         updateContext reference ty
         return newVar
-  
 
-updateContext:: MonadState (HashMap Binding (Exists ty)) m => ABinding semTy -> ArgType ty -> m ()
+
+updateContext :: MonadState (HashMap Binding (Exists ty)) m => ABinding semTy -> ArgType ty -> m ()
 updateContext aBnd newType  = do
   -- traceM $ "Updating binding " <> show aBnd <> " to type " <> show newType
   modify (HM.insert (unwrapABnd aBnd) $ Exists (DFVar newType aBnd)) 
