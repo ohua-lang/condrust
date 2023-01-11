@@ -119,7 +119,7 @@ spec =
         -- the boolean to check inside the termination is input to the
         -- initial recursive call!
         it "endless (server) loops with state" $
-            (showCodeWithDiff "Compiled: " =<< compileCodeWithRecWithDebug  [sourceFile|
+            (showCode "Compiled: " =<< compileCodeWithRec [sourceFile|
                 use funs::*;
 
                 fn test() -> () {
