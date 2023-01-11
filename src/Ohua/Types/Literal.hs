@@ -1,7 +1,7 @@
 module Ohua.Types.Literal where
 
 import Universum
-import Ohua.Types.Reference ( FunRef(..), Binding )
+import Ohua.Types.Reference ( FunRef(..), Binding, ArgType(..) )
 
 -- | Literals of kinds we expect any host language to support
 data Lit ty
@@ -14,3 +14,11 @@ data Lit ty
     deriving (Show, Eq, Generic)
 
 instance Hashable (Lit ty)
+
+getArgType :: Lit ty -> Maybe (ArgType ty)
+getArgType (NumericLit _) = Just TypeNat
+getArgType (BoolLit _)    = Just TypeBool
+getArgType UnitLit        = Just TypeUnit
+getArgType (StringLit _)  = Nothing
+getArgType (EnvRefLit _)  = Nothing
+getArgType (FunRefLit _)  = Nothing

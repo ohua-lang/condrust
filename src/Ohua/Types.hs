@@ -9,7 +9,7 @@ module Ohua.Types
     , toFilePath
     , symbolFromString
     , FunRef(..)
-    , Lit(..)
+    , Lit(..), getArgType
     , Unit(..)
     , module Ohua.Types.Computation
     , module Ohua.Types.Classes
