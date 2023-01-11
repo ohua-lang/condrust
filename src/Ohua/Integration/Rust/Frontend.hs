@@ -25,7 +25,7 @@ import qualified Ohua.Integration.Rust.Frontend.Subset as Sub
 import Ohua.Integration.Rust.TypeExtraction as TE
 import Ohua.Integration.Rust.Types
 import Ohua.Integration.Rust.Util
-import Ohua.Prelude
+import Ohua.Prelude hiding (getArgType)
 import qualified Control.Applicative as Hm
 
 
@@ -363,6 +363,26 @@ instance ConvertExpr Sub.Expr where
       MapE
         (LamE [pat'] body')
         dataExpr'
+  convertExpr (Sub.EndlessLoop body) = do
+    body' <- convertExpr body
+    -- FIXME proper name generation needed here!
+    --       (although there can be only one endless loop in the whole term)
+    let loopLambdaRef = "endless_loop"
+    let condRef = "cond"
+    let resultRef = "result"
+    return $
+      LetE
+        (VarP loopLambdaRef)
+        (LamE [VarP condRef, VarP resultRef] $
+          StmtE
+            body'
+            (IfE
+              (VarE condRef)
+              (AppE (VarE loopLambdaRef)  [VarE condRef, VarE resultRef])
+              $ VarE resultRef
+            ))
+        (AppE (VarE loopLambdaRef) [LitE $ BoolLit True, LitE UnitLit])
+
   convertExpr (Sub.Closure _ _ _ args _retTy body) = do
     -- currently, we do not have support to pass the return type of a closure around
     ctxt <- get

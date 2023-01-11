@@ -28,6 +28,9 @@ data Expr
   | If Expr Block (Maybe Expr)
   | While Expr Block
   | ForLoop Pat Expr Block
+  -- | this is always an endless loop because we do not support any
+  -- | `break`, `continue` or `return` statements
+  | EndlessLoop Block
   | Closure CaptureBy IsAsync Movability [Arg] (Maybe RustType) Expr
   | BlockExpr Block
   -- | the below two are just captured by a Path in Rust.

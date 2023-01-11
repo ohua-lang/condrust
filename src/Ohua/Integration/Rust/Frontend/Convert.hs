@@ -73,7 +73,9 @@ convertExpr (ForLoop [] pat dataExpr body Nothing _) = do
   return $ Sub.ForLoop pat' dataExpr' body'
 convertExpr e@(ForLoop [] _ _ _ (Just _) _) = error $ "Currently, we do not support loop labels.\n" <> show e
 convertExpr e@ForLoop {} = error $ "Currently, we do not support attributes on for loops.\n" <> show e
-convertExpr e@Loop {} = error $ "Currently, we do not support conditionless loops. Please file a bug if you feel that this is dearly needed.\n" <> show e
+convertExpr e@(Loop _ body _ _) = do
+  body' <- convertBlock body
+  return $ Sub.EndlessLoop body'
 convertExpr e@Match {} = error $ "Currently, we do not support match expressions. Please file a bug if you feel that this is dearly needed.\n" <> show e
 convertExpr (Closure [] Value NotAsync Movable (FnDecl args retTy False _) body _) = do
   args' <- mapM convertArg args
