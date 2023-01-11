@@ -16,7 +16,7 @@ data Lit ty
 instance Hashable (Lit ty)
 
 getArgType :: Lit ty -> Maybe (ArgType ty)
-getArgType (NumericLit _) = Just TypeNat
+getArgType (NumericLit _) = Nothing -- Just TypeNat
 getArgType (BoolLit _)    = Just TypeBool
 getArgType UnitLit        = Just TypeUnit
 getArgType (StringLit _)  = Nothing
