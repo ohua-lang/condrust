@@ -280,12 +280,12 @@ typeBottomUp (Let (RecurFun finalOut recCtrl argOuts initIns recIns cond result)
   newInits <- mapM maybeUpdateByOutData (OV.zip argOuts initIns)
   newRets <- mapM maybeUpdateByOutData (OV.zip argOuts recIns)
 
-  let cond' = case cond of 
+  let cond' = case cond of
                 DFVar _ty bnd ->  DFVar TypeBool bnd
-                DFEnvVar _ty lit -> DFEnvVar TypeBool lit 
+                DFEnvVar _ty lit -> DFEnvVar TypeBool lit
 
   knownVars <- get
-  let result' = case result of 
+  let result' = case result of
                 DFVar ty bnd -> case HM.lookup (unwrapABnd bnd) knownVars of
                   -- REMINDER: We can not take the 'algo return type' because 
                   -- we are inside the algorithm that calls the recursive algo 
@@ -344,8 +344,8 @@ typeBottomUp (Var bnd _ty) = do
       return $ Var bnd newReturnType
 
 
-maybeUpdateByOutData ::forall b m ty a. MonadState (HashMap Binding (Exists ty)) m => (OutData b, DFVar a ty) -> m( DFVar a ty)
-maybeUpdateByOutData = 
+maybeUpdateByOutData :: forall b m ty a. MonadState (HashMap Binding (Exists ty)) m => (OutData b, DFVar a ty) -> m( DFVar a ty)
+maybeUpdateByOutData =
           \(refBnd, inVar) ->
                       case refBnd of
                         Direct bnd -> do
@@ -380,18 +380,29 @@ maybeUpdate reference var = do
   -- traceM $ "reference: " <> show reference
   -- traceM $ "known vars: "
   -- mapM (traceM . show) $ HM.keys knownVars
-  let newVar = case var of 
+
+  -- (Sebastian) The code of the function looks really strange.
+  -- It is ok, that it wants to update the context with a mapping of
+  -- @ reference -> ty @ where @ty@ is derived from the DFVar.
+  -- But why does it create an all new variable with the type found in the context?
+  -- Doesn't the function say that it only wants to update the context?
+
+  let newVar = case var of
           (DFVar ty bnd) -> case HM.lookup (unwrapABnd reference) knownVars of
                   Just (Exists (DFVar ty' _bnd)) -> DFVar (maxType ty ty') bnd
                   Just (Exists (DFEnvVar ty' _bnd)) -> DFVar (maxType ty ty') bnd
                   Nothing -> var
-          (DFEnvVar _ty _lit) -> var
-    
-  case newVar of 
-      (DFVar ty bnd) -> do 
+          (DFEnvVar _ty lit) -> case getArgType lit of
+                                  Just ty' -> DFEnvVar ty' lit
+                                  Nothing  -> var
+
+  case newVar of
+      (DFVar ty bnd) -> do
         _ <- updateContext bnd ty
         return newVar
-      _  -> return newVar
+      (DFEnvVar ty _)  -> do
+        updateContext reference ty
+        return newVar
   
 
 updateContext:: MonadState (HashMap Binding (Exists ty)) m => ABinding semTy -> ArgType ty -> m ()
