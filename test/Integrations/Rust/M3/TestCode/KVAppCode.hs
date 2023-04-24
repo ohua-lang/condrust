@@ -6,136 +6,103 @@ import Language.Rust.Syntax (SourceFile)
 import Language.Rust.Data.Position (Span)
 
 
-k_v_application_1_2_components:: SourceFile Span
-k_v_application_1_2_components = [sourceFile|
-use std::os::unix::io::RawFd;
-use std::time::Instant;
+kvApplication:: SourceFile Span
+kvApplication = [sourceFile|
+
+#![no_std]
+#![allow(dead_code)]
+#![allow(unused_imports)]
 
 
+mod loop_lib;
+mod driver;
 
-fn app_iface_re(
-    mut app:App, 
-    mut ip_stack: Interface,
-    mut device:TunTapDevice, 
-    mut sockets: SocketSet) -> ()
-{
-    let mut local_app:App = id(app);
-    let mut local_ip_stack: Interface = id(ip_stack);
-    let timestamp:Instant = Instant::now();
-    let (poll_res, device_poll, sockets_poll):(Result<bool, Err>, TunTapDevice, SocketSet) =
-        local_ip_stack.poll_wrapper(timestamp, device, sockets);
+#[macro_use]
+extern crate ffi_opaque;
 
-    let sockets_do_app_stuff:  SocketSet = local_app.do_app_stuff(sockets_poll, poll_res);
-    let pointless_var:() = pointless_function();
-    if allways_true() {
-        app_iface_rec(app, ip_stack, device_poll, sockets_do_app_stuff)
+use m3::{log, vec, println};
+use m3::col::{BTreeMap, Vec};
+use m3::tiles::OwnActivity;
+use m3::com::Semaphore;
+
+
+use local_smoltcp::iface::{Interface, NeighborCache, SocketSet, InterfaceCall};
+use local_smoltcp::phy::{Device, DeviceCapabilities};
+use local_smoltcp::time::{Duration, Instant};
+use local_smoltcp::{Either, Result};
+
+use crate::driver::*;
+use loop_lib::init_components::{init_device, init_ip_stack, init_app, App, DeviceType};
+
+const DEBUG: bool = true;
+
+// Change 0: Comment out for now
+/*
+fn maybe_wait(call: Either<InterfaceCall, (Option<Duration>, bool)>) -> InterfaceCall {
+    let mut next_call: InterfaceCall = InterfaceCall::InitPoll;
+    if Either::is_left(&call) {
+        next_call = call.left_or_panic();
     } else {
-        pointless_var
+        let (advised_waiting_timeout, device_needs_poll): (Option<Duration>, bool) = call.right_or_panic();
+        if !device_needs_poll {
+            match advised_waiting_timeout {
+                None => OwnActivity::sleep_for(m3::time::TimeDuration::from_millis(1)).ok(),
+                Some(t) => OwnActivity::sleep_for(t.as_m3_duration()).ok(),
+            };
+        }
+    }
+    return next_call;
+}
+*/
+
+#[no_mangle]
+pub fn main() {
+
+    let mut app: App = init_app();
+
+    let (mut device, caps): (DeviceType, DeviceCapabilities) = init_device();
+
+    let mut ip_stack: Interface<'_> = init_ip_stack(caps);
+
+
+
+    // Change 2: Can't have (re-)assignments -> need to explicitely make the current call a state
+    // after all this is just making the semantik of (re-)assignment more obviouse so we 
+    // should be able to handle this later
+    let first_call: InterfaceCall = InterfaceCall::InitPoll;
+    let mut currentCall: InterfaceCallState = CallState::new(first_call);
+
+    let mut semaphore_set: bool = false;
+
+    // Change 0: Comment out for now
+    //m3::vfs::VFS::mount("/", "m3fs", "m3fs").expect("Failed to mount root filesystem on smoltcp_server");
+
+    loop {
+        // Change 1: Can't use references -> need to return an extra flag for case distinction
+        let call: InterfaceCall = currentCall.get();
+        let (is_call, device_or_app_call) : (bool, Either<DeviceCall, (bool, Messages)>)  = ip_stack.process_call::<DeviceType>(call);
+        if id(is_call) {
+            // Change 3: No function calls as arguments, primarily because we need type information -> extra assignment
+            let dev_call: DeviceCall = device_or_app_call.left_or_panic();
+            let call: Either<InterfaceCall, (Option<Duration>, bool)> = device.process_call(dev_call);
+            let ip_stack_call: InterfaceCall = maybe_wait(call);
+            currentCall.set(ip_stack_call);
+        } else {
+            /* Chaneg 0: comment out for now
+            // I put semophore condition here, because it's the path thats least frequently taken
+            if !semaphore_set {
+                let _sem_r: Result<()> = Semaphore::attach("net").unwrap().up();
+                semaphore_set = true;
+            }
+            */
+            let (readiness_has_changed, message): (bool, Messages) = device_or_app_call.right_or_panic();
+            // Change 4: Ok(readiness_has_changed) is also a function -> only pass readiness_has_changed
+            let answers: Messages = app.process_message(readiness_has_changed, message);
+            let ip_stack_call: InterfaceCall = InterfaceCall::AnswerToSocket(answers);
+            currentCall.set(ip_stack_call)
+        }
     }
 }
-
-fn main() -> () {
-    let (mut app, mut sockets):(App, SocketSet) = init_app_and_sockets();
-    let (mut ip_stack, mut device, fd): (Interface, TunTapDevice, RawFd) = init_stack_and_device();
-    app_iface_rec(app, ip_stack, device, sockets)
-}
-
-|]
-
-just_rec = [sourceFile|
-use funs::*;
-
-fn rec(one: i32, s:String, f:FunkyType, n:NeverMind) -> () {
-    let k:() = h2();
-    let (dunno, one_new):(SomeType, i32) = s.string_mangel(one, n);
-    let n_new:NeverMind = f.funky_ride(dunno);
-    if check() {
-        rec(one_new, s, f, n_new)
-    } else {
-        k
-    }
-}
-
-fn test() -> () {
-    let (s, f):(String,FunkyType)  = say_oisann();
-    let n:NeverMind = never_mind();
-    rec(42, s, f, n)
-}
-|]
-
-k_v_latest =  [sourceFile|
-mod ohua_util;
-use ohua_util::init_components::{App, init_app, init_stack_and_device};
-use smoltcp::{Either};
-use smoltcp::iface::{Interface, InterfaceCall, Messages, SocketHandle};
-use smoltcp::phy::{Device,TunTapInterface};
-
-fn main() {
-
-    let (mut ip_stack, handels, mut device):(Interface, Vec<SocketHandle>, TunTapInterface) = init_stack_and_device();
-    let mut app: App = init_app(handels);
-    let mut iface_call: InterfaceCall = InterfaceCall::InitPoll;
-
-    app_iface_rec(app, ip_stack, device, iface_call)
-
-}
-
-fn app_iface_rec(
-    mut app: App,
-    mut ip_stack: Interface,
-    mut device: TunTapInterface,
-    mut if_call: InterfaceCall,
-    ) -> () {
-
-    let device_or_app_call: Either<DeviceCall, (bool, Messages)> = ip_stack.process_call::<TunTapInterface>(if_call);
-    // at this point we know it's a device_call
-    let dev_call: Option<DeviceCall> = as_some_call(device_or_app_call);
-    let (app_call, ip_stack_n, device_n): (Option<AppCall>, Interface, TunTapInterface)
-        = iface_device_rec(ip_stack, device, dev_call);
-    let nothing: () = dummy();
-    let answers: Messages = app.do_app_stuff(app_call);
-    let if_call_new: InterfaceCall = InterfaceCall::AnswerToSocket(answers);
-    if should_continue() {
-        app_iface_rec(app, ip_stack_n, device_n, if_call_new)
-    } else {
-        nothing
-    }
-}
-
-fn iface_device_rec(
-    mut ip_stack:Interface,
-    mut device: TunTapInterface,
-    mut dev_call:Option<DeviceCall>
-) -> (Option<AppCall>, Interface, TunTapInterface) {
-    let call: Either<InterfaceCall, (Option<smolDuration>, bool)> = device.process_call(dev_call);
-    let iface_call: InterfaceCall = maybe_wait(call);
-    let device_or_app_call: Either<DeviceCall, (bool, Messages)> = ip_stack.process_call::<TunTapInterface>(iface_call);
-    let (sign, optn_dev_call, optn_app_call): (bool, Option<DeviceCall>, Option<AppCall>) = unwrap_call(device_or_app_call);
-    if sign{
-        iface_device_rec(ip_stack, device, optn_dev_call)
-    } else {
-        (optn_app_call, ip_stack, device)
-    }
-}
-
 |]
 
 
-if_else_in_rec = [sourceFile|
-use funs::*;
-
-fn rec(one: i32) -> () {
-    let i:i32 = h(one);
-    let obj:Object = SomeObject();
-    let k:() = if check(i) {obj.h2(i)} else {obj.h3(i)};
-    if check(k) {
-        rec(i)
-    } else {
-        k
-    }
-}
-
-fn test() -> () {
-    rec(42)
-}
-|]
