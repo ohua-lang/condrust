@@ -373,15 +373,14 @@ instance ConvertExpr Sub.Expr where
     return $
       LetE
         (VarP loopLambdaRef)
-        (LamE [VarP condRef, VarP resultRef] $
-          StmtE
-            body'
+        (LamE [VarP condRef] $
+          LetE (VarP resultRef) body'
             (IfE
               (VarE condRef)
-              (AppE (VarE loopLambdaRef)  [VarE condRef, VarE resultRef])
+              (AppE (VarE loopLambdaRef)  [VarE condRef])
               $ VarE resultRef
             ))
-        (AppE (VarE loopLambdaRef) [LitE $ BoolLit True, LitE UnitLit])
+        (AppE (VarE loopLambdaRef) [LitE $ BoolLit True])
 
   convertExpr (Sub.Closure _ _ _ args _retTy body) = do
     -- currently, we do not have support to pass the return type of a closure around
