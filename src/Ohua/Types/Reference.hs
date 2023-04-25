@@ -60,6 +60,9 @@ data ArgType ty
     | TypeList (ArgType ty) 
     | Type ty 
     | TupleTy (NonEmpty (ArgType ty)) 
+    -- REMINDER: Can't derive Lift for Unit, therefor not for FunType and therefor I can't have FunType here for now
+    --           Find a way to fix this
+    | TypeFunction 
     deriving (Lift, Generic)
 
 -- ToDo: This is just a helper until we get types of control nodes right
@@ -70,6 +73,7 @@ data FunType ty where
      Untyped :: FunType ty
      FunType :: Either Unit (NonEmpty (ArgType ty)) -> FunType ty
      STFunType :: ArgType ty -> Either Unit (NonEmpty (ArgType ty)) -> FunType ty
+
 
 data FunRef ty where
     FunRef :: QualifiedBinding -> Maybe FnId -> FunType ty -> FunRef ty
@@ -97,7 +101,7 @@ instance ShowNoType (ArgType ty) where
     showNoType TypeBool = "Internal bool"
     showNoType TypeUnit = "Internal Unit"
     showNoType (TypeList ts) = "Internal List [" <> showNoType ts <> "]"
-    showNoType (Type _) = "Type _"
+    showNoType (Type _) = "HostType _"
     showNoType (TupleTy ts) = "(" <>  foldl (\b a -> show a <> ", " <> b) ")" ts
 
 
