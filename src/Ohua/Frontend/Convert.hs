@@ -8,4 +8,4 @@ class ConvertExpr a where
     convertExpr :: CompM m => a -> m (FrLang.Expr ty)
 
 class ConvertPat a where
-    convertPat :: CompM m => a -> m FrLang.Pat
+    convertPat :: CompM m => a -> m (FrLang.Pat ty)

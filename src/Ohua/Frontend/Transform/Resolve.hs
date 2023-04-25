@@ -81,7 +81,7 @@ resolveNS (ns, registry) =
         addExpr bnd (LamE vars body) = LamE vars $ addExpr bnd body
         addExpr bnd e = 
             LetE
-                (VarP $ pathToVar bnd)
+                (VarP (pathToVar bnd) TypeVar)
                 (fromMaybe 
                     (error "impossible") -- the path was originally retrieved from this list
                     $ HM.lookup bnd registry)
@@ -90,5 +90,5 @@ resolveNS (ns, registry) =
         -- turns the function literal into a simple (var) binding
         resolveExpr :: Expr ty -> Expr ty
         resolveExpr = cata $ \case
-            LitEF (FunRefLit (FunRef ref _id _)) | HM.member ref registry -> VarE $ pathToVar ref
+            LitEF (FunRefLit (FunRef ref _id _)) | HM.member ref registry -> VarE (pathToVar ref) TypeVar
             e -> embed e

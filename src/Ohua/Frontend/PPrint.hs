@@ -22,13 +22,13 @@ prettyExprM = LT.putStr . prettyExpr
 afterLetIndent :: Int
 afterLetIndent = 0
 
-instance Pretty Pat where
-    pretty (VarP b) = pretty b
+instance Pretty (Pat ty) where
+    pretty (VarP b ty) = pretty b
     pretty (TupP pats) = align $ tupled $ map pretty pats
     pretty UnitP = "()"
 
 instance Pretty (Expr ty) where
-    pretty (VarE bnd) = pretty bnd
+    pretty (VarE bnd ty) = pretty bnd
     pretty (LitE l) = pretty l
     pretty (LetE p app cont) =
         sep

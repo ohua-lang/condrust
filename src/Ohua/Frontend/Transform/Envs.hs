@@ -10,7 +10,7 @@ import Ohua.Frontend.Lang
 prepareRootAlgoVars :: CompM m => Expr ty -> m (Expr ty)
 prepareRootAlgoVars (LamE vars body) =  go vars body
   where
-    go (VarP x:xs) rest =
-        go xs $ LetE (VarP x) (LitE $ EnvRefLit x) rest
+    go ((VarP x xty):xs) rest =
+        go xs $ LetE (VarP x xty) (LitE $ EnvRefLit x) rest
     go [] rest = return rest
 prepareRootAlgoVars _ = throwError "compiler invariant broken"

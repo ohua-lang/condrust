@@ -23,6 +23,6 @@ transformFinalLiterals = \case
     go (StmtE f cont) = StmtE f $ go cont
     go e = e
     constLit f l =
-      LetE (VarP "x") f $
-      SeqE (VarE "x") l
+      LetE (VarP "x" TypeVar) f $
+      SeqE (VarE "x" TypeVar) l
 

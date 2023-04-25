@@ -22,12 +22,12 @@ contextedTraversal f = go
         go ctxt (LamE vs b) =
             let ctxt' = HS.union ctxt $ HS.fromList $ join $ Ohua.Prelude.map goPat vs
             in LamE vs <$> go ctxt' b
-        go ctxt v@(VarE bdg) | not (HS.member bdg ctxt) = f ctxt v
+        go ctxt v@(VarE bdg ty) | not (HS.member bdg ctxt) = f ctxt v
         go ctxt e = descendM (go ctxt) e
         descendM = mapMOf plate -- http://hackage.haskell.org/package/lens-3.0.6/docs/Control-Lens-Plated.html#v:descendM
         --descend = over plate -- note composOp = descend = over plate -> https://www.stackage.org/haddock/lts-14.25/lens-4.17.1/Control-Lens-Plated.html#v:para (below)
         goPat UnitP = []
-        goPat (VarP bdg) = [bdg]
+        goPat (VarP bdg pTy) = [bdg]
         goPat (TupP ps) = join $ Ohua.Prelude.map goPat ps
 
 -- | This transformation establishes well-scopedness 
@@ -37,6 +37,6 @@ contextedTraversal f = go
 makeWellScoped :: Binding -> Expr ty -> Expr ty
 makeWellScoped currentFun expr = runIdentity $ contextedTraversal intoFunLit (HS.singleton currentFun) expr
   where
-    intoFunLit _ (VarE bdg) = return $ LitE $ FunRefLit $ FunRef (QualifiedBinding (makeThrow []) bdg) Nothing Untyped
+    intoFunLit _ (VarE bdg ty) = return $ LitE $ FunRefLit $ FunRef (QualifiedBinding (makeThrow []) bdg) Nothing Untyped
     intoFunLit _ e = return e -- FIXME type above is not precise enough
 
