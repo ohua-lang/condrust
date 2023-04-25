@@ -35,6 +35,9 @@ type ConvertM m = (Monad m, MonadState Context m)
 
 type PythonNamespace = Namespace (FrLang.Expr PythonArgType) (Py.Statement SrcSpan) PythonArgType
 
+defaultType:: ArgType PythonArgType
+defaultType = Type PythonObject
+
 instance Integration (Language 'Python) where
     type HostModule (Language 'Python) = Module
     type Type (Language 'Python) =  PythonArgType
@@ -225,8 +228,8 @@ subStmtToIR (Sub.WhileStmt expr suite) = do
     cond <- subExprToIR expr
     suite' <- subSuiteToIR (Sub.PySuite suite)
     let loopRef = "while_loop_body"
-    let recursivePart= IfE cond (AppE (VarE loopRef) [])  (LitE UnitLit)
-    return $ LetE (VarP loopRef) (LamE [] $ StmtE suite' recursivePart) recursivePart
+    let recursivePart= IfE cond (AppE (VarE loopRef defaultType) [])  (LitE UnitLit)
+    return $ LetE (VarP loopRef defaultType) (LamE [] $ StmtE suite' recursivePart) recursivePart
 
 subStmtToIR (Sub.ForStmt target generator suite) = do
     targets' <- subTargetToIR target
@@ -255,19 +258,19 @@ subStmtToIR Sub.Pass = return $ LitE UnitLit
 
 
 subExprToIR :: ConvertM m => Sub.Expr -> m (FrLang.Expr PythonArgType)
-subExprToIR (Sub.Var bnd) = return $ VarE bnd
+subExprToIR (Sub.Var bnd) = return $ VarE bnd defaultType
 subExprToIR (Sub.Int int) = return $ LitE $ NumericLit int
 subExprToIR (Sub.Bool bool) = return $ LitE $ BoolLit bool
 subExprToIR Sub.None = return $  LitE  UnitLit
 
 subExprToIR (Sub.Call (Sub.Pure bnd) args) = do
     args'<- mapM subArgToIR args
-    return $ AppE (VarE bnd) args'
+    return $ AppE (VarE bnd defaultType) args'
 
 subExprToIR (Sub.Call (Sub.Dotted objBnd funBnd) args) = do
     args' <- mapM subArgToIR args
-    let receiver = VarE objBnd
-        receiverTy = Type PythonObject
+    let receiverTy = defaultType
+        receiver = VarE objBnd receiverTy
         argTypes = listofPyType args
         method = LitE (FunRefLit (FunRef funBnd Nothing $ STFunType receiverTy argTypes))
     return $ BindE receiver method `AppE` args'
@@ -335,15 +338,16 @@ mappingToTuple (key, value) = do
 subArgToIR :: ConvertM m => Sub.Argument -> m ( FrLang.Expr PythonArgType)
 subArgToIR (Sub.Arg expr) = subExprToIR expr
 
-subParamToIR::ConvertM m => Sub.Param -> m FrLang.Pat
+subParamToIR::ConvertM m => Sub.Param -> m (FrLang.Pat PythonArgType)
 subParamToIR (Sub.Param bnd) = do
     modify (HM.insert bnd Sub.PythonType)
-    return $ VarP bnd
+    -- We do not need typing in Python so everything gets the default 'python object' type
+    return $ VarP bnd defaultType
 
-subTargetToIR :: ConvertM m => Sub.Target -> m FrLang.Pat
-subTargetToIR (Sub.Single bnd) = return $ VarP bnd
+subTargetToIR :: ConvertM m => Sub.Target -> m (FrLang.Pat PythonArgType)
+subTargetToIR (Sub.Single bnd) = return $ VarP bnd defaultType
 subTargetToIR (Sub.Tpl bnds) =
-    let vars = map VarP bnds
+    let vars = map (\bnd -> VarP bnd defaultType) bnds 
     in return $ TupP vars
 
 subBinOpToIR:: ConvertM m => Sub.BinOp -> m ( FrLang.Expr PythonArgType)
@@ -384,7 +388,7 @@ subUnOpToIR Sub.Invert = toFunRefLit "~"
 
 listofPyType :: [a] -> Either Unit (NonEmpty (ArgType PythonArgType))
 listofPyType [] = Left Unit
-listofPyType (a:args') = Right $ map (const $ Type PythonObject) (a:|args')
+listofPyType (a:args') = Right $ map (const defaultType) (a:|args')
 
 
 {- | Turns given string representation into literal expression representig an untyped, 
