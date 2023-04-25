@@ -13,13 +13,13 @@ import Control.Lens.Plated
 newtype RustType = RustType (Ty ()) deriving (Show, Eq, Generic)
 
 data Pat = IdentP IdentPat | TupP [IdentPat] | WildP deriving (Show, Eq, Generic)
-data IdentPat = IdentPat BindingMode Binding deriving (Show, Eq, Generic)
+data IdentPat = IdentPat BindingMode Binding RustType deriving (Show, Eq, Generic)
 data BindingMode = Mutable | Immutable deriving (Show, Eq, Generic)
 
 data Stmt e
   = Semi e
   | NoSemi e
-  | Local Pat (Maybe RustType) e
+  | Local Pat RustType e
   | StandaloneSemi
   deriving (Eq, Generic, Functor, Foldable, Traversable, Show)
 

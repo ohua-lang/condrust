@@ -35,7 +35,8 @@ data Expr
   | BlockExpr Block
   -- | the below two are just captured by a Path in Rust.
   | PathExpr CallRef
-  | Var VarRef
+  -- As we convert 
+  | Var VarRef RustType
   | Lit Lit
   deriving (Show, Eq, Generic)
 

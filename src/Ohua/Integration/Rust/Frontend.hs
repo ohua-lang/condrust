@@ -33,7 +33,7 @@ class ConvertExpr a where
   convertExpr :: SubC.ConvertM m => a -> m (FrLang.Expr RustArgType)
 
 class ConvertPat a where
-  convertPat :: SubC.ConvertM m => a -> m FrLang.Pat
+  convertPat :: SubC.ConvertM m => a -> m (FrLang.Pat RustArgType)
 
 instance Integration (Language 'Rust) where
   type HostModule (Language 'Rust) = Module
@@ -297,10 +297,10 @@ instance ConvertExpr Sub.Expr where
         -- traceM $ "Context at parsing function " <> show ref <> ": \n" <> show ctxt <> "\n"
         ty <- argTypesFromContext args
         return $ LitE (FunRefLit (FunRef ref Nothing $ FunType ty))
-      VarE bnd -> do
+      VarE bnd ty -> do
         let qBnd = toQualBinding bnd
         -- traceM $ "Context at parsing function " <> show bnd <> ": \n" <> show ctxt <> "\n"
-        ty <- argTypesFromContext args
+        -- ty <- argTypesFromContext args
         return $ LitE (FunRefLit (FunRef qBnd Nothing $ FunType ty))
       _ -> return fun'
     args' <- mapM convertExpr args
@@ -395,7 +395,7 @@ instance ConvertExpr Sub.Expr where
     -- REMINDER: This is (one) origin of Function References. Check what kind of type annotations may already be 
     --           present here and incoorporate them.
     return $ LitE $ FunRefLit $ FunRef ref Nothing Untyped
-  convertExpr (Sub.Var bnd) = return $ VarE bnd
+  convertExpr (Sub.Var bnd ty) = return $ VarE bnd (Type ty)
 
 instance ConvertExpr Sub.Block where
   convertExpr (Sub.RustBlock Sub.Normal stmts) =
@@ -417,7 +417,7 @@ instance ConvertExpr Sub.Block where
       convertStmt s@(Sub.Local pat ty e) = do
         case (pat, ty) of
           -- ToDo: We should move this to Rust -> Sub Conversion and set it automatically if the RHS is a literal
-          (Sub.IdentP (Sub.IdentPat _ bnd), Just ty') -> modify (HM.insert bnd ty')
+          (Sub.IdentP (Sub.IdentPat _ bnd _pty), Just ty') -> modify (HM.insert bnd ty')
           (Sub.TupP idents, Just (Sub.RustType (TupTy tys _))) -> do
             -- QUESTION: Non-matching lengths of both tuples i.e. variables and types are Rust syntay errors and
             --           as such actually not our business. Should we check anyway?
@@ -443,17 +443,19 @@ fromIdent :: Sub.IdentPat -> Binding
 fromIdent (Sub.IdentPat _mode bnd ) =  bnd
 
 instance ConvertPat Sub.Pat where
-  convertPat Sub.WildP = return $ VarP $ fromString "_"
+  convertPat Sub.WildP = return $ VarP (fromString "_") TypeVar
   convertPat (Sub.IdentP ip) = convertPat ip
   convertPat (Sub.TupP patterns) = TupP <$> mapM convertPat patterns
 
 instance ConvertPat Sub.IdentPat where
-  convertPat (Sub.IdentPat mutability bnd) = return $ VarP bnd
+  convertPat (Sub.IdentPat mutability bnd ty) = return $ VarP bnd ty
 
 instance ConvertPat Sub.Arg where
   convertPat (Sub.Arg pat ty) = do
     case pat of
-      Sub.IdentP (Sub.IdentPat _ bnd) -> modify (HM.insert bnd ty)
+      -- Reminder: Actually we should either remove one of the type sources
+      --           or at least ensure they are equal
+      Sub.IdentP (Sub.IdentPat _ bnd _pty) -> modify (HM.insert bnd ty)
       _ -> return ()
     convertPat pat
 
