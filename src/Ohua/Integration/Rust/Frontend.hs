@@ -375,18 +375,23 @@ instance ConvertExpr Sub.Expr where
     -}
     let loopVar=  VarP "endless_loop" (Type rustUnitReturn) 
     let condRef = "cond"
+    let condFunType = FunType $ Right (TypeBool:|[])
+    let condFun = LitE (FunRefLit (FunRef (toQualBinding "host_id") Nothing condFunType))
     let resultRef = "result"
+    let condResultRef = "localCondition"
+    let condResultReuse = "copyLocalCond"
     return $
-      LetE
-        loopVar
+        LetE
+        (VarP loopLambdaRef)
         (LamE [VarP condRef] $
-          LetE (VarP resultRef) body'
+          LetE (VarP resultRef) body' $
+          LetE (TupP (VarP condResultRef: [VarP condResultReuse])) (AppE condFun [VarE condRef])
             (IfE
-              (VarE condRef)
-              (AppE (VarE loopLambdaRef)  [VarE condRef])
-              $ VarE resultRef
-            ))
-        (AppE (VarE loopLambdaRef) [LitE $ BoolLit True])
+              (VarE condResultRef)
+              (AppE (VarE loopLambdaRef)  [VarE condResultReuse])
+              (VarE resultRef)
+        ))
+      (AppE (VarE loopLambdaRef) [LitE $ BoolLit True])
 
   convertExpr (Sub.Closure _ _ _ args _retTy body) = do
     -- currently, we do not have support to pass the return type of a closure around
