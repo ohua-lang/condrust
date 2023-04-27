@@ -241,7 +241,7 @@ typeBottomUp smf@(Let (SMapFun out@(_fst,_scnd,_trd) iterableVar ) inCont) = do
 
 -- Stateful Functions
 typeBottomUp (Let (StateDFFun (mState, mData) f@(FunRef _fun _ (STFunType sty tyInfo)) stateIn dataIn) inCont) = do
-  -- traceM $ "Typing stateful function " <> show fun <> " on obj type " <> show sty
+  traceM $ "Typing stateful function " <> show _fun <> " on obj type " <> show sty
   let stateIn' = case stateIn of
         (DFVar ty bnd) -> DFVar (maxType ty sty) bnd
   let dataIn' = case tyInfo of
@@ -250,7 +250,7 @@ typeBottomUp (Let (StateDFFun (mState, mData) f@(FunRef _fun _ (STFunType sty ty
                                     (DFEnvVar _ lit, ty') -> DFEnvVar ty' lit
                                 ) $ NE.zip dataIn info
         (Left Unit) -> dataIn
-  -- Update State type
+  -- Update State typeDispatch
   case stateIn' of
     (DFVar ty bnd) -> do 
       -- traceM $ "Updating input state" <> show bnd
@@ -260,7 +260,9 @@ typeBottomUp (Let (StateDFFun (mState, mData) f@(FunRef _fun _ (STFunType sty ty
               -- traceM $ "Updating output state" <> show stateBnd
               updateContext stateBnd (maxType ty sty)
           Just (Destruct stateBnds) -> error $ "Saw destruct of " <> show (NE.length stateBnds) <> ". Please report/handle!"
-          Just (Dispatch stateBnds) -> error $ "Saw dispatch of "<> show (NE.length stateBnds) <> ". Please report/handle!"
+          Just (Dispatch stateBnds) -> case stateBnds of 
+              bnd :| [] -> error $ "Saw dispatch of "<> show bnd <> " binding. Could try to update"
+              bdns -> error $ "Saw dispatch of "<> show (NE.length stateBnds) <> " binding. Please report/handle!"
           Nothing -> return () 
   mapM_ (\case
             (DFVar ty bnd) -> updateContext bnd ty 
@@ -290,10 +292,17 @@ typeBottomUp (Let (RecurFun finalOut recCtrl argOuts initIns recIns cond result)
                   -- REMINDER: We can not take the 'algo return type' because 
                   -- we are inside the algorithm that calls the recursive algo 
                   -- i.e. return of the outer algo need not be the return of the recursion
+                  -- HACK: For now we can, because the only position a recursive call can actually appear in is
+                  --       currently as the last expression of the outermost algo.
                   Just (Exists (DFVar ty' _rB)) ->  (DFVar (maxType ty ty') bnd)
                   Just (Exists (DFEnvVar ty' _lit)) -> (DFVar (maxType ty ty') bnd)
-                  Nothing -> result
+                  Nothing -> case HM.lookup returnBinding knownVars of 
+                                  Just (Exists (DFVar ty' _rB)) -> (DFVar ty' bnd)
+                                  Nothing -> error "I couldn't find the algo return type when trying to type a recursion"
                 DFEnvVar _ty lit -> DFEnvVar TypeBool lit 
+  case result' of 
+    (DFVar ty bnd) -> updateContext bnd ty
+
   
   case cond of
         (DFVar _ty bnd) -> modify (HM.insert (unwrapABnd bnd) $ Exists cond)
@@ -339,8 +348,9 @@ typeBottomUp (Var bnd _ty) = do
       
       -- we want the return value to have the return type
       updateContext (DataBinding bnd) newReturnType 
-      -- we want to be sure, only the  return value get's the return type this way
-      modify (HM.delete returnBinding)
+      -- Actually we want to be sure, only the  return value get's the return type this way.
+      -- But for now we use the reutrn type also to type recursion
+      -- modify (HM.delete returnBinding)
       return $ Var bnd newReturnType
 
 
