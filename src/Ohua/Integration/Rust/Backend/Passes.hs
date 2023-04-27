@@ -54,12 +54,12 @@ propagateMut block =
     goStmt (NoSemi e) = NoSemi <$> transformM go e
     goStmt StandaloneSemi = return StandaloneSemi
 
-    goPat (IdentP (IdentPat mode bnd)) = do
+    goPat (IdentP (IdentPat mode bnd ty)) = do
       s <- get
       mode' <- case HS.member bnd s of
         True -> do
           put $ HS.delete bnd s
           return Mutable
         False -> return mode
-      return $ IdentP $ IdentPat mode' bnd
+      return $ IdentP $ IdentPat mode' bnd ty
     goPat e = pure e

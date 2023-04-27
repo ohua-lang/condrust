@@ -367,12 +367,18 @@ instance ConvertExpr Sub.Expr where
     body' <- convertExpr body
     -- FIXME proper name generation needed here!
     --       (although there can be only one endless loop in the whole term)
-    let loopLambdaRef = "endless_loop"
+    -- Basically a loop becomes :
+    {-
+    let endless_loop:() = (\cond -> let result = *loopbody* in if cond ) 
+        in  endless_loop true
+    
+    -}
+    let loopVar=  VarP "endless_loop" (Type rustUnitReturn) 
     let condRef = "cond"
     let resultRef = "result"
     return $
       LetE
-        (VarP loopLambdaRef)
+        loopVar
         (LamE [VarP condRef] $
           LetE (VarP resultRef) body'
             (IfE
@@ -417,7 +423,7 @@ instance ConvertExpr Sub.Block where
       convertStmt s@(Sub.Local pat ty e) = do
         case (pat, ty) of
           -- ToDo: We should move this to Rust -> Sub Conversion and set it automatically if the RHS is a literal
-          (Sub.IdentP (Sub.IdentPat _ bnd _pty), Just ty') -> modify (HM.insert bnd ty')
+          (Sub.IdentP (Sub.IdentPat _mode bnd _mpat), Just ty') -> modify (HM.insert bnd ty')
           (Sub.TupP idents, Just (Sub.RustType (TupTy tys _))) -> do
             -- QUESTION: Non-matching lengths of both tuples i.e. variables and types are Rust syntay errors and
             --           as such actually not our business. Should we check anyway?

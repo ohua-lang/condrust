@@ -18,6 +18,9 @@ convertExpr :: ConvertM m => Rust.Expr Span -> m Sub.Expr
 convertExpr e@Box {} = error $ "Currently, we do not support the construction of boxed values. Please do so in a function." <> show e
 convertExpr e@Vec {} = error $ "Currently, we do not support array expressions. Please do so in a function.\n" <> show e
 convertExpr (Call [] fun args _) = do
+  -- FIXME_L: If we allready fill the context in this conversion, we should have the
+  --          argument types as well as the return type of a call available, when we parse the call because 
+  --          we convert algos top down
   fun' <- convertExpr fun
   args' <- mapM convertExpr args
   return $ Sub.Call fun' args'
@@ -55,7 +58,7 @@ convertExpr e@TypeAscription {} = error $ "Currently, we do not support type asc
 convertExpr (If [] expr trueBlock falseBlock _) = do
   expr' <- convertExpr expr
   trueBlock' <- convertBlock trueBlock
-  falseBlock' <- sequence (convertExpr <$> falseBlock)
+  falseBlock' <- mapM convertExpr falseBlock
   return $ Sub.If expr' trueBlock' falseBlock'
 convertExpr e@If {} = error $ "Currently, we do not support attributes on conditional expressions.\n" <> show e
 convertExpr e@IfLet {} = error $ "Currently, we do not support if-let expressions. Please file a bug if you feel that this is dearly needed.\n" <> show e
@@ -102,7 +105,8 @@ convertExpr e@Range {} = error $ "Currently, we do not support range expressions
 convertExpr (PathExpr [] Nothing path _) = do
   path' <- convertPath path
   return $ case path' of
-    Left v -> Sub.Var v
+    -- We don't know the type of this variable yet, we need to retrieve it later from the context
+    Left v -> Sub.Var v Nothing
     Right cr -> Sub.PathExpr cr
 convertExpr e@(PathExpr [] (Just _) _ _) = error $ "Currently, we do not support paths to 'self', i.e., compilation of 'impl' functions. \n" <> show e
 convertExpr e@PathExpr {} = error $ "Currently, we do not support attributes on path expressions.\n" <> show e
