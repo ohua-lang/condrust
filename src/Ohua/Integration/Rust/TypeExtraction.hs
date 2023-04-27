@@ -24,6 +24,12 @@ rustUnitReturn = Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "()" Not
 rustBool :: Ty ()
 rustBool = Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "bool" Nothing ()] ()) ()
 
+rustI32 :: Ty ()
+rustI32 = PathTy Nothing (Path False [PathSegment "i32" Nothing ()] ()) () 
+
+rustInfer :: Ty ()
+rustInfer = Infer ()
+
 -- REMINDER: Commented out because we don't scan the imported libraries for type extraction any more
 
 -- | Load the given file as AST, pattern match on the content and collect

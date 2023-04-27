@@ -267,7 +267,9 @@ argTypesFromContext args =
 -- If we don't want additional typing via extraction from scope we need this to succeed 
 -- i.e. no 'TypeVar' results here
 getArgType :: SubC.ConvertM m => Sub.Expr -> m (ArgType RustArgType)
-getArgType (Sub.Var bnd) = do
+getArgType (Sub.Var bnd (Just ty)) = error $ "We try to get the type for variable that already is typed." <>
+                                          "This is an error, because we should only try to type varaible usage which cannot e annotated in Rust"
+getArgType (Sub.Var bnd Nothing) = do
   ctxt <- get
   let argtype = HM.lookup bnd ctxt
   case argtype of
@@ -275,8 +277,8 @@ getArgType (Sub.Var bnd) = do
     Nothing -> error $ "No type info found for" <> show bnd
 -- FIXME: Actually literal should just carry through the value and the type of the literal
 getArgType (Sub.Lit lit) = case lit of
-  Sub.Bool b -> return $ Type . TE.Normal $ PathTy Nothing (Path False [PathSegment "bool" Nothing ()] ()) ()
-  Sub.Int i ->  return $ Type . TE.Normal $ PathTy Nothing (Path False [PathSegment "i32" Nothing ()] ()) ()
+  Sub.Bool b -> return $ Type . TE.Normal $ rustBool
+  Sub.Int i ->  return $ Type . TE.Normal $ rustI32
   -- Sub.String s ->  return $ Type . TE.Normal $ PathTy Nothing (Path False [PathSegment "String" Nothing ()] ()) ()
   -- ToDo: Add other literals
 getArgType e = error $ "No type info found for" <> show e
@@ -301,7 +303,7 @@ instance ConvertExpr Sub.Expr where
         let qBnd = toQualBinding bnd
         -- traceM $ "Context at parsing function " <> show bnd <> ": \n" <> show ctxt <> "\n"
         -- ty <- argTypesFromContext args
-        return $ LitE (FunRefLit (FunRef qBnd Nothing $ FunType ty))
+        return $ LitE (FunRefLit (FunRef qBnd Nothing $ FunType $ Right (ty:|[])))
       _ -> return fun'
     args' <- mapM convertExpr args
     return $ fun'' `AppE` args'
@@ -369,11 +371,17 @@ instance ConvertExpr Sub.Expr where
     --       (although there can be only one endless loop in the whole term)
     -- Basically a loop becomes :
     {-
-    let endless_loop:() = (\cond -> let result = *loopbody* in if cond ) 
+    let endless_loop:() = 
+        (\cond -> let result = *loopbody and 'calculate' condition twice* 
+                               in if condition1 { endless_loop condition2 } else {result}  
+        ) 
         in  endless_loop true
-    
     -}
-    let loopVar=  VarP "endless_loop" (Type rustUnitReturn) 
+    -- FIXME: the type of the loop is not () but bool -> () AND it is not a simple variable but a function
+    -- Reminder: The result and input type are () only because we do not thread the states explicitly
+    let loopRef = "endless_loop" 
+    let argUnit =  (Type $ TE.Normal rustUnitReturn) 
+    let argBool =  (Type $ TE.Normal rustBool) 
     let condRef = "cond"
     let condFunType = FunType $ Right (TypeBool:|[])
     let condFun = LitE (FunRefLit (FunRef (toQualBinding "host_id") Nothing condFunType))
@@ -382,16 +390,16 @@ instance ConvertExpr Sub.Expr where
     let condResultReuse = "copyLocalCond"
     return $
         LetE
-        (VarP loopLambdaRef)
-        (LamE [VarP condRef] $
-          LetE (VarP resultRef) body' $
-          LetE (TupP (VarP condResultRef: [VarP condResultReuse])) (AppE condFun [VarE condRef])
+        (VarP loopRef argUnit)
+        (LamE [VarP condRef argBool] $
+          LetE (VarP resultRef argUnit) body' $
+          LetE (TupP (VarP condResultRef argBool : [VarP condResultReuse argBool])) (AppE condFun [VarE condRef argBool])
             (IfE
-              (VarE condResultRef)
-              (AppE (VarE loopLambdaRef)  [VarE condResultReuse])
-              (VarE resultRef)
+              (VarE condResultRef argBool)
+              (AppE (VarE loopRef argUnit)  [VarE condResultReuse argBool])
+              (VarE resultRef argUnit)
         ))
-      (AppE (VarE loopLambdaRef) [LitE $ BoolLit True])
+      (AppE (VarE loopRef argUnit) [LitE $ BoolLit True])
 
   convertExpr (Sub.Closure _ _ _ args _retTy body) = do
     -- currently, we do not have support to pass the return type of a closure around
@@ -406,7 +414,12 @@ instance ConvertExpr Sub.Expr where
     -- REMINDER: This is (one) origin of Function References. Check what kind of type annotations may already be 
     --           present here and incoorporate them.
     return $ LitE $ FunRefLit $ FunRef ref Nothing Untyped
-  convertExpr (Sub.Var bnd ty) = return $ VarE bnd (Type ty)
+  convertExpr (Sub.Var bnd (Just (Sub.RustType ty))) = return $ VarE bnd (Type $ TE.Normal ty)
+  convertExpr (Sub.Var bnd Nothing) = do
+    ctxt <- get 
+    case HM.lookup bnd ctxt of
+      Just (Sub.RustType rustType) -> return $ VarE bnd  (Type $ TE.Normal rustType)
+      Nothing -> error $ "No type info found for" <> show bnd
 
 instance ConvertExpr Sub.Block where
   convertExpr (Sub.RustBlock Sub.Normal stmts) =
@@ -428,7 +441,7 @@ instance ConvertExpr Sub.Block where
       convertStmt s@(Sub.Local pat ty e) = do
         case (pat, ty) of
           -- ToDo: We should move this to Rust -> Sub Conversion and set it automatically if the RHS is a literal
-          (Sub.IdentP (Sub.IdentPat _mode bnd _mpat), Just ty') -> modify (HM.insert bnd ty')
+          (Sub.IdentP (Sub.IdentPat _mode bnd), Just ty') -> modify (HM.insert bnd ty')
           (Sub.TupP idents, Just (Sub.RustType (TupTy tys _))) -> do
             -- QUESTION: Non-matching lengths of both tuples i.e. variables and types are Rust syntay errors and
             --           as such actually not our business. Should we check anyway?
@@ -451,22 +464,34 @@ instance ConvertExpr Sub.Block where
       convertLastStmt e = (\e -> e $ LitE UnitLit) <$> convertStmt e
 
 fromIdent :: Sub.IdentPat -> Binding
-fromIdent (Sub.IdentPat _mode bnd ) =  bnd
+fromIdent (Sub.IdentPat _mode bnd) =  bnd
 
 instance ConvertPat Sub.Pat where
-  convertPat Sub.WildP = return $ VarP (fromString "_") TypeVar
+  convertPat Sub.WildP = return $ VarP (fromString "_") (Type $ TE.Normal rustInfer)
   convertPat (Sub.IdentP ip) = convertPat ip
   convertPat (Sub.TupP patterns) = TupP <$> mapM convertPat patterns
 
 instance ConvertPat Sub.IdentPat where
-  convertPat (Sub.IdentPat mutability bnd ty) = return $ VarP bnd ty
+  -- We will mostly get here when a pattern is a local bound variable, in which case it is
+  -- in the context already and we can retrieve it's type
+  -- However this pattern may also be bound in a for loop, where we could only infer the type
+  -- from later usage. For now I'll handle the second case with infered type, because as soon
+  -- as the pattern should be used somewhere i.e. when we need the type, an annotated assignment of 
+  -- the pattern to a local variable is required or the compilation fails. Hence '_' type shouldn't hurt for now
+  -- FIXME: Can we get complete Typing for patterns?
+  convertPat (Sub.IdentPat mutability bnd) = do 
+    ctxt <- get
+    let ty = HM.lookup bnd ctxt
+    case ty of 
+      Just (Sub.RustType rustType) -> return $ VarP bnd (Type $ TE.Normal rustType)
+      Nothing -> (trace $ "No type info found for" <> show bnd) return $ VarP bnd (Type $ TE.Normal rustInfer)
 
 instance ConvertPat Sub.Arg where
   convertPat (Sub.Arg pat ty) = do
     case pat of
       -- Reminder: Actually we should either remove one of the type sources
       --           or at least ensure they are equal
-      Sub.IdentP (Sub.IdentPat _ bnd _pty) -> modify (HM.insert bnd ty)
+      Sub.IdentP (Sub.IdentPat _ bnd) -> modify (HM.insert bnd ty)
       _ -> return ()
     convertPat pat
 
