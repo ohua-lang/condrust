@@ -17,7 +17,9 @@ import GHC.Exts
 
 data Pat ty
     = VarP Binding (ArgType ty)
-    | TupP [Pat ty]
+    -- Actualy a tuple pattern starts making sense at two or more patterns
+    -- but it should have at least one. So I changed this from [] to NonEmpty
+    | TupP (NonEmpty (Pat ty))
     | UnitP
     deriving (Show, Eq, Generic)
 
@@ -88,7 +90,9 @@ instance IsString (Pat ty) where
 
 instance IsList (Pat ty) where
     type Item (Pat ty) = (Pat ty)
-    fromList = TupP
+    fromList (p:ps) = TupP (p:| ps)
+    -- Reminder: Depending on where this is needed we could create a UnitP from an empty list.
+    fromList [] = error $ "Cannot create a tuple pattern from an empty list"
     toList p = error $ "Ohua tried to convert the pattern "
                 <>show p <>"into a list, which is not supported"
 

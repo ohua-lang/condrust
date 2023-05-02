@@ -11,6 +11,7 @@ import Data.Text.Prettyprint.Doc.Render.Text
 
 import Data.Text as T (Text)
 import qualified Data.Text.IO as LT
+import qualified Data.List.NonEmpty as NE
 
 
 prettyExpr :: Pretty a => a -> T.Text
@@ -24,7 +25,7 @@ afterLetIndent = 0
 
 instance Pretty (Pat ty) where
     pretty (VarP b ty) = pretty b
-    pretty (TupP pats) = align $ tupled $ map pretty pats
+    pretty (TupP pats) = align $ tupled $ map pretty (NE.toList pats)
     pretty UnitP = "()"
 
 instance Pretty (Expr ty) where
@@ -64,5 +65,4 @@ instance Pretty (Expr ty) where
     pretty (BindE s t) = hsep [brackets $ pretty s, pretty t]
     pretty (StmtE e c) = vsep $ hsep [pretty e, ";"] : [pretty c]
     pretty (SeqE e c) = vsep $ hsep ["seq"] : [pretty e, pretty c]
-    -- TODO print tuple type
     pretty (TupE _ty es) = hsep [align $ tupled $ map pretty es]

@@ -7,6 +7,8 @@ import Ohua.Frontend.PPrint ()
 import Data.HashSet as HS
 import Control.Lens.Combinators (mapMOf)
 import Control.Lens.Plated (plate)
+import qualified Data.List.NonEmpty as NE
+
 
 type Ctxt = HS.HashSet Binding
 
@@ -28,7 +30,7 @@ contextedTraversal f = go
         --descend = over plate -- note composOp = descend = over plate -> https://www.stackage.org/haddock/lts-14.25/lens-4.17.1/Control-Lens-Plated.html#v:para (below)
         goPat UnitP = []
         goPat (VarP bdg pTy) = [bdg]
-        goPat (TupP ps) = join $ Ohua.Prelude.map goPat ps
+        goPat (TupP ps) = join $ Ohua.Prelude.map goPat (NE.toList ps)
 
 -- | This transformation establishes well-scopedness 
 --      The implementation is quite straight forward: collect the variables and check for
