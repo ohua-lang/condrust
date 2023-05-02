@@ -9,6 +9,9 @@ data Lit ty
     | BoolLit Bool -- ^ a boolean literal
     | UnitLit -- ^ aka @()@
     | StringLit String
+    -- Reminder: To support any kind of host literals we could have:
+    -- We would need to require however, that any of the possible literals can be turned  into/recovered from a string
+    --  | Hostlit String (ArgType ty)
     | EnvRefLit Binding -- ^ a variable bound by the outermost lambda that we compile
     | FunRefLit (FunRef ty) -- ^ Reference to an external function
     deriving (Show, Eq, Generic)
@@ -16,7 +19,7 @@ data Lit ty
 instance Hashable (Lit ty)
 
 getArgType :: Lit ty -> Maybe (ArgType ty)
-getArgType (NumericLit _) = Nothing -- Just TypeNat
+getArgType (NumericLit _) = Just TypeNat
 getArgType (BoolLit _)    = Just TypeBool
 getArgType UnitLit        = Just TypeUnit
 getArgType (StringLit _)  = Nothing

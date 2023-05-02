@@ -51,12 +51,13 @@ newtype FnId =
 -- | Internal type representations. While Type and TupleTy capture types from the
 --   host language, TypeVar, TypeNat and TypeBool are used internaly to construct nodes
 --   They must be mapped to the according types of the host language in the backend or, in 
---   in case of TypeVar might need to be eliminated for Backends requiring typed channels.
+--   in case of TypeVar need to be eliminated for Backends requiring typed channels.
 data ArgType ty 
     = TypeVar 
     | TypeNat 
     | TypeBool 
     | TypeUnit 
+    | TypeString 
     | TypeList (ArgType ty) 
     | Type ty 
     | TupleTy (NonEmpty (ArgType ty)) 
@@ -87,6 +88,7 @@ instance EqNoType (ArgType ty) where
     TypeNat ~= TypeNat = True
     TypeBool ~= TypeBool = True
     TypeUnit ~= TypeUnit = True
+    TypeString ~= TypeString = True
     Type _ ~= Type _ = True -- skipping to type info here!
     (TupleTy ts) ~= (TupleTy ts') = ts == ts' -- tuns into ~=, see instance below
     (TypeList inner1) ~= (TypeList inner2) = inner1 == inner2
@@ -100,6 +102,8 @@ instance ShowNoType (ArgType ty) where
     showNoType TypeNat = "Internal nat"
     showNoType TypeBool = "Internal bool"
     showNoType TypeUnit = "Internal Unit"
+    -- Is it internal though?
+    showNoType TypeString = "Internal String"
     showNoType (TypeList ts) = "Internal List [" <> showNoType ts <> "]"
     showNoType (Type _) = "HostType _"
     showNoType (TupleTy ts) = "(" <>  foldl (\b a -> show a <> ", " <> b) ")" ts
@@ -113,6 +117,7 @@ instance Hashable (ArgType ty) where
     hashWithSalt s TypeNat = s
     hashWithSalt s TypeBool = s
     hashWithSalt s TypeUnit = s
+    hashWithSalt s TypeString = s
     hashWithSalt s (TypeList ts) = s
     hashWithSalt s (Type _) = s
     hashWithSalt s (TupleTy _) = s
