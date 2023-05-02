@@ -135,17 +135,25 @@ ifRewrite = transformM $ \case
         | f == Refs.ifThenElse -> do
             case (trueBranch,falseBranch) of
               (Lambda trueIn trueBody, Lambda falseIn falseBody) | isUnit trueIn && isUnit falseIn -> do
-                ctrlTrue <- generateBindingWith "ctrlTrue"
-                ctrlFalse <- generateBindingWith "ctrlFalse"
+                ctrlTrueBnd <- generateBindingWith "ctrlTrue"
+                ctrlFalseBnd <- generateBindingWith "ctrlFalse"
+                ctrlsBnd <- generateBindingWith "ctrls"
+                trueResultBnd <- generateBindingWith "trueResult"
+                falseResultBnd <- generateBindingWith "falseResult"
+                resultBnd <- generateBindingWith "result"
+                 -- ToDo: Type returns correctly. See comment on the other ifRewrite function
+                let ctrlTrue = (TBind ctrlTrueBnd controlSignalType)
+                    ctrlFalse= (TBind ctrlFalseBnd controlSignalType)
+                    ctrls = (TBind ctrlsBnd (TupleTy $ controlSignalType:|[controlSignalType]))
+                    trueResult = (TBind trueResultBnd TypeVar)
+                    falseResult = (TBind falseResultBnd TypeVar)
+                    result = (TBind resultBnd TypeVar)
+                    
                 trueBranch' <- liftIntoCtrlCtxt ctrlTrue trueBody
-                falseBranch' <- liftIntoCtrlCtxt ctrlFalse falseBody
-
-                ctrls <- generateBindingWith "ctrls"
-                trueResult <- generateBindingWith "trueResult"
-                falseResult <- generateBindingWith "falseResult"
-                result <- generateBindingWith "result"
+                falseBranch' <- liftIntoCtrlCtxt ctrlFalse falseBody   
 
                 return $
+               
                     Let ctrls (Apply ifFunSf cond) $
                     mkDestructured [ctrlTrue, ctrlFalse] ctrls $
                     Let trueResult trueBranch' $
@@ -160,11 +168,14 @@ ifRewrite = transformM $ \case
         -- This test needs to improve
         -- FIXME The proper way to do this would actually define a cond type! Then also
         --       the above error would immediately go away.
-        isUnit = unwrap >>> T.isPrefixOf "_"
+        -- Question: I'm not sure if I understand the problem here. but can't we solve it having the actual types now?
+        isUnit (TBind bnd ty) = T.isPrefixOf "_" (unwrap bnd)
     e -> pure e
 
 #else
 
+-- ToDo: To type the returns of if expressions correctly we need to thread the type of the current outer let
+-- expression through, i.e. when transforming let a: Ty = if x then y else z, we need to remember Ty to type y and z
 ifRewrite :: MonadGenBnd m => Expr ty -> m (Expr ty)
 ifRewrite (Let v a b) = Let v <$> ifRewrite a <*> ifRewrite b
 ifRewrite (Lambda v e) = Lambda v <$> ifRewrite e

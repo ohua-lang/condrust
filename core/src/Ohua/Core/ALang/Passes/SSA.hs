@@ -20,10 +20,10 @@ import Control.Lens (non, at)
 import Ohua.Core.ALang.Lang
 import Ohua.Core.ALang.Util
 
-type LocalScope = HM.HashMap Binding Binding
+type LocalScope ty = HM.HashMap (TypedBinding ty) (TypedBinding ty)
 
-ssaResolve :: MonadReader LocalScope m => Binding -> m Binding
-ssaResolve bnd = view $ at bnd . non bnd
+ssaResolve :: MonadReader (LocalScope ty) m => (TypedBinding ty) -> m (TypedBinding ty)
+ssaResolve tbnd = view $ at tbnd . non tbnd
 
 -- | Generate a new name for the provided binding and run the inner
 -- computation with that name in scope to replace the provided binding
@@ -37,23 +37,24 @@ ssaResolve bnd = view $ at bnd . non bnd
 -- scope changes which means they will never leak from where they are
 -- supposed to be applied
 ssaRename ::
-       (MonadGenBnd m, MonadReader LocalScope m)
-    => Binding
-    -> (Binding -> m a)
+       (MonadGenBnd m, MonadReader (LocalScope ty) m)
+    => (TypedBinding ty)
+    -> ((TypedBinding ty) -> m a)
     -> m a
-ssaRename oldBnd cont = do
+ssaRename old@(TBind oldBnd ty) cont = do
     newBnd <- generateBindingWith oldBnd
-    local (HM.insert oldBnd newBnd) $ cont newBnd
+    let new = TBind newBnd ty
+    local (HM.insert old new) $ cont new
 
 performSSA :: MonadOhua m => Expr ty -> m (Expr ty)
 performSSA = flip runReaderT mempty . ssa
 
-ssa :: (MonadOhua m, MonadReader LocalScope m)
+ssa :: (MonadOhua m, MonadReader (LocalScope ty) m)
     => Expr ty
     -> m (Expr ty)
 ssa =
     cata $ \case
-        VarF bnd -> Var <$> ssaResolve bnd
+        VarF tbnd -> Var <$> ssaResolve tbnd
         LambdaF v body -> ssaRename v $ \v' -> Lambda v' <$> body
         LetF v val body -> do
         -- REMINDER: As long as we can not distuish if `v` here is a normal vaiable
@@ -73,7 +74,7 @@ ssa =
 -- Check if an expression is in ssa form. Returns @Nothing@ if it is
 -- SSA Returns @Just aBinding@ where @aBinding@ is a binding which was
 -- defined (at least) twice
-isSSA :: Expr ty -> [Binding]
+isSSA :: Expr ty -> [(TypedBinding ty)]
 isSSA e = [b | (b, count) <- HM.toList counts, count > 1]
   where
     counts = HM.fromListWith (+) [(b, 1 :: Word) | b <- definedBindings e]

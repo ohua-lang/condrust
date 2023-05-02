@@ -269,33 +269,34 @@ findTailRecs enabled e =
 findRecCall ::
        (MonadGenBnd m, MonadError Error m)
     => Expr ty
-    -> HS.HashSet Binding
-    -> ReaderT Bool m (HS.HashSet Binding, Expr ty)
-findRecCall (Let a expr inExpr) algosInScope
+    -> HS.HashSet (TypedBinding ty)
+    -> ReaderT Bool m (HS.HashSet (TypedBinding ty), Expr ty)
+findRecCall (Let bound expr inExpr) algosInScope
     -- for the assigment expr I add the reference and check the expression for references to the identifier
  = do
-    (found, e) <- findRecCall expr $ HS.insert a algosInScope
+    (found, e) <- findRecCall expr $ HS.insert bound algosInScope
     -- proceed normally into the next expression
     (iFound, iExpr) <- findRecCall inExpr algosInScope
     -- did I detect a reference to this binding in the assignment expr?
-    if HS.member a found
+    if HS.member bound found
         -- hoferize right away:
         then do
-            a' <- generateBindingWith a
-            return (iFound, Let a' e $ Let a (Apply ySf (Var a')) iExpr)
-        else return (HS.union found iFound, Let a e iExpr)
--- findRecCall (Let a expr inExpr) algosInScope = do
+            let (TBind bnd ty) = bound
+            bnd' <- generateBindingWith bnd
+            return (iFound, Let (TBind bnd' ty) e $ Let bound (Apply ySf (Var (TBind bnd' ty))) iExpr)
+        else return (HS.union found iFound, Let bound e iExpr)
+-- findRecCall (Let bound expr inExpr) algosInScope = do
 --     (iFound, iExpr) <- findRecCall inExpr algosInScope
---     return (iFound, Let a expr iExpr)
-findRecCall (Apply (Var bnd) a) algosInScope
-    | HS.member bnd algosInScope
+--     return (iFound, Let bound expr iExpr)
+findRecCall (Apply (Var tbnd) a) algosInScope
+    | HS.member tbnd algosInScope
      -- no recursion here because if the expression is correct then these can be only nested APPLY statements
      = do
         _enabledTR <- ask
         unlessM ask $
             throwErrorDebugS
                 "Detected recursion although tail recursion support is not enabled!"
-        return (HS.insert bnd HS.empty, Apply recurSf a)
+        return (HS.insert tbnd HS.empty, Apply recurSf a)
             -- else error $ "Detected recursion (" ++ (show binding) ++ ") although tail recursion support is not enabled!"
 findRecCall (Apply a b) algosInScope = do
     (aFound, aExpr) <- findRecCall a algosInScope
@@ -390,7 +391,8 @@ rewriteCallExpr :: forall m ty.
        (MonadGenBnd m) => Expr ty -> m (Expr ty)
 rewriteCallExpr e = do
     let (lam@(Lambda _ _):callArgs) = snd $ fromApplyToList e
-    recurCtrl <- generateBindingWith "ctrl"
+    recurCtrlBnd <- generateBindingWith "ctrl"
+    let recurCtrl = (TBind recurCtrlBnd controlSignalType)
     lam' <- liftIntoCtrlCtxt recurCtrl lam
     let (recurVars, expr) = lambdaArgsAndBody lam'
 
@@ -407,8 +409,10 @@ rewriteCallExpr e = do
   --             let r = recurFun c result y1 ... yn in
   --               r
   -- this breaks haddock |]
-    ctrls <- generateBindingWith "ctrls"
-    let argTypes = case callArgs of
+  -- Reminder: I assume from the name that this is supposed to be 
+    ctrlsBnd <- generateBindingWith "ctrls"
+    let ctrls = TBind ctrlsBnd (TupleTy $ controlSignalType :| [controlSignalType])
+        argTypes = case callArgs of
             [] -> error "I don't know whats wrong but args must not be empty here"
             _args ->  genFunType callArgs
     return $
@@ -422,7 +426,7 @@ rewriteCallExpr e = do
     rewriteLastCond (Let v ex ie) = Let v ex $ rewriteLastCond ie
 
     -- I think this will change in the future
-    genFunType callArgs =  FunType $ Right $ fromList $ map (const TypeVar) callArgs
+    genFunType callArgs =  FunType $ Right $ fromList $ map exprType callArgs
 
     -- This whole rewriteCond and rewriteBranch algorithm is not correct. That
     -- is to say it only works in the specific case where a single `if` is the

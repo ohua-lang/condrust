@@ -178,7 +178,7 @@ import Ohua.Core.Prelude
 -- if e0 == Lambda args body then Lambda args body'
 -- otherwise Lambda [] e0'
 liftIntoCtrlCtxt ::
-  (Monad m, MonadGenBnd m) => Binding -> Expr ty -> m (Expr ty)
+  (Monad m, MonadGenBnd m) => TypedBinding ty -> Expr ty -> m (Expr ty)
 liftIntoCtrlCtxt ctrlIn e0 = do
   (lam', actuals) <- lambdaLifting e0
   let (originalFormals, _) = lambdaArgsAndBody e0
@@ -191,20 +191,16 @@ liftIntoCtrlCtxt ctrlIn e0 = do
       pure lam'
     else do
       let actuals' = Var ctrlIn :| actuals
-      let ie = mkDestructured formals ctrlOut e
+      let ie = mkDestructured formals (TBind ctrlOut controlSignalType) e
       return $
         mkLambda originalFormals $
           Let
-            ctrlOut
+            (TBind ctrlOut controlSignalType)
             ( fromListToApply
                 ( FunRef Refs.ctrl Nothing $
                     FunType $
                       Right $
-                          map
-                            ( const $
-                                TupleTy (TypeVar :| [TypeVar])
-                            )
-                            actuals'
+                          map ( const controlSignalType ) actuals'
                 )
                 $ toList actuals'
             )
@@ -245,6 +241,7 @@ splitCtrls = transform go
             let outs = findDestructured cont v
              in foldr
                   ( \(varOut, varIn) c ->
+                    -- ToDo: At this point all the vars should hae tpyes so fix the TypeVar usage
                       Let
                         varOut
                         ( Lit
@@ -306,9 +303,9 @@ uniqueCtrls = transformM go
                   foldr (\newBnd c -> Let newBnd ctrl c) cont' newBnds
     go e = return e
 
-    renameUsages :: MonadGenBnd m => Binding -> Expr ty -> WriterT [Binding] m (Expr ty)
-    renameUsages v (Var bnd) | bnd == v = do
-      newBnd <- lift $ generateBindingWith v
-      tell [newBnd]
-      return $ Var newBnd
+    renameUsages :: MonadGenBnd m => TypedBinding ty -> Expr ty -> WriterT [TypedBinding ty] m (Expr ty)
+    renameUsages (TBind bnd ty) (Var (TBind bnd' _ty)) | bnd == bnd' = do
+      newBnd <- lift $ generateBindingWith bnd
+      tell [TBind newBnd ty]
+      return $ Var (TBind newBnd ty)
     renameUsages _ e = return e

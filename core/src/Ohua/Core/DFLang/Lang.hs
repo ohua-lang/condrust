@@ -13,7 +13,7 @@ import qualified Data.HashSet as HS
 data BindingType = State | Data deriving (Show, Eq, Generic)
 
 data ABinding :: BindingType -> Type where
-  DataBinding :: Binding -> ABinding 'Data
+  DataBinding :: Binding  -> ABinding 'Data
   StateBinding :: Binding -> ABinding 'State
 
 deriving instance Show (ABinding a)

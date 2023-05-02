@@ -35,6 +35,8 @@
 module Ohua.Core.ALang.Lang
   ( Expr(..)
   , AExpr
+  , TypedBinding(..)
+  , exprType
   -- ** Convenience patterns
   , pattern PureFunction, pattern PureFunctionTy, pattern PureFunctionF
   , pattern StatefulFunction, pattern StatefulFunctionTy, pattern StatefulFunctionF
@@ -60,15 +62,37 @@ import Ohua.Core.Types
 
 -- | An expression in the algorithm language.
 data Expr ty
-    = Var Binding -- ^ Reference to a value via binding: @x@ -> @Var "x"@
+    = Var (TypedBinding ty)  -- ^ Reference to a value via binding: @x@ -> @Var "x"@
     | Lit (Lit ty) -- ^ A literal: @2@, @ns/func@ etc -> @Lit (NumericLit 2)@
-    | Let Binding (Expr ty) (Expr ty) -- ^ Create and assign a binding: @let bnd = val in expr@ -> @Let "bnd" val expr@
+    | Let (TypedBinding ty) (Expr ty) (Expr ty) -- ^ Create and assign a binding: @let bnd = val in expr@ -> @Let "bnd" val expr@
     | Apply (Expr ty) (Expr ty) -- ^ Function application: @function arg@ -> @Apply function arg@
-    | Lambda Binding (Expr ty) -- ^ A lambda function: @\\arg -> body@ -> @Lambda "arg" body@
+    | Lambda (TypedBinding ty) (Expr ty) -- ^ A lambda function: @\\arg -> body@ -> @Lambda "arg" body@
     | BindState (Expr ty) (Expr ty) -- ^ Binding a state value @state#method@ -> @BindState state method@
     deriving (Show, Eq, Generic)
 
 type AExpr = Expr
+data TypedBinding ty = TBind Binding (ArgType ty) deriving (Show, Eq, Generic)
+
+-- ToDo: Actually every expression should be typable at this point
+exprType:: Expr ty -> ArgType ty
+exprType e = case e of 
+    Var (TBind bnd ty) -> ty 
+    Lit lit -> case getArgType lit of
+        Just ty -> ty
+        Nothing -> TypeVar 
+    -- Let should be typed by e2, because this is what it resturns
+    Let bnd e1 e2 -> error $ "Trying to retrieve the type of a `let expr`, which are currently not typed. Please report this error" 
+    -- Apply (\x:T1. term:T2) (t:T1), should obviously be typed as T2
+    Apply funE argE -> error $ "Trying to retrieve the type of a `apply expr`, which are currently not typed. Please report this error" 
+    -- Type of an abstraction (\x:T1. term:T2) should be T1 -> T2
+    Lambda argE termE -> error $ "Trying to retrieve the type of a `lambda expr`, which are currently not typed. Please report this error" 
+    -- Type of a method Bind obj:TO (\x:T1. term:T2) is (TO, T2), because a new state and the return term are
+    -- returned
+    BindState objE methodcallE -> error $ "Trying to retrieve the type of a `method call expr`, which are currently not typed. Please report this error" 
+
+
+instance Ord (TypedBinding ty)
+instance Hashable (TypedBinding ty)
 
 -------------------- Recursion schemes support --------------------
 
@@ -110,11 +134,12 @@ pureFunction bnd ident ty = Lit (FunRefLit (FunRef bnd ident ty))
 
 -------------------- Additional type class instances --------------------
 
-
+{-Actually AEprx isn't a string any more, it's at least a string and a type
 instance IsString (AExpr ty) where
     fromString = fromString >>> \case
         Unqual bnd -> Var bnd
         Qual q -> pureFunction q Nothing Untyped
+-}
 
 instance Plated (Expr ty) where plate = gplate
 
@@ -124,7 +149,7 @@ instance Plated (Expr ty) where plate = gplate
 --     embedE = embedE . NumericLit 
 instance Embed (Expr ty) (Lit ty) where
     embedE = Lit
-instance Embed (Expr ty) Binding where
+instance Embed (Expr ty) (TypedBinding ty) where
     embedE = Var
 instance Embed (Expr ty) (FunRef ty) where
     embedE = embedE . FunRefLit

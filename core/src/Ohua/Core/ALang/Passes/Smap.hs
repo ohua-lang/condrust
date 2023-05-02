@@ -46,13 +46,14 @@ smapRewrite =
             | op == Refs.smap -> Just <$> do
                 lamExpr' <- smapRewrite lamExpr
     -- post traversal optimization
-                ctrlVar <- generateBindingWith "ctrl"
+                ctrlVarBnd <- generateBindingWith "ctrl"
+                let ctrlVar = TBind ctrlVarBnd controlSignalType
                 lamExpr'' <- liftIntoCtrlCtxt ctrlVar lamExpr'
-                let ([inBnd], expr) = case lambdaArgsAndBody lamExpr'' of 
+                let ([inSt@(TBind inBnd sTy)], expr) = case lambdaArgsAndBody lamExpr'' of 
                                         e@([_], _) -> e
                                         e -> error $ "Pattern match failure. Got pattern: " <> quickRender e 
                 d <- generateBindingWith "d"
-                let expr' = renameVar expr (Var inBnd, d)
+                let expr' = renameVar expr (Var inSt, (TBind d sTy))
   --   [ohualang|
   --     let (d, $var:ctrlVar, size) = Ohua.Core.lang/smapFun $var:dataGen in
   --      let (a,b,c) = ctrl $var:ctrlVar a b c in
@@ -60,10 +61,17 @@ smapRewrite =
   --        let resultList = collect size result in
   --          resultList
   -- (this breaks haddock) |]
-                size <- generateBindingWith "size"
-                ctrls <- generateBindingWith "ctrls"
-                result <- generateBindingWith "result"
-                resultList <- generateBindingWith "resultList"
+                sizeB <- generateBindingWith "size"
+                let size = TBind sizeB TypeNat
+                ctrlsB <- generateBindingWith "ctrls"
+                let crtls = TBind crtlsB (TupleTy $ controlSignalType:|[controlSignalType])
+                resultB <- generateBindingWith "result"
+                -- FIXME: We should know this better
+                let result = TBind resultB TypeVar
+                resultListB <- generateBindingWith "resultList"
+                -- FIXME_ We should know this better
+                let resultList = TBind resultListB TypeVar
+
                 return $
                     Let ctrls (Apply smapSfFun dataGen) $
                     mkDestructured [d, ctrlVar, size] ctrls $

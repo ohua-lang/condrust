@@ -30,7 +30,7 @@ substitute :: Binding -> Expr ty -> Expr ty -> Expr ty
 -- caught.
 substitute !var val =
     transform $ \case
-        Var v
+        Var (TBind v ty)
             | v == var -> val
         other -> other
 
@@ -40,15 +40,18 @@ substitute !var val =
 -- Ohua.Core.lang/array to make the backend implementation easier and I'm not sure whether
 -- this is always true.
 -- This is also the reason why I keep this in Util into of making it an own pass.
-destructure :: Expr ty -> [Binding] -> Expr ty -> Expr ty
+
+destructure :: Expr ty -> [TypedBinding ty] -> Expr ty -> Expr ty
 destructure source bnds =
     foldl (.) id $
     map (\(idx, bnd0) -> Let bnd0 $ mkNthExpr idx source) (zip [0 ..] bnds)
   where
     mkNthExpr idx source0 =
+        -- ToDo: Type Function correctly becuase now we should be able to do this
         pureFunction Refs.nth Nothing (FunType $ Right (TypeVar :| [TypeVar,TypeVar])) `Apply` (Lit $ NumericLit idx) `Apply`
         (Lit $ NumericLit $ toInteger $ length bnds) `Apply`
         source0
+
 
 lambdaLifting :: forall ty m.
        (MonadGenBnd m) => Expr ty -> m (Expr ty, [Expr ty])
@@ -58,7 +61,7 @@ lambdaLifting e = do
     return (e'', actuals ++ actuals')
   where
     go :: (Expr ty -> [Expr ty])
-       -> (Expr ty -> (Expr ty, Binding) -> Expr ty)
+       -> (Expr ty -> (Expr ty, TypedBinding ty) -> Expr ty)
        -> Expr ty
        -> m (Expr ty, [Expr ty])
     go findFreeExprs rewriteFreeExprs expr
@@ -83,30 +86,29 @@ lambdaLifting e = do
 --                 if expression == from
 --                     then Just to
 --                     else Nothing
-    bindingFromAny (Var v) = generateBindingWith v
-    bindingFromAny (Lit l) = generateBindingWith $ "lit_" <> litType
+    bindingFromAny (Var (TBind v ty) ) = fmap (\bnd -> TBind bnd ty) (generateBindingWith v)
+    bindingFromAny (Lit l) = fmap (\bnd -> TBind bnd litTy) (generateBindingWith $ "lit_" <> litRepr) 
       where
-        litType =
+        (litRepr, litTy) =
             case l of
-                NumericLit li -> show li
-                UnitLit -> "unit"
-                BoolLit b -> show b
-                StringLit str -> show str
-                FunRefLit ref -> bindifyFunRef ref
-                EnvRefLit li -> "env_" <> show li
+                NumericLit li -> (show li, TypeNat)
+                UnitLit -> ("unit", TypeUnit)
+                BoolLit b -> (show b, TypeBool)
+                StringLit str -> (show str, TypeString)
+                FunRefLit ref -> error "Unsupported transformation of fun_ref literal" -- FIXME
+                -- ToDo: To get rid of those I'll probably have to require envrefs to be typed ()l in general ?
+                EnvRefLit li -> ("env_" <> show li, TypeVar)
     bindingFromAny anyE = error $ "Sorry, we forgott to implement bindingFromAny for " <> show anyE
 
-    bindifyFunRef :: FunRef ty -> Binding
-    bindifyFunRef _ = error "Unsupported transformation of fun_ref literal" -- FIXME
 
-mkLambda :: [Binding] -> Expr ty -> Expr ty
+mkLambda :: [TypedBinding ty] -> Expr ty -> Expr ty
 mkLambda args expr = go expr $ reverse args
   where
     go e (a:as) = flip go as $ Lambda a e
     go e [] = e
 
 -- FIXME pattern match failure because ALang not precise enough (see issue #8)
-replaceLit :: Expr ty -> (Expr ty, Binding) -> Expr ty
+replaceLit :: Expr ty -> (Expr ty, TypedBinding ty) -> Expr ty
 replaceLit e (Lit old, new) =
     flip transform e $ \case
         f@Apply{} -> case isPureAndAllArgsLit f of
@@ -121,7 +123,7 @@ replaceLit _e other = error $ "Called 'replaceLit' with " <> show other
 
 
 -- FIXME pattern match failure because ALang not precise enough (see issue #8)
-renameVar :: Expr ty -> (Expr ty, Binding) -> Expr ty
+renameVar :: Expr ty -> (Expr ty, TypedBinding ty) -> Expr ty
 renameVar e (Var old, new) =
     flip transform e $ \case
         Var v
@@ -131,7 +133,7 @@ renameVar _e other = error $ "Called 'renameVar' with " <> show other
                         <> ", which is not a Variable. Please report"
 
 -- | All bindings defined in an expression *with duplicates*
-definedBindings :: Expr ty -> [Binding]
+definedBindings :: Expr ty -> [TypedBinding ty]
 definedBindings e =
     [ v
     | e' <- universe e
@@ -149,13 +151,19 @@ definedBindings e =
 findFreeVariables :: Expr ty -> [Expr ty]
 findFreeVariables = map Var . findFreeBindings
 
-findFreeBindings :: Expr ty -> [Binding]
+findFreeBindings :: Expr ty -> [TypedBinding ty]
 findFreeBindings e =
     sort $ -- makes the list of args deterministic
     toList $
     HS.difference
         (HS.fromList [v | Var v <- universe e])
         (HS.fromList $ definedBindings e)
+
+findFreeBindings':: Expr ty -> [TypedBinding ty]
+findFreeBindings' e = 
+    let usedInE = [v | Var v <- universe e]
+        boundInE = definedBindings e
+    in filter (\bnd -> not (elem bnd boundInE)) usedInE
 
 findLiterals :: Expr ty -> [Expr ty]
 findLiterals e =
@@ -272,16 +280,16 @@ fromApplyToList' =
             "Expected apply or function reference, got: " <>
             show (embed $ fmap fst other)
 
-mkDestructured :: [Binding] -> Binding -> Expr ty -> Expr ty
+mkDestructured :: [TypedBinding ty] -> TypedBinding ty -> Expr ty -> Expr ty
 mkDestructured formals compound = destructure (Var compound) formals
 
-findDestructured :: Expr ty -> Binding -> [Binding]
-findDestructured expr bnd = map (\(v,_,_) -> v) $ findDestructuredWithExpr expr
+findDestructured :: Expr ty -> TypedBinding ty -> [TypedBinding ty]
+findDestructured expr tbnd = map (\(v,_,_) -> v) $ findDestructuredWithExpr expr
     where
         -- | Returns the letted nth nodes and their continuations such that they can later on be
         --   removed. Assumes SSA form.
         --   Be careful with this function because the returned expressions maybe nested with each other!
-        findDestructuredWithExpr :: Expr ty -> [(Binding, Expr ty, Expr ty)]
+        -- findDestructuredWithExpr :: Expr ty -> [(TypedBinding ty, Expr ty, Expr ty)]
         findDestructuredWithExpr e = 
             map (\(_,v,l,c) -> (v,l,c)) $
             sortOn (\(i,_,_,_) -> i)
@@ -290,10 +298,10 @@ findDestructured expr bnd = map (\(v,_,_) -> v) $ findDestructuredWithExpr expr
                     (PureFunction "ohua.lang/nth" _ `Apply` 
                         Lit (NumericLit i) `Apply` 
                         _ `Apply` 
-                        Var bnd')
+                        Var tbnd')
                     c)  
                     <- universe e
-                , bnd == bnd']
+                , tbnd == tbnd']
 
 replaceExpr :: (Expr ty, Expr ty) -> Expr ty -> Expr ty
 replaceExpr (old,new) = transform f
@@ -301,19 +309,19 @@ replaceExpr (old,new) = transform f
         f expr | expr == old = new
         f expr = expr
 
-pattern NthFunction :: Binding -> Expr ty
-pattern NthFunction bnd <- PureFunction "ohua.lang/nth" _ `Apply` _ `Apply` _ `Apply` Var bnd
+pattern NthFunction :: TypedBinding ty -> Expr ty
+pattern NthFunction tbnd <- PureFunction "ohua.lang/nth" _ `Apply` _ `Apply` _ `Apply` Var tbnd
 
 evictOrphanedDestructured :: Expr ty -> Expr ty
 evictOrphanedDestructured e = 
     let allBnds = HS.fromList [v | Let v _ _ <- universe e]
     in transform (f allBnds) e
     where 
-        f :: HS.HashSet Binding -> Expr ty -> Expr ty
+        f :: HS.HashSet (TypedBinding ty) -> Expr ty -> Expr ty
         f bnds (Let _v (NthFunction bnd) cont) | not $ HS.member bnd bnds = cont
         f _ expr = expr
 
-lambdaArgsAndBody :: Expr ty -> ([Binding], Expr ty)
+lambdaArgsAndBody :: Expr ty -> ([TypedBinding ty], Expr ty)
 lambdaArgsAndBody (Lambda arg l@(Lambda _ _)) =
     let (args, body) = lambdaArgsAndBody l
      in (arg : args, body)

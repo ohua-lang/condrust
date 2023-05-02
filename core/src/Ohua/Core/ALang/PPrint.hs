@@ -46,7 +46,7 @@ prettyExpr = fst . histo worker
   where
     worker =
         \case
-            VarF bnd -> noParens $ pretty bnd
+            VarF tbnd -> noParens $ pretty tbnd
             LitF l -> noParens $ pretty l
             LetF assign expr (extract -> cont) ->
                 let (assigns, e) = collectLambdas expr
@@ -89,3 +89,6 @@ instance Pretty (Expr ty) where
 instance Pretty SomeBinding where
     pretty (Qual q) = pretty q
     pretty (Unqual b) = pretty b
+
+instance Pretty (TypedBinding ty) where
+    pretty (TBind bnd _ty) = pretty bnd

@@ -86,7 +86,7 @@ transformFundamentalStateThreads = transformM f
         [] -> Nothing
         _ -> Just b
 
-    stBndForStatefulFun (StatefulFunction _ _ (Var bnd)) = Just . (bnd,) <$> generateBindingWith bnd
+    stBndForStatefulFun (StatefulFunction _ _ (Var (TBind bnd ty))) = Just . (bnd,) <$> generateBindingWith bnd
     -- FIXME Once again, this stupid over-generalization of the language is a pain!
     stBndForStatefulFun e@(StatefulFunction _ _ _) = error $ "state should have been var: " <> show e
     stBndForStatefulFun (e1 `Apply` _)            = stBndForStatefulFun e1

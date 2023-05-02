@@ -49,7 +49,6 @@ removeNth expr = do
   return exp'
   where
     -- Assumption: Expression is in SSA form, so every site is uniquely identified by its output binding.
-
     -- explicit traversal prevents non-exhaustive pattern warnings and allows to convert stuff to Coq later on.
     f = \case
       (DFLang.Let app cont) -> go app cont
@@ -59,7 +58,7 @@ removeNth expr = do
           App a ty ->
           NormalizedExpr ty ->
           State
-            (HM.HashMap Binding (NonEmpty (Integer, Binding)))
+            (HM.HashMap (TypedBinding ty) (NonEmpty (Integer, Binding)))
             (NormalizedDFExpr ty)
         go app cont = do
           cont' <- f cont
@@ -71,7 +70,7 @@ removeNth expr = do
     -- FIXME This only works for destructed App output but what about SMap and Rec?!
     toDFAppFun :: App a ty
                -> State
-               (HM.HashMap Binding (NonEmpty (Integer, Binding)))
+               (HM.HashMap (TypedBinding ty) (NonEmpty (Integer, Binding)))
                (Maybe (DFApp a ty))
     toDFAppFun (PureFun tgt (FunRef "ohua.lang/nth" _ _) (DFEnvVar _ (NumericLit i) :| [_, DFVar _ (DataBinding src)]) ) =
       modify (HM.insertWith (<>) src ((i, unwrapABnd tgt) :| [])) >> pure Nothing
@@ -104,7 +103,7 @@ removeNth expr = do
       let out' = toDFOuts (unwrapABnd out) DataBinding hm
       let stateOut' = (\s -> toDFOuts (unwrapABnd s) StateBinding hm) <$> stateOut
       return $ Just $ StateDFFun (stateOut', Just out') fun stateIn ins
-    toDFOuts :: Binding -> (Binding -> ABinding a) -> HM.HashMap Binding (NonEmpty (Integer, Binding)) -> OutData a
+    toDFOuts :: Binding -> (Binding -> ABinding a) -> HM.HashMap (TypedBinding ty) (NonEmpty (Integer, Binding)) -> OutData a
     toDFOuts out bndFun =
       maybe
         -- TODO normally I would not have to unwrap the bindings here but they would preserve their
@@ -120,7 +119,7 @@ checkDefinedUsage expr = evalStateT (f expr) HS.empty
   where
     f (DFLang.Let app cont) = checkAndDescend app cont
     f _ = return ()
-    checkAndDescend :: (MonadOhua m, MonadState (HS.HashSet Binding) m) => DFApp a ty -> NormalizedDFExpr ty -> m ()
+    checkAndDescend :: (MonadOhua m, MonadState (HS.HashSet (TypedBinding ty)) m) => DFApp a ty -> NormalizedDFExpr ty -> m ()
     checkAndDescend app cont = do
       let ins = insDFApp app
       let outs = outsDFApp app
@@ -168,11 +167,11 @@ lowerToDF :: MonadOhua m => ALang.Expr ty -> m (NormalizedExpr ty)
 lowerToDF expr = evalStateT (transfer' expr) HS.empty
   where
     transfer' ::
-      (MonadState (HS.HashSet Binding) m, MonadOhua m) =>
+      (MonadState (HS.HashSet (TypedBinding ty)) m, MonadOhua m) =>
       ALang.Expr ty ->
       m (NormalizedExpr ty)
-    transfer' (ALang.Var bnd) = return $ DFLang.Var bnd TypeVar
-    transfer' (ALang.Let bnd a@(NthFunction b) e) = do
+    transfer' (ALang.Var (TBind bnd vType)) = return $ DFLang.Var bnd vType
+    transfer' (ALang.Let tbnd a@(NthFunction b) e) = do
       isStateDestruct <- HS.member b <$> get
       if isStateDestruct
         then transfer' e
@@ -185,7 +184,7 @@ lowerToDF expr = evalStateT (transfer' expr) HS.empty
       return $ app e'
 
 handleDefinitionalExpr' ::
-  (MonadState (HS.HashSet Binding) m, MonadOhua m) =>
+  (MonadState (HS.HashSet (TypedBinding ty) ) m, MonadOhua m) =>
   Binding ->
   ALang.Expr ty ->
   ALang.Expr ty ->
@@ -198,7 +197,7 @@ handleDefinitionalExpr' assign l@(Apply _ _) cont = do
     Nothing -> return $ DFLang.Let $ fun fn assign args'
   where
     st ::
-      (MonadState (HS.HashSet Binding) m) =>
+      (MonadState (HS.HashSet (TypedBinding ty)) m) =>
       FunRef ty ->
       (ArgType ty, ABinding 'State) ->
       NonEmpty (DFVar 'Data ty) ->
@@ -209,8 +208,8 @@ handleDefinitionalExpr' assign l@(Apply _ _) cont = do
     fun :: FunRef ty -> Binding -> NonEmpty (DFVar 'Data ty) -> App 'Fun ty
     fun fn bnd args' = PureFun (DataBinding bnd) fn args'
     findSTOuts ::
-      (MonadState (HS.HashSet Binding) m) =>
-      Binding ->
+      (MonadState (HS.HashSet (TypedBinding ty)) m) =>
+      (TypedBinding ty) ->
       m (Maybe (ABinding 'State), ABinding 'Data)
     findSTOuts bnd =
       case findDestructured cont bnd of
@@ -279,19 +278,20 @@ handleApplyExpr g = failWith $ "Expected apply but got: " <> show g
 
 -- | Inspect an expression expecting something which can be captured
 -- in a DFVar otherwise throws appropriate errors.
-expectVar :: (HasCallStack, MonadError Error m) => ArgType ty -> ALang.Expr ty -> m (DFVar 'Data ty)
-expectVar typ (ALang.Var bnd) = pure $ DFVar typ $ DataBinding bnd
+expectVar :: (HasCallStack, MonadError Error m) => ALang.Expr ty -> m (DFVar 'Data ty)
+expectVar (ALang.Var (TBind bnd ty)) = pure $ DFVar ty $ DataBinding bnd
 -- TODO currently only allowed for the unitFn function
 -- expectVar r@PureFunction {} =
 --     throwError $
 --     "Function references are not yet supported as arguments: " <>
 --     show (pretty r)
-expectVar typ (Lit l) = pure $ DFEnvVar typ l
-expectVar _ a =
+--FIXME: Use actual type as soon as we introduced correct typing for literals
+expectVar (Lit l) = pure $ DFEnvVar TypeVar l
+expectVar a =
   throwErrorS $ "Argument must be local binding or literal, was " <> show a
 
 -- | This is again something that should have been there right at the very beginning.
 expectStateBnd :: (HasCallStack, MonadError Error m) => ALang.Expr ty -> m (ABinding 'State)
-expectStateBnd (ALang.Var bnd) = pure $ StateBinding bnd
+expectStateBnd (ALang.Var (TBind bnd ty)) = pure $ StateBinding bnd
 expectStateBnd a =
   throwErrorS $ "State argument must be local binding, was " <> show a
