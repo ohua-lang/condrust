@@ -294,6 +294,9 @@ generateNodeCode e@(RecurFun resultOut ctrlOut recArgsOuts recInitArgsIns recArg
     -- note that this aspect is interesting:
     -- normally, I could just say that the result of a recursion may just be a literal.
     -- but then what would that recursion actually compute?!
+
+    -- Answer: An example of this our server loop -> it recurses for the side effects only and returns a unit 
+
     -- looking at it from a timing-perspective, a recursion can as such be used to produce a delay in the computation.
     recResultIn' <- varToChan recResultIn
     return $ Recur
