@@ -16,7 +16,7 @@ import Language.Rust.Parser (Span)
 import Language.Rust.Syntax as Rust hiding (Rust)
 import Ohua.Frontend.Lang as FrLang
     ( Expr(..),
-      Pat(TupP, VarP) )
+      Pat(TupP, VarP, UnitP) )
 import Ohua.Frontend.PPrint ()
 import Ohua.Frontend.Types
 import Ohua.Integration.Lang
@@ -393,7 +393,7 @@ instance ConvertExpr Sub.Expr where
         (VarP loopRef argUnit)
         (LamE [VarP condRef argBool] $
           LetE (VarP resultRef argUnit) body' $
-          LetE (TupP (VarP condResultRef argBool : [VarP condResultReuse argBool])) (AppE condFun [VarE condRef argBool])
+          LetE (TupP (VarP condResultRef argBool :| [VarP condResultReuse argBool])) (AppE condFun [VarE condRef argBool])
             (IfE
               (VarE condResultRef argBool)
               (AppE (VarE loopRef argUnit)  [VarE condResultReuse argBool])
@@ -469,7 +469,14 @@ fromIdent (Sub.IdentPat _mode bnd) =  bnd
 instance ConvertPat Sub.Pat where
   convertPat Sub.WildP = return $ VarP (fromString "_") (Type $ TE.Normal rustInfer)
   convertPat (Sub.IdentP ip) = convertPat ip
-  convertPat (Sub.TupP patterns) = TupP <$> mapM convertPat patterns
+  -- It is possible to bind: let () = e1; in Rust, iff e1 evaluates to ()
+  -- The pattern in this case would be TupP [], because language-rust has no Unit pattern
+  -- However we do so we distinguish cases here 
+  convertPat (Sub.TupP []) = return UnitP
+  convertPat (Sub.TupP (pt: pts)) = do 
+    pt' <- convertPat pt
+    pts' <- mapM convertPat pts
+    return $ TupP (pt':| pts')
 
 instance ConvertPat Sub.IdentPat where
   -- We will mostly get here when a pattern is a local bound variable, in which case it is

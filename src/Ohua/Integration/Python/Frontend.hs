@@ -346,9 +346,10 @@ subParamToIR (Sub.Param bnd) = do
 
 subTargetToIR :: ConvertM m => Sub.Target -> m (FrLang.Pat PythonArgType)
 subTargetToIR (Sub.Single bnd) = return $ VarP bnd defaultType
-subTargetToIR (Sub.Tpl bnds) =
-    let vars = map (\bnd -> VarP bnd defaultType) bnds 
-    in return $ TupP vars
+subTargetToIR (Sub.Tpl (b:bnds)) =
+    let v = VarP b defaultType
+        vars = map (\bnd -> VarP bnd defaultType) bnds 
+    in return $ TupP (v:| vars)
 
 subBinOpToIR:: ConvertM m => Sub.BinOp -> m ( FrLang.Expr PythonArgType)
 subBinOpToIR Sub.Plus = toFunRefLit "+"
