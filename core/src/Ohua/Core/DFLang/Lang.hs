@@ -6,38 +6,39 @@ module Ohua.Core.DFLang.Lang where
 
 import qualified Data.List.NonEmpty as NE
 import Ohua.Core.ALang.Refs as ALangRefs (recurFun, smapFun, ifFun, collect, select, ctrl)
+import Ohua.Core.ALang.Lang as ALang (TypedBinding(..), asBnd, asType)
 import Ohua.Core.Prelude hiding (length)
 import Ohua.Types.Vector as V hiding (map)
 import qualified Data.HashSet as HS
 
 data BindingType = State | Data deriving (Show, Eq, Generic)
 
-data ABinding :: BindingType -> Type where
-  DataBinding :: Binding  -> ABinding 'Data
-  StateBinding :: Binding -> ABinding 'State
+data ATypedBinding (bType :: BindingType) (ty :: Type) :: Type where
+  DataBinding :: TypedBinding ty -> ATypedBinding 'Data ty
+  StateBinding :: TypedBinding ty -> ATypedBinding 'State ty
 
-deriving instance Show (ABinding a)
+deriving instance Show (ATypedBinding a ty)
 
-deriving instance Eq (ABinding a)
+deriving instance Eq (ATypedBinding a ty)
 
-data OutData :: BindingType -> Type where
+data OutData (bType :: BindingType) (ty :: Type) :: Type  where
   -- | Direct output
-  Direct :: ABinding b -> OutData b
+  Direct :: ATypedBinding b ty -> OutData b ty
   -- | Destructuring
-  Destruct :: NonEmpty (OutData b) -> OutData b
+  Destruct :: NonEmpty (OutData b ty) -> OutData b ty
   -- | Copying of output data
-  Dispatch :: NonEmpty (ABinding b) -> OutData b
+  Dispatch :: NonEmpty (ATypedBinding b ty) -> OutData b ty
   deriving (Show, Eq, Generic)
 
 
-
+-- ToDo : I think we should remove the indirection via the ATypedBinding and instead use an extended binding type
+-- i.e. BindingType = State | Data | Env to directly type DFVar
 data DFVar (semType :: BindingType) (ty :: Type) :: Type where
   DFEnvVar :: ArgType ty -> Lit ty -> DFVar 'Data ty
-  DFVar :: ArgType ty -> ABinding a -> DFVar a ty
-  -- DFNatVar :: ABinding a -> DFVar a (TypeNat ty) 
-  -- DFBoolVar ::  ABinding a -> DFVar a 'TypeBool
-
--- DFStateVar :: ArgType ty -> ABinding 'State -> DFVar 'State ty
+  DFVar :: ATypedBinding a ty -> DFVar a ty
+  -- DFNatVar :: ATypedBinding a -> DFVar a (TypeNat ty) 
+  -- DFBoolVar ::  ATypedBinding a -> DFVar a 'TypeBool
+  DFStateVar :: ATypedBinding 'State ty -> DFVar 'State ty
 
 -- | Annotations for functions
 data FunANF :: Type where
@@ -66,9 +67,9 @@ data App (f :: FunANF) (ty :: Type) :: Type where
   --      Then this should propagate through the type system an make sure that this state is used only
   --      as a state. Currently, we really only tag the types of an app with almost no implication on the
   --      whole expression. This would then immediately remove the unwrapABnd function.
-  PureFun :: ABinding b -> FunRef ty -> NonEmpty (DFVar 'Data ty) -> App 'Fun ty
+  PureFun :: DFVar bTy ty -> FunRef ty -> NonEmpty (DFVar 'Data ty) -> App 'Fun ty
   StateFun ::
-    (Maybe (ABinding 'State), ABinding 'Data) ->
+    (Maybe (ATypedBinding 'State ty), ATypedBinding 'Data ty) ->
     FunRef ty ->
     DFVar 'State ty ->
     NonEmpty (DFVar 'Data ty) ->
@@ -77,9 +78,9 @@ data App (f :: FunANF) (ty :: Type) :: Type where
 -- | The applicative normal form with the ops resolved.
 --   (a function with output destructuring and dispatched result)
 data DFApp (f :: FunANF) (ty :: Type) :: Type where
-  PureDFFun :: OutData b -> FunRef ty -> NonEmpty (DFVar 'Data ty) -> DFApp 'Fun ty
+  PureDFFun :: OutData b ty -> FunRef ty -> NonEmpty (DFVar 'Data ty) -> DFApp 'Fun ty
   StateDFFun ::
-    (Maybe (OutData 'State), Maybe (OutData 'Data)) ->
+    (Maybe (OutData 'State ty ), Maybe (OutData 'Data ty)) ->
     FunRef ty ->
     DFVar 'State ty ->
     NonEmpty (DFVar 'Data ty) ->
@@ -87,11 +88,11 @@ data DFApp (f :: FunANF) (ty :: Type) :: Type where
 
   RecurFun :: --(n ~ 'Succ m) =>
   -- (final) result out
-    OutData b ->
+    OutData b ty ->
     -- | recursion control output
-    Maybe (OutData 'Data) ->
+    Maybe (OutData 'Data ty) ->
     -- | recursion args outputs
-    Vec n (OutData b) ->
+    Vec n (OutData b ty) ->
     -- | initial inputs
     Vec n (DFVar a ty) ->
     -- | recursion args inputs
@@ -110,23 +111,23 @@ data DFApp (f :: FunANF) (ty :: Type) :: Type where
     --      regardless of their position in the list
     -- TODO subset types would be great here to show that this out data can never be destructured.
     -- | ( data out, control out, size out for collect and stclangCollect)
-    ( Maybe (OutData b)
-    , Maybe (OutData 'Data) 
-    , Maybe (OutData 'Data)
+    ( Maybe (OutData b ty)
+    , Maybe (OutData 'Data ty) 
+    , Maybe (OutData 'Data ty)
     ) -> 
     -- | data in
     DFVar a ty -> 
     DFApp 'Fun ty -- FIXME would be this: DFApp 'BuiltIn ty (fix when all IRs are fixed and I do not need to convert a Fun into a BuiltIn)
   
   IfFun
-    :: (OutData 'Data, OutData 'Data)
+    :: (OutData 'Data ty, OutData 'Data ty )
     -> DFVar 'Data ty
     -> DFApp 'Fun ty -- FIXME would be this: DFApp 'BuiltIn ty (fix when all IRs are fixed and I do not need to convert a Fun into a BuiltIn)
 
   CollectFun
     -- collect :: nat ->  A -> [A]
     -- output is a list of lenght first input of elements, second input
-    :: (OutData 'Data) -> 
+    :: (OutData 'Data ty) -> 
     -- | first input as a nat
     DFVar 'Data ty -> 
     -- | second input is an elemt, which is actually always a ()
@@ -135,7 +136,7 @@ data DFApp (f :: FunANF) (ty :: Type) :: Type where
 
   CtrlFun 
     -- ctrl:: (bool, nat) -> A -> A
-    :: OutData a ->
+    :: OutData a ty ->
     -- | the  controle signal (bool, nat)
     DFVar 'Data ty->
     -- | the data input
@@ -144,7 +145,7 @@ data DFApp (f :: FunANF) (ty :: Type) :: Type where
 
   SelectFun
     -- select :: bool -> A -> A -> A
-    :: OutData a -> 
+    :: OutData a ty-> 
     -- | the signal which one to use
     DFVar 'Data ty ->
     -- | the first input
@@ -153,31 +154,33 @@ data DFApp (f :: FunANF) (ty :: Type) :: Type where
     DFVar 'Data ty ->
     DFApp 'Fun ty
     
-class Function a where
-  outBindings :: a -> [Binding]
-  inBindings :: a -> [Binding]
-  funRef :: a -> QualifiedBinding
+class Function (fun:: FunANF -> Type -> Type) where
+  outBindings :: fun a ty -> [TypedBinding ty]
+  inBindings :: fun a ty -> [TypedBinding ty]
+  funRef :: fun a ty -> QualifiedBinding
 
+-- The fun type is a type that takes a promoted Annotation Type and the 
+-- ubiquitouse Host type 'ty' (representing the language (Rust/Python/..) we compile
 data Expr (fun :: FunANF -> Type -> Type) (ty :: Type) :: Type where
-  Let :: (Show (fun a ty), Function (fun a ty)) => fun a ty -> Expr fun ty -> Expr fun ty
+  Let :: (Show (fun a ty), Function fun) => fun a ty -> Expr fun ty -> Expr fun ty
   -- FIXME this also should probably have a BindingType!
   -- Well it should first of all have a Type type :-/
-  Var :: Binding -> ArgType ty -> Expr fun ty
+  Var :: ATypedBinding b ty -> Expr fun ty
 
 ----------------------------
 -- Accessor functions
 ----------------------------
 
-renameABnd :: Binding -> ABinding a -> ABinding a
-renameABnd b (DataBinding _) = DataBinding b
-renameABnd b (StateBinding _) = StateBinding b
+renameABnd :: TypedBinding ty -> ATypedBinding a ty -> ATypedBinding a ty
+renameABnd bnew (DataBinding (TBind bnd ty)) = DataBinding bnew
+renameABnd bnew (StateBinding (TBind bnd ty)) = StateBinding bnew
 
-outsApp :: App ty a -> NonEmpty Binding
-outsApp (PureFun out _ _) = unwrapABnd out :| []
-outsApp (StateFun (Nothing, out) _ _ _) = unwrapABnd out :| []
-outsApp (StateFun (Just stateOut, out) _ _ _) = unwrapABnd stateOut :| [unwrapABnd out]
+outsApp :: App fty ty -> NonEmpty (TypedBinding ty)
+outsApp (PureFun out _ _) = unwrapVarTB out :| []
+outsApp (StateFun (Nothing, out) _ _ _) = unwrapTB out :| []
+outsApp (StateFun (Just stateOut, out) _ _ _) = unwrapTB stateOut :| [unwrapTB out]
 
-outsDFApp :: DFApp ty a -> [Binding]
+outsDFApp :: DFApp fty ty -> [TypedBinding ty]
 outsDFApp (PureDFFun out _ _) = NE.toList $ toOutBnds out
 outsDFApp (StateDFFun (Nothing, Nothing) _ _ _) = []
 outsDFApp (StateDFFun (Nothing, Just out) _ _ _) = NE.toList $ toOutBnds out
@@ -198,18 +201,18 @@ outsDFApp (CollectFun out _size _lst ) =  (NE.toList . toOutBnds) out
 outsDFApp (SelectFun out _ _ _ ) =  (NE.toList . toOutBnds) out 
 outsDFApp (CtrlFun out _sig _data) = (NE.toList . toOutBnds) out 
 
-toOutBnds :: OutData a -> NonEmpty Binding
-toOutBnds (Destruct o) = sconcat $ NE.map toOutBnds o
-toOutBnds (Dispatch o) = NE.map unwrapABnd o
-toOutBnds (Direct bnd) = unwrapABnd bnd :| []
+toOutBnds :: OutData bty ty -> NonEmpty (TypedBinding ty)
+toOutBnds (Destruct outs) = sconcat $ NE.map toOutBnds outs
+toOutBnds (Dispatch bnds) = NE.map unwrapTB bnds
+toOutBnds (Direct bnd) = unwrapTB bnd :| []
 
-insApp :: App ty a -> [Binding]
+insApp :: App fty ty -> [TypedBinding ty]
 insApp (PureFun _ _ i) = extractBndsFromInputs $ NE.toList i
-insApp (StateFun _ _ (DFVar _ s) i) = unwrapABnd s : extractBndsFromInputs (NE.toList i)
+insApp (StateFun _ _ (DFVar tbnd) i) = unwrapTB tbnd : extractBndsFromInputs (NE.toList i)
 
-insDFApp :: DFApp ty a -> [Binding]
+insDFApp :: DFApp fty ty -> [TypedBinding ty]
 insDFApp (PureDFFun _ _ i) = extractBndsFromInputs $ NE.toList i
-insDFApp (StateDFFun _ _ (DFVar _ s) i) = unwrapABnd s : extractBndsFromInputs (NE.toList i)
+insDFApp (StateDFFun _ _ (DFVar atBnd) i) = (unwrapTB atBnd) : extractBndsFromInputs (NE.toList i)
 insDFApp (RecurFun _ _ _ initIns recurs cond result) =
   extractBndsFromInputs (V.toList initIns)
     <> extractBndsFromInputs (V.toList recurs)
@@ -221,14 +224,14 @@ insDFApp (CollectFun _ size lst ) = extractBndsFromInputs [size, lst]
 insDFApp (SelectFun _ sign fstIn scndIn ) =   extractBndsFromInputs [sign, fstIn, scndIn ]
 insDFApp (CtrlFun _ sig dataIn) = extractBndsFromInputs [sig, dataIn]
 
-extractBndsFromInputs :: [DFVar a ty] -> [Binding]
+extractBndsFromInputs :: [DFVar b ty] -> [TypedBinding ty]
 extractBndsFromInputs =
-  mapMaybe (\case DFVar _ bnd -> Just $ unwrapABnd bnd; _ -> Nothing)
+  mapMaybe (\case DFVar atbnd -> Just $ unwrapTB atbnd; _ -> Nothing)
 
--- TODO refactor with above function
-insAndTypesDFApp :: DFApp ty a -> [(ArgType a, Binding)]
+
+insAndTypesDFApp :: DFApp fty ty -> [TypedBinding ty]
 insAndTypesDFApp (PureDFFun _ _ i) = extractBndsAndTypesFromInputs $ NE.toList i
-insAndTypesDFApp (StateDFFun _ _ (DFVar sTyp s) i) = (sTyp, unwrapABnd s) : extractBndsAndTypesFromInputs (NE.toList i)
+insAndTypesDFApp (StateDFFun _ _ stateIn i) = unwrapVarTB stateIn : extractBndsAndTypesFromInputs (NE.toList i)
 insAndTypesDFApp (RecurFun _ _ _ initIns recurs cond result) =
   extractBndsAndTypesFromInputs (V.toList initIns)
     <> extractBndsAndTypesFromInputs (V.toList recurs)
@@ -240,17 +243,31 @@ insAndTypesDFApp (CollectFun _ size lst ) = extractBndsAndTypesFromInputs [size,
 insAndTypesDFApp (SelectFun _ sign fstIn scndIn ) =   extractBndsAndTypesFromInputs [sign, fstIn, scndIn ]
 insAndTypesDFApp (CtrlFun _ sig dataIn) = extractBndsAndTypesFromInputs [sig, dataIn]
 
-extractBndsAndTypesFromInputs :: [DFVar a ty] -> [(ArgType ty, Binding)]
+extractBndsAndTypesFromInputs :: [DFVar bty ty] -> [TypedBinding ty]
 extractBndsAndTypesFromInputs =
-  mapMaybe (\case DFVar typ bnd -> Just $ (typ, unwrapABnd bnd); _ -> Nothing)
+  mapMaybe (\case (DFVar atbnd) -> Just $ unwrapTB atbnd; _ -> Nothing)
 
-fnApp :: App ty a -> QualifiedBinding
+fnApp :: App fty ty -> QualifiedBinding
 fnApp (PureFun _ (FunRef f _ _) _) = f
 fnApp (StateFun _ (FunRef f _ _) _ _) = f
 
-unwrapABnd :: ABinding a -> Binding
-unwrapABnd (DataBinding bnd) = bnd
-unwrapABnd (StateBinding bnd) = bnd
+unwrapTB :: ATypedBinding bty ty -> TypedBinding ty
+unwrapTB (DataBinding tbnd) = tbnd
+unwrapTB (StateBinding tbnd) = tbnd 
+
+unwrapABnd :: ATypedBinding bty ty -> Binding
+unwrapABnd (DataBinding tbnd) = asBnd tbnd
+unwrapABnd (StateBinding tbnd) = asBnd tbnd 
+
+unwrapVarBnd :: DFVar b ty -> Binding
+unwrapVarBnd (DFVar atBnd) = unwrapABnd atBnd
+unwrapVarBnd (DFStateVar atBnd) = unwrapABnd atBnd
+unwrapVarBnd (DFEnvVar _ _) = error "Tried to unwrap a binding from a literat in DFLang. Please report this error" 
+
+unwrapVarTB :: DFVar b ty -> TypedBinding ty
+unwrapVarTB (DFVar atBnd) = unwrapTB atBnd
+unwrapVarTB (DFStateVar atBnd) = unwrapTB atBnd
+unwrapVarTB (DFEnvVar ty _lit) = error "Tried to unwrap a binding from a literat in DFLang. Please report this error" 
 
 ----------------------
 -- Instances:
@@ -268,13 +285,13 @@ deriving instance Show (App ty a)
 -- instance Eq (App a) where
 --     (PureFun out fn inp) == (PureFun out' fn' inp') = out `outEq` out' && fn == fn' && inp == inp'
 --         where
---             outEq :: ABinding b -> ABinding b -> Bool
+--             outEq :: ATypedBinding b -> ATypedBinding b -> Bool
 --             outEq = (==)
 --     (StateFun out fn stateIn inp) == (StateFun out' fn' stateIn' inp') =
 --         out == out' && fn == fn' && stateIn == stateIn' && inp == inp'
 -- So we remove the compile-time safety here and resort entirely to the runtime check:
 instance Eq (App ty a) where
-  (PureFun out fn inp) == (PureFun out' fn' inp') = unwrapABnd out == unwrapABnd out' && fn == fn' && inp == inp'
+  (PureFun out fn inp) == (PureFun out' fn' inp') = unwrapVarBnd out == unwrapVarBnd out' && fn == fn' && inp == inp'
   (StateFun out fn stateIn inp) == (StateFun out' fn' stateIn' inp') =
     out == out' && fn == fn' && stateIn == stateIn' && inp == inp'
 
@@ -329,12 +346,12 @@ deriving instance Show (NormalizedDFExpr ty)
 --     NormalizedExpr :: Expression App
 --     NormalizedDFExpr :: Expression DFApp
 
-instance Function (App ty a) where
+instance Function App where
   outBindings = NE.toList . outsApp
   inBindings = insApp
   funRef = fnApp
 
-instance Function (DFApp ty a) where
+instance Function DFApp where
   outBindings = outsDFApp
   inBindings = insDFApp
   funRef f =
@@ -357,7 +374,7 @@ transformExpr f = runIdentity . transformExprM go
 -- | This is a bottom-up traversal
 transformExprM :: Monad m => (NormalizedDFExpr ty -> m (NormalizedDFExpr ty)) -> NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
 transformExprM f (Let app cont) = f . Let app =<< transformExprM f cont
-transformExprM f v@(Var _ _) = f v
+transformExprM f v@(Var _) = f v
 
 -- | This is a top-down traversal
 transformExprTDM :: Monad m => (NormalizedDFExpr ty -> m (NormalizedDFExpr ty)) -> NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
@@ -392,13 +409,13 @@ length (Let _ cont) = Succ $ length cont
 length Var {} = Zero
 
 countBindings :: NormalizedDFExpr ty -> V.Nat
-countBindings (Var _ _) = Succ Zero
+countBindings (Var _ ) = Succ Zero
 countBindings (Let app cont) =
   foldl (\acc _ -> Succ acc) (countBindings cont) $ insDFApp app ++ outsDFApp app
-
-usedBindings :: NormalizedDFExpr ty -> [Binding]
+ 
+usedBindings :: NormalizedDFExpr ty -> [TypedBinding ty]
 usedBindings (Let app cont) = insDFApp app ++ usedBindings cont
-usedBindings (Var result _ ) = [result]
+usedBindings (Var result) = [unwrapTB result]
 
 
 data SubstitutionStrategy = FirstOccurrence | All
@@ -406,7 +423,7 @@ data SubstitutionStrategy = FirstOccurrence | All
 -- | Assumes SSA
 -- TODO How can we encode this into the type system other than with de Bruijn indexes?
 --      I guess we could define a de Bruijn index on the type level that carries a name on the term level.
-substitute :: forall ty. SubstitutionStrategy -> (Binding, Binding) -> NormalizedDFExpr ty -> NormalizedDFExpr ty
+substitute :: forall ty. SubstitutionStrategy -> (TypedBinding ty, TypedBinding ty) -> NormalizedDFExpr ty -> NormalizedDFExpr ty
 substitute strat (from,to) e = evalState (mapFunsM go e) False
   where
     go :: DFApp a ty -> State Bool (DFApp a ty)
@@ -420,12 +437,12 @@ substitute strat (from,to) e = evalState (mapFunsM go e) False
     go (CtrlFun o ctrlIn dataIn) = check =<< CtrlFun o <$> replace ctrlIn <*> replace dataIn
     go (SelectFun o sign fstIn scdIn) = check =<< SelectFun o <$> replace sign <*> replace fstIn <*> replace scdIn
     replace :: DFVar t ty -> State Bool (DFVar t ty)
-    replace d@(DFVar t bnd) | unwrapABnd bnd == from = do
+    replace d@(DFVar atbnd) | unwrapTB atbnd == from = do
                               s <- get
                               case (strat, s) of
                                 (FirstOccurrence, True)  -> return d
-                                (FirstOccurrence, False) -> DFVar t (renameABnd to bnd) <$ put True
-                                _ -> return $ DFVar t $ renameABnd to bnd
+                                (FirstOccurrence, False) -> DFVar (renameABnd to  atbnd) <$ put True
+                                _ -> return $ DFVar (renameABnd to atbnd)
     replace d = return d
 
     check :: DFApp a ty -> State Bool (DFApp a ty)
