@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 module Ohua.Core.DFLang.Passes.TypePropagation where
 
 import Data.HashMap.Lazy as HM hiding (map, foldl')
@@ -63,9 +64,9 @@ returnBinding = "finalReturnType"
 
 
 
-propagateTypesWithRetTy :: ArgType ty -> NormalizedDFExpr ty -> NormalizedDFExpr ty
+propagateTypesWithRetTy :: ty -> NormalizedDFExpr ty -> NormalizedDFExpr ty
 propagateTypesWithRetTy retType expr  =   
-  let returnTB = TBind returnBinding retType
+  let returnTB = TBind returnBinding (Type retType)
       context = HM.insert returnBinding (Exists $ DFVar (DataBinding returnTB)) HM.empty 
   in evalState (transformExprM typeBottomUp expr) context
 
@@ -148,7 +149,7 @@ typeBottomUp (Let (PureDFFun out@(Direct outBnd) f@(FunRef fun _fid fTy) inputs@
     
             knownVars <- get
             let realOutTy = case out of
-                    Direct something -> case HM.lookup (unwrapTB something) knownVars of
+                    Direct something -> case HM.lookup (unwrapABnd something) knownVars of
                       Just (Exists (DFVar atBnd)) -> asType . unwrapTB $ atBnd
                       Just (Exists (DFEnvVar ty' _)) -> ty'
                       Nothing -> TypeVar
@@ -281,6 +282,7 @@ typeBottomUp e'@(Let (StateDFFun _oBnds _stFun _stateIn _dataIn) _inCont)  = do
   
 -- Recursion
 typeBottomUp (Let (RecurFun finalOut recCtrl argOuts initIns recIns cond result) inCont) = do
+  knownVars <- get
   -- using initins doesn't work (for now, because the literals are also TypeVar)
   -- let (initIns', recIns') = OV.unzip $ OV.map updateVars $ OV.zip initIns recIns
   newInits <- mapM maybeUpdateByOutData (OV.zip argOuts initIns)
@@ -290,9 +292,9 @@ typeBottomUp (Let (RecurFun finalOut recCtrl argOuts initIns recIns cond result)
                 DFVar atBnd ->  DFVar $ replaceType atBnd TypeBool
                 DFEnvVar _ty lit -> DFEnvVar TypeBool lit
 
-  knownVars <- get
+  
   let result' = case result of
-                DFVar atBnd -> case HM.lookup (unwrapTB atBnd) knownVars of
+                DFVar atBnd -> case HM.lookup (unwrapABnd atBnd) knownVars of
                   -- REMINDER: We can not take the 'algo return type' because 
                   -- we are inside the algorithm that calls the recursive algo 
                   -- i.e. return of the outer algo need not be the return of the recursion
@@ -359,7 +361,7 @@ typeBottomUp var@(Var atBnd) = do
       return $ Var (replaceType atBnd newReturnType)
 
 
-maybeUpdateByOutData :: forall b m ty a. MonadState (BindingContext ty) m => (OutData b ty, DFVar a ty) -> m( DFVar a ty)
+maybeUpdateByOutData :: forall b m ty a. MonadState (HashMap Binding (Exists ty)) m => (OutData b ty, DFVar a ty) -> m (DFVar a ty)
 maybeUpdateByOutData =
           \(refBnd, inVar) ->
                       case refBnd of
@@ -392,7 +394,7 @@ updateVars (v1@DFEnvVar{}, v2@DFEnvVar{}) = (v1, v2)
 -- | In case the binding is present in the context and in case the variable is not a literal (yes, it might be)
 --   update the type of the variable in the variable and in the scope.
 -- FIXME: Check whether we need to adhere to any correspondence among Binding type 'b' and Variable type 'a'
-maybeUpdate :: forall b m ty a. MonadState (BindingContext ty) m => ATypedBinding b ty -> DFVar a ty -> m (DFVar a ty)
+maybeUpdate :: forall b m ty a. MonadState (HashMap Binding (Exists ty)) m => ATypedBinding b ty -> DFVar a ty -> m (DFVar a ty)
 maybeUpdate reference var = do
   knownVars <- get
 
@@ -424,7 +426,7 @@ maybeUpdate reference var = do
         return newVar
 
 
-updateContext :: MonadState (BindingContext ty) m => ATypedBinding b ty -> ArgType ty -> m ()
+updateContext :: MonadState (HashMap Binding (Exists ty)) m => ATypedBinding b ty -> ArgType ty -> m ()
 updateContext atBnd newType  = do
   -- traceM $ "Updating binding " <> show aBnd <> " to type " <> show newType
   modify (HM.insert (unwrapABnd atBnd) $ Exists (DFVar $ replaceType atBnd newType)) 
