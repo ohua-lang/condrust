@@ -47,7 +47,7 @@ recurLowering expr
       outsANew = map (Direct . DataBinding) . outsDFApp
       
       -- FIXME: Make it BuiltIn again if we we need that
-      findEnd :: NonEmpty (OutData 'Data) -> NonEmpty (DFVar 'Data ty)
+      findEnd :: NonEmpty (OutData 'Data ty) -> NonEmpty (DFVar 'Data ty)
               -> NormalizedDFExpr ty -> m (DFApp 'Fun ty ) -- BuiltIn ty)
       findEnd outs inp (Let app@PureDFFun{} _) | funRef app == ALangPass.recurEndMarker =
           let cond:(fixRef:recurArgs) = insDFApp app
@@ -55,17 +55,17 @@ recurLowering expr
               -- that these two lists have the same size! and this is always
               -- true because these are the arguments to a call to the same
               -- function, i.e, the recursion!
-              condIn = DFVar TypeVar $ DataBinding cond
-              finalResultIn = DFVar TypeVar $ DataBinding fixRef
+              condIn = DFVar $ DataBinding cond
+              finalResultIn = DFVar $ DataBinding fixRef
               recurInitArgs = NE.toList inp
-              recurArgs' = map (DFVar TypeVar . DataBinding) recurArgs
+              recurArgs' = map (DFVar . DataBinding) recurArgs
 
               ctrlOut = head outs
               recurArgsOuts = tail outs
 
               -- FIXME: Make it BuiltIn again if we we need that
-              fun :: OutData 'Data
-                  -> [(OutData 'Data, DFVar 'Data ty, DFVar 'Data ty)]
+              fun :: OutData 'Data ty
+                  -> [(OutData 'Data ty, DFVar 'Data ty, DFVar 'Data ty)]
                   -> V.SNat n
                   -> DFApp 'Fun ty -- BuiltIn ty 
               fun finalResultOut xs snat =
@@ -100,4 +100,4 @@ recurLowering expr
       findEnd outs inp (Let _ cont) = findEnd outs inp cont
       -- FIXME This looks like we should perform this transformation differently, so we
       -- can avoid this failure case. 
-      findEnd _ _ (Var v _) = failWith $ "Did not find end marker for recursion. Hit var: " <> show v
+      findEnd _ _ (Var tBnd) = failWith $ "Did not find end marker for recursion. Hit var: " <> show tBnd
