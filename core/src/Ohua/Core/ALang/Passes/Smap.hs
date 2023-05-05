@@ -52,8 +52,9 @@ smapRewrite =
                 let ([inSt@(TBind inBnd sTy)], expr) = case lambdaArgsAndBody lamExpr'' of 
                                         e@([_], _) -> e
                                         e -> error $ "Pattern match failure. Got pattern: " <> quickRender e 
-                d <- generateBindingWith "d"
-                let expr' = renameVar expr (Var inSt, (TBind d sTy))
+                dBnd <- generateBindingWith "d"
+                let d = TBind dBnd sTy
+                    expr' = renameVar expr (Var inSt, d)
   --   [ohualang|
   --     let (d, $var:ctrlVar, size) = Ohua.Core.lang/smapFun $var:dataGen in
   --      let (a,b,c) = ctrl $var:ctrlVar a b c in
@@ -64,7 +65,7 @@ smapRewrite =
                 sizeB <- generateBindingWith "size"
                 let size = TBind sizeB TypeNat
                 ctrlsB <- generateBindingWith "ctrls"
-                let crtls = TBind crtlsB (TupleTy $ controlSignalType:|[controlSignalType])
+                let ctrls = TBind ctrlsB (TupleTy $ controlSignalType:|[controlSignalType])
                 resultB <- generateBindingWith "result"
                 -- FIXME: We should know this better
                 let result = TBind resultB TypeVar
