@@ -35,7 +35,7 @@
 module Ohua.Core.ALang.Lang
   ( Expr(..)
   , AExpr
-  , TypedBinding(..)
+  , TypedBinding(..), asBnd, asType
   , exprType
   -- ** Convenience patterns
   , pattern PureFunction, pattern PureFunctionTy, pattern PureFunctionF
@@ -71,7 +71,15 @@ data Expr ty
     deriving (Show, Eq, Generic)
 
 type AExpr = Expr
+-- ToDo: Tyed Binding realy does belong in into commons as we need it everywhere in DFLang and
+--       could already start using it in FRLang I think
 data TypedBinding ty = TBind Binding (ArgType ty) deriving (Show, Eq, Generic)
+
+asBnd :: TypedBinding ty -> Binding
+asBnd (TBind bnd _ty) = bnd 
+
+asType :: TypedBinding ty -> ArgType ty
+asType (TBind _bnd ty) = ty 
 
 -- ToDo: Actually every expression should be typable at this point
 exprType:: Expr ty -> ArgType ty

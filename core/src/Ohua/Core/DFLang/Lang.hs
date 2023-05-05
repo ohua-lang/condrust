@@ -23,11 +23,11 @@ deriving instance Eq (ATypedBinding a ty)
 
 data OutData (bType :: BindingType) (ty :: Type) :: Type  where
   -- | Direct output
-  Direct :: ATypedBinding b ty -> OutData b ty
+  Direct :: ATypedBinding bType ty -> OutData bType ty
   -- | Destructuring
-  Destruct :: NonEmpty (OutData b ty) -> OutData b ty
+  Destruct :: NonEmpty (OutData bType ty) -> OutData bType ty
   -- | Copying of output data
-  Dispatch :: NonEmpty (ATypedBinding b ty) -> OutData b ty
+  Dispatch :: NonEmpty (ATypedBinding bType ty) -> OutData bType ty
   deriving (Show, Eq, Generic)
 
 
@@ -171,6 +171,7 @@ data Expr (fun :: FunANF -> Type -> Type) (ty :: Type) :: Type where
 -- Accessor functions
 ----------------------------
 
+-- ToDo: At this point we can/should ensure, that renaming only happens when types are equal
 renameABnd :: TypedBinding ty -> ATypedBinding a ty -> ATypedBinding a ty
 renameABnd bnew (DataBinding (TBind bnd ty)) = DataBinding bnew
 renameABnd bnew (StateBinding (TBind bnd ty)) = StateBinding bnew
@@ -259,6 +260,11 @@ unwrapABnd :: ATypedBinding bty ty -> Binding
 unwrapABnd (DataBinding tbnd) = asBnd tbnd
 unwrapABnd (StateBinding tbnd) = asBnd tbnd 
 
+unwrapVarType :: DFVar b ty -> ArgType ty
+unwrapVarType  (DFVar atBnd) = asType . unwrapTB $ atBnd
+unwrapVarType  (DFStateVar atBnd) = asType . unwrapTB $ atBnd
+unwrapVarType  (DFEnvVar ty _lit) = ty
+
 unwrapVarBnd :: DFVar b ty -> Binding
 unwrapVarBnd (DFVar atBnd) = unwrapABnd atBnd
 unwrapVarBnd (DFStateVar atBnd) = unwrapABnd atBnd
@@ -268,6 +274,11 @@ unwrapVarTB :: DFVar b ty -> TypedBinding ty
 unwrapVarTB (DFVar atBnd) = unwrapTB atBnd
 unwrapVarTB (DFStateVar atBnd) = unwrapTB atBnd
 unwrapVarTB (DFEnvVar ty _lit) = error "Tried to unwrap a binding from a literat in DFLang. Please report this error" 
+
+--ToDo: Remove when TypePropagation is gone!
+replaceType ::  ATypedBinding bty ty -> ArgType ty ->  ATypedBinding bty ty
+replaceType (DataBinding tbnd) newTy = DataBinding (TBind (asBnd tbnd) newTy)
+replaceType (StateBinding tbnd) newTy = StateBinding (TBind (asBnd tbnd) newTy)
 
 ----------------------
 -- Instances:
