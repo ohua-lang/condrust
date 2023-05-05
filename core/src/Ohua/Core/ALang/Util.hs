@@ -39,7 +39,7 @@ substitute !var val =
 -- This is due to the fact that we often want to package the freeVars via a call to
 -- Ohua.Core.lang/array to make the backend implementation easier and I'm not sure whether
 -- this is always true.
--- This is also the reason why I keep this in Util into of making it an own pass.
+-- This is also the reason why I keep this in Util intead of making it an own pass.
 
 destructure :: Expr ty -> [TypedBinding ty] -> Expr ty -> Expr ty
 destructure source bnds =

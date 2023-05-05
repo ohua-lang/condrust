@@ -10,6 +10,7 @@ This source code is licensed under the terms described in the associated LICENSE
 
 -}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE LambdaCase #-}
 module Ohua.Core.ALang.Passes.State where
 
 import Ohua.Core.Prelude
@@ -77,23 +78,25 @@ transformFundamentalStateThreads = transformM f
   where
     f e@(Let v app cont) = do
       s <- stBndForStatefulFun app
-      let s' = used cont =<< s
+      let s' = usedIn cont =<< s
       maybe (return e) (g v app cont) s'
     f expr = return expr
 
-    used cont b@(bnd, _) =
+    usedIn cont b@(bnd, _) =
       case [b | Var b <- universe cont, b == bnd] of
         [] -> Nothing
         _ -> Just b
 
-    stBndForStatefulFun (StatefulFunction _ _ (Var (TBind bnd ty))) = Just . (bnd,) <$> generateBindingWith bnd
+    stBndForStatefulFun (StatefulFunction _ _ (Var tBnd@(TBind bnd ty))) = do Just . (\newBnd -> (tBnd, TBind newBnd ty)) <$> generateBindingWith bnd
     -- FIXME Once again, this stupid over-generalization of the language is a pain!
     stBndForStatefulFun e@(StatefulFunction _ _ _) = error $ "state should have been var: " <> show e
     stBndForStatefulFun (e1 `Apply` _)            = stBndForStatefulFun e1
     stBndForStatefulFun _                         = return Nothing
 
-    g r app cont (stateIn,stateOut) = do
-      x <- generateBinding
+    g r app cont (TBind stateIn sty, stateOut) = do
+      -- Question: What's the 'x' type supposed to be? And why do the functions have such helpful and self-explaining names
+      xBnd <- generateBinding
+      let x = TBind xBnd TypeVar
       return $
         Let x app $
         destructure (Var x) [stateOut,r] $
@@ -185,7 +188,9 @@ transformControlStateThreads = transformM f
           in do
             trueBranch'' <- mkST (map Var allStates) trueBranch'
             falseBranch'' <- mkST (map Var allStates) falseBranch'
-            ctxtOut <- generateBindingWith "ctxt_out"
+            -- Question: What's the 'ctxt_out' type supposed to be?
+            ctxtOutBnd <- generateBindingWith "ctxt_out"
+            let ctxtOut = TBind ctxtOutBnd TypeVar
             return $
               Let ctxtOut (fun `Apply` trueBranch'' `Apply` falseBranch'') $
               mkDestructured (v:allStates) ctxtOut
@@ -193,11 +198,13 @@ transformControlStateThreads = transformM f
     f (Let v (fun@(PureFunction op _) `Apply` lam `Apply` ds) cont)
       | op == Refs.smap =
           let (args, expr) = lambdaArgsAndBody lam
-              states = filter (not . (`HS.member` (HS.fromList args))) $ collectStates expr
+              states = filter (not . (`HS.member` HS.fromList args)) $ collectStates expr
           in do
             expr' <- mkST (map Var states) expr
-            ctxtOut <- generateBindingWith "ctxt_out"
-            let lam' = mkLambda args expr'
+            -- Question: What's the 'ctxt_out' type supposed to be?
+            ctxtOutBnd <- generateBindingWith "ctxt_out"
+            let ctxtOut = TBind ctxtOutBnd TypeVar
+                lam' = mkLambda args expr'
             return $
               Let ctxtOut (fun `Apply` lam' `Apply` ds) $
               mkDestructured (v:states) ctxtOut
@@ -250,7 +257,7 @@ transformCtxtExits = evictOrphanedDestructured . f
              _ -> descend f l
         f e = descend f e
 
-        g :: Binding -> Expr ty -> [Expr ty] -> Expr ty -> Expr ty
+        g :: TypedBinding ty -> Expr ty -> [Expr ty] -> Expr ty -> Expr ty
         g compound compOut stateArgs l@(Let v e@(Apply _ _) cont) =
            case fromApplyToList' e of
              -- Must be a conditional (second ctxtExit)
@@ -274,8 +281,8 @@ transformCtxtExits = evictOrphanedDestructured . f
              _ -> descend (g compound compOut stateArgs) l
         g co c s e = descend (g co c s) e
 
-        h :: Binding -> Expr ty -> [Expr ty]
-          -> Binding -> Expr ty -> [Expr ty]
+        h :: TypedBinding ty -> Expr ty -> [Expr ty]
+          -> TypedBinding ty-> Expr ty -> [Expr ty]
           -> Expr ty
           -> Expr ty
         h compound compOut stateOuts _compound' compOut' stateOuts'
@@ -304,8 +311,8 @@ applyToBody :: (Expr ty -> Expr ty) -> Expr ty -> Expr ty
 applyToBody f (Lambda _ body) = applyToBody f body
 applyToBody f e = f e
 
-collectStates :: Expr ty -> [Binding]
-collectStates e = [ s | (BindState (Var s) _) <- universe e ]
+collectStates :: Expr ty -> [TypedBinding ty]
+collectStates e = [ stb | (BindState (Var stb) _) <- universe e ]
 
 mkST :: (MonadGenBnd m) => [Expr ty] -> Expr ty -> m (Expr ty)
 mkST states = \case
@@ -313,6 +320,7 @@ mkST states = \case
     e -> do
         allOut <- generateBindingWith "all_out"
         return $
-            Let allOut
+            -- Question: What's this type supposed to be?
+            Let (TBind allOut TypeVar)
                 (mkApply (withSuccSing (Succ $ nlength states) ctxtExitFunRef) $ e : states)
-                (Var allOut)
+                (Var (TBind allOut TypeVar))
