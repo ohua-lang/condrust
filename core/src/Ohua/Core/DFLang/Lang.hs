@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 -- {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ScopedTypeVariables, NoOverloadedLists #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Ohua.Core.DFLang.Lang where
 

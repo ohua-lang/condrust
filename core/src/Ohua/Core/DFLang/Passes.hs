@@ -1,4 +1,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE LambdaCase #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Eta reduce" #-}
 
 -- |
 -- Module      : $Header$
@@ -31,7 +34,7 @@ runCorePasses = removeNth
 
 finalPasses :: (MonadOhua m) =>  NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
 finalPasses = insertDispatch >=> eliminate
- 
+
 typePropagation :: (MonadOhua m) => ty -> NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
 typePropagation retTy = pure . propagateTypesWithRetTy retTy
 
@@ -52,13 +55,13 @@ removeNth expr = do
     -- explicit traversal prevents non-exhaustive pattern warnings and allows to convert stuff to Coq later on.
     f = \case
       (DFLang.Let app cont) -> go app cont
-      (DFLang.Var bnd ty) -> pure $ DFLang.Var bnd ty
+      (DFLang.Var atBnd) -> pure $ DFLang.Var atBnd
       where
         go ::
           App a ty ->
           NormalizedExpr ty ->
           State
-            (HM.HashMap (TypedBinding ty) (NonEmpty (Integer, Binding)))
+            (HM.HashMap (TypedBinding ty) (NonEmpty (Integer, TypedBinding ty)))
             (NormalizedDFExpr ty)
         go app cont = do
           cont' <- f cont
@@ -70,14 +73,14 @@ removeNth expr = do
     -- FIXME This only works for destructed App output but what about SMap and Rec?!
     toDFAppFun :: App a ty
                -> State
-               (HM.HashMap (TypedBinding ty) (NonEmpty (Integer, Binding)))
+               (HM.HashMap (TypedBinding ty) (NonEmpty (Integer, TypedBinding ty)))
                (Maybe (DFApp a ty))
-    toDFAppFun (PureFun tgt (FunRef "ohua.lang/nth" _ _) (DFEnvVar _ (NumericLit i) :| [_, DFVar _ (DataBinding src)]) ) =
-      modify (HM.insertWith (<>) src ((i, unwrapABnd tgt) :| [])) >> pure Nothing
+    toDFAppFun (PureFun tgt (FunRef "ohua.lang/nth" _ _) (DFEnvVar _ (NumericLit i) :| [_, DFVar srcATB ]) ) =
+      modify (HM.insertWith (<>) (unwrapTB srcATB) ((i, unwrapVarTB tgt) :| [])) >> pure Nothing
     toDFAppFun (PureFun out (FunRef fr _ _) ins) | fr == ALangRefs.ifFun = do
       hm <- get
       let out' =
-            case toDFOuts (unwrapABnd out) DataBinding hm of
+            case toDFOuts (unwrapVarTB out) DataBinding hm of
               Destruct (trueOut :| [falseOut]) -> (trueOut, falseOut)
               _ -> error $ "Invariant broken: IfFun has wrong output: " <> show out'
       let dIn = case ins of
@@ -87,7 +90,7 @@ removeNth expr = do
     toDFAppFun (PureFun out (FunRef fr _ _) ins) | fr == ALangRefs.smapFun = do
       hm <- get
       let out' =
-            case toDFOuts (unwrapABnd out) DataBinding hm of
+            case toDFOuts (unwrapVarTB out) DataBinding hm of
               Destruct (dOut :| [ctrlOut, sizeOut]) -> (Just dOut, Just ctrlOut, Just sizeOut)
               _ -> error $ "Invariant broken: SMap has wrong output: " <> show out'
       let dIn = case ins of
@@ -96,14 +99,14 @@ removeNth expr = do
       return $ Just $ SMapFun out' dIn
     toDFAppFun (PureFun out fun ins) = do
       hm <- get
-      let out' = toDFOuts (unwrapABnd out) DataBinding hm
+      let out' = toDFOuts (unwrapVarTB out) DataBinding hm
       return $ Just $ PureDFFun out' fun ins
     toDFAppFun (StateFun (stateOut, out) fun stateIn ins) = do
       hm <- get
-      let out' = toDFOuts (unwrapABnd out) DataBinding hm
-      let stateOut' = (\s -> toDFOuts (unwrapABnd s) StateBinding hm) <$> stateOut
+      let out' = toDFOuts (unwrapTB out) DataBinding hm
+      let stateOut' = (\s -> toDFOuts (unwrapTB s) StateBinding hm) <$> stateOut
       return $ Just $ StateDFFun (stateOut', Just out') fun stateIn ins
-    toDFOuts :: Binding -> (Binding -> ABinding a) -> HM.HashMap (TypedBinding ty) (NonEmpty (Integer, Binding)) -> OutData a
+    toDFOuts :: TypedBinding ty -> (TypedBinding ty -> ATypedBinding b ty) -> HM.HashMap (TypedBinding ty) (NonEmpty (Integer, TypedBinding ty)) -> OutData b ty
     toDFOuts out bndFun =
       maybe
         -- TODO normally I would not have to unwrap the bindings here but they would preserve their
@@ -134,13 +137,13 @@ checkDefinedUsage expr = evalStateT (f expr) HS.empty
 --       The tag is lost whenever a new binding is introduced.)
 
 -- | Check that a sequence of let expressions does not redefine bindings.
-checkSSA :: forall ty a m. MonadOhua m => DFLang.Expr ty a -> m ()
+checkSSA :: forall b ty m. MonadOhua m => DFLang.Expr b ty -> m ()
 checkSSA e =
   mapM_
     (\(out, fs) -> failWith $ "Rebinding of " <> show out <> " at " <> show fs)
     redefines
   where
-    redefines :: [(Binding, [Text])]
+    redefines :: [(TypedBinding ty, [Text])]
     redefines =
       HM.toList $
         HM.filter ((> 1) . length) $
@@ -148,8 +151,8 @@ checkSSA e =
             (\hm (out, f) -> HM.insertWith (++) out [f] hm)
             HM.empty
             (allOuts e)
-    allOuts :: DFLang.Expr ty a -> [(Binding, Text)]
-    allOuts (DFLang.Let app cont) = (map (,show app) (outBindings app)) ++ allOuts cont
+    allOuts :: DFLang.Expr b ty -> [(TypedBinding ty, Text)]
+    allOuts (DFLang.Let app cont) = map (,show app) (outBindings app) ++ allOuts cont
     allOuts _ = []
 
 -- | Transform an ALang expression into a DFExpression.
@@ -170,22 +173,23 @@ lowerToDF expr = evalStateT (transfer' expr) HS.empty
       (MonadState (HS.HashSet (TypedBinding ty)) m, MonadOhua m) =>
       ALang.Expr ty ->
       m (NormalizedExpr ty)
-    transfer' (ALang.Var (TBind bnd vType)) = return $ DFLang.Var bnd vType
-    transfer' (ALang.Let tbnd a@(NthFunction b) e) = do
+    transfer' (ALang.Var tBnd) = return $ DFLang.Var $ DataBinding tBnd
+    transfer' (ALang.Let tBnd a@(NthFunction b) e) = do
       isStateDestruct <- HS.member b <$> get
       if isStateDestruct
         then transfer' e
-        else transferLet bnd a e
-    transfer' (ALang.Let bnd a e) = transferLet bnd a e
+        else transferLet tBnd a e
+    transfer' (ALang.Let tBnd a e) = transferLet tBnd a e
     transfer' e = failWith $ "Invariant broken. Unexpected expression: " <> show e -- FIXME only here because of ALang type (see issue #8)
-    transferLet bnd a e = do
-      app <- handleDefinitionalExpr' bnd a e
+
+    transferLet tBnd a e = do
+      app <- handleDefinitionalExpr' tBnd a e
       e' <- transfer' e
       return $ app e'
 
-handleDefinitionalExpr' ::
+handleDefinitionalExpr' :: forall ty m.
   (MonadState (HS.HashSet (TypedBinding ty) ) m, MonadOhua m) =>
-  Binding ->
+  TypedBinding ty ->
   ALang.Expr ty ->
   ALang.Expr ty ->
   m (NormalizedExpr ty -> NormalizedExpr ty)
@@ -199,18 +203,18 @@ handleDefinitionalExpr' assign l@(Apply _ _) cont = do
     st ::
       (MonadState (HS.HashSet (TypedBinding ty)) m) =>
       FunRef ty ->
-      (ArgType ty, ABinding 'State) ->
+      ATypedBinding 'State ty ->
       NonEmpty (DFVar 'Data ty) ->
       m (App 'ST ty)
-    st fn (stateType, stateBnd) args' =
-      (\outs -> StateFun outs fn (DFVar stateType stateBnd) args')
+    st fn stateATBnd args' =
+      (\outs -> StateFun outs fn (DFVar stateATBnd) args')
         <$> findSTOuts assign
-    fun :: FunRef ty -> Binding -> NonEmpty (DFVar 'Data ty) -> App 'Fun ty
-    fun fn bnd args' = PureFun (DataBinding bnd) fn args'
+    fun :: FunRef ty -> TypedBinding ty -> NonEmpty (DFVar 'Data ty) -> App 'Fun ty
+    fun fn tbnd args' = PureFun (DFVar $ DataBinding tbnd) fn args'
     findSTOuts ::
       (MonadState (HS.HashSet (TypedBinding ty)) m) =>
-      (TypedBinding ty) ->
-      m (Maybe (ABinding 'State), ABinding 'Data)
+      TypedBinding ty ->
+      m (Maybe (ATypedBinding 'State ty), ATypedBinding 'Data ty)
     findSTOuts bnd =
       case findDestructured cont bnd of
         [stateOut, dataOut] -> do
@@ -230,7 +234,7 @@ handleApplyExpr ::
   forall m ty.
   (MonadOhua m) =>
   ALang.Expr ty ->
-  m (FunRef ty, Maybe (ArgType ty, ABinding 'State), NonEmpty (ArgType ty, ALang.Expr ty))
+  m (FunRef ty, Maybe (ATypedBinding 'State ty), NonEmpty (ArgType ty, ALang.Expr ty))
 handleApplyExpr (Apply fn a) = go (a :| []) fn
   where
     go args e =
@@ -251,7 +255,7 @@ handleApplyExpr (Apply fn a) = go (a :| []) fn
         BindState state0 (Lit (FunRefLit fr@(FunRef f _ (STFunType sType argTypes)))) -> do
           assertTermTypes args argTypes "stateful function" f
           state' <- expectStateBnd state0
-          return (fr, Just (sType, state'), zip' argTypes args)
+          return (fr, Just state', zip' argTypes args)
         x -> failWith $ "Expected Apply or Var but got: " <> show (x :: ALang.Expr ty)
     assertTermTypes termArgs typeArgs funType f =
       assertE
@@ -278,20 +282,21 @@ handleApplyExpr g = failWith $ "Expected apply but got: " <> show g
 
 -- | Inspect an expression expecting something which can be captured
 -- in a DFVar otherwise throws appropriate errors.
-expectVar :: (HasCallStack, MonadError Error m) => ALang.Expr ty -> m (DFVar 'Data ty)
-expectVar (ALang.Var (TBind bnd ty)) = pure $ DFVar ty $ DataBinding bnd
+-- ToDo: This should go away because a) We carry the types of vars (and literals?!) from the frontend and b) at this point there shouldn't be syntax errors any more
+expectVar :: (HasCallStack, MonadError Error m) => ArgType ty -> ALang.Expr ty -> m (DFVar 'Data ty)
+expectVar ty (ALang.Var tBnd) = pure $ DFVar $ DataBinding tBnd
 -- TODO currently only allowed for the unitFn function
 -- expectVar r@PureFunction {} =
 --     throwError $
 --     "Function references are not yet supported as arguments: " <>
 --     show (pretty r)
 --FIXME: Use actual type as soon as we introduced correct typing for literals
-expectVar (Lit l) = pure $ DFEnvVar TypeVar l
-expectVar a =
+expectVar ty (Lit l) = pure $ DFEnvVar TypeVar l
+expectVar ty a =
   throwErrorS $ "Argument must be local binding or literal, was " <> show a
 
 -- | This is again something that should have been there right at the very beginning.
-expectStateBnd :: (HasCallStack, MonadError Error m) => ALang.Expr ty -> m (ABinding 'State)
-expectStateBnd (ALang.Var (TBind bnd ty)) = pure $ StateBinding bnd
+expectStateBnd :: (HasCallStack, MonadError Error m) => ALang.Expr ty -> m (ATypedBinding 'State ty)
+expectStateBnd (ALang.Var tBnd) = pure $ StateBinding tBnd
 expectStateBnd a =
   throwErrorS $ "State argument must be local binding, was " <> show a
