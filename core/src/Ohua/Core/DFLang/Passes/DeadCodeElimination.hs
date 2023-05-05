@@ -8,32 +8,27 @@ import Data.Tuple.Extra (fst3)
 import Ohua.Core.DFLang.Lang as L
 import Ohua.Core.Prelude
 import qualified Ohua.Types.Vector as V
+import Ohua.Core.ALang.Lang as ALang (TypedBinding(..))
 
 
 eliminate :: (MonadOhua m) => NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
 eliminate expr = do
   expr' <- (eliminateExprs . eliminateOuts) expr
-  case L.countBindings expr == L.countBindings expr' of
-    True -> pure expr'
-    False -> eliminate expr'
+  (if L.countBindings expr == L.countBindings expr' then pure expr' else eliminate expr')
 
 eliminateExprs :: forall m ty. (MonadOhua m) => NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
 eliminateExprs expr = do
   expr' <- eliminateDeadExprs expr
-  case L.length expr == L.length expr' of
-    True -> pure expr'
-    False -> eliminateExprs expr'
+  (if L.length expr == L.length expr' then pure expr' else eliminateExprs expr')
   where
     eliminateDeadExprs = transformExprM f
 
     f :: NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
     f (Let app@(PureDFFun out (FunRef fun _ _) _) cont) = do
-      case isUsed out of
-          True -> pure $ Let app cont
-          False -> warn fun >> return cont
+      (if isUsed out then pure $ Let app cont else warn fun >> return cont)
     f e = pure e
 
-    isUsed :: OutData a -> Bool
+    isUsed :: OutData a ty -> Bool
     isUsed out = any (`HS.member` (HS.fromList $ usedBindings expr)) $ toOutBnds out
 
     warn :: QualifiedBinding -> m ()
@@ -43,9 +38,10 @@ eliminateExprs expr = do
     warning :: QualifiedBinding -> m ()
     warning fun = liftIO $ T.putStrLn $ "[WARNING] The output of pure function '" <> show fun <> "' is not used. As such, it will be deleted. If the function contains side-effects then this function actually wants to be stateful!"
 
-eliminateOuts :: NormalizedDFExpr ty -> NormalizedDFExpr ty
+eliminateOuts :: forall ty. NormalizedDFExpr ty -> NormalizedDFExpr ty
 eliminateOuts expr = mapFuns go expr
   where
+    go :: forall (f::FunANF). DFApp f ty -> DFApp f ty
     go (RecurFun c ctrlOut outArgs initArgs inArgs cond result) = do
       let ctrlOut' = filterOutData =<< ctrlOut
       case V.zip3 outArgs initArgs inArgs of
@@ -68,19 +64,19 @@ eliminateOuts expr = mapFuns go expr
         dIn
     go e = e
 
-    filterOutData :: OutData a -> Maybe (OutData a)
-    filterOutData (Direct a) | not $ isBndUsed (unwrapABnd a) = Nothing
+    filterOutData :: forall (a::BindingType). OutData a ty -> Maybe (OutData a ty)
+    filterOutData (Direct a) | not $ isBndUsed (unwrapTB a) = Nothing
     filterOutData a@Direct {} = Just a
     filterOutData (Destruct xs) =
       case mapMaybe filterOutData $ toList xs of
         [] -> Nothing
         (a : as) -> Just $ Destruct $ a :| as
     filterOutData (Dispatch bs) =
-      case filter (isBndUsed . unwrapABnd) $ toList bs of
+      case filter (isBndUsed . unwrapTB) $ toList bs of
         [] -> Nothing
         (a : as) -> Just $ Dispatch $ a :| as
 
-    isBndUsed :: Binding -> Bool
+    isBndUsed :: TypedBinding ty -> Bool
     isBndUsed bnd =
       let usedBnds = HS.fromList $ usedBindings expr
        in HS.member bnd usedBnds
