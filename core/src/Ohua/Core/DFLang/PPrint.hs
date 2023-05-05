@@ -9,6 +9,7 @@ import Data.Text.Prettyprint.Doc as PP
 
 import Ohua.Types.Reference ()
 import Ohua.Core.ALang.PPrint ()
+import Ohua.Core.ALang.Lang as ALang (asType, asBnd)
 import Ohua.Core.DFLang.Lang
 
 import Data.Text.Prettyprint.Doc.Render.Text
@@ -26,15 +27,17 @@ prettyExprM = LT.putStr . prettyExpr
 instance Pretty (NormalizedDFExpr ty) where
     pretty = \case
         (Let app cont) -> vsep $ hsep ["let", pretty app, "in"] : [pretty cont]
-        (Var bnd _ ) -> vsep [pretty bnd]
+        (Var atBnd ) -> vsep [pretty atBnd]
 
 instance Pretty (NormalizedExpr ty) where
     pretty = \case
         (Let app cont) -> vsep $ hsep [pretty app, "in"] : [pretty cont]
-        (Var bnd _) -> vsep [pretty bnd]
+        (Var atBnd) -> vsep [pretty atBnd]
 
-instance Pretty (ABinding a) where
-    pretty = pretty . unwrapABnd
+instance Pretty (ATypedBinding a ty) where
+    pretty atb = 
+        let tb = unwrapTB atb
+        in hsep [pretty $ asBnd tb, "::", pretty $ asType tb] 
 
 instance Pretty (App a ty) where
     pretty (PureFun output fun inps) =
@@ -91,12 +94,12 @@ instance Pretty (DFApp a ty) where
             ] <>
             [align $ tupled [pretty dIn]]
             
-instance Pretty (OutData a) where
+instance Pretty (OutData b ty) where
     pretty (Direct b) = pretty b
     pretty (Destruct ds) = align $ tupled $ map pretty $ toList ds
     pretty (Dispatch ds) = align $ tupled $ map pretty $ toList ds
 
-instance Pretty (DFVar a ty) where
+instance Pretty (DFVar b ty) where
     pretty = \case
         DFEnvVar _ he -> pretty he
-        DFVar ty b -> hsep [pretty b, angles $ pretty ty]
+        DFVar atb -> pretty atb
