@@ -16,6 +16,7 @@
 -- This source code is licensed under the terms described in the associated LICENSE.TXT file
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Ohua.Core.ALang.Passes where
 
@@ -178,7 +179,8 @@ ensureFinalLet' =
             | isVarOrLambdaF any0 -> embed <$> traverse snd any0 -- Don't rebind a lambda or var. Continue or terminate
             | otherwise -> do -- Rebind anything else
                 newBnd <- generateBinding
-                pure $ Let newBnd (embed $ fmap fst any0) (Var newBnd)
+                -- Question: What happens here and whats the type of newBnd supposed to be?
+                pure $ Let (TBind newBnd TypeVar) (embed $ fmap fst any0) (Var (TBind newBnd TypeVar))
   where
     isVarOrLambdaF =
         \case
@@ -195,7 +197,8 @@ ensureFinalLet'' v@(Var _) = return v
 ensureFinalLet'' (Lambda b body) = Lambda b <$> ensureFinalLet' body
 ensureFinalLet'' a = do
     newBnd <- generateBinding
-    return $ Let newBnd a (Var newBnd)
+    -- Question: What happens here and whats the type of newBnd supposed to be?
+    return $ Let (TBind newBnd TypeVar) a (Var (TBind newBnd TypeVar))
 
 ensureFinalLetInLambdas :: MonadOhua m => Expr ty -> m (Expr ty)
 ensureFinalLetInLambdas =
@@ -206,7 +209,8 @@ ensureFinalLetInLambdas =
 ensureAtLeastOneCall :: (Monad m, MonadGenBnd m) => Expr ty -> m (Expr ty)
 ensureAtLeastOneCall e@(Var _) = do
     newBnd <- generateBinding
-    pure $ Let newBnd (pureFunction Refs.id Nothing (FunType $ Right $ TypeVar :| [])`Apply` e) $ Var newBnd
+    -- QUestion: What happens here and what's the type of newBnd supposed to be?
+    pure $ Let (TBind newBnd TypeVar) (pureFunction Refs.id Nothing (FunType $ Right $ TypeVar :| [])`Apply` e) $ Var (TBind newBnd TypeVar)
 ensureAtLeastOneCall e = cata f e
   where
     f (LambdaF bnd body) =
@@ -215,8 +219,8 @@ ensureAtLeastOneCall e = cata f e
                 newBnd <- generateBinding
                 pure $
                     Lambda bnd $
-                    Let newBnd (pureFunction Refs.id Nothing (FunType $ Right $ TypeVar :| []) `Apply` v) $
-                    Var newBnd
+                    Let (TBind newBnd TypeVar) (pureFunction Refs.id Nothing (FunType $ Right $ TypeVar :| []) `Apply` v) $
+                    Var (TBind newBnd TypeVar)
             eInner -> pure $ Lambda bnd eInner
     f eInner = embed <$> sequence eInner
 
@@ -263,14 +267,14 @@ instance Monoid WasTouched where
 
 type TouchMap = MonoidCombineHashMap Binding (WasTouched, WasTouched)
 
-wasTouchedAsFunction :: Binding -> TouchMap
-wasTouchedAsFunction bnd = MonoidCombineHashMap $ HM.singleton bnd (Yes, No)
+wasTouchedAsFunction :: TypedBinding ty  -> TouchMap
+wasTouchedAsFunction (TBind bnd ty) = MonoidCombineHashMap $ HM.singleton bnd (Yes, No)
 
-wasTouchedAsValue :: Binding -> TouchMap
-wasTouchedAsValue bnd = MonoidCombineHashMap $ HM.singleton bnd (No, Yes)
+wasTouchedAsValue :: TypedBinding ty -> TouchMap
+wasTouchedAsValue (TBind bnd ty) = MonoidCombineHashMap $ HM.singleton bnd (No, Yes)
 
-lookupTouchState :: Binding -> TouchMap -> (WasTouched, WasTouched)
-lookupTouchState bnd (MonoidCombineHashMap m) =
+lookupTouchState :: TypedBinding ty -> TouchMap -> (WasTouched, WasTouched)
+lookupTouchState (TBind bnd ty) (MonoidCombineHashMap m) =
     fromMaybe mempty $ HM.lookup bnd m
 
 -- | Reduce curried expressions.  aka `let f = some/sf a in f b`
@@ -371,7 +375,9 @@ liftApplyToLetArgsIn =
     lrPrewalkExprM $ \case
         Apply fn arg@(Apply _ _) -> do
             bnd <- generateBinding
-            return $ Let bnd arg $ Apply fn (Var bnd)
+            -- ToDo: To type variables bound to the branches, we need to knwo the type of the variable bound to the whole if-then-else
+            
+            return $ Let (TBind bnd TypeVar) arg $ Apply fn (Var (TBind bnd TypeVar))
         a -> return a
 
 -- normalizeBind :: (MonadError Error m, MonadGenBnd m) => Expr ty -> m (Expr ty)
