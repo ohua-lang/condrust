@@ -5,16 +5,19 @@ import qualified Data.HashMap.Lazy as HM
 import Data.List.NonEmpty ((<|))
 import qualified Data.List.NonEmpty as NE
 import Data.List.NonEmpty.Extra ((|>))
+
+
 import qualified Ohua.Core.DFLang.Refs as DFLangRefs
 import Ohua.Core.DFLang.Lang hiding (length)
 import Ohua.Core.Prelude hiding (Nat)
-import Ohua.Types.Vector 
+import Ohua.Types.Vector
+import Ohua.Core.ALang.Lang as ALang (TypedBinding(..))
 
 
-data UsageSite = Pure| StateThread | SMap | If | Rec | Collect | Select | Ctrl deriving Eq
+data UsageSite = Pure | StateThread | SMap | If | Rec | Collect | Select | Ctrl deriving Eq
 data Record where
   Record :: NonEmpty UsageSite -> SNat ('Succ n) -> Record
-type FreeVars = HM.HashMap Binding Record
+type FreeVars ty = HM.HashMap (TypedBinding ty) Record
 
 fromApp :: DFApp a b -> UsageSite
 fromApp PureDFFun{} = Pure
@@ -25,7 +28,7 @@ fromApp RecurFun{} = Rec
 -- We'll need them later
 fromApp CollectFun{} = Collect
 fromApp SelectFun{} = Select
-fromApp CtrlFun{} = Ctrl 
+fromApp CtrlFun{} = Ctrl
 
 addUsageSite :: UsageSite -> Record -> Record
 addUsageSite a (Record u n) = Record (u |> a) (SSucc n)
@@ -48,7 +51,7 @@ instance Semigroup Record where
 insertDispatch :: forall m ty. MonadGenBnd m => MonadOhua m => NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
 insertDispatch e = evalStateT (transformExprM go e) HM.empty
   where
-    go :: NormalizedDFExpr ty -> StateT FreeVars m (NormalizedDFExpr ty)
+    go :: NormalizedDFExpr ty -> StateT (FreeVars ty) m (NormalizedDFExpr ty)
     go l@(Let app cont) = do
       l' <- case app of
         (SMapFun (dOut, ctrlOut, sizeOut) dIn) -> do
@@ -83,17 +86,17 @@ insertDispatch e = evalStateT (transformExprM go e) HM.empty
 
     collect app =
       let initial = Record (fromApp app :| []) $ SSucc SZero
-      in   mapM_ (\bnd -> modify $ HM.insertWith (<>) bnd initial) $ insDFApp app
+      in   mapM_ (\tbnd -> modify $ HM.insertWith (<>) tbnd initial) $ insDFApp app
 
-    maybeDispatch :: NormalizedDFExpr ty -> Maybe (OutData bndType) -> StateT FreeVars m (NormalizedDFExpr ty, Maybe (OutData bndType))
+    maybeDispatch :: NormalizedDFExpr ty -> Maybe (OutData bndType ty) -> StateT (FreeVars ty) m (NormalizedDFExpr ty, Maybe (OutData bndType ty))
     maybeDispatch cont dOut =
-      let f :: OutData bndType -> StateT FreeVars m (NormalizedDFExpr ty, Maybe (OutData bndType))
+      let f :: OutData bndType ty -> StateT (FreeVars ty) m (NormalizedDFExpr ty, Maybe (OutData bndType ty))
           f out = do
             (c', out') <- dispatchOutput cont out
             return (c', Just out')
        in maybeM (return (cont, dOut)) f $ return dOut
 
-    dispatchOutput :: NormalizedDFExpr ty -> OutData bndType -> StateT FreeVars m (NormalizedDFExpr ty, OutData bndType)
+    dispatchOutput :: NormalizedDFExpr ty -> OutData bndType ty -> StateT (FreeVars ty) m (NormalizedDFExpr ty, OutData bndType ty)
     dispatchOutput cont (Direct o) = do
       (cont', o') <- checkAndDispatch cont o
       return
@@ -125,22 +128,23 @@ insertDispatch e = evalStateT (transformExprM go e) HM.empty
           outs
       return (cont'', Dispatch out'')
 
-    checkAndDispatch :: NormalizedDFExpr ty -> ABinding bndType -> StateT FreeVars m (NormalizedDFExpr ty, NonEmpty (ABinding bndType))
+    checkAndDispatch :: NormalizedDFExpr ty -> ATypedBinding bndTy ty -> StateT (FreeVars ty) m (NormalizedDFExpr ty, NonEmpty (ATypedBinding bndTy ty))
     checkAndDispatch cont o = do
       condIns <- get
-      case HM.lookup (unwrapABnd o) condIns of
+      case HM.lookup (unwrapTB o) condIns of
         (Just (Record _ n@(SSucc (SSucc _)))) -> do
           (cont', bnds) <- lift $ insertDispatch' cont o n
           return (cont', bnds)
         _ -> return (cont, o :| [])
 
-    insertDispatch' :: NormalizedDFExpr ty -> ABinding bndType -> SNat ('Succ n) -> m (NormalizedDFExpr ty, NonEmpty (ABinding bndType))
+    insertDispatch' :: NormalizedDFExpr ty -> ATypedBinding bndTy ty -> SNat ('Succ n) -> m (NormalizedDFExpr ty, NonEmpty (ATypedBinding bndTy ty))
     insertDispatch' cont b (SSucc n) = do
-      let bnd = unwrapABnd b
+      let oldB@(TBind bnd ty) = unwrapTB b
       bnd' <- generateBindingWith bnd
-      let cont' = substituteFirstOccurence (bnd, bnd') cont
+      let newB = TBind bnd' ty
+          cont' = substituteFirstOccurence (oldB,newB) cont
       case n of
-        SZero -> return (cont', renameABnd bnd' b :| [])
-        k@SSucc{} -> (\(c, bnds) -> (c, renameABnd bnd' b <| bnds)) <$> insertDispatch' cont' b k
+        SZero -> return (cont', renameABnd newB b :| [])
+        k@SSucc{} -> (\(c, bnds) -> (c, renameABnd newB b <| bnds)) <$> insertDispatch' cont' b k
 
     substituteFirstOccurence = substitute FirstOccurrence
