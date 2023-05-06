@@ -178,9 +178,14 @@ liftPureFunctions liftCollectTy = rewriteSMap
     collectSMap (DFL.Let app cont) =
       case app of
         -- loop body has ended
-        (PureDFFun _ (FunRef fn _ _) (_ :| [DFVar rty result]))
+        (PureDFFun _ (FunRef fn _ _) (_ :| [DFVar atb@(DataBinding (TBind result rty))]))
           | fn == DFRef.collect ->
-            pure (DFL.Var (unwrapABnd result) rty, app, cont)
+            pure (DFL.Var atb, app, cont)
+            -- I don't know if this should happen and if we should learn anything from the parameter being a state here but
+            -- I'll have the case in case we need it
+        (PureDFFun _ (FunRef fn _ _) (_ :| [DFVar atb@(StateBinding (TBind result rty))]))
+          | fn == DFRef.collect ->
+            pure (DFL.Var atb, app, cont)
         SMapFun{} ->
             unsupported "Nested smap expressions"
         _ -> do
@@ -200,18 +205,19 @@ rewrite liftCollectTy (SMap smapF body collectF) = do
         liftFunction outTy' fun cont
     rewriteBody e = pure e
     
+    -- Question: Can we get rid of this having the type annotation of the bound variable
     findOutTy :: DFApp 'Fun ty -> NormalizedDFExpr ty -> OhuaM (ArgType ty)
     findOutTy fun cont = 
         case DFL.outsDFApp fun of
-            [bnd] -> case findOutTy' bnd cont of
+            [TBind bnd ty] -> case findOutTy' bnd cont of
                         [] -> invariantBroken $ "found unused output:" <> show bnd <> " for function: " <> show fun
                         (t:_) -> return t
             _ -> unsupported "Multiple outputs to pure fun."
     
     findOutTy' :: Binding -> NormalizedDFExpr ty -> [ArgType ty]
-    findOutTy' bnd cont = [ t | DFL.Let app c <- universe' cont
-                              , (t,a) <- insAndTypesDFApp app
-                              , a == bnd] 
+    findOutTy' bnd cont = [ ty | DFL.Let app c <- universe' cont
+                              , (TBind b ty) <- insAndTypesDFApp app
+                              , b == bnd] 
 
     liftOutTy (Type t) = Type $ liftCollectTy t
     liftOutTy t = t
@@ -233,23 +239,24 @@ liftFunction :: forall ty.
              -> NormalizedDFExpr ty 
              -> OhuaM (NormalizedDFExpr ty)
 liftFunction collectTy (PureDFFun out fun inp) cont = do
-  futuresBnd <- DataBinding <$> generateBindingWith "futures"
-  outBound <- handleOutputSide futuresBnd
-  let spawned = handleFun futuresBnd
+  -- Question: Whats the type of futureBnd supposed to be?
+  futuresATBnd <- DataBinding . flip TBind TypeVar <$> generateBindingWith "futures"
+  outBound <- handleOutputSide futuresATBnd
+  let spawned = handleFun futuresATBnd
   return $ DFL.Let spawned outBound
   where
-    handleOutputSide :: ABinding 'Data -> OhuaM (NormalizedDFExpr ty)
-    handleOutputSide futuresBnd =
+    handleOutputSide :: ATypedBinding 'Data ty -> OhuaM (NormalizedDFExpr ty)
+    handleOutputSide futuresATBnd =
       return $
       DFL.Let
         ( PureDFFun
             out
             (FunRef joinFuture Nothing (FunType $ Right $ collectTy :| []))
-            (DFVar TypeVar futuresBnd :| [])
+            (DFVar futuresATBnd :| [])
         )
         cont
 
-    handleFun :: ABinding 'Data -> DFApp 'Fun ty
+    handleFun :: ATypedBinding 'Data ty -> DFApp 'Fun ty
     handleFun futuresBnd =
       PureDFFun
         (Direct futuresBnd)
@@ -391,7 +398,8 @@ amorphous numRetries = transformM go
                                              True -> transformM (rewriteAfterLoop loopInp wlRec) lam'
                                              -- concat to the creator of the new worklist
                                              False -> do
-                                               rest <- generateBindingWith "rest"
+                                               -- Question: What's the type of reest supposed to be?
+                                               rest <- flip TBind TypeVar <$> generateBindingWith "rest"
                                                lam'' <- transformM (takeNRewrite loopInp rest) lam'
                                                transformM (concatRewrite wlRec rest) lam''
                                    foldM amorph lam loops'
@@ -442,7 +450,7 @@ amorphous numRetries = transformM go
     gatherArgs (Apply a (AL.Var b)) = gatherArgs a ++ [b]
     gatherArgs _ = []
 
-    findFreeStateVars :: AL.Expr ty -> [Binding]
+    findFreeStateVars :: AL.Expr ty -> [TypedBinding ty]
     findFreeStateVars e =
       let fv = findFreeBindings e
           fv' = filter (`isUsedState'` e) fv
@@ -473,8 +481,8 @@ amorphous numRetries = transformM go
       ]
 
     rewriteAfterLoop
-      loopInp
-      wl'
+      loopIn@(TBind loopInBnd liTy)
+      w@(TBind wl' wty)
       ( AL.Let
           v
           (Apply f@(Apply
@@ -483,17 +491,18 @@ amorphous numRetries = transformM go
                  (AL.Var loopInp'))
           cont
         )
-        | smapF == ALRefs.smap && loopInp == loopInp' = do
-          taken <- generateBindingWith "n_taken"
-          takenInp <- generateBindingWith $ loopInp <> "_n"
-          rest <- generateBindingWith "rest"
-          nResults <- generateBindingWith "n_results"
-          pendingWork <- generateBindingWith wl'
+        -- Question: What types are thos varaibles supposed to have?
+        | smapF == ALRefs.smap && loopIn == loopInp' = do
+          taken <- flip TBind TypeVar <$> generateBindingWith "n_taken"
+          takenInp <- flip TBind liTy <$> generateBindingWith (loopInBnd <> "_n")
+          rest <- flip TBind TypeVar <$> generateBindingWith "rest"
+          nResults <- DataBinding . flip TBind TypeVar <$> generateBindingWith "n_results"
+          pendingWork <- flip TBind TypeVar <$> generateBindingWith wl'
           return $
             AL.Let
               taken
               ( Apply
-                  (Apply (takeNLit inpTy) $ AL.Var loopInp)
+                  (Apply (takeNLit inpTy) $ AL.Var loopIn)
                   $ Lit $ NumericLit numRetries
               )
               $ destructure (AL.Var taken) [takenInp, rest] $
@@ -501,12 +510,12 @@ amorphous numRetries = transformM go
                 AL.Let v (Apply f $ AL.Var takenInp) $
                   AL.Let
                     pendingWork
-                    (Apply (Apply (concatLit inpTy) $ AL.Var wl') $ AL.Var rest)
+                    (Apply (Apply (concatLit inpTy) $ AL.Var w ) $ AL.Var rest)
                     (substitute wl' (AL.Var pendingWork) cont)
     rewriteAfterLoop _ _ e = pure e
 
     takeNRewrite
-      loopInp
+      loopIn@(TBind loopInBnd liTy)
       rest
       ( AL.Let
           v
@@ -516,15 +525,16 @@ amorphous numRetries = transformM go
                  (AL.Var loopInp'))
           cont
         )
-        | smapF == ALRefs.smap && loopInp == loopInp' = do
-          taken <- generateBindingWith "n_taken"
-          takenInp <- generateBindingWith $ loopInp <> "_n"
-          nResults <- generateBindingWith "n_results"
+        | smapF == ALRefs.smap && loopIn == loopInp' = do
+          -- Question: What are the types of varaibles supposed to be?
+          taken <- flip TBind TypeVar <$> generateBindingWith "n_taken"
+          takenInp <- flip TBind liTy <$> generateBindingWith (loopInBnd <> "_n")
+          nResults <- flip TBind TypeVar <$> generateBindingWith "n_results"
           return $
             AL.Let
               taken
               ( Apply
-                  (Apply (takeNLit inpTy) $ AL.Var loopInp)
+                  (Apply (takeNLit inpTy) $ AL.Var loopIn)
                   $ Lit $ NumericLit numRetries
               )
               $ destructure (AL.Var taken) [takenInp, rest] $ -- TODO take the value from the specification of lang (maybe via a type class)
@@ -542,12 +552,12 @@ amorphous numRetries = transformM go
           return $ AL.Let v f cont'
     concatRewrite _ _ e = pure e
 
-    concatRewriteOn worked {- inpTy -} rest cont = do
-      pendingWork <- generateBindingWith worked
+    concatRewriteOn worked@(TBind workedB workedTy) {- inpTy -} rest cont = do
+      pendingWork <- flip TBind workedTy <$> generateBindingWith workedB
       return $
         AL.Let pendingWork
         (Apply (Apply (concatLit {- inpTy -} TypeVar) $ AL.Var worked) $ AL.Var rest)
-        (substitute worked (AL.Var pendingWork) cont)
+        (substitute workedB (AL.Var pendingWork) cont)
 
 fst3   (a,_,_) = a
 snd3   (_,b,_) = b
