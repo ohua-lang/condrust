@@ -3,6 +3,7 @@ module Ohua.Compile.Lower.DFLang where
 import Ohua.Prelude
 import qualified Ohua.Types.Vector as V
 
+import Ohua.Core.ALang.Lang as ALang (TypedBinding(..), asBnd)
 import Ohua.Core.DFLang.Lang as DFLang
 import Ohua.Core.DFLang.Refs as Refs
 import Ohua.Backend.Lang as BLang
@@ -34,7 +35,9 @@ generateNodesCode = go
             task <- generateNodeCode app
             (tasks, resRecv) <- go cont
             return (task:tasks,resRecv)
-        go (DFLang.Var bnd ty ) = return ([], SRecv ty $ SChan bnd) -- FIXME needs a concrete type!
+        go (DFLang.Var atBnd) = 
+          let (TBind bnd ty) = unwrapTB atBnd
+          in return ([], SRecv ty $ SChan bnd) -- FIXME needs a concrete type!
 
 generateFunctionCode :: forall ty a m. CompM m => DFApp a ty -> LoweringM m (FusableExpr ty)
 generateFunctionCode = \case
@@ -42,13 +45,14 @@ generateFunctionCode = \case
         let args = toList $ map generateReceive inp
         out' <- pureOut fn out
         return $ Fusion.Fun $ Ops.PureFusable args (Ops.Call fn) out'
-    (StateDFFun out fn (DFVar stateT stateIn) inp) -> do
+    (StateDFFun out fn (DFVar atBnd) inp) -> do
         let args = toList $ map generateReceive inp
+            (TBind stateBnd stateTy) = unwrapTB atBnd
         (sOut, dataOut) <- stateOut fn out
         return $
           Fusion.Fun $
           Ops.STFusable
-           (SRecv stateT $ SChan $ unwrapABnd stateIn)
+           (SRecv stateTy $ SChan stateBnd)
            args
            fn
            dataOut
@@ -66,7 +70,7 @@ generateFunctionCode = \case
       toDirect _ Nothing = return Nothing
       toDirect fn e = throwError $ "Unsupported multiple outputs for state on stateful function " <> show fn <> ": " <> show e
 
-pureOut :: (CompM m, Show a) => a -> OutData semTy -> LoweringM m (NonEmpty (Ops.Result ty))
+pureOut :: (CompM m, Show a) => a -> OutData bty ty -> LoweringM m (NonEmpty (Ops.Result ty))
 pureOut _ (Direct out) = return ((Ops.SendResult $ SChan (unwrapABnd out)) :| [])
 pureOut _ (Destruct outs) = do 
   send_results <- mapM directToSendResult outs
@@ -78,13 +82,15 @@ pureOut _ (Dispatch outs) = return $ (Ops.DispatchResult $ map (SChan . unwrapAB
 -- Basically the same as the above, but will error on non-directs for now, to not support
 -- nested outputs 
 -- ToDo: Check if restriction is needed
-directToSendResult :: (CompM m ) => OutData semTy -> m ( Ops.Result ty)
+directToSendResult :: (CompM m ) => OutData bty ty -> m ( Ops.Result ty)
 directToSendResult  (Direct out) = return (Ops.SendResult $ SChan (unwrapABnd out))
 directToSendResult  e = throwError $ "Unsupported output configuration on: " <> show e
 
 
-generateReceive :: DFVar semTy ty -> Ops.CallArg ty
-generateReceive (DFVar t bnd) = Ops.Arg $ SRecv t $ SChan $ unwrapABnd bnd
+generateReceive :: DFVar bty ty -> Ops.CallArg ty
+generateReceive (DFVar atBnd) = 
+  let (TBind argBnd argTy) = unwrapTB atBnd
+  in Ops.Arg $ SRecv argTy $ SChan argBnd
 generateReceive (DFEnvVar _t l) = Ops.Converted $ Lit l -- FIXME looses type info!
 
 generateArcsCode :: NormalizedDFExpr ty -> NonEmpty (Channel ty)
@@ -94,18 +100,22 @@ generateArcsCode = go
             let collected = go cont
                 collected' = HS.fromList $ NE.toList collected
                 current = filter (not . (`HS.member` collected'))
-                          $ manuallyDedup $ map (\(t,b) -> SRecv t $ SChan b) $ insAndTypesDFApp app
+                          $ manuallyDedup $ map (\tBnd -> asRecv (DataBinding tBnd)) $ insAndTypesDFApp app
             in foldl (flip (NE.<|)) collected current
-        go (DFLang.Var bnd ty) = SRecv ty (SChan bnd) :|[] -- result channel
+        go (DFLang.Var atBnd) = 
+            let (TBind bnd ty) = unwrapTB atBnd
+            in SRecv ty (SChan bnd) :|[] -- result channel
 
         manuallyDedup :: [Com 'Recv ty] -> [Com 'Recv ty]
         manuallyDedup = foldr (\x acc -> if x `elem` acc then acc else x : acc) []
 -- FIXME see sertel/ohua-core#7: all these errors would immediately go away
-generateNodeCode :: CompM m => DFApp semTy ty ->  LoweringM m (FusableExpr ty)
+generateNodeCode :: CompM m => DFApp bty ty ->  LoweringM m (FusableExpr ty)
 generateNodeCode e@(SMapFun (dOut,ctrlOut,sizeOut) inp) = do
     let input =
           case inp of
-            (DFVar t v) -> Ops.Receive $ SRecv t $ SChan $ unwrapABnd v
+            (DFVar atBnd) -> 
+              let (TBind bnd ty) = unwrapTB atBnd
+              in Ops.Receive $ SRecv ty $ SChan bnd
             (DFEnvVar _t l) -> Ops.Expr $ Lit l
     dOut'    <- intoChan dOut
     dOut''   <- sequence (serializeDataOut <$> dOut')
@@ -113,25 +123,27 @@ generateNodeCode e@(SMapFun (dOut,ctrlOut,sizeOut) inp) = do
     sizeOut' <- maybe [] toList <$> intoChan sizeOut
     return $ SMap $ Ops.smapFun input dOut'' ctrlOut' sizeOut'
     where
-      intoChan :: CompM m => Maybe (OutData a) -> m (Maybe (NonEmpty (Com 'Channel ty)))
+      intoChan :: CompM m => Maybe (OutData bty ty ) -> m (Maybe (NonEmpty (Com 'Channel ty)))
       intoChan o = do
         o' <- sequence (serializeOut <$> o)
-        let o'' = map SChan <$> o'
+        let o'' = map (SChan. asBnd) <$> o'
         return o''
 
       serializeDataOut :: CompM m => NonEmpty (Com 'Channel ty) -> m (Com 'Channel ty)
       serializeDataOut (a :| []) = pure a
       serializeDataOut _ = throwError "We currently do not support destructuring and dispatch for loop data."
 
-      serializeOut :: CompM m => OutData a -> m (NonEmpty Binding)
+      serializeOut :: CompM m => OutData b ty -> m (NonEmpty (TypedBinding ty))
       serializeOut Destruct{} = throwError $ "We currently do not support destructuring on loop data: " <> show e
       serializeOut o = pure $ toOutBnds o
 
 generateNodeCode e@(PureDFFun out (FunRef fun _ _) inp) | fun == collect = do
     (sizeIn, dataIn) <-
         case inp of
-            (DFVar sType s :| [DFVar dType d]) ->
-                return (SRecv sType $ SChan $ unwrapABnd s, SRecv dType $ SChan $ unwrapABnd d)
+            (DFVar stateTBind :| [DFVar dataTBind]) ->
+              let (TBind sbnd sty) = unwrapTB stateTBind
+                  (TBind dbnd dty) = unwrapTB dataTBind
+              in return (SRecv sty $ SChan sbnd, SRecv dty $ SChan dbnd)
             _ -> invariantBroken $ "Collect arguments don't match:\n" <> show e
     collectedOutput <-
         case out of
@@ -142,7 +154,7 @@ generateNodeCode e@(PureDFFun out (FunRef fun _ _) inp) | fun == collect = do
 generateNodeCode e@(IfFun out inp) = do
     condIn <-
         case inp of
-            (DFVar xType x) -> return $ SRecv xType $ SChan $ unwrapABnd x
+            (DFVar atBnd) -> return $ asRecv atBnd
             _ -> invariantBroken $ "envars as conditional input not yet supported:\n" <> show e
     outs <-
         case out of
@@ -159,11 +171,11 @@ generateNodeCode e@(IfFun out inp) = do
 generateNodeCode e@(PureDFFun out (FunRef fun _ _) inp) | fun == select = do
     (condIn, trueIn, falseIn) <-
         case inp of
-            (DFVar xType x :| [DFVar yType y, DFVar zType z]) ->
+            (DFVar xATBnd :| [DFVar yATBnd, DFVar zATBnd]) ->
                 return
-                    ( SRecv xType $ SChan $ unwrapABnd x
-                    , SRecv yType $ SChan $ unwrapABnd y
-                    , SRecv zType $ SChan $ unwrapABnd z)
+                    ( asRecv xATBnd
+                    , asRecv yATBnd
+                    , asRecv zATBnd)
             -- QUESTION: Why does it say 'don't match'. This function isn't typechecking
             -- whether x is a bool and y and z have the same type.
             _ -> invariantBroken $ "Select arguments don't match:\n" <> show e
@@ -183,14 +195,14 @@ generateNodeCode e@(PureDFFun out (FunRef fun _ _) inp) | fun == Refs.runSTCLang
             Direct x -> return $ SChan $ unwrapABnd x
             _ -> invariantBroken $ "STCLangSMap outputs don't match:\n" <> show e
     case inp of
-      (DFVar xType x :| [DFVar yType y]) ->
+      (DFVar xATBnd :| [DFVar yATBnd ]) ->
         return $ Unfusable $ Ops.genSTCLangSMap $
         Ops.STCLangSMap
-        (SRecv xType $ SChan $ unwrapABnd x)
-        (SRecv yType $ SChan $ unwrapABnd y)
+        (asRecv xATBnd)
+        (asRecv yATBnd)
         out'
-      (DFVar xType x :| []) ->
-        return $ STC $ Ops.FusableSTCLangSMap (SRecv xType $ SChan $ unwrapABnd x) out'
+      (DFVar xATBnd :| []) ->
+        return $ STC $ Ops.FusableSTCLangSMap (asRecv xATBnd) out'
       _ -> invariantBroken $ "STCLangSMap arguments don't match:\n" <> show e
 
 -- code for "non-fused" control handling without the passes on ALang
@@ -220,15 +232,15 @@ generateNodeCode e@(PureDFFun out (FunRef fun _ _) inp) | fun == ctrl = do
             Destruct (Direct x :| []) -> return $ SChan $ unwrapABnd x
             _ -> invariantBroken $ "Control outputs don't match:\n" <> show e
     case inp of
-        DFVar tc ctrlInp :| [DFVar ti inp'] ->
+        DFVar ctrlATBnd :| [DFVar inpATBnd] ->
             return $ Control $ Left $
                 Ops.mkCtrl
-                    (SRecv tc $ SChan $ unwrapABnd ctrlInp)
-                    (SRecv ti $ SChan $ unwrapABnd inp')
+                    (asRecv ctrlATBnd)
+                    (asRecv inpATBnd)
                     out'
-        DFVar tc ctrlInp :| [DFEnvVar _ti lit] ->
+        DFVar ctrlATBnd :| [DFEnvVar _ti lit] ->
             return $ Control $ Right $
-                Ops.mkLittedCtrl (SRecv tc $ SChan $ unwrapABnd ctrlInp) lit out' -- FIXME loosing the semantic type here!
+                Ops.mkLittedCtrl (asRecv ctrlATBnd) lit out' -- FIXME loosing the semantic type here!
         _ -> invariantBroken $ "Control arguments don't match:\n" <> show e
 
 generateNodeCode e@(PureDFFun out (FunRef fun _ _) inp) | fun == Refs.seqFun = do
@@ -236,10 +248,10 @@ generateNodeCode e@(PureDFFun out (FunRef fun _ _) inp) | fun == Refs.seqFun = d
            Direct x -> return $ SChan $ unwrapABnd x
            _ -> invariantBroken $ "Seq must only have one output:\n" <> show e
   case inp of
-    DFVar t1 inpVar :| [DFEnvVar _ l] ->
+    DFVar inpATBnd :| [DFEnvVar _ l] ->
       return $
         Unfusable $
-        Stmt (ReceiveData $ SRecv t1 $ SChan $ unwrapABnd inpVar) $
+        Stmt (ReceiveData $ asRecv inpATBnd) $
         BLang.Let "x" (Lit l) $
         SendData $ SSend out' $ Left "x"
     _ -> invariantBroken $
@@ -260,10 +272,10 @@ generateNodeCode e@(PureDFFun out (FunRef fun _ _) (inp:|[])) | fun == Refs.id =
       return $
       Fusion.Fun $
       Ops.IdFusable (Ops.Converted $ Lit l) out'
-    DFVar t bnd ->
+    DFVar atbnd ->
       return $
       Fusion.Fun $
-      Ops.IdFusable (Ops.Arg $ SRecv t $ SChan $ unwrapABnd bnd) out'
+      Ops.IdFusable (Ops.Arg $ asRecv atbnd) out'
 
 generateNodeCode e@(PureDFFun out fn@(FunRef fun _ funTy) inp) | fun == Refs.tupleFun = do
   let args = toList $ map generateReceive inp
@@ -304,15 +316,16 @@ generateNodeCode e@(RecurFun resultOut ctrlOut recArgsOuts recInitArgsIns recArg
         -- stronger typing needed on OutData to prevent this error handling here.
         -- (as a matter of fact it might be possible for some output to be destructured etc.
         --  we need a function here that turns such a thing into the appropriate backend code!)
-        directOut :: CompM m => OutData a -> LoweringM m (Com 'Channel ty)
+        directOut :: CompM m => OutData bty ty -> LoweringM m (Com 'Channel ty)
         directOut x = case x of
                         Direct x' -> return $ SChan $ unwrapABnd x'
                         _ -> invariantBroken $ "Control outputs don't match:\n" <> show e
         -- directOut' Nothing = pure Nothing
-        varToChanOrLit :: DFVar a ty -> Either (Com 'Recv ty) (Lit ty)
-        varToChanOrLit (DFVar t v) = Left $ SRecv t $ SChan $ unwrapABnd v
+        varToChanOrLit :: DFVar bty ty -> Either (Com 'Recv ty) (Lit ty)
+        varToChanOrLit (DFVar atbnd) = Left $ asRecv atbnd
         varToChanOrLit (DFEnvVar _ l) = Right l
-        varToChan (DFVar t v) = return $ SRecv t $ SChan $ unwrapABnd v
+
+        varToChan (DFVar atbnd) = return $ asRecv atbnd
         -- FIXME the below case needs to be checked during checking the well-formedness of the recursion and then carried along properly in the type.
         varToChan v = invariantBroken $ "environment variable not allowed in this position for recursion: " <> show v
 
@@ -320,3 +333,12 @@ generateNodeCode e@(RecurFun resultOut ctrlOut recArgsOuts recInitArgsIns recArg
 
 generateNodeCode e = generateFunctionCode e
 
+asRecv :: ATypedBinding bty ty -> Com 'Recv ty
+asRecv  atBnd = 
+  let (TBind bnd ty) = unwrapTB atBnd
+  in SRecv ty $ SChan bnd 
+
+asSend :: ATypedBinding bty ty -> Com 'Send ty
+asSend  atBnd = 
+  let (TBind bnd ty) = unwrapTB atBnd
+  in SSend (SChan bnd) (Left bnd) 
