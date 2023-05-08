@@ -11,6 +11,7 @@ import Ohua.Core.ALang.Lang as ALang (TypedBinding(..), asBnd, asType)
 import Ohua.Core.Prelude hiding (length)
 import Ohua.Types.Vector as V hiding (map)
 import qualified Data.HashSet as HS
+import Control.Monad (when)
 
 data BindingType = State | Data deriving (Show, Eq, Generic)
 
@@ -163,6 +164,7 @@ class Function (fun:: FunANF -> Type -> Type) where
 -- The fun type is a type that takes a promoted Annotation Type and the 
 -- ubiquitouse Host type 'ty' (representing the language (Rust/Python/..) we compile
 data Expr (fun :: FunANF -> Type -> Type) (ty :: Type) :: Type where
+  -- Question: I don't understand the order of that Let term? What are the arguments supposed to represent?
   Let :: (Show (fun a ty), Function fun) => fun a ty -> Expr fun ty -> Expr fun ty
   -- FIXME this also should probably have a BindingType!
   -- Well it should first of all have a Type type :-/
@@ -255,11 +257,11 @@ fnApp (StateFun _ (FunRef f _ _) _ _) = f
 
 unwrapTB :: ATypedBinding bty ty -> TypedBinding ty
 unwrapTB (DataBinding tbnd) = tbnd
-unwrapTB (StateBinding tbnd) = tbnd 
+unwrapTB (StateBinding tbnd) = tbnd
 
 unwrapABnd :: ATypedBinding bty ty -> Binding
 unwrapABnd (DataBinding tbnd) = asBnd tbnd
-unwrapABnd (StateBinding tbnd) = asBnd tbnd 
+unwrapABnd (StateBinding tbnd) = asBnd tbnd
 
 unwrapVarType :: DFVar b ty -> ArgType ty
 unwrapVarType  (DFVar atBnd) = asType . unwrapTB $ atBnd
@@ -269,12 +271,12 @@ unwrapVarType  (DFEnvVar ty _lit) = ty
 unwrapVarBnd :: DFVar b ty -> Binding
 unwrapVarBnd (DFVar atBnd) = unwrapABnd atBnd
 unwrapVarBnd (DFStateVar atBnd) = unwrapABnd atBnd
-unwrapVarBnd (DFEnvVar _ _) = error "Tried to unwrap a binding from a literat in DFLang. Please report this error" 
+unwrapVarBnd (DFEnvVar _ _) = error "Tried to unwrap a binding from a literat in DFLang. Please report this error"
 
 unwrapVarTB :: DFVar b ty -> TypedBinding ty
 unwrapVarTB (DFVar atBnd) = unwrapTB atBnd
 unwrapVarTB (DFStateVar atBnd) = unwrapTB atBnd
-unwrapVarTB (DFEnvVar ty _lit) = error "Tried to unwrap a binding from a literat in DFLang. Please report this error" 
+unwrapVarTB (DFEnvVar ty _lit) = error "Tried to unwrap a binding from a literat in DFLang. Please report this error"
 
 --ToDo: Remove when TypePropagation is gone!
 replaceType ::  ATypedBinding bty ty -> ArgType ty ->  ATypedBinding bty ty
@@ -424,7 +426,7 @@ countBindings :: NormalizedDFExpr ty -> V.Nat
 countBindings (Var _ ) = Succ Zero
 countBindings (Let app cont) =
   foldl (\acc _ -> Succ acc) (countBindings cont) $ insDFApp app ++ outsDFApp app
- 
+
 usedBindings :: NormalizedDFExpr ty -> [TypedBinding ty]
 usedBindings (Let app cont) = insDFApp app ++ usedBindings cont
 usedBindings (Var result) = [unwrapTB result]
@@ -462,6 +464,4 @@ substitute strat (from,to) e = evalState (mapFunsM go e) False
 
     checkDefined :: DFApp a ty -> State Bool ()
     checkDefined f =
-      if HS.member from $ HS.fromList $ outBindings f
-      then put True
-      else return ()
+      when (HS.member from $ HS.fromList $ outBindings f) $ put True

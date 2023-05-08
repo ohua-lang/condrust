@@ -246,7 +246,7 @@ typeBottomUp smf@(Let (SMapFun out@(_fst,_scnd,_trd) iterableVar ) inCont) = do
 
 -- Stateful Functions
 typeBottomUp (Let (StateDFFun (mState, mData) f@(FunRef _fun _ (STFunType sty tyInfo)) stateIn dataIn) inCont) = do
-  traceM $ "Typing stateful function " <> show _fun <> " on obj type " <> show sty
+  -- traceM $ "Typing stateful function " <> show _fun <> " on obj type " <> show sty
   let stateIn' = case stateIn of
         (DFVar atBnd) -> DFVar $ replaceType atBnd (maxType (asType . unwrapTB $ atBnd) sty)
   let dataIn' = case tyInfo of
