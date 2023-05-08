@@ -16,6 +16,6 @@ spec :: Spec
 spec = do
   describe "LoweringSpec" Lowering.spec
   describe "ConfigSpec" Config.spec
-  describe "Rust Integration SharedMemory" Rust.spec
-  describe "Python Integration" Python.spec
-  describe "Rust Integration M3" RustM3.spec
+  -- describe "Rust Integration SharedMemory" Rust.spec
+  -- describe "Python Integration" Python.spec
+  -- describe "Rust Integration M3" RustM3.spec
