@@ -189,8 +189,8 @@ trans =
                     "Invariant broken: Found multi apply or destructure lambda: " <>
                     show p
         IfEF cont then_ else_ ->
-            ifBuiltin `Apply` cont `Apply` Lambda "_" then_ `Apply`
-            Lambda "_" else_
+            ifBuiltin `Apply` cont `Apply` Lambda (TBind "_" TypeVar) then_ `Apply`
+            Lambda (TBind "_" TypeVar) else_
         MapEF function coll -> smapBuiltin `Apply` function `Apply` coll
         BindEF ref e -> BindState ref e
         StmtEF e1 cont -> Let (TBind "_" TypeVar) e1 cont
