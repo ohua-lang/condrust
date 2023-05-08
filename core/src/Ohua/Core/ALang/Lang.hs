@@ -73,7 +73,12 @@ data Expr ty
 type AExpr = Expr
 -- ToDo: Tyed Binding realy does belong in into commons as we need it everywhere in DFLang and
 --       could already start using it in FRLang I think
-data TypedBinding ty = TBind Binding (ArgType ty) deriving (Show, Eq, Generic)
+data TypedBinding ty = TBind Binding (ArgType ty) deriving (Show, Generic)
+
+-- As long as we can not make sure, that every binding and usage side is correctly typed, tranformations, in particular the ones that determine if something is used
+-- should only check if something with the same name, not necesarily the same type annotation is used.
+instance Eq (TypedBinding ty) where
+    (TBind b1 ty1) == (TBind b2 ty2) = b1 == b2
 
 asBnd :: TypedBinding ty -> Binding
 asBnd (TBind bnd _ty) = bnd 
