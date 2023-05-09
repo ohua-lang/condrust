@@ -274,14 +274,14 @@ getArgType (Sub.Var bnd Nothing) = do
   let argtype = HM.lookup bnd ctxt
   case argtype of
     Just (Sub.RustType rustType) -> return $ Type $ TE.Normal rustType
-    Nothing -> error $ "No type info found for" <> show bnd
+    Nothing -> error $ "Error: No type info found for " <> show bnd
 -- FIXME: Actually literal should just carry through the value and the type of the literal
 getArgType (Sub.Lit lit) = case lit of
   Sub.Bool b -> return $ Type . TE.Normal $ rustBool
   Sub.Int i ->  return $ Type . TE.Normal $ rustI32
   -- Sub.String s ->  return $ Type . TE.Normal $ PathTy Nothing (Path False [PathSegment "String" Nothing ()] ()) ()
   -- ToDo: Add other literals
-getArgType e = error $ "No type info found for" <> show e
+getArgType e = error $ "Error: No type info found for " <> show e
 
 -- ISSUE: I thought we could support Assignments as we actually just need to replcae them with ssa let bindings.
 --        However the compiler does constant propagation so a `mut i:i32 = 1` will be replaced by `1` 
@@ -299,11 +299,12 @@ instance ConvertExpr Sub.Expr where
         -- traceM $ "Context at parsing function " <> show ref <> ": \n" <> show ctxt <> "\n"
         ty <- argTypesFromContext args
         return $ LitE (FunRefLit (FunRef ref Nothing $ FunType ty))
-      VarE bnd ty -> do
+      -- Currently we don't extract function types correctyl so we still need to type them the good old way
+      VarE bnd _ty -> do
         let qBnd = toQualBinding bnd
-        -- traceM $ "Context at parsing function " <> show bnd <> ": \n" <> show ctxt <> "\n"
-        -- ty <- argTypesFromContext args
-        return $ LitE (FunRefLit (FunRef qBnd Nothing $ FunType $ Right (ty:|[])))
+        -- traceM $ "Parsing function " <> show bnd <> " In Context : \n" <> show ctxt <> "\n"
+        ty <- argTypesFromContext args
+        return $ LitE (FunRefLit (FunRef qBnd Nothing $ FunType ty))
       _ -> return fun'
     args' <- mapM convertExpr args
     return $ fun'' `AppE` args'
@@ -416,10 +417,14 @@ instance ConvertExpr Sub.Expr where
     return $ LitE $ FunRefLit $ FunRef ref Nothing Untyped
   convertExpr (Sub.Var bnd (Just (Sub.RustType ty))) = return $ VarE bnd (Type $ TE.Normal ty)
   convertExpr (Sub.Var bnd Nothing) = do
+    -- traceM $ "Parsing var " <> show bnd
     ctxt <- get 
     case HM.lookup bnd ctxt of
       Just (Sub.RustType rustType) -> return $ VarE bnd  (Type $ TE.Normal rustType)
-      Nothing -> error $ "No type info found for" <> show bnd
+      -- We also get here when we convert function names, for which we currently have no proper typing in place so
+      -- for now I'll insert a placeholder type, that is replaces as we return from here to typing the Call expression
+      -- ToDo: Fix type when we have proper function type extraction again
+      Nothing -> (trace $ "Trying to type Variable " <> show bnd )return $ VarE bnd TypeVar -- error $ "No type info found for " <> show bnd
 
 instance ConvertExpr Sub.Block where
   convertExpr (Sub.RustBlock Sub.Normal stmts) =
@@ -491,7 +496,7 @@ instance ConvertPat Sub.IdentPat where
     let ty = HM.lookup bnd ctxt
     case ty of 
       Just (Sub.RustType rustType) -> return $ VarP bnd (Type $ TE.Normal rustType)
-      Nothing -> (trace $ "No type info found for" <> show bnd) return $ VarP bnd (Type $ TE.Normal rustInfer)
+      Nothing -> (trace $ "No type info found for pattern " <> show bnd) return $ VarP bnd (Type $ TE.Normal rustInfer)
 
 instance ConvertPat Sub.Arg where
   convertPat (Sub.Arg pat ty) = do
