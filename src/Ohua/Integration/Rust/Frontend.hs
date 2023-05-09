@@ -496,7 +496,7 @@ instance ConvertPat Sub.IdentPat where
     let ty = HM.lookup bnd ctxt
     case ty of 
       Just (Sub.RustType rustType) -> return $ VarP bnd (Type $ TE.Normal rustType)
-      Nothing -> (trace $ "No type info found for pattern " <> show bnd) return $ VarP bnd (Type $ TE.Normal rustInfer)
+      Nothing -> (trace $ "No type info found for pattern " <> show bnd) return $ VarP bnd TypeVar
 
 instance ConvertPat Sub.Arg where
   convertPat (Sub.Arg pat ty) = do
