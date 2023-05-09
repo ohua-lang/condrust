@@ -56,9 +56,8 @@ destructure source bnds =
 lambdaLifting :: forall ty m.
        (MonadGenBnd m) => Expr ty -> m (Expr ty, [Expr ty])
 lambdaLifting e = do
-    traceM "lambdaLifting"
-    (e', actuals) <- (trace "Before finding free vars") go findFreeVariables renameVar e
-    (e'', actuals') <- (trace "Before finding lonely literals") go findLonelyLiterals replaceLit e'
+    (e', actuals) <- go findFreeVariables renameVar e
+    (e'', actuals') <- go findLonelyLiterals replaceLit e'
     return (e'', actuals ++ actuals')
   where
     go :: (Expr ty -> [Expr ty])
@@ -126,11 +125,10 @@ replaceLit _e other = error $ "Called 'replaceLit' with " <> show other
 -- FIXME pattern match failure because ALang not precise enough (see issue #8)
 renameVar :: Expr ty -> (Expr ty, TypedBinding ty) -> Expr ty
 renameVar e (Var old, new) =
-    (trace "Inside rename")
     flip transform e $ \case
         Var v
             | v == old -> Var new
-        other -> (trace "rename other") other
+        other ->  other
 renameVar _e other = error $ "Called 'renameVar' with " <> show other 
                         <> ", which is not a Variable. Please report"
 
@@ -151,18 +149,19 @@ definedBindings e =
 -- intersection, therefore it relies on the fact that the expression is in SSA
 -- form.
 findFreeVariables :: Expr ty -> [Expr ty]
-findFreeVariables e = (trace "inside FindFreeVaraibles") map Var (findFreeBindings e)
+findFreeVariables e = map Var (findFreeBindings' e)
 
+-- Question: Somehow the original findFreeBindings method gets stuck in some test cases where
+-- arguments come from surrounding scopes e.g. when we're inside a branch or loop for example the case "loop with stateless condition" in Rust/SharedMemory
 findFreeBindings :: Expr ty -> [TypedBinding ty]
 findFreeBindings e =
-    let defined = (trace "Getting defined") HS.fromList $ definedBindings e
-        used = (trace "getting used") HS.fromList [v | Var v <- universe e]
-        diff = (trace "getting diff") HS.difference used defined 
-    in (trace "sorting and returning")
     sort $ -- makes the list of args deterministic
     toList $
-    diff
+    HS.difference
+        (HS.fromList [v | Var v <- universe e])
+        (HS.fromList $ definedBindings e)
 
+-- This version of findFreeVaraibles doesn't sort but oder is deterministic because we do not convert lists to set
 findFreeBindings':: Expr ty -> [TypedBinding ty]
 findFreeBindings' e = 
     let usedInE = [v | Var v <- universe e]
