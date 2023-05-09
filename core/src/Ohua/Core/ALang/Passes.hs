@@ -52,6 +52,8 @@ runCorePasses expr = do
     stateThreadsE <- preControlPasses exprE
     stage preControlSTCLangALang stateThreadsE
 
+    traceM "Precontrole done"
+
     smapE <- smapRewrite stateThreadsE
     stage smapTransformationALang smapE
 

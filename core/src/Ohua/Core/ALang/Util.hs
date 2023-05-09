@@ -56,8 +56,9 @@ destructure source bnds =
 lambdaLifting :: forall ty m.
        (MonadGenBnd m) => Expr ty -> m (Expr ty, [Expr ty])
 lambdaLifting e = do
-    (e', actuals) <- go findFreeVariables renameVar e
-    (e'', actuals') <- go findLonelyLiterals replaceLit e'
+    traceM "lambdaLifting"
+    (e', actuals) <- (trace "Before finding free vars") go findFreeVariables renameVar e
+    (e'', actuals') <- (trace "Before finding lonely literals") go findLonelyLiterals replaceLit e'
     return (e'', actuals ++ actuals')
   where
     go :: (Expr ty -> [Expr ty])
@@ -125,10 +126,11 @@ replaceLit _e other = error $ "Called 'replaceLit' with " <> show other
 -- FIXME pattern match failure because ALang not precise enough (see issue #8)
 renameVar :: Expr ty -> (Expr ty, TypedBinding ty) -> Expr ty
 renameVar e (Var old, new) =
+    (trace "Inside rename")
     flip transform e $ \case
         Var v
             | v == old -> Var new
-        other -> other
+        other -> (trace "rename other") other
 renameVar _e other = error $ "Called 'renameVar' with " <> show other 
                         <> ", which is not a Variable. Please report"
 
@@ -149,15 +151,17 @@ definedBindings e =
 -- intersection, therefore it relies on the fact that the expression is in SSA
 -- form.
 findFreeVariables :: Expr ty -> [Expr ty]
-findFreeVariables = map Var . findFreeBindings
+findFreeVariables e = (trace "inside FindFreeVaraibles") map Var (findFreeBindings e)
 
 findFreeBindings :: Expr ty -> [TypedBinding ty]
 findFreeBindings e =
+    let defined = (trace "Getting defined") HS.fromList $ definedBindings e
+        used = (trace "getting used") HS.fromList [v | Var v <- universe e]
+        diff = (trace "getting diff") HS.difference used defined 
+    in (trace "sorting and returning")
     sort $ -- makes the list of args deterministic
     toList $
-    HS.difference
-        (HS.fromList [v | Var v <- universe e])
-        (HS.fromList $ definedBindings e)
+    diff
 
 findFreeBindings':: Expr ty -> [TypedBinding ty]
 findFreeBindings' e = 

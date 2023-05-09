@@ -41,9 +41,10 @@ collectSf = Lit $ FunRefLit $ FunRef Refs.collect Nothing $ FunType $ Right $ Ty
 
 smapRewrite :: (Monad m, MonadGenBnd m) => Expr ty -> m (Expr ty)
 smapRewrite =
+    trace "Enter smap Rewrite"
     rewriteM $ \case
         PureFunction op _ `Apply` lamExpr `Apply` dataGen
-            | op == Refs.smap -> Just <$> do
+            | op == Refs.smap -> (trace "Matched op") Just <$> do
                 lamExpr' <- smapRewrite lamExpr
     -- post traversal optimization
                 ctrlVarBnd <- generateBindingWith "ctrl"
