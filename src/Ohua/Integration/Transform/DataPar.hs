@@ -183,9 +183,7 @@ liftPureFunctions liftCollectTy = rewriteSMap
             pure (DFL.Var atb, app, cont)
             -- I don't know if this should happen and if we should learn anything from the parameter being a state here but
             -- I'll have the case in case we need it
-        (PureDFFun _ (FunRef fn _ _) (_ :| [DFVar atb@(StateBinding (TBind result rty))]))
-          | fn == DFRef.collect ->
-            pure (DFL.Var atb, app, cont)
+
         SMapFun{} ->
             unsupported "Nested smap expressions"
         _ -> do
@@ -352,7 +350,7 @@ amorphous numRetries = transformM go
        in case ctxt of
             ctxt' | length ctxt' < 2 -> pure lam
             ctxt' -> do
-              traceM $ "Recursion lambda args: " <> show ctxt'
+              -- traceM $ "Recursion lambda args: " <> show ctxt'
               stateResult <- case findResult body of
                                [r] -> pure r
                                _   -> throwError $ "apparently, the recursion is not well-formed." <> " invariant broken."
