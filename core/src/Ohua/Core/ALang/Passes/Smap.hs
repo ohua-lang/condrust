@@ -41,16 +41,15 @@ collectSf = Lit $ FunRefLit $ FunRef Refs.collect Nothing $ FunType $ Right $ Ty
 
 smapRewrite :: (Monad m, MonadGenBnd m) => Expr ty -> m (Expr ty)
 smapRewrite =
-    trace "Enter smap Rewrite"
     rewriteM $ \case
         PureFunction op _ `Apply` lamExpr `Apply` dataGen
-            | op == Refs.smap -> (trace "Matched op") Just <$> do
+            | op == Refs.smap -> Just <$> do
                 lamExpr' <- smapRewrite lamExpr
     -- post traversal optimization
                 ctrlVarBnd <- generateBindingWith "ctrl"
                 let ctrlVar = TBind ctrlVarBnd controlSignalType
                 lamExpr'' <- liftIntoCtrlCtxt ctrlVar lamExpr'
-                let ([inSt@(TBind inBnd sTy)], expr) = case lambdaArgsAndBody lamExpr'' of 
+                let ([inSt@(TBind _inBnd sTy)], expr) = case lambdaArgsAndBody lamExpr'' of 
                                         e@([_], _) -> e
                                         e -> error $ "Pattern match failure. Got pattern: " <> quickRender e 
                 dBnd <- generateBindingWith "d"

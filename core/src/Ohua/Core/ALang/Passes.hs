@@ -52,8 +52,6 @@ runCorePasses expr = do
     stateThreadsE <- preControlPasses exprE
     stage preControlSTCLangALang stateThreadsE
 
-    traceM "Precontrole done"
-
     smapE <- smapRewrite stateThreadsE
     stage smapTransformationALang smapE
 
@@ -270,13 +268,13 @@ instance Monoid WasTouched where
 type TouchMap = MonoidCombineHashMap Binding (WasTouched, WasTouched)
 
 wasTouchedAsFunction :: TypedBinding ty  -> TouchMap
-wasTouchedAsFunction (TBind bnd ty) = MonoidCombineHashMap $ HM.singleton bnd (Yes, No)
+wasTouchedAsFunction (TBind bnd _ty) = MonoidCombineHashMap $ HM.singleton bnd (Yes, No)
 
 wasTouchedAsValue :: TypedBinding ty -> TouchMap
-wasTouchedAsValue (TBind bnd ty) = MonoidCombineHashMap $ HM.singleton bnd (No, Yes)
+wasTouchedAsValue (TBind bnd _ty) = MonoidCombineHashMap $ HM.singleton bnd (No, Yes)
 
 lookupTouchState :: TypedBinding ty -> TouchMap -> (WasTouched, WasTouched)
-lookupTouchState (TBind bnd ty) (MonoidCombineHashMap m) =
+lookupTouchState (TBind bnd _ty) (MonoidCombineHashMap m) =
     fromMaybe mempty $ HM.lookup bnd m
 
 -- | Reduce curried expressions.  aka `let f = some/sf a in f b`

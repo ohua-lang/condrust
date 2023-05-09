@@ -180,8 +180,8 @@ import Ohua.Core.Prelude
 liftIntoCtrlCtxt ::
   (Monad m, MonadGenBnd m) => TypedBinding ty -> Expr ty -> m (Expr ty)
 liftIntoCtrlCtxt ctrlIn e0 = do
-  (lam', actuals) <- (trace "Before lambda lift") lambdaLifting e0
-  let (originalFormals, _) = (trace "Before lambda args and body") lambdaArgsAndBody e0
+  (lam', actuals) <- lambdaLifting e0
+  let (originalFormals, _) = lambdaArgsAndBody e0
   let (allFormals, e) = lambdaArgsAndBody lam'
   ctrlOut <- generateBindingWith "ctrl"
   let formals = reverse $ take (length actuals) $ reverse allFormals
