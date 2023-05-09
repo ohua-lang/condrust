@@ -224,12 +224,14 @@ subscriptToCall (Sub.StmtExpr (Sub.Subscript bnd keyExpr)) =
 
 
 subStmtToIR :: ConvertM m=> Sub.Stmt -> m (FrLang.Expr PythonArgType)
-subStmtToIR (Sub.WhileStmt expr suite) = do
+subStmtToIR (Sub.WhileStmt expr suite) = error "Currently we do not support while-loops. Please use a recursion while we implement it." 
+    {-do
     cond <- subExprToIR expr
     suite' <- subSuiteToIR (Sub.PySuite suite)
     let loopRef = "while_loop_body"
     let recursivePart= IfE cond (AppE (VarE loopRef defaultType) [])  (LitE UnitLit)
     return $ LetE (VarP loopRef defaultType) (LamE [] $ StmtE suite' recursivePart) recursivePart
+-}
 
 subStmtToIR (Sub.ForStmt target generator suite) = do
     targets' <- subTargetToIR target
