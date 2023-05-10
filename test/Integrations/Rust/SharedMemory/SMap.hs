@@ -17,7 +17,7 @@ spec =
         --      compiler should detect that!
 --        it "stream" $
 --            (showCode "Compiled: " =<< compileCode  [sourceFile|
---                use funs::*;
+--                use crate::funs::*;
 --
 --                fn test() -> () {
 --                    let stream = iter();
@@ -29,7 +29,7 @@ spec =
 --            (\compiled -> do
 --                expected <- showCode "Expected:"
 --                    [sourceFile|
---                      use funs::*;
+--                      use crate::funs::*;
 --
 --                      fn test() -> () {
 --                        let (b_0_0_tx, b_0_0_rx) = std::sync::mpsc::channel();
@@ -111,7 +111,7 @@ spec =
 
         it "imperative" $
             (showCode "Compiled: " =<< compileCode  [sourceFile|
-                use funs::*;
+                use crate::funs::*;
 
                 fn test() -> S {
                     let s:S = S::new_state();
@@ -129,7 +129,7 @@ spec =
                 compiled `shouldBe` expected)
         it "env var" $
             (showCode "Compiled: " =<< compileCode [sourceFile|
-                use funs::*;
+                use crate::funs::*;
 
                 fn test(stream: Vec<i32>) -> S {
                     let s:S = S::new_state();
@@ -168,7 +168,7 @@ spec =
                 compiled `shouldBe` expected)-}
  {-      it "imperative while " $
             (showCode "Compiled: " =<< compileCodeWithRec  [sourceFile|
-                use funs::*;
+                use crate::funs::*;
 
                 fn test() -> S {
                     let state:State = S::new_state();
@@ -184,7 +184,7 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:"
                     [sourceFile|
- use funs::*;
+ use crate::funs::*;
  //ToDo
                     |]
                 compiled `shouldBe` expected)-}
@@ -193,7 +193,7 @@ spec =
 ------------ Testoutput ------------------------
 imperative :: SourceFile Span
 imperative =  [sourceFile|
-use funs::*;
+use crate::funs::*;
 
 fn test() -> S {
   #[derive(Debug)]
@@ -301,7 +301,7 @@ fn test() -> S {
 
 envVar :: SourceFile Span
 envVar = [sourceFile|
-use funs::*;
+use crate::funs::*;
 
 fn test(stream: Vec<  i32,>) -> S {
   #[derive(Debug)]

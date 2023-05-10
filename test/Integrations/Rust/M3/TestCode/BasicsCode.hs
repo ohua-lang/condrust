@@ -29,7 +29,7 @@ simple_composition = [sourceFile|
 --            (showCode "Compiled: " =<< compileCode  ) `shouldThrow` anyErrorCall
 multi_var :: SourceFile Span
 multi_var = [sourceFile|
-                use funs::*;
+                use crate::funs::*;
 
                 fn test() -> String {
                     let x:i32 = f();
@@ -49,7 +49,7 @@ multi_var = [sourceFile|
 
 multi_var_read_only :: SourceFile Span
 multi_var_read_only =  [sourceFile|
-                use funs::*;
+                use crate::funs::*;
 
                 fn test() -> String {
                     let x:i32 = f();
@@ -68,7 +68,7 @@ multi_var_read_only =  [sourceFile|
           -- where no variable is used more than once!
 multi_var_expl_clone :: SourceFile Span
 multi_var_expl_clone = [sourceFile|
-                use funs::*;
+                use crate::funs::*;
 
                 fn test() -> String {
                     let x:String = f();
@@ -92,7 +92,7 @@ env_vars =  [sourceFile|
     -- algo() and test()?
 algo_loading :: SourceFile Span
 algo_loading = [sourceFile|
-                use funs::*;
+                use crate::funs::*;
 
                 fn algo(i: i32) -> String {
                     let x:i32 = h(i);
@@ -122,7 +122,7 @@ algo_loading_env =  [sourceFile|
 -- Tuple Tests
 tuple_from_unit_fun :: SourceFile Span
 tuple_from_unit_fun = [sourceFile|
-                use funs::*;
+                use crate::funs::*;
 
                 fn test() -> i32 {
                     let (x0,y0):(i32,String) = f_tup();
@@ -134,7 +134,7 @@ tuple_from_unit_fun = [sourceFile|
 
 tuple_from_param :: SourceFile Span
 tuple_from_param = [sourceFile|
-                use funs::*;
+                use crate::funs::*;
 
                 fn test() -> i32 {
                     let (x0,y0):(i32,String) = f_tup(23);
@@ -146,7 +146,7 @@ tuple_from_param = [sourceFile|
 
 smap_for_unbound :: SourceFile Span
 smap_for_unbound = [sourceFile|
-                use funs::*;
+                use crate::funs::*;
                 
                 fn test(i:i32) -> () {
                     let s:State = S::new_state();
@@ -161,7 +161,7 @@ smap_for_unbound = [sourceFile|
 
 smap_for_bound :: SourceFile Span
 smap_for_bound = [sourceFile|
-                use funs::*;
+                use crate::funs::*;
 
                 fn test() -> State {
                     let s:State = S::new_state();
@@ -177,7 +177,7 @@ smap_for_bound = [sourceFile|
 
 smap_while:: SourceFile Span
 smap_while = [sourceFile|
-                use funs::*;
+                use crate::funs::*;
 
                 fn test() -> I32 {
                     //let state:State = S::new_state();
@@ -195,7 +195,7 @@ smap_while = [sourceFile|
 
 if_recursion_only_call_in_branch:: SourceFile Span
 if_recursion_only_call_in_branch = [sourceFile|
-                use funs::*;
+                use crate::funs::*;
 
                 fn algo_rec(i:i32, state:State) -> State{
                     state.gs(i);
@@ -215,7 +215,7 @@ if_recursion_only_call_in_branch = [sourceFile|
 
 if_binop:: SourceFile Span
 if_binop = [sourceFile|
-                use funs::*;
+                use crate::funs::*;
 
                 fn test(i:i32) -> i32{
                     if i < 13 {

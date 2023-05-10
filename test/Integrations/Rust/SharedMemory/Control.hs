@@ -13,7 +13,7 @@ spec =
         -- FIXME see issue sertel/ohua-core#16
         it "simple" $
             (showCode "Compiled: " =<< compileCodeWithRec  [sourceFile|
-                use funs::*;
+                use crate::funs::*;
 
                 fn rec(one:i32) -> i32 {
                     // FIXME(feliix42): This is very unfortunate! Normally there'd be no cloning necessary here...
@@ -40,7 +40,7 @@ spec =
         it "dependent" $
           -- fusion is more tricky here because `one` and `two` are used by data dependent calls!
           (showCode "Compiled: " =<< compileCodeWithRec  [sourceFile|
-                use funs::*;
+                use crate::funs::*;
 
                 fn rec(one:i32, two:i32) -> i32 {
                     let i: i32 = h(one);
@@ -65,7 +65,7 @@ spec =
 -------------- Testoutput -------------------------------
 simple :: SourceFile Span
 simple = [sourceFile|
-use funs::*;
+use crate::funs::*;
 
 fn rec(one: i32) -> i32 {
   let o2: i32 = one.clone();
@@ -188,7 +188,7 @@ fn test() -> i32 {
 
 dependent :: SourceFile Span
 dependent =  [sourceFile|
-use funs::*;
+use crate::funs::*;
 
 fn rec(one: i32, two: i32) -> i32 {
   let i: i32 = h(one);

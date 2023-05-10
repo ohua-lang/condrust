@@ -22,7 +22,7 @@ spec =
                 compiled `shouldBe` expected)
         it "simple composition" $
             (showCode "Compiled: " =<< compileCode  [sourceFile|
-                use funs::*;
+                use crate::funs::*;
 
                 fn test() -> String {
                     let x: i32 = f();
@@ -36,7 +36,7 @@ spec =
 --        it "var multi fail" $
 --            -- enforce Arc construction via type-check
 --            (showCode "Compiled: " =<< compileCode  [sourceFile|
---                use funs::*;
+--                use crate::funs::*;
 --
 --                fn test() -> String {
 --                    let x = f();
@@ -67,7 +67,7 @@ spec =
           -- where no variable is used more than once!
           -- FIXME(feliix42): At some point we'll have to adjust the data types of the functions used here in `Util.hs` because they currently do not make sense as they don't account for the `Arc`
           (showCode "Compiled: " =<< compileCode  [sourceFile|
-                use funs::*;
+                use crate::funs::*;
 
                 fn test() -> String {
                     let x:i32 = f();
@@ -89,7 +89,7 @@ spec =
           -- h2(x1,y)
           -- where no variable is used more than once!
           (showCode "Compiled: " =<< compileCode  [sourceFile|
-                use funs::*;
+                use crate::funs::*;
 
                 fn test() -> String {
                     let x:i32 = f();
@@ -131,7 +131,7 @@ spec =
                 compiled `shouldBe` expected)
         it "algo loading (globs)" $
             (showCode "Compiled: " =<< compileCode  [sourceFile|
-                use funs::*;
+                use crate::funs::*;
 
                 fn algo(i: i32) -> String {
                     let x:i32 = h(i);
@@ -150,7 +150,7 @@ spec =
         describe "tuples" $ do
           it "different targets" $
             (showCode "Compiled: " =<< compileCode  [sourceFile|
-                use funs::*;
+                use crate::funs::*;
 
                 fn test(i:i32) -> i32 {
                     let (x0 ,y0):(i32, i32) = fi_tup(i);
@@ -164,7 +164,7 @@ spec =
                 compiled `shouldBe` expected)
           it "unit fun" $
             (showCode "Compiled: " =<< compileCode  [sourceFile|
-                use funs::*;
+                use crate::funs::*;
 
                 fn test() -> i32 {
                     let (x0,y0):(i32, i32) = f_tup();
@@ -179,7 +179,7 @@ spec =
 
           it "destruct > 2" $
             (showCode "Compiled: " =<< compileCode  [sourceFile|
-                use funs::*;
+                use crate::funs::*;
 
                 fn test() -> i32 {
                     let (a,b, c):(i32, i32, str) = f_tup();
@@ -244,7 +244,7 @@ a_function = [sourceFile|
 
 simple_composition :: SourceFile Span
 simple_composition = [sourceFile|
-                        use funs::*;
+                        use crate::funs::*;
 
                         fn test() -> String {
                         #[derive(Debug)]
@@ -354,7 +354,7 @@ binary_operation = [sourceFile|
 
 var_multi_1 :: SourceFile Span
 var_multi_1 = [sourceFile|
-use funs::*;
+use crate::funs::*;
 
 fn test() -> String {
   #[derive(Debug)]
@@ -443,7 +443,7 @@ fn test() -> String {
 
 var_multi_2 :: SourceFile Span
 var_multi_2 = [sourceFile|
- use funs::*;
+ use crate::funs::*;
 
 fn test() -> String {
   #[derive(Debug)]
@@ -683,7 +683,7 @@ algo_loading = [sourceFile|
 algo_loading_globs :: SourceFile Span
 algo_loading_globs = 
                     [sourceFile|
-                        use funs::*;
+                        use crate::funs::*;
 
                         fn algo(i: i32) -> String {
                         #[derive(Debug)]
@@ -790,7 +790,7 @@ algo_loading_globs =
 
 different_targets :: SourceFile Span
 different_targets = [sourceFile|
-use funs::*;
+use crate::funs::*;
 
 fn test(i: i32) -> i32 {
   #[derive(Debug)]
@@ -872,7 +872,7 @@ fn test(i: i32) -> i32 {
 
 unit_fun :: SourceFile Span
 unit_fun = [sourceFile|
-use funs::*;
+use crate::funs::*;
 
 fn test() -> i32 {
   #[derive(Debug)]
@@ -953,7 +953,7 @@ fn test() -> i32 {
 
 destruct :: SourceFile Span
 destruct = [sourceFile|
-use funs::*;
+use crate::funs::*;
 
 fn test() -> i32 {
   #[derive(Debug)]

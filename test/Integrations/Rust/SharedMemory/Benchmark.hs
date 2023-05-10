@@ -13,7 +13,7 @@ spec =
             -- https://github.com/Feliix42/ohua-rust-benchmarks/blob/master/labyrinth/src/bin/simple_sequential.rs#L122-L133
             -- upon writing the snippet below I realized that we might need to alter the code a bit for the "retry" semantics introduced with the batching transformation
             (showCode "Compiled: " =<< compileCode  [sourceFile|
-                use funs::*;
+                use crate::funs::*;
 
                 fn route_paths(mut maze: Maze, to_map: Vec<(Point, Point)>) -> Maze {
                     for pair in to_map {
@@ -36,7 +36,7 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:"
                     [sourceFile|
-                        use funs::*;
+                        use crate::funs::*;
 
                         fn test(i: i32) -> i32 {
                             TODO
@@ -83,7 +83,7 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:"
                     [sourceFile|
-                        use funs::*;
+                        use crate::funs::*;
 
                         fn test(i: i32) -> i32 {
                             TODO
@@ -128,7 +128,7 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:"
                     [sourceFile|
-                        use funs::*;
+                        use crate::funs::*;
 
                         fn test(i: i32) -> i32 {
                             TODO
@@ -158,7 +158,7 @@ spec =
         (\compiled -> do
             expected <- showCode "Expected:"
                 [sourceFile|
-                    use funs::*;
+                    use crate::funs::*;
 
                     fn test(i: i32) -> i32 {
                         TODO
@@ -196,7 +196,7 @@ spec =
         (\compiled -> do
             expected <- showCode "Expected:"
                 [sourceFile|
-                    use funs::*;
+                    use crate::funs::*;
 
                     fn test(i: i32) -> i32 {
                         TODO
@@ -255,7 +255,7 @@ spec =
 --        (\compiled -> do
 --            expected <- showCode "Expected:"
 --                [sourceFile|
---                    use funs::*;
+--                    use crate::funs::*;
 --
 --                    fn test(i: i32) -> i32 {
 --                        TODO
@@ -295,7 +295,7 @@ spec =
         (\compiled -> do
             expected <- showCode "Expected:"
                 [sourceFile|
-                    use funs::*;
+                    use crate::funs::*;
 
                     fn test(i: i32) -> i32 {
                         TODO
@@ -375,7 +375,7 @@ spec =
         (\compiled -> do
             expected <- showCode "Expected:"
                 [sourceFile|
-                    use funs::*;
+                    use crate::funs::*;
 
                     fn test(i: i32) -> i32 {
                         TODO

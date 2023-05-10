@@ -11,7 +11,7 @@ spec =
      
         it "simple one argument" $
             (showCode "Compiled: " =<< compileCodeWithRec  [sourceFile|
-                use funs::*;
+                use crate::funs::*;
 
                 fn rec(i:i32) -> i32 {
                     let j:i32 = h(i);
@@ -31,7 +31,7 @@ spec =
                 compiled `shouldBe` expected)
         it "multi-argument" $
             (showCode "Compiled: " =<< compileCodeWithRec  [sourceFile|
-                use funs::*;
+                use crate::funs::*;
 
                 fn rec(one:i32, two:i32) -> i32 {
                     let i:i32 = h(one);
@@ -53,7 +53,7 @@ spec =
                 compiled `shouldBe` expected)
         it "contexted function" $
             (showCode "Compiled: " =<< compileCodeWithRec  [sourceFile|
-                use funs::*;
+                use crate::funs::*;
 
                 fn rec(one: i32) -> i32 {
                     let i:i32 = h(one);
@@ -77,7 +77,7 @@ spec =
 
         it "returning a unit" $
             (showCode "Compiled: " =<< compileCodeWithRec  [sourceFile|
-                use funs::*;
+                use crate::funs::*;
 
                 fn rec(one: i32) -> () {
                     let i:i32 = h(one);
@@ -99,7 +99,7 @@ spec =
                 
         it "Return local unused local result" $
             (showCode "Compiled: " =<< compileCodeWithRec  [sourceFile|
-                use funs::*;
+                use crate::funs::*;
 
                 fn rec(one: i32) -> () {
                     let i:i32 = h(one);
@@ -120,7 +120,7 @@ spec =
         -- initial recursive call!
         it "endless (server) loops with state" $
             (showCode "Compiled: " =<< compileCodeWithRec [sourceFile|
-                use funs::*;
+                use crate::funs::*;
 
                 fn test() -> () {
                     let s:S = State::new();
@@ -136,7 +136,7 @@ spec =
         -- FIXME: [ERROR] Rec like imperative while - because we return a tuple  
         it "[ERROR] Rec like imperative while - because we return a tuple  " $
             (showCode "Compiled: " =<< compileCodeWithRec  [sourceFile|
-                use funs::*;
+                use crate::funs::*;
 
                 fn while_loop_fun(state:S, i:i32) -> S{
                   state.gs(i);
@@ -159,7 +159,7 @@ spec =
       -- FIXME: SSA is broken ... see FIXME in SSA.hs
         it "Rec like imperative while - assign rec call " $
             (showCode "Compiled: " =<< compileCodeWithRec  [sourceFile|
-                use funs::*;
+                use crate::funs::*;
                 /* fn while_loop_fun(state:State, i:i32) -> State{
                   if islowerthan23(i) {
                     state.gs(i);
@@ -187,7 +187,7 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:"
                     [sourceFile|
- use funs::*;
+ use crate::funs::*;
  //ToDo
                     |]
                 compiled `shouldBe` expected)
@@ -195,7 +195,7 @@ spec =
 
         it "Rec like imperative while- return rec call" $
             (showCode "Compiled: " =<< compileCodeWithRec  [sourceFile|
-                use funs::*;
+                use crate::funs::*;
 
                 fn while_loop_fun(state:State, i:i32) -> State{
                   if islowerthan23(i) {
@@ -216,7 +216,7 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:"
                     [sourceFile|
- use funs::*;
+ use crate::funs::*;
  //ToDo
                     |]
                 compiled `shouldBe` expected)-}
@@ -224,7 +224,7 @@ spec =
 
 ----- Expected Outputs -------------------------------
 simpleOneArgument = [sourceFile|
-use funs::*;
+use crate::funs::*;
 
 fn rec(i: i32) -> i32 {
   let j: i32 = h(i);
@@ -300,7 +300,7 @@ fn test() -> i32 {
 |]
 
 multiArgument = [sourceFile|
-use funs::*;
+use crate::funs::*;
 
 fn rec(one: i32, two: i32) -> i32 {
   let i: i32 = h(one);
@@ -407,7 +407,7 @@ fn test() -> i32 {
 
 
 contextFunction = [sourceFile|
-use funs::*;
+use crate::funs::*;
 
 fn rec(one: i32) -> i32 {
   let i: i32 = h(one);
@@ -523,7 +523,7 @@ fn test() -> i32 {
                     |]
 
 return_unit = [sourceFile|
-use funs::*;
+use crate::funs::*;
 
 fn rec(one: i32) -> () {
   let i: i32 = h(one);
@@ -612,7 +612,7 @@ fn test() -> () {
 |]
 
 endless_loops_with_state = [sourceFile|
-use funs::*;
+use crate::funs::*;
 
 fn test() -> () {
   #[derive(Debug)]

@@ -14,7 +14,7 @@ spec =
     describe "flat" ( do
       it "simple" $
         (showCode "Compiled: " =<< compileCode  [sourceFile|
-          use funs::*;
+          use crate::funs::*;
 
           fn test(i: i32) -> i32 {
             let state: S = S::new_state(i);
@@ -28,7 +28,7 @@ spec =
 
       it "thread" $
         (showCode "Compiled: " =<< compileCode  [sourceFile|
-          use funs::*;
+          use crate::funs::*;
 
           fn test(i: i32) -> String {
             let state: S  = S::new_state(i);
@@ -42,8 +42,8 @@ spec =
           compiled `shouldBe` expected)
 
       it "single state" $
-            (showCode "Compiled: " =<< compileCode  [sourceFile|
-                use funs::*;
+            (showCode "Compiled: " =<< compileCodeWithDebug  [sourceFile|
+                use crate::funs::*;
 
                  fn test(i:i32) -> () {
                     let s: S = S::new_state(i);
@@ -62,7 +62,7 @@ spec =
     describe "loop" ( do
         it "deep state simple" $
             (showCode "Compiled: " =<< compileCode  [sourceFile|
-                use funs::*;
+                use crate::funs::*;
 
                  fn test(i:i32) -> () {
                     let stream: Iterator<S> = iter();
@@ -84,7 +84,7 @@ spec =
         it "single io" $
             -- FIXME sertel/ohua-core#11
             (showCode "Compiled: " =<< compileCode  [sourceFile|
-                use funs::*;
+                use crate::funs::*;
 
                  fn test(i:i32) -> () {
                     let io: S = S::new_state(i);
@@ -99,10 +99,11 @@ spec =
                 expected <- showCode "Expected:" single_io
                 compiled `shouldBe` expected)
         )
+        
     describe "combo" (do
         it "thread + loop" $
             (showCode "Compiled: " =<< compileCode  [sourceFile|
-                use funs::*;
+                use crate::funs::*;
 
                  fn test(i:i32) -> i32 {
                     let s: S = S::new_state(i);
@@ -122,7 +123,7 @@ spec =
 
         it "raw state out" $
             (showCode "Compiled: " =<< compileCode  [sourceFile|
-                use funs::*;
+                use crate::funs::*;
 
                  fn test(i:i32) -> S {
                     let s: S = S::new_state(i);
@@ -159,7 +160,7 @@ spec =
 
 simple :: SourceFile Span
 simple = [sourceFile|
-use funs::*;
+use crate::funs::*;
 
 fn test(i: i32) -> i32 {
   #[derive(Debug)]
@@ -225,7 +226,7 @@ fn test(i: i32) -> i32 {
 
 thread :: SourceFile Span
 thread = [sourceFile|
-use funs::*;
+use crate::funs::*;
 
 fn test(i: i32) -> String {
   #[derive(Debug)]
@@ -289,7 +290,7 @@ fn test(i: i32) -> String {
 
 deep_state_simple :: SourceFile Span
 deep_state_simple = [sourceFile|
-use funs::*;
+use crate::funs::*;
 
 fn test(i: i32) -> () {
   #[derive(Debug)]
@@ -398,7 +399,7 @@ fn test(i: i32) -> () {
 
 single_io :: SourceFile Span
 single_io = [sourceFile|
-use funs::*;
+use crate::funs::*;
 
 fn test(i: i32) -> () {
   #[derive(Debug)]
@@ -538,7 +539,7 @@ fn test(i: i32) -> () {
 
 single_state :: SourceFile Span
 single_state = [sourceFile|
-use funs::*;
+use crate::funs::*;
 
 fn test(i: i32) -> () {
   #[derive(Debug)]
@@ -646,7 +647,7 @@ fn test(i: i32) -> () {
 
 thread_and_loop :: SourceFile Span
 thread_and_loop = [sourceFile|
-use funs::*;
+use crate::funs::*;
 
 fn test(i: i32) -> i32 {
   #[derive(Debug)]
@@ -794,7 +795,7 @@ fn test(i: i32) -> i32 {
 
 raw_state_out :: SourceFile Span
 raw_state_out = [sourceFile|
-use funs::*;
+use crate::funs::*;
 
 fn test(i: i32) -> S {
   #[derive(Debug)]

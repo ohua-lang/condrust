@@ -12,7 +12,7 @@ spec =
     describe "Conditionals" $ do
         it "simple condition" $ -- in most languages, a condition is not a function!
             (showCode "Compiled: " =<< compileCode  [sourceFile|
-                use funs::*;
+                use crate::funs::*;
 
                 fn test(i: i32) -> i32 {
                     let a: i32 = f0(i);
@@ -31,7 +31,7 @@ spec =
                 compiled `shouldBe` expected)
         it "context functions" $
             (showCode "Compiled: " =<< compileCode  [sourceFile|
-                use funs::*;
+                use crate::funs::*;
 
                 fn test(i: i32) -> i32 {
                     let a: i32 = f0(i);
@@ -49,7 +49,7 @@ spec =
 
         it "blocks in branches" $
             (showCode "Compiled: " =<< compileCode  [sourceFile|
-                use funs::*;
+                use crate::funs::*;
 
                 fn test(i: i32) -> i32 {
                     let a: i32 = f0(i);
@@ -69,7 +69,7 @@ spec =
 
         it "IO" $
             (showCode "Compiled: " =<< compileCode [sourceFile|
-                use funs::*;
+                use crate::funs::*;
 
                 fn test(i: i32) -> i32 {
                     let a: i32 = f0(i);
@@ -112,7 +112,7 @@ spec =
 
         it "ERROR: Stateful if-else in loop - We do not support IF-Else in Loops right now" $
             compileCode  [sourceFile|
-                use funs::*;
+                use crate::funs::*;
 
                 fn test(i: i32) -> i32 {
                     let s:State = new();
@@ -132,7 +132,7 @@ spec =
 
         it "only if branch in loop" $
             compileCode  [sourceFile|
-                use funs::*;
+                use crate::funs::*;
 
                 fn test(i: i32) -> i32 {
                     let s:State = new();
@@ -154,7 +154,7 @@ spec =
 
 simple_condition :: SourceFile Span
 simple_condition = [sourceFile|
-use funs::*;
+use crate::funs::*;
 
 fn test(i: i32) -> i32 {
   #[derive(Debug)]
@@ -299,7 +299,7 @@ fn test(i: i32) -> i32 {
 
 context_functions :: SourceFile Span
 context_functions = [sourceFile|
-use funs::*;
+use crate::funs::*;
 
 fn test(i: i32) -> i32 {
   #[derive(Debug)]
@@ -419,7 +419,7 @@ fn test(i: i32) -> i32 {
 
 blocks :: SourceFile Span
 blocks = [sourceFile|
-use funs::*;
+use crate::funs::*;
 
 fn test(i: i32) -> i32 {
   #[derive(Debug)]
@@ -781,7 +781,7 @@ fn test(i: i32) -> i32 {
 
 io :: SourceFile Span
 io = [sourceFile|
-use funs::*;
+use crate::funs::*;
 
 fn test(i: i32) -> i32 {
   #[derive(Debug)]

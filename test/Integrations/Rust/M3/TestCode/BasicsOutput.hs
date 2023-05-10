@@ -7,7 +7,7 @@ import Language.Rust.Data.Position (Span)
 
 hello_world :: SourceFile Span
 hello_world = [sourceFile|
-use funs::hello_world;
+use crate::funs::hello_world;
 
 fn test() -> String {
    use m3::com::channel::{Sender, Receiver};
@@ -30,7 +30,7 @@ fn test() -> String {
 
 simple_composition :: SourceFile Span
 simple_composition = [sourceFile|
-use funs::{f, g};
+use crate::funs::{f, g};
 
 
 fn test() -> String {
@@ -71,7 +71,7 @@ fn test() -> String {
 
 multi_var :: SourceFile Span
 multi_var = [sourceFile|
-use funs::*;
+use crate::funs::*;
 
 fn test() -> String {
   let (a_0_0_tx, a_0_0_rx) =
@@ -159,7 +159,7 @@ fn test() -> String {
 
 multi_var_read_only :: SourceFile Span
 multi_var_read_only =  [sourceFile|
-use funs::*;
+use crate::funs::*;
 
 fn test() -> String {
   let (a_0_0_tx, a_0_0_rx) =
@@ -313,7 +313,7 @@ fn test() -> String {
 
 multi_var_expl_clone :: SourceFile Span
 multi_var_expl_clone = [sourceFile|
-use funs::*;
+use crate::funs::*;
 
 fn test() -> String {
   let (a_0_0_tx, a_0_0_rx) =
@@ -470,7 +470,7 @@ fn test(i: i32) -> String {
 
 algo_loading :: SourceFile Span
 algo_loading = [sourceFile|
-use funs::*;
+use crate::funs::*;
 
 fn algo(i: i32) -> String {
   let (a_0_0_tx, a_0_0_rx) =
@@ -662,7 +662,7 @@ fn test() -> String {
 -- Tuple Tests
 tuple_from_unit_fun :: SourceFile Span
 tuple_from_unit_fun = [sourceFile|
-use funs::*;
+use crate::funs::*;
 
 fn test() -> i32 {
   let (b_0_0_tx, b_0_0_rx) =
@@ -772,7 +772,7 @@ fn test() -> i32 {
 
 tuple_from_param :: SourceFile Span
 tuple_from_param = [sourceFile|
-use funs::*;
+use crate::funs::*;
 
 fn test(i: i32) -> i32 {
   let (b_0_0_tx, b_0_0_rx) =
@@ -888,7 +888,7 @@ fn test(i: i32) -> i32 {
   -- d) We need to adapt to actual M3 API
 if_recursion_only_call_in_branch :: SourceFile Span
 if_recursion_only_call_in_branch = [sourceFile|
-use funs::*;
+use crate::funs::*;
 
 fn algo_rec(i: i32, state: State) -> State {
   state.gs(i);
@@ -1106,7 +1106,7 @@ fn test() -> i32 {
 
 assign_literal :: SourceFile Span
 assign_literal = [sourceFile|
-use funs::*;
+use crate::funs::*;
 
 use std;
 
