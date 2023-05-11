@@ -130,10 +130,10 @@ from testLib import *
 
 def algo(a):
     mob = MObs(a)
-    mob2 = mob.clone()
+    outer_arg = fun() 
     g = some_invented_iter_function()
     for e in g:
-        x = mobFun(mob2, e) 
+        x = mobFun(outer_arg, e) 
         mob.addNum(x)
     return mob
 |]
