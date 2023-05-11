@@ -17,7 +17,7 @@ spec =
           use crate::funs::*;
 
           fn test(i: i32) -> i32 {
-            let state: S = S::new_state(i);
+            let state: State = State::new_state(i);
             let result: i32 = state.gs(5);
             h(result)
           }
@@ -31,7 +31,7 @@ spec =
           use crate::funs::*;
 
           fn test(i: i32) -> String {
-            let state: S  = S::new_state(i);
+            let state: State  = State::new_state(i);
             state.modify(5);
             let r1:i32 = state.gs1(6);
             r1
@@ -46,10 +46,10 @@ spec =
                 use crate::funs::*;
 
                  fn test(i:i32) -> () {
-                    let s: S = S::new_state(i);
+                    let s: State = State::new_state(i);
                     let stream: Iterator<i32> = iter_i32();
                     for e in stream {
-                        let e1: S = e;
+                        let e1: State = e;
                         s.gs(e1);
                     }
                     s.gs(5)
@@ -67,7 +67,7 @@ spec =
                  fn test(i:i32) -> () {
                     let stream: Iterator<S> = iter();
                     for e in stream {
-                        let e1: S = e;
+                        let e1: State = e;
                         e1.gs(5);
                     }
                 }
@@ -87,7 +87,7 @@ spec =
                 use crate::funs::*;
 
                  fn test(i:i32) -> () {
-                    let io: S = S::new_state(i);
+                    let io: State= State::new_state(i);
                     let stream: Iterator<i32> = iter_i32();
                     for e in stream {
                         let e1:i32 = e;
@@ -106,9 +106,9 @@ spec =
                 use crate::funs::*;
 
                  fn test(i:i32) -> i32 {
-                    let s: S = S::new_state(i);
-                    let sp: S = s.clone();
-                    let stream: Iterator<i32> = iter_i32();
+                    let s: State= State::new_state(i);
+                    let sp: State = s.clone();
+                    let stream: Vec<i32> = iter_i32();
                     for e in stream {
                         let e1: i32 = e;
                         let x: i32 = f_s(sp,e1);
@@ -121,14 +121,14 @@ spec =
                 expected <- showCode "Expected:"  thread_and_loop
                 compiled `shouldBe` expected)
 
-        it "raw state out" $
+        it "raw state out" $ -- This example is only valid Rust code iff State is a Copy type
             (showCode "Compiled: " =<< compileCode  [sourceFile|
                 use crate::funs::*;
 
-                 fn test(i:i32) -> S {
-                    let s: S = S::new_state(i);
-                    let sp: S = s.clone();
-                    let stream: Iterator<i32> = iter_i32();
+                 fn test(i:i32) -> State {
+                    let s: State = State::new_state(i);
+                    let sp: State = s.clone();
+                    let stream: Vec<i32> = iter_i32();
                     for e in stream {
                         let e1: i32 = e;
                         let x: i32 = f_s(sp,e1);
@@ -146,7 +146,7 @@ spec =
             (showCode "Compiled: " =<< compileCode  [sourceFile|
               
                  fn test(i:i32) -> WierdType {
-                    let s: S = S::new_state();
+                    let s: State = State::new_state();
                     s.gs(5)
                 }
                 |]) >>=
@@ -179,7 +179,7 @@ fn test(i: i32) -> i32 {
     }
   }
   let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
-  let (state_0_0_1_tx, state_0_0_1_rx) = std::sync::mpsc::channel::<  S,>();
+  let (state_0_0_1_tx, state_0_0_1_rx) = std::sync::mpsc::channel::<  State,>();
   let (result_0_0_0_tx, result_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
     Vec::new();
@@ -203,7 +203,7 @@ fn test(i: i32) -> i32 {
     }));
   tasks
     .push(Box::new(move || -> _ {
-      let state_0_0_1 = S::new_state(i);
+      let state_0_0_1 = State::new_state(i);
       state_0_0_1_tx.send(state_0_0_1)?;
       Ok(())
     }));
@@ -245,8 +245,8 @@ fn test(i: i32) -> String {
     }
   }
   let (r1_0_0_0_tx, r1_0_0_0_rx) = std::sync::mpsc::channel::<  String,>();
-  let (state_0_0_2_tx, state_0_0_2_rx) = std::sync::mpsc::channel::<  S,>();
-  let (state_0_0_1_0_tx, state_0_0_1_0_rx) = std::sync::mpsc::channel::<  S,>();
+  let (state_0_0_2_tx, state_0_0_2_rx) = std::sync::mpsc::channel::<  State,>();
+  let (state_0_0_1_0_tx, state_0_0_1_0_rx) = std::sync::mpsc::channel::<  State,>();
   let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
     Vec::new();
   tasks
@@ -268,7 +268,7 @@ fn test(i: i32) -> String {
     }));
   tasks
     .push(Box::new(move || -> _ {
-      let state_0_0_2 = S::new_state(i);
+      let state_0_0_2 = State::new_state(i);
       state_0_0_2_tx.send(state_0_0_2)?;
       Ok(())
     }));
@@ -310,7 +310,7 @@ fn test(i: i32) -> () {
   }
   let (b_0_0_tx, b_0_0_rx) = std::sync::mpsc::channel::<  (),>();
   let (ctrl_0_tx, ctrl_0_rx) = std::sync::mpsc::channel::<  (bool, usize),>();
-  let (d_0_tx, d_0_rx) = std::sync::mpsc::channel::<  S,>();
+  let (d_0_tx, d_0_rx) = std::sync::mpsc::channel::<  State,>();
   let (c_0_0_tx, c_0_0_rx) = std::sync::mpsc::channel::<  (),>();
   let (size_0_tx, size_0_rx) = std::sync::mpsc::channel::<  usize,>();
   let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel::<  Vec<  (),>,>();
@@ -418,7 +418,7 @@ fn test(i: i32) -> () {
     }
   }
   let (b_0_0_tx, b_0_0_rx) = std::sync::mpsc::channel::<  (),>();
-  let (io_0_0_1_tx, io_0_0_1_rx) = std::sync::mpsc::channel::<  S,>();
+  let (io_0_0_1_tx, io_0_0_1_rx) = std::sync::mpsc::channel::<  State,>();
   let (ctrl_0_0_tx, ctrl_0_0_rx) =
     std::sync::mpsc::channel::<  (bool, usize),>();
   let (ctrl_0_1_tx, ctrl_0_1_rx) =
@@ -517,7 +517,7 @@ fn test(i: i32) -> () {
     }));
   tasks
     .push(Box::new(move || -> _ {
-      let io_0_0_1 = S::new_state(i);
+      let io_0_0_1 = State::new_state(i);
       io_0_0_1_tx.send(io_0_0_1)?;
       Ok(())
     }));
@@ -558,11 +558,11 @@ fn test(i: i32) -> () {
     }
   }
   let (b_0_0_tx, b_0_0_rx) = std::sync::mpsc::channel::<  (),>();
-  let (s_0_0_1_tx, s_0_0_1_rx) = std::sync::mpsc::channel::<  S,>();
+  let (s_0_0_1_tx, s_0_0_1_rx) = std::sync::mpsc::channel::<  State,>();
   let (ctrl_0_0_tx, ctrl_0_0_rx) =
     std::sync::mpsc::channel::<  (bool, usize),>();
-  let (d_1_tx, d_1_rx) = std::sync::mpsc::channel::<  S,>();
-  let (s_0_1_1_tx, s_0_1_1_rx) = std::sync::mpsc::channel::<  S,>();
+  let (d_1_tx, d_1_rx) = std::sync::mpsc::channel::<  State,>();
+  let (s_0_1_1_tx, s_0_1_1_rx) = std::sync::mpsc::channel::<  State,>();
   let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
     Vec::new();
   tasks
@@ -603,7 +603,7 @@ fn test(i: i32) -> () {
     }));
   tasks
     .push(Box::new(move || -> _ {
-      let s_0_0_1 = S::new_state(i);
+      let s_0_0_1 = State::new_state(i);
       s_0_0_1_tx.send(s_0_0_1)?;
       Ok(())
     }));
@@ -666,16 +666,16 @@ fn test(i: i32) -> i32 {
     }
   }
   let (b_0_0_tx, b_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
-  let (s_0_0_2_tx, s_0_0_2_rx) = std::sync::mpsc::channel::<  S,>();
-  let (s_0_0_1_0_tx, s_0_0_1_0_rx) = std::sync::mpsc::channel::<  S,>();
+  let (s_0_0_2_tx, s_0_0_2_rx) = std::sync::mpsc::channel::<  State,>();
+  let (sp_0_0_0_tx, sp_0_0_0_rx) = std::sync::mpsc::channel::<  State,>();
   let (ctrl_0_0_tx, ctrl_0_0_rx) =
     std::sync::mpsc::channel::<  (bool, usize),>();
-  let (sp_0_0_0_tx, sp_0_0_0_rx) = std::sync::mpsc::channel::<  S,>();
+  let (s_0_0_1_0_tx, s_0_0_1_0_rx) = std::sync::mpsc::channel::<  State,>();
   let (ctrl_0_1_tx, ctrl_0_1_rx) =
     std::sync::mpsc::channel::<  (bool, usize),>();
   let (d_1_tx, d_1_rx) = std::sync::mpsc::channel::<  i32,>();
   let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
-  let (s_0_1_1_tx, s_0_1_1_rx) = std::sync::mpsc::channel::<  S,>();
+  let (s_0_1_1_tx, s_0_1_1_rx) = std::sync::mpsc::channel::<  State,>();
   let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
     Vec::new();
   tasks
@@ -684,7 +684,7 @@ fn test(i: i32) -> i32 {
         let mut renew = false;
         let sp_0_0_0_0 = sp_0_0_0_rx.recv()?;
         while !renew {
-          let sig = ctrl_0_1_rx.recv()?;
+          let sig = ctrl_0_0_rx.recv()?;
           let count = sig.1;
           for _ in 0 .. count {
             let var_1 = d_1_rx.recv()?;
@@ -752,7 +752,7 @@ fn test(i: i32) -> i32 {
     }));
   tasks
     .push(Box::new(move || -> _ {
-      let s_0_0_2 = S::new_state(i);
+      let s_0_0_2 = State::new_state(i);
       s_0_0_2_tx.send(s_0_0_2)?;
       Ok(())
     }));
@@ -762,7 +762,7 @@ fn test(i: i32) -> i32 {
         let mut renew = false;
         let mut s_0_0_1_0_0 = s_0_0_1_0_rx.recv()?;
         while !renew {
-          let sig = ctrl_0_0_rx.recv()?;
+          let sig = ctrl_0_1_rx.recv()?;
           let count = sig.1;
           for _ in 0 .. count {
             let var_1 = x_0_0_0_rx.recv()?;
@@ -797,7 +797,7 @@ raw_state_out :: SourceFile Span
 raw_state_out = [sourceFile|
 use crate::funs::*;
 
-fn test(i: i32) -> S {
+fn test(i: i32) -> State {
   #[derive(Debug)]
   enum RunError {
     SendFailed,
@@ -813,12 +813,12 @@ fn test(i: i32) -> S {
       RunError::RecvFailed
     }
   }
-  let (s_0_1_0_tx, s_0_1_0_rx) = std::sync::mpsc::channel::<  S,>();
-  let (s_0_0_2_tx, s_0_0_2_rx) = std::sync::mpsc::channel::<  S,>();
-  let (s_0_0_1_0_tx, s_0_0_1_0_rx) = std::sync::mpsc::channel::<  S,>();
+  let (s_0_1_0_tx, s_0_1_0_rx) = std::sync::mpsc::channel::<  State,>();
+  let (s_0_0_2_tx, s_0_0_2_rx) = std::sync::mpsc::channel::<  State,>();
+  let (sp_0_0_0_tx, sp_0_0_0_rx) = std::sync::mpsc::channel::<  State,>();
   let (ctrl_0_0_tx, ctrl_0_0_rx) =
     std::sync::mpsc::channel::<  (bool, usize),>();
-  let (sp_0_0_0_tx, sp_0_0_0_rx) = std::sync::mpsc::channel::<  S,>();
+  let (s_0_0_1_0_tx, s_0_0_1_0_rx) = std::sync::mpsc::channel::<  State,>();
   let (ctrl_0_1_tx, ctrl_0_1_rx) =
     std::sync::mpsc::channel::<  (bool, usize),>();
   let (d_1_tx, d_1_rx) = std::sync::mpsc::channel::<  i32,>();
@@ -831,7 +831,7 @@ fn test(i: i32) -> S {
         let mut renew = false;
         let sp_0_0_0_0 = sp_0_0_0_rx.recv()?;
         while !renew {
-          let sig = ctrl_0_1_rx.recv()?;
+          let sig = ctrl_0_0_rx.recv()?;
           let count = sig.1;
           for _ in 0 .. count {
             let var_1 = d_1_rx.recv()?;
@@ -890,7 +890,7 @@ fn test(i: i32) -> S {
     }));
   tasks
     .push(Box::new(move || -> _ {
-      let s_0_0_2 = S::new_state(i);
+      let s_0_0_2 = State::new_state(i);
       s_0_0_2_tx.send(s_0_0_2)?;
       Ok(())
     }));
@@ -900,7 +900,7 @@ fn test(i: i32) -> S {
         let mut renew = false;
         let mut s_0_0_1_0_0 = s_0_0_1_0_rx.recv()?;
         while !renew {
-          let sig = ctrl_0_0_rx.recv()?;
+          let sig = ctrl_0_1_rx.recv()?;
           let count = sig.1;
           for _ in 0 .. count {
             let var_1 = x_0_0_0_rx.recv()?;
@@ -949,7 +949,7 @@ fn test(i: i32) -> WierdType {
     }
   }
   let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel::<  WierdType,>();
-  let (s_0_0_1_tx, s_0_0_1_rx) = std::sync::mpsc::channel::<  S,>();
+  let (s_0_0_1_tx, s_0_0_1_rx) = std::sync::mpsc::channel::<  State,>();
   let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
     Vec::new();
   tasks
@@ -963,7 +963,7 @@ fn test(i: i32) -> WierdType {
     }));
   tasks
     .push(Box::new(move || -> _ {
-      let s_0_0_1 = S::new_state();
+      let s_0_0_1 = State::new_state();
       s_0_0_1_tx.send(s_0_0_1)?;
       Ok(())
     }));
