@@ -85,8 +85,9 @@ compileModule inCode opts cty = do
           -- producedCode <- readFile outFile
           -- putStr ("\n PRODUCED MODULE: \n"::String)
           -- putStr producedCode
-          placeholderFile <-readFile (outDir </> "placeholderlib.rs")
-          putStr placeholderFile
+          -- putStr ("\n \n \n"::String)
+          -- placeholderFile <-readFile (outDir </> "placeholderlib.rs")
+          -- putStr placeholderFile
 
           -- run the target compiler (i.e., rustc) on the input
           case cty of

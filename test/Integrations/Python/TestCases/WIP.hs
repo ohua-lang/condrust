@@ -333,12 +333,12 @@ destruct_3_use_in_loop_out :: ModuleSpan
 destruct_3_use_in_loop_out = [pythonModule|
 import multiprocessing as mp
 from testLib import *
-def task_1(third_0_0_0_sender, y_0_0_0_receiver, ctrl_0_1_receiver):
+def task_1(third_0_0_0_sender, y_0_0_0_receiver, ctrl_0_0_receiver):
     while True:
         renew = False
         y_0_0_0_0 = y_0_0_0_receiver.recv()
         while not renew:
-            sig = ctrl_0_1_receiver.recv()
+            sig = ctrl_0_0_receiver.recv()
             count = sig[1]
             for _ in range(0, count):
                 third_0_0_0 = f(y_0_0_0_0)
@@ -380,12 +380,12 @@ def task_3(z_0_0_0_sender, y_0_0_0_sender, x_0_0_1_sender, first_0_0_0_receiver)
 def task_4(first_0_0_0_sender):
     first_0_0_0 = split(a)
     first_0_0_0_sender.send(first_0_0_0)
-def task_5(x_0_1_0_sender, x_0_0_1_receiver, ctrl_0_0_receiver, third_0_0_0_receiver):
+def task_5(x_0_1_0_sender, x_0_0_1_receiver, ctrl_0_1_receiver, third_0_0_0_receiver):
     while True:
         renew = False
         x_0_0_1_0 = x_0_0_1_receiver.recv()
         while not renew:
-            sig = ctrl_0_0_receiver.recv()
+            sig = ctrl_0_1_receiver.recv()
             count = sig[1]
             for _ in range(0, count):
                 var_1 = third_0_0_0_receiver.recv()
@@ -399,13 +399,13 @@ def main(a_1:str ):
     x_0_1_0_sender, x_0_1_0_receiver = mp.Pipe()
     first_0_0_0_sender, first_0_0_0_receiver = mp.Pipe()
     z_0_0_0_sender, z_0_0_0_receiver = mp.Pipe()
-    x_0_0_1_sender, x_0_0_1_receiver = mp.Pipe()
-    ctrl_0_0_sender, ctrl_0_0_receiver = mp.Pipe()
     y_0_0_0_sender, y_0_0_0_receiver = mp.Pipe()
+    ctrl_0_0_sender, ctrl_0_0_receiver = mp.Pipe()
+    x_0_0_1_sender, x_0_0_1_receiver = mp.Pipe()
     ctrl_0_1_sender, ctrl_0_1_receiver = mp.Pipe()
     third_0_0_0_sender, third_0_0_0_receiver = mp.Pipe()
     tasks = [task_1, task_2, task_3, task_4, task_5]
-    channels = [[third_0_0_0_sender, y_0_0_0_receiver, ctrl_0_1_receiver], [ctrl_0_0_sender, ctrl_0_1_sender, z_0_0_0_receiver], [z_0_0_0_sender, y_0_0_0_sender, x_0_0_1_sender, first_0_0_0_receiver], [first_0_0_0_sender], [x_0_1_0_sender, x_0_0_1_receiver, ctrl_0_0_receiver, third_0_0_0_receiver]]
+    channels = [[third_0_0_0_sender, y_0_0_0_receiver, ctrl_0_0_receiver], [ctrl_0_0_sender, ctrl_0_1_sender, z_0_0_0_receiver], [z_0_0_0_sender, y_0_0_0_sender, x_0_0_1_sender, first_0_0_0_receiver], [first_0_0_0_sender], [x_0_1_0_sender, x_0_0_1_receiver, ctrl_0_1_receiver, third_0_0_0_receiver]]
     processes = []
     for task, channels in zip(tasks, channels):
         process = mp.Process(target=task, args=channels)
