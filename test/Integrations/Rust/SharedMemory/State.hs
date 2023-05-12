@@ -56,7 +56,7 @@ spec =
                 }
                 |]) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" single_state
+                expected <- showCode "Expected:" singleState 
                 compiled `shouldBe` expected)
       )
     describe "loop" ( do
@@ -96,7 +96,7 @@ spec =
                 }
                 |]) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" single_io
+                expected <- showCode "Expected:" singleIO
                 compiled `shouldBe` expected)
         )
         
@@ -118,7 +118,7 @@ spec =
                 }
                 |]) >>=
             (\compiled -> do
-                expected <- showCode "Expected:"  thread_and_loop
+                expected <- showCode "Expected:"  threadAndLoop
                 compiled `shouldBe` expected)
 
         it "raw state out" $ -- This example is only valid Rust code iff State is a Copy type
@@ -397,8 +397,8 @@ fn test(i: i32) -> () {
 }|]
 
 
-single_io :: SourceFile Span
-single_io = [sourceFile|
+singleIO :: SourceFile Span
+singleIO = [sourceFile|
 use crate::funs::*;
 
 fn test(i: i32) -> () {
@@ -537,8 +537,8 @@ fn test(i: i32) -> () {
   }
 }|]
 
-single_state :: SourceFile Span
-single_state = [sourceFile|
+singleState :: SourceFile Span
+singleState = [sourceFile|
 use crate::funs::*;
 
 fn test(i: i32) -> () {
@@ -645,8 +645,8 @@ fn test(i: i32) -> () {
 }
 |]
 
-thread_and_loop :: SourceFile Span
-thread_and_loop = [sourceFile|
+threadAndLoop :: SourceFile Span
+threadAndLoop = [sourceFile|
 use crate::funs::*;
 
 fn test(i: i32) -> i32 {
