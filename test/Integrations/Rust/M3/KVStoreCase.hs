@@ -11,7 +11,6 @@ import Integrations.Rust.M3.TestCode.KVAppCompiled as Expect
 spec :: Spec
 spec =
     describe "Syntax strcutures we need" $ do
-        {-
         it "Required: States in Branches" $ 
             (showCode "Compiled: " =<< compileCode 
                 [sourceFile|
@@ -29,7 +28,7 @@ spec =
             (\compiled -> do 
                 expected <- showCode "Expected: " Expect.stateInBranches 
                 compiled `shouldBe` expected)
-        -}
+        
         it "Required: States in Loop" $ 
             (showCode "Compiled: " =<< compileCodeWithRecWithDebug 
                 [sourceFile|
@@ -48,6 +47,8 @@ spec =
             (\compiled -> do 
                 expected <- showCode "Expected: " Expect.basicsPlaceholder
                 compiled `shouldBe` expected)
+
+        {- -- That's probably not required for now.
         it "Required: States in Loop - Assign loop result" $ 
             (showCode "Compiled: " =<< compileCodeWithRecWithDebug
                 [sourceFile|
@@ -67,6 +68,8 @@ spec =
             (\compiled -> do 
                 expected <- showCode "Expected: " Expect.basicsPlaceholder
                 compiled `shouldBe` expected)
+        -}
+
         it "Required: States in Loop - Return Unit from loop" $ 
             (showCode "Compiled: " =<< compileCodeWithRecWithDebug
                 [sourceFile|
@@ -88,7 +91,7 @@ spec =
                 expected <- showCode "Expected: " Expect.basicsPlaceholder
                 compiled `shouldBe` expected)
 
-    {-
+        -- Actually we need stateful functions in branches in loops but this is an intermediate step.
         it "Required: Branches in Loop" $ 
             (showCode "Compiled: " =<< compileCodeWithRec 
                 [sourceFile|
@@ -96,14 +99,13 @@ spec =
 
                     pub fn main() -> Something{
                         let obj1: Something = Something::new(); 
-                        let result:() = loop {
+                        loop {
                             let time: u64 = get_time();
                             let current: u64 = if time < 42 {iffun(time)} else {elsefun(time)};
                             obj1.aggregate(current);
                         }
                     }
-                    |]           
-            ) >>= 
+                |]) >>= 
             (\compiled -> do 
                 expected <- showCode "Expected: " Expect.basicsPlaceholder
                 compiled `shouldBe` expected)
@@ -129,11 +131,9 @@ spec =
                 expected <- showCode "Expected: " Expect.basicsPlaceholder
                 compiled `shouldBe` expected)
 
-    describe "Actual Application" $ do
-        it "Current State" $
+        it "Actual Application" $
             (showCode "Compiled: " =<< compileCodeWithRecWithDebug Input.kvApplication) >>=
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.kvApplication
                 compiled `shouldBe` expected)
 
-    -}
