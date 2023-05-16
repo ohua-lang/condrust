@@ -234,7 +234,7 @@ handleApplyExpr ::
   forall m ty.
   (MonadOhua m) =>
   ALang.Expr ty ->
-  m (FunRef ty, Maybe (ATypedBinding 'State ty), NonEmpty (ArgType ty, ALang.Expr ty))
+  m (FunRef ty, Maybe (ATypedBinding 'State ty), NonEmpty (VarType ty, ALang.Expr ty))
 handleApplyExpr (Apply fn a) = go (a :| []) fn
   where
     go args e =
@@ -273,7 +273,7 @@ handleApplyExpr (Apply fn a) = go (a :| []) fn
       Left Unit -> 1
       Right l -> length l
 
-    zip' :: Either Unit (NonEmpty (ArgType ty)) -> NonEmpty b -> NonEmpty (ArgType ty, b)
+    zip' :: Either Unit (NonEmpty (VarType ty)) -> NonEmpty b -> NonEmpty (VarType ty, b)
     zip' (Left Unit) bs = NE.zip (TypeVar :| []) bs -- FIXME this seems wrong to me. it should be a unitVal. It points to a problem that we we still have with Unit. We do not distinguish between a unit type and a unit value. and I'm not even sure that there should be such a thing as a unit value unless the controls need it.
     zip' (Right as) bs = NE.zip as bs
 handleApplyExpr g = failWith $ "Expected apply but got: " <> show g
@@ -283,7 +283,7 @@ handleApplyExpr g = failWith $ "Expected apply but got: " <> show g
 -- | Inspect an expression expecting something which can be captured
 -- in a DFVar otherwise throws appropriate errors.
 -- ToDo: This should go away because a) We carry the types of vars (and literals?!) from the frontend and b) at this point there shouldn't be syntax errors any more
-expectVar :: (HasCallStack, MonadError Error m) => ArgType ty -> ALang.Expr ty -> m (DFVar 'Data ty)
+expectVar :: (HasCallStack, MonadError Error m) => VarType ty -> ALang.Expr ty -> m (DFVar 'Data ty)
 expectVar ty (ALang.Var tBnd) = pure $ DFVar $ DataBinding tBnd
 -- TODO currently only allowed for the unitFn function
 -- expectVar r@PureFunction {} =

@@ -36,7 +36,7 @@ data OutData (bType :: BindingType) (ty :: Type) :: Type  where
 -- ToDo : I think we should remove the indirection via the ATypedBinding and instead use an extended binding type
 -- i.e. BindingType = State | Data | Env to directly type DFVar
 data DFVar (semType :: BindingType) (ty :: Type) :: Type where
-  DFEnvVar :: ArgType ty -> Lit ty -> DFVar 'Data ty
+  DFEnvVar :: VarType ty -> Lit ty -> DFVar 'Data ty
   DFVar :: ATypedBinding a ty -> DFVar a ty
   -- DFNatVar :: ATypedBinding a -> DFVar a (TypeNat ty) 
   -- DFBoolVar ::  ATypedBinding a -> DFVar a 'TypeBool
@@ -263,7 +263,7 @@ unwrapABnd :: ATypedBinding bty ty -> Binding
 unwrapABnd (DataBinding tbnd) = asBnd tbnd
 unwrapABnd (StateBinding tbnd) = asBnd tbnd
 
-unwrapVarType :: DFVar b ty -> ArgType ty
+unwrapVarType :: DFVar b ty -> VarType ty
 unwrapVarType  (DFVar atBnd) = asType . unwrapTB $ atBnd
 unwrapVarType  (DFStateVar atBnd) = asType . unwrapTB $ atBnd
 unwrapVarType  (DFEnvVar ty _lit) = ty
@@ -279,7 +279,7 @@ unwrapVarTB (DFStateVar atBnd) = unwrapTB atBnd
 unwrapVarTB (DFEnvVar ty _lit) = error "Tried to unwrap a binding from a literat in DFLang. Please report this error"
 
 --ToDo: Remove when TypePropagation is gone!
-replaceType ::  ATypedBinding bty ty -> ArgType ty ->  ATypedBinding bty ty
+replaceType ::  ATypedBinding bty ty -> VarType ty ->  ATypedBinding bty ty
 replaceType (DataBinding tbnd) newTy = DataBinding (TBind (asBnd tbnd) newTy)
 replaceType (StateBinding tbnd) newTy = StateBinding (TBind (asBnd tbnd) newTy)
 

@@ -17,7 +17,7 @@ type BindingContext ty = (HM.HashMap Binding (Exists ty))
 showContext :: BindingContext ty -> Text
 showContext hm = show (HM.keys hm)
 {-
-controlSignalType :: ArgType ty
+controlSignalType :: VarType ty
 controlSignalType = TupleTy $ TypeBool:| [TypeNat]
 -}
 returnBinding:: Binding
@@ -77,10 +77,10 @@ typeBottomUp ::
   State (BindingContext ty) (NormalizedDFExpr ty)
 -- (Sebastian to himself): Implement these damn types already!!!
 -- REMINDER: 
-  -- fTy : contains ArgType = TypeVar | Type ty | TupleTy (NonEmpty (ArgType ty)) if function is typed
+  -- fTy : contains VarType = TypeVar | Type ty | TupleTy (NonEmpty (VarType ty)) if function is typed
   -- vars: are data DFVar = 
-    --                DFEnvVar :: ArgType ty -> Lit ty -> DFVar 'Data ty
-    --                DFVar :: ArgType ty -> ABinding a -> DFVar a ty
+    --                DFEnvVar :: VarType ty -> Lit ty -> DFVar 'Data ty
+    --                DFVar :: VarType ty -> ABinding a -> DFVar a ty
 
 typeBottomUp (Let (PureDFFun out@(Direct outBnd) f@(FunRef fun _fid fTy) inputs@(DFVar fstatb@(DataBinding (TBind fstBnd _fstTy))  :| scndIn: _)) inCont)
   -- In this case, the function is an Ohua control node. Those nodes allways take two inputs
@@ -411,7 +411,7 @@ maybeUpdate reference var = do
                   Just (Exists (DFVar oldatBnd)) -> DFVar $ replaceType atBnd (maxType (asType . unwrapTB $ atBnd) (asType . unwrapTB $ oldatBnd))
                   Just (Exists (DFEnvVar ty' _bnd)) -> DFVar $ replaceType atBnd (maxType (asType . unwrapTB $ atBnd) ty')
                   Nothing -> var
-          (DFEnvVar TypeVar lit) -> case getArgType lit of
+          (DFEnvVar TypeVar lit) -> case getVarType lit of
                                   Just ty' -> DFEnvVar ty' lit
                                   Nothing  -> var
           (DFEnvVar _ _) -> var
@@ -426,7 +426,7 @@ maybeUpdate reference var = do
         return newVar
 
 
-updateContext :: MonadState (HashMap Binding (Exists ty)) m => ATypedBinding b ty -> ArgType ty -> m ()
+updateContext :: MonadState (HashMap Binding (Exists ty)) m => ATypedBinding b ty -> VarType ty -> m ()
 updateContext atBnd newType  = do
   -- traceM $ "Updating binding " <> show aBnd <> " to type " <> show newType
   modify (HM.insert (unwrapABnd atBnd) $ Exists (DFVar $ replaceType atBnd newType)) 
@@ -439,7 +439,7 @@ updateContext atBnd newType  = do
 -- Hence we need to override the firsr assignment and it's more intuitive to express this by choosing the first type
 -- over the first i.e. maxtype new old. 
 -- a
-maxType :: ArgType ty -> ArgType ty -> ArgType ty
+maxType :: VarType ty -> VarType ty -> VarType ty
 maxType host_ty@(Type _) _t = host_ty
 maxType _t host_ty@(Type _)= host_ty
 maxType TypeVar TypeVar = TypeVar
