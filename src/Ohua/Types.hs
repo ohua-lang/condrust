@@ -3,13 +3,13 @@ module Ohua.Types
     , Binding
     , NSRef(..)
     , QualifiedBinding(..)
-    , ArgType(..)
+    , VarType(..)
     , controlSignalType
     , FunType(..)
     , toFilePath
     , symbolFromString
     , FunRef(..)
-    , Lit(..), getArgType
+    , Lit(..), getVarType
     , Unit(..)
     , module Ohua.Types.Computation
     , module Ohua.Types.Classes

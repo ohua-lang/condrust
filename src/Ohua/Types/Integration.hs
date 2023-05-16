@@ -66,7 +66,7 @@ updateExprs' namespace f = do
 
 
 updateExprsWithReturn :: Monad m => Namespace expr1 inpt retTy -> (retTy -> expr1 -> m expr2) -> m (Namespace expr2 inpt retTy)
-updateExprsWithReturn namespace f = updateExprsWithReturn' namespace $ \_ -> f
+updateExprsWithReturn namespace f = updateExprsWithReturn' namespace $ const f
 
 updateExprsWithReturn' :: Monad m => Namespace expr1 inpt retTy -> (Binding -> retTy -> expr1 -> m expr2) -> m (Namespace expr2 inpt retTy)
 updateExprsWithReturn' namespace f = do

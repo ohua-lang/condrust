@@ -52,28 +52,33 @@ newtype FnId =
 --   host language, TypeVar, TypeNat and TypeBool are used internaly to construct nodes
 --   They must be mapped to the according types of the host language in the backend or, in 
 --   in case of TypeVar need to be eliminated for Backends requiring typed channels.
-data ArgType ty 
+data VarType ty 
     = TypeVar 
     | TypeNat 
     | TypeBool 
     | TypeUnit 
     | TypeString 
-    | TypeList (ArgType ty) 
+    | TypeList (VarType ty) 
     | Type ty 
-    | TupleTy (NonEmpty (ArgType ty)) 
+    | TupleTy (NonEmpty (VarType ty)) 
     -- REMINDER: Can't derive Lift for Unit, therefor not for FunType and therefor I can't have FunType here for now
     --           Find a way to fix this
-    | TypeFunction 
+    | TypeFunction [VarType ty] (VarType ty)
     deriving (Lift, Generic)
 
 -- ToDo: This is just a helper until we get types of control nodes right
-controlSignalType :: ArgType ty
+controlSignalType :: VarType ty
 controlSignalType = TupleTy $ TypeBool:| [TypeNat]
+
+-- No More untyped functions and functions have a return type
+data FunTypeNew ty where
+     FunTypeNew :: Either Unit (NonEmpty (VarType ty)) -> VarType ty -> FunTypeNew ty
+     STFunTypeNew :: VarType ty -> Either Unit (NonEmpty (VarType ty)) -> VarType ty -> FunTypeNew ty
 
 data FunType ty where
      Untyped :: FunType ty
-     FunType :: Either Unit (NonEmpty (ArgType ty)) -> FunType ty
-     STFunType :: ArgType ty -> Either Unit (NonEmpty (ArgType ty)) -> FunType ty
+     FunType :: Either Unit (NonEmpty (VarType ty)) -> FunType ty
+     STFunType :: VarType ty -> Either Unit (NonEmpty (VarType ty)) -> FunType ty
 
 
 data FunRef ty where
@@ -83,7 +88,7 @@ data FunRef ty where
 --                           Instances
 --------------------------------------------------------------
 
-instance EqNoType (ArgType ty) where
+instance EqNoType (VarType ty) where
     TypeVar ~= TypeVar = True
     TypeNat ~= TypeNat = True
     TypeBool ~= TypeBool = True
@@ -94,10 +99,10 @@ instance EqNoType (ArgType ty) where
     (TypeList inner1) ~= (TypeList inner2) = inner1 == inner2
     _ ~= _ = False
 
-instance Eq (ArgType ty) where
+instance Eq (VarType ty) where
     (==) = (~=)
 
-instance ShowNoType (ArgType ty) where
+instance ShowNoType (VarType ty) where
     showNoType TypeVar = "TypeVar"
     showNoType TypeNat = "Internal nat"
     showNoType TypeBool = "Internal bool"
@@ -109,10 +114,10 @@ instance ShowNoType (ArgType ty) where
     showNoType (TupleTy ts) = "(" <>  foldl (\b a -> show a <> ", " <> b) ")" ts
 
 
-instance Show (ArgType ty) where
+instance Show (VarType ty) where
     show = T.unpack . showNoType
 
-instance Hashable (ArgType ty) where
+instance Hashable (VarType ty) where
     hashWithSalt s TypeVar = s
     hashWithSalt s TypeNat = s
     hashWithSalt s TypeBool = s

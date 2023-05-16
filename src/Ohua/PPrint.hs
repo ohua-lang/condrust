@@ -60,7 +60,7 @@ prettyFunType =
         STFunType argTy (Left _) -> hsep $ punctuate comma [pretty argTy  <> "()"]
         STFunType argTy (Right args) -> prettyFunType $ FunType $ Right (argTy <| args) 
 
-instance Pretty (ArgType ty) where
+instance Pretty (VarType ty) where
     pretty = flexText . showNoType
 
 instance Pretty (FunType ty) where
