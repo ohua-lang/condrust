@@ -94,6 +94,8 @@ instance Integration (Language 'Rust) where
                   items
             return $ Namespace (filePathToNsRef srcFile) imports algos
 
+      -- FIXME: Paths inside a crate would be use crate::something. Actually we'd need proper name resolution for this i.e. accoding to
+      -- how cargo works. For now I'll assume crate imports to just live in the same directory, replacing 'crate' with './'
       extractImports :: CompM m => [Binding] -> UseTree Span -> m (NonEmpty Import)
       -- UseTreeSimple means: 'use something;' 
       extractImports prefix (UseTreeSimple path (Just alias) _) =
@@ -133,7 +135,9 @@ instance Integration (Language 'Rust) where
 
       toBindings p@(Path _ segments _) =
         forM segments $ \case
-          (PathSegment ident Nothing _) -> return $ toBinding ident
+          (PathSegment Ident{name=iname} Nothing _) -> if iname == "crate"
+                                              then return $ fromString "."
+                                              else return $ fromString iname
           (PathSegment _ (Just _) _) -> error $ "We currently do not support import paths with path parameters.\n" <> show p
 
       getReturn :: FnDecl Span -> RustVarType
