@@ -14,8 +14,8 @@ import qualified Data.HashMap.Lazy as HM
 import Data.List.NonEmpty
 
 
-data RustArgType = Self (Ty ()) (Maybe (Lifetime ())) Mutability | Normal (Ty ()) deriving (Show, Eq)
-type RustTypeAnno = RustArgType
+data RustVarType = Self (Ty ()) (Maybe (Lifetime ())) Mutability | Normal (Ty ()) deriving (Show, Eq)
+type RustTypeAnno = RustVarType
 type FunTypes = HM.HashMap QualifiedBinding (FunType RustTypeAnno)
 
 rustUnitReturn :: Ty ()
@@ -35,14 +35,14 @@ rustInfer = Infer ()
 -- | Load the given file as AST, pattern match on the content and collect
 --   the types of all defined functions (fn, impl or inside trait) into a 
 --   Hashmap @FunTypes@ mapping function bindings to their types
-{-
-extractFromFile :: CompM m => FilePath -> m FunTypes
-extractFromFile srcFile = extract srcFile =<< liftIO (load srcFile)
 
-extract :: forall m a. (CompM m, Show a) => FilePath -> SourceFile a -> m (HM.HashMap QualifiedBinding (FunType RustArgType))
+extractFromFile :: CompM m => FilePath -> m FunTypes
+extractFromFile srcFile = extract srcFile =<< liftIO (loadRustFile srcFile)
+
+extract :: forall m a. (CompM m, Show a) => FilePath -> SourceFile a -> m (HM.HashMap QualifiedBinding (FunType RustVarType))
 extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
     where
-        extractTypes :: (CompM m, Show a) => [Item a] -> m [(QualifiedBinding, FunType RustArgType)]
+        extractTypes :: (CompM m, Show a) => [Item a] -> m [(QualifiedBinding, FunType RustVarType)]
         extractTypes items = 
             catMaybes . concat <$>
             mapM
@@ -75,38 +75,38 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
             toBinding
 
         extractFunType :: (CompM m, Show a) =>
-            (Arg a -> [ArgType RustArgType] -> m (FunType RustArgType)) ->
+            (Arg a -> [VarType RustVarType] -> m (FunType RustVarType)) ->
             FnDecl a ->
-            m (FunType RustArgType)
+            m (FunType RustVarType)
         extractFunType _ f@(FnDecl _ _ True _) = throwError $ "Currently, we do not support variadic arguments." <> show f
         extractFunType f (FnDecl args _retTyp _ _) =
             case args of
                 [] -> return $ FunType $ Left Unit
                 (x:xs) -> f x  =<< mapM convertArg xs
 
-        convertImplArg :: (CompM m, Show a) => Ty a -> Arg a -> m (ArgType RustArgType)
+        convertImplArg :: (CompM m, Show a) => Ty a -> Arg a -> m (VarType RustVarType)
         convertImplArg selfType (SelfValue _ mut _) = return $ Type $ Self (void selfType) Nothing mut
         convertImplArg selfType (SelfRegion _ lifeTime mut _) = return $ Type $ Self (void selfType) (void <$>lifeTime) mut
         convertImplArg selfType (SelfExplicit _ _ty mut _) = return $ Type $ Self (void selfType) Nothing mut
         convertImplArg _ a = convertArg a
 
-        convertArg :: (CompM m, Show a) => Arg a -> m (ArgType RustArgType)
+        convertArg :: (CompM m, Show a) => Arg a -> m (VarType RustVarType)
         convertArg (Arg _ _ typ _) = return $ Type $ Normal (void typ)
         convertArg a = throwError $ "Please report: The impossible happened at argument: " <> show a
 
-        extractFromImplItem :: (CompM m, Show a) => Ty a -> ImplItem a -> m (Maybe (QualifiedBinding, FunType RustArgType))
+        extractFromImplItem :: (CompM m, Show a) => Ty a -> ImplItem a -> m (Maybe (QualifiedBinding, FunType RustVarType))
         extractFromImplItem selfType (MethodI _ _ _ ident _ (MethodSig _ decl) _ _) =
           case decl of
             FnDecl [] _ _ _ -> return Nothing
             _ -> Just . (createFunRef ident, ) <$> extractFunType (extractFirstArg selfType) decl
         extractFromImplItem _ _ = return Nothing
 
-        extractFromTraitItem :: (CompM m, Show a) => Ty a -> TraitItem a -> m (Maybe (QualifiedBinding, FunType RustArgType ))
+        extractFromTraitItem :: (CompM m, Show a) => Ty a -> TraitItem a -> m (Maybe (QualifiedBinding, FunType RustVarType ))
         extractFromTraitItem selfType (MethodT _ ident _ (MethodSig _ decl) _ _) =
             Just . (createFunRef ident, ) <$> extractFunType (extractFirstArg selfType) decl
         extractFromTraitItem _ _ = return Nothing
 
-        extractFirstArg :: Ty a -> Arg a -> [ArgType RustArgType] -> m (FunType RustArgType)
+        extractFirstArg :: Ty a -> Arg a -> [VarType RustVarType] -> m (FunType RustVarType)
         extractFirstArg selfType x xs =
             let funType x0 = case x0 of
                             (Type Self{}) -> STFunType x0 $ case xs of
@@ -114,4 +114,4 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
                                    (x:xs) -> Right (x :| xs)
                             _ -> FunType $ Right (x0 :| xs)
             in funType <$> convertImplArg selfType x
--}
+

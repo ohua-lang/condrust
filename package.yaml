@@ -55,6 +55,7 @@ dependencies:
 - ohua-backend
 - ohua-core
 - filepath
+- directory
 - bytestring
 - language-rust
 - language-python
