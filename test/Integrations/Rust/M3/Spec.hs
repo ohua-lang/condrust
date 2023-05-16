@@ -7,12 +7,12 @@ import Ohua.Prelude
 import Test.Hspec
 
 import qualified Integrations.Rust.M3.WIPCases as WIPCases
-import qualified Integrations.Rust.M3.TestCases as BasicCases
+import qualified Integrations.Rust.M3.Basics as Basics
 import qualified Integrations.Rust.M3.KVStoreCase as KVCase
 
 
 spec :: Spec
 spec =
     -- WIPCases.spec
-    BasicCases.spec -- >>
-    -- KVCase.spec
+    Basics.spec >>
+    KVCase.spec
