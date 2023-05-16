@@ -23,7 +23,7 @@ data ComType = Channel | Recv | Send deriving (Show, Eq, Generic)
 
 data Com (f::ComType) (t::Type) :: Type where
   SChan :: Binding -> Com 'Channel t
-  SRecv :: ArgType t -> Com 'Channel t -> Com 'Recv t
+  SRecv :: VarType t -> Com 'Channel t -> Com 'Recv t
   SSend :: Com 'Channel t -> Either Binding (Lit t) -> Com 'Send t
 
 instance Eq (Com semTy ty) where
