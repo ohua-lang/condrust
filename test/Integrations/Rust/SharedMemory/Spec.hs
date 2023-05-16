@@ -15,16 +15,19 @@ import qualified Integrations.Rust.SharedMemory.Benchmark as Benchmark
 import qualified Integrations.Rust.SharedMemory.Control as Control
 import qualified Integrations.Rust.SharedMemory.Scoping as Scoping
 import qualified Integrations.Rust.SharedMemory.ProgModRestrictions as Restrictions
+import qualified Integrations.Rust.SharedMemory.WIP as TestTypextraction
 
 spec :: Spec
 spec =
     Basic.spec >>
+    TestTypextraction.spec {- >>
     If.spec >>
     State.spec >>
     SMap.spec >>
-    TailRec.spec >>
+    TailRec.spec >>   
     -- ohua-lang/ohuac#32
     -- Benchmark.spec >>
     Control.spec >>
-    Scoping.spec{- >>
+    Scoping.spec-} {- >>
     Restrictions.spec-}
+ 
