@@ -102,7 +102,7 @@ whileToRecursion = return
             generateLoopName :: MonadGenBnd m => FR.Expr ty -> m Binding
             generateLoopName _b = generateBindingWith "while_loop_function"
 
-            generateIfSplit :: Binding -> FR.Expr ty -> FR.Expr ty -> (FR.Expr ty, [(Binding, ArgType ty)])
+            generateIfSplit :: Binding -> FR.Expr ty -> FR.Expr ty -> (FR.Expr ty, [(Binding, VarType ty)])
             generateIfSplit loopName cond body = 
                 -- We need to pass statefull variables from one recursion to the next.
                 -- This may include a stateful variable used in the condition e.g. while iter.has_next()
@@ -125,7 +125,7 @@ whileToRecursion = return
 
                 in (recCall, usedStates)
                 
-            extractUsedStates ::  FR.Expr ty -> [(Binding, ArgType ty)]
+            extractUsedStates ::  FR.Expr ty -> [(Binding, VarType ty)]
             -- ToDo: 1. BindE expr expr might 'bind' other expression as well. For now we want to error in that case 
             extractUsedStates body = map 
                 (\e -> case e of 
@@ -155,7 +155,7 @@ whileToRecursion = return
 nthFun :: FR.Expr ty
 nthFun = LitE $ FunRefLit $ FunRef ARefs.nth Nothing $ FunType $ Right $ TypeVar :| [TypeVar,TypeVar]
 
-unstructure :: (Binding, ArgType ty) -> NonEmpty (FR.Pat ty) -> FR.Expr ty -> FR.Expr ty
+unstructure :: (Binding, VarType ty) -> NonEmpty (FR.Pat ty) -> FR.Expr ty -> FR.Expr ty
 unstructure (valBnd, valTy) pats = go (toInteger $ length pats) (NE.toList pats)
   where
     go numPats =
@@ -228,7 +228,7 @@ definedBindings olang =
     [v | VarE v _ty <- universe olang] <>
     [v | VarP v _ty <- universeOn (cosmos . patterns) olang]
 
-tupTypeFrom:: NonEmpty (Pat ty) -> (ArgType ty)
+tupTypeFrom:: NonEmpty (Pat ty) -> (VarType ty)
 tupTypeFrom pats = TupleTy $ NE.map getPType pats 
     where 
         getPType (VarP _b ty) = ty
