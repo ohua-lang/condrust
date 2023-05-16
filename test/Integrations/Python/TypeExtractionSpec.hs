@@ -21,7 +21,7 @@ import Ohua.Integration.Python.TypeExtraction
                                  positional args, kwargs 
             --}
 
--- extractTypes :: Show a => Py.Module a -> IO (HM.HashMap QualifiedBinding (FunType PythonArgType))
+-- extractTypes :: Show a => Py.Module a -> IO (HM.HashMap QualifiedBinding (FunType PythonVarType))
 -- extractTypes srcFile = runCompM LevelDebug $ extract "" srcFile
 
 spec :: Spec

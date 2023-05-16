@@ -204,7 +204,7 @@ rewrite liftCollectTy (SMap smapF body collectF) = do
     rewriteBody e = pure e
     
     -- Question: Can we get rid of this having the type annotation of the bound variable
-    findOutTy :: DFApp 'Fun ty -> NormalizedDFExpr ty -> OhuaM (ArgType ty)
+    findOutTy :: DFApp 'Fun ty -> NormalizedDFExpr ty -> OhuaM (VarType ty)
     findOutTy fun cont = 
         case DFL.outsDFApp fun of
             [TBind bnd ty] -> case findOutTy' bnd cont of
@@ -212,7 +212,7 @@ rewrite liftCollectTy (SMap smapF body collectF) = do
                         (t:_) -> return t
             _ -> unsupported "Multiple outputs to pure fun."
     
-    findOutTy' :: Binding -> NormalizedDFExpr ty -> [ArgType ty]
+    findOutTy' :: Binding -> NormalizedDFExpr ty -> [VarType ty]
     findOutTy' bnd cont = [ ty | DFL.Let app c <- universe' cont
                               , (TBind b ty) <- insAndTypesDFApp app
                               , b == bnd] 
@@ -232,7 +232,7 @@ isIgnorable (QualifiedBinding (NSRef ["ohua", "lang"]) _) = True
 isIgnorable _ = False
 
 liftFunction :: forall ty.
-                ArgType ty
+                VarType ty
              -> DFApp 'Fun ty
              -> NormalizedDFExpr ty 
              -> OhuaM (NormalizedDFExpr ty)

@@ -55,7 +55,7 @@ renderStr =
     . pretty'
 
 
-toRustTy :: ArgType TE.RustTypeAnno -> Rust.Ty ()
+toRustTy :: VarType TE.RustTypeAnno -> Rust.Ty ()
 -- ToDo: We have a distinction between 'single' types and tuples but beyond that do not care
 -- if it's a Path expression a Self or whatever. Currently we don't allow fancy return types so
 -- maybe that's Ok but I have to evaluate later!!

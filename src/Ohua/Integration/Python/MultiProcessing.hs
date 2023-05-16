@@ -28,7 +28,7 @@ import System.FilePath (takeFileName)
 import Language.Python.Common (ImportRelative(import_relative_dots))
 import Data.List (nub)
 
-type FullyPyProgram = Program (Py.Statement SrcSpan) (Py.Expr SrcSpan) (Py.Statement SrcSpan) PythonArgType
+type FullyPyProgram = Program (Py.Statement SrcSpan) (Py.Expr SrcSpan) (Py.Statement SrcSpan) PythonVarType
 
 
 -- instance Transform (Architectures 'MultiProcessing)
@@ -152,7 +152,7 @@ scopeOfAlgo aName (stmt: stmts) =  stmt : scopeOfAlgo aName stmts
 
 -- | Task functions are called with a list of (unique -> nub) channels they use as arguments.
 -- | Here we extract them.
-channelsFromTask :: FullTask PythonArgType (Py.Statement SrcSpan) -> [Py.Expr SrcSpan]
+channelsFromTask :: FullTask PythonVarType (Py.Statement SrcSpan) -> [Py.Expr SrcSpan]
 channelsFromTask (FullTask ins outs fun) = nub (map chnlToVar ins ++ map chnlToVar outs)
 
 {- | This function produces a parallelized version of the input module that 
@@ -274,9 +274,9 @@ modName :: Py.Parameter annot -> [Char] -> Py.Ident SrcSpan
 modName (Py.Param (Py.Ident name _) mTyp mDef anno) modV = Py.Ident (name++modV) noSpan
 
 
-subToPython :: Program Stmt Stmt (Py.Statement SrcSpan) PythonArgType -> FullyPyProgram
+subToPython :: Program Stmt Stmt (Py.Statement SrcSpan) PythonVarType -> FullyPyProgram
 subToPython (Program c r t ) =  Program (map subToStmt c) (subToExpr . unwrapSubStmt $ r) t
 
-enumeratedTasks :: [FullTask PythonArgType (Py.Statement SrcSpan)] -> [String]
+enumeratedTasks :: [FullTask PythonVarType (Py.Statement SrcSpan)] -> [String]
 enumeratedTasks  tasks =  zipWith (\ task i -> "task_" ++ show i) tasks [1..]
 

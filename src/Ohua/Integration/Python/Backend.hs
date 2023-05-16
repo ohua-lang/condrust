@@ -38,7 +38,7 @@ convertToSuite arch lastStmt = case lastStmt of
 
 instance Integration (Language 'Python) where
     type HostModule (Language 'Python) = Module
-    type Type (Language 'Python) = PythonArgType
+    type Type (Language 'Python) = PythonVarType
     type AlgoSrc (Language 'Python) = Py.Statement SrcSpan
 
     type Expr (Language 'Python) = Sub.Stmt
@@ -51,7 +51,7 @@ instance Integration (Language 'Python) where
         return $
             nameSpace & algos %~ map (\algo -> algo & algoCode %~ convertTasks (algo^.algoInputCode))
         where
-            convertTasks (Py.Fun id params opt_anno body anno) (Program chans (SRecv argType channel) tasks) =
+            convertTasks (Py.Fun _id _params _opt_anno _body _anno) (Program chans (SRecv argType channel) tasks) =
                 Program
                     chans
                     (SRecv (Type PythonObject) channel)

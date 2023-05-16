@@ -1,6 +1,7 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE LambdaCase #-}
 
 
 module Ohua.Integration.Rust.Frontend where
@@ -25,30 +26,29 @@ import qualified Ohua.Integration.Rust.Frontend.Subset as Sub
 import Ohua.Integration.Rust.TypeExtraction as TE
 import Ohua.Integration.Rust.Types
 import Ohua.Integration.Rust.Util
-import Ohua.Prelude hiding (getArgType)
+import Ohua.Prelude hiding (getVarType)
 import qualified Control.Applicative as Hm
 
 
 class ConvertExpr a where
-  convertExpr :: SubC.ConvertM m => a -> m (FrLang.Expr RustArgType)
+  convertExpr :: SubC.ConvertM m => a -> m (FrLang.Expr RustVarType)
 
 class ConvertPat a where
-  convertPat :: SubC.ConvertM m => a -> m (FrLang.Pat RustArgType)
+  convertPat :: SubC.ConvertM m => a -> m (FrLang.Pat RustVarType)
 
 instance Integration (Language 'Rust) where
   type HostModule (Language 'Rust) = Module
-  type Type (Language 'Rust) = RustArgType
+  type Type (Language 'Rust) = RustVarType
   type AlgoSrc (Language 'Rust) = Item Span
 
   loadNs ::
     CompM m =>
     Language 'Rust ->
     FilePath ->
-    m (Module, Namespace (FrLang.Expr RustArgType) (Item Span) RustArgType, Module)
-  -- ToDo: If we want to include global constants in the 'type inference' for functions
-  --       we need an extra pass here to collect them to the context before parsing the algos
+    m (Module, Namespace (FrLang.Expr RustVarType) (Item Span) RustVarType, Module)
+
   loadNs _ srcFile = do
-    mod <- liftIO $ load srcFile
+    mod <- liftIO $ loadRustFile srcFile
     ns <- extractNs mod
     -- REMINDER Replace empty placeholder by extracted module
     return (Module srcFile mod, ns, Module "placeholderlib.rs" placeholderModule)
@@ -56,7 +56,7 @@ instance Integration (Language 'Rust) where
       extractNs ::
         CompM m =>
         SourceFile Span ->
-        m (Namespace (FrLang.Expr RustArgType) (Item Span) RustArgType)
+        m (Namespace (FrLang.Expr RustVarType) (Item Span) RustVarType)
 
       extractNs input = do
         globalDefs <- collectGlobals input
@@ -64,7 +64,7 @@ instance Integration (Language 'Rust) where
         where
           collectGlobals input@(SourceFile _ _ items) = do
             return $ foldl (\hm (k, v) -> HM.insert k v hm) HM.empty
-              (mapMaybe 
+              (mapMaybe
               (\case
                         (ConstItem _attr _pub ident ty expr _ )-> Just (toBinding ident, Sub.RustType (deSpan ty))
                         (Static _ _ ident ty Immutable expr span) -> Just (toBinding ident, Sub.RustType (deSpan ty))
@@ -118,7 +118,7 @@ instance Integration (Language 'Rust) where
         SubC.ConvertM m =>
         FnDecl Span ->
         Block Span ->
-        m (FrLang.Expr RustArgType)
+        m (FrLang.Expr RustVarType)
       extractAlgo (FnDecl args _ _ _) block = do
         -- Add the parameters and their types to the context
         args' <- mapM (convertPat <=< SubC.convertArg) args
@@ -126,7 +126,7 @@ instance Integration (Language 'Rust) where
         block' <- convertIntoFrExpr block
         return $ LamE args' block'
 
-      convertIntoFrExpr :: SubC.ConvertM m => Block Span -> m (FrLang.Expr RustArgType)
+      convertIntoFrExpr :: SubC.ConvertM m => Block Span -> m (FrLang.Expr RustVarType)
       convertIntoFrExpr rustBlock = do
         subsetExpr <- SubC.convertBlock rustBlock
         convertExpr subsetExpr
@@ -135,8 +135,8 @@ instance Integration (Language 'Rust) where
         forM segments $ \case
           (PathSegment ident Nothing _) -> return $ toBinding ident
           (PathSegment _ (Just _) _) -> error $ "We currently do not support import paths with path parameters.\n" <> show p
-      
-      getReturn :: FnDecl Span -> RustArgType
+
+      getReturn :: FnDecl Span -> RustVarType
       -- FIXME: We may need more elaborate patterns for the type here
       -- Currently we only care for pure functions as algos and do nto support tuple
       -- returns (or any sort of elaborate types in the composition). If this changes, we need to 
@@ -148,10 +148,9 @@ instance Integration (Language 'Rust) where
     CompM m =>
     Language 'Rust ->
     Module ->
-    Namespace (FrLang.Expr RustArgType) (Item Span) RustArgType ->
-    m (Namespace (FrLang.Expr RustArgType) (Item Span) RustArgType)
-  loadTypes  _ (Module ownFile _) ohuaNs = return ohuaNs
-   {-
+    Namespace (FrLang.Expr RustVarType) (Item Span) RustVarType ->
+    m (Namespace (FrLang.Expr RustVarType) (Item Span) RustVarType)
+
   loadTypes _ (Module ownFile _) ohuaNs = do
     -- Extract namespace reference (filepath) and Qualified name for all functions called in each algo
     filesAndPaths <- concat <$> mapM funsForAlgo (ohuaNs ^. algos)
@@ -169,8 +168,8 @@ instance Integration (Language 'Rust) where
     updateExprs ohuaNs (transformM (assignTypes types'))
 
     where
-      funsForAlgo :: CompM m => Algo (FrLang.Expr RustArgType) (Item Span) -> m [([NSRef], QualifiedBinding)]
-      funsForAlgo (Algo _name code _) = do
+      funsForAlgo :: CompM m => Algo (FrLang.Expr RustVarType) (Item Span) RustVarType -> m [([NSRef], QualifiedBinding)]
+      funsForAlgo (Algo _name code _inputCode _retTy) = do
         traceShowM $ "algo: " <> show _name <> "\n code: \n" <> quickRender code
         -- ToDo: Show types of functions here. They should allready be correct after transformmation to IR
         mapM lookupFunTypes [f | LitE (FunRefLit (FunRef f _ _)) <- universe code]
@@ -200,22 +199,22 @@ instance Integration (Language 'Rust) where
       load :: CompM m => [NSRef] -> m FunTypes
       load nsRefs = HM.unions <$> mapM (extractFromFile . toFilePath . (,".rs")) nsRefs
 
-      verifyAndRegister :: CompM m => FunTypes -> ([NSRef], QualifiedBinding) -> m (Maybe (QualifiedBinding, FunType RustArgType))
+      verifyAndRegister :: CompM m => FunTypes -> ([NSRef], QualifiedBinding) -> m (Maybe (QualifiedBinding, FunType RustVarType))
       verifyAndRegister typez ([candidate], qp@(QualifiedBinding _ nam)) =
         case HM.lookup (QualifiedBinding candidate nam) typez of
           Just t -> return $ Just (qp, t)
           Nothing -> do
-            $(logWarn) $ "Function `" <> show (unwrap nam) <> "` not found in module `" <> show candidate <> "`."
+            -- $ (logWarn) $ "Function `" <> show (unwrap nam) <> "` not found in module `" <> show candidate <> "`."
             return Nothing
       verifyAndRegister typez (globs', qp@(QualifiedBinding _ nam)) =
         case mapMaybe ((`HM.lookup` typez) . (`QualifiedBinding` nam)) globs' of
           [] -> do
-            $(logWarn) $ "Function `" <> show (unwrap nam) <> "` not found in modules `" <> show globs' <> "`. "
+            -- $ (logWarn) $ "Function `" <> show (unwrap nam) <> "` not found in modules `" <> show globs' <> "`. "
             return Nothing
           [t] -> return $ Just (qp, t)
           _ -> throwError $ "Multiple definitions of function `" <> show (unwrap nam) <> "` in modules " <> show globs' <> " detected!\nPlease verify again that your code compiles properly by running `rustc`. If the problem persists then please file a bug. (See issue sertel/ohua-frontend#1)"
 
-      assignTypes :: CompM m => FunTypes -> FrLang.Expr RustArgType -> m (FrLang.Expr RustArgType)
+      assignTypes :: CompM m => FunTypes -> FrLang.Expr RustVarType -> m (FrLang.Expr RustVarType)
       -- FIXME It is nice to write it like this, really, but this has to check whether the function used in the code has (at the very least)
       --       the same number of arguments as it is applied to. If this does not match then clearly we need to error here!
       -- NO. We don't. Writing correct Rust code is the developers responsibility. We only need to extract types to
@@ -256,32 +255,31 @@ instance Integration (Language 'Rust) where
       globs :: [NSRef]
       globs = mapMaybe (\case (Glob n) -> Just n; _ -> Nothing) (ohuaNs ^. imports)
 
-    -}
 
-argTypesFromContext :: SubC.ConvertM m => [Sub.Expr] -> m (Either Unit (NonEmpty (ArgType RustArgType)))
+argTypesFromContext :: SubC.ConvertM m => [Sub.Expr] -> m (Either Unit (NonEmpty (VarType RustVarType)))
 argTypesFromContext args =
     case args of
     [] -> return $ Left Unit
-    (x : xs) -> Right <$> mapM getArgType (x :| xs)
+    (x : xs) -> Right <$> mapM getVarType (x :| xs)
 
 -- If we don't want additional typing via extraction from scope we need this to succeed 
 -- i.e. no 'TypeVar' results here
-getArgType :: SubC.ConvertM m => Sub.Expr -> m (ArgType RustArgType)
-getArgType (Sub.Var bnd (Just ty)) = error $ "We try to get the type for variable that already is typed." <>
-                                          "This is an error, because we should only try to type varaible usage which cannot e annotated in Rust"
-getArgType (Sub.Var bnd Nothing) = do
+getVarType :: SubC.ConvertM m => Sub.Expr -> m (VarType RustVarType)
+getVarType (Sub.Var bnd (Just ty)) = error $ "We try to get the type for variable that already is typed." <>
+                                          "This is an error, because we should only try to type varaible usage which cannot be annotated in Rust"
+getVarType (Sub.Var bnd Nothing) = do
   ctxt <- get
   let argtype = HM.lookup bnd ctxt
   case argtype of
     Just (Sub.RustType rustType) -> return $ Type $ TE.Normal rustType
     Nothing -> error $ "Error: No type info found for " <> show bnd
 -- FIXME: Actually literal should just carry through the value and the type of the literal
-getArgType (Sub.Lit lit) = case lit of
+getVarType (Sub.Lit lit) = case lit of
   Sub.Bool b -> return $ Type . TE.Normal $ rustBool
   Sub.Int i ->  return $ Type . TE.Normal $ rustI32
   -- Sub.String s ->  return $ Type . TE.Normal $ PathTy Nothing (Path False [PathSegment "String" Nothing ()] ()) ()
   -- ToDo: Add other literals
-getArgType e = error $ "Error: No type info found for " <> show e
+getVarType e = error $ "Error: No type info found for " <> show e
 
 -- ISSUE: I thought we could support Assignments as we actually just need to replcae them with ssa let bindings.
 --        However the compiler does constant propagation so a `mut i:i32 = 1` will be replaced by `1` 
@@ -313,7 +311,7 @@ instance ConvertExpr Sub.Expr where
     ctxt <- get
     receiver' <- convertExpr receiver
     argTys <- argTypesFromContext args
-    receiverTy <- getArgType receiver
+    receiverTy <- getVarType receiver
     -- traceM $ "Context at parsing function " <> show method <> ": \n" <> show ctxt <> "\n"
     let method' = LitE (FunRefLit (FunRef method Nothing $ STFunType receiverTy argTys))
     args' <- mapM convertExpr args
@@ -380,9 +378,9 @@ instance ConvertExpr Sub.Expr where
     -}
     -- FIXME: the type of the loop is not () but bool -> () AND it is not a simple variable but a function
     -- Reminder: The result and input type are () only because we do not thread the states explicitly
-    let loopRef = "endless_loop" 
-    let argUnit =  (Type $ TE.Normal rustUnitReturn) 
-    let argBool =  (Type $ TE.Normal rustBool) 
+    let loopRef = "endless_loop"
+    let argUnit =  Type $ TE.Normal rustUnitReturn
+    let argBool =  Type $ TE.Normal rustBool
     let condRef = "cond"
     let condFunType = FunType $ Right (TypeBool:|[])
     let condFun = LitE (FunRefLit (FunRef (toQualBinding "host_id") Nothing condFunType))
@@ -418,13 +416,13 @@ instance ConvertExpr Sub.Expr where
   convertExpr (Sub.Var bnd (Just (Sub.RustType ty))) = return $ VarE bnd (Type $ TE.Normal ty)
   convertExpr (Sub.Var bnd Nothing) = do
     -- traceM $ "Parsing var " <> show bnd
-    ctxt <- get 
+    ctxt <- get
     case HM.lookup bnd ctxt of
       Just (Sub.RustType rustType) -> return $ VarE bnd  (Type $ TE.Normal rustType)
       -- We also get here when we convert function names, for which we currently have no proper typing in place so
       -- for now I'll insert a placeholder type, that is replaces as we return from here to typing the Call expression
       -- ToDo: Fix type when we have proper function type extraction again
-      Nothing -> (trace $ "Trying to type Variable " <> show bnd )return $ VarE bnd TypeVar -- error $ "No type info found for " <> show bnd
+      Nothing -> (trace $ "Trying to type Variable " <> show bnd ) return $ VarE bnd TypeVar -- error $ "No type info found for " <> show bnd
 
 instance ConvertExpr Sub.Block where
   convertExpr (Sub.RustBlock Sub.Normal stmts) =
@@ -442,7 +440,7 @@ instance ConvertExpr Sub.Block where
                   (\stmt cont -> stmt cont)
                   convertedLast
                   convertedHeads
-      convertStmt :: SubC.ConvertM m => Sub.Stmt -> m (FrLang.Expr RustArgType -> FrLang.Expr RustArgType)
+      convertStmt :: SubC.ConvertM m => Sub.Stmt -> m (FrLang.Expr RustVarType -> FrLang.Expr RustVarType)
       convertStmt s@(Sub.Local pat ty e) = do
         case (pat, ty) of
           -- ToDo: We should move this to Rust -> Sub Conversion and set it automatically if the RHS is a literal
@@ -478,7 +476,7 @@ instance ConvertPat Sub.Pat where
   -- The pattern in this case would be TupP [], because language-rust has no Unit pattern
   -- However we do so we distinguish cases here 
   convertPat (Sub.TupP []) = return UnitP
-  convertPat (Sub.TupP (pt: pts)) = do 
+  convertPat (Sub.TupP (pt: pts)) = do
     pt' <- convertPat pt
     pts' <- mapM convertPat pts
     return $ TupP (pt':| pts')
@@ -491,10 +489,10 @@ instance ConvertPat Sub.IdentPat where
   -- as the pattern should be used somewhere i.e. when we need the type, an annotated assignment of 
   -- the pattern to a local variable is required or the compilation fails. Hence '_' type shouldn't hurt for now
   -- FIXME: Can we get complete Typing for patterns?
-  convertPat (Sub.IdentPat mutability bnd) = do 
+  convertPat (Sub.IdentPat mutability bnd) = do
     ctxt <- get
     let ty = HM.lookup bnd ctxt
-    case ty of 
+    case ty of
       Just (Sub.RustType rustType) -> return $ VarP bnd (Type $ TE.Normal rustType)
       Nothing -> (trace $ "No type info found for pattern " <> show bnd) return $ VarP bnd TypeVar
 
@@ -524,7 +522,7 @@ asUnSymbol Sub.Deref =  "*"
 asUnSymbol Sub.Not =  "!"
 asUnSymbol Sub.Neg =  "-"
 
-asFunRef :: Monad m => Binding -> Either Unit (NonEmpty (ArgType RustArgType)) -> m (FrLang.Expr RustArgType)
+asFunRef :: Monad m => Binding -> Either Unit (NonEmpty (VarType RustVarType)) -> m (FrLang.Expr RustVarType)
 asFunRef op tys = return $
       LitE $ FunRefLit $
         FunRef (QualifiedBinding (makeThrow []) op) Nothing (FunType tys)

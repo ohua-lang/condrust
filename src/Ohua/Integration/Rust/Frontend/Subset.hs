@@ -36,7 +36,7 @@ data Expr
   -- | the below two are just captured by a Path in Rust.
   | PathExpr CallRef
   -- As we convert 
-  -- We want variabels to be types as we lower to Frontend Lang
+  -- We want variabels to be typed as we lower to Frontend Lang
   -- However we might derive the type from different sources (annotation on assignment, 
   -- derived from funciton types). Hence to be flexible in the source of typing we intially accept 
   -- Maybe Type

@@ -48,7 +48,7 @@ convertChan rxMutability (SRecv _ty (SChan bnd)) =
           []
           noSpan
 
-convertReceive :: Binding -> Com 'Recv TE.RustArgType -> Sub.Expr
+convertReceive :: Binding -> Com 'Recv TE.RustVarType -> Sub.Expr
 convertReceive suffix (SRecv argType (SChan channel)) =
   let ty' = case argType of
               (Type (TE.Self ty _ _mut)) -> noSpan <$ ty

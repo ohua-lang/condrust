@@ -33,14 +33,14 @@ type Context = HM.HashMap Binding Sub.PythonType
 type ConvertM m = (Monad m, MonadState Context m)
 
 
-type PythonNamespace = Namespace (FrLang.Expr PythonArgType) (Py.Statement SrcSpan) PythonArgType
+type PythonNamespace = Namespace (FrLang.Expr PythonVarType) (Py.Statement SrcSpan) PythonVarType
 
-defaultType:: ArgType PythonArgType
+defaultType:: VarType PythonVarType
 defaultType = Type PythonObject
 
 instance Integration (Language 'Python) where
     type HostModule (Language 'Python) = Module
-    type Type (Language 'Python) =  PythonArgType
+    type Type (Language 'Python) =  PythonVarType
     type AlgoSrc (Language 'Python) = Py.Statement SrcSpan
 
     {- | Loading a namespace means extracting 
@@ -87,7 +87,7 @@ instance Integration (Language 'Python) where
                                 statements
                     return $ Namespace (filePathToNsRef srcFile) imports algos
 
-                extractAlgo :: CompM m => Py.Statement SrcSpan -> m (FrLang.Expr PythonArgType )
+                extractAlgo :: CompM m => Py.Statement SrcSpan -> m (FrLang.Expr PythonVarType )
                 extractAlgo function = do
                     args' <- mapM ((`evalStateT` HM.empty) . subParamToIR <=< paramToSub) (Py.fun_args function)
                     block' <- ((`evalStateT` HM.empty) . subSuiteToIR <=< suiteToSub) (Py.fun_body function)
@@ -127,7 +127,7 @@ instance Integration (Language 'Python) where
         types' <- HM.fromList <$> mapM (verifyAndRegister fun_types) filesAndPaths'-}
         updateExprs ohuaNS (transformM (assignTypes HM.empty))
         where
-            {-funsForAlgo :: CompM m => Algo (FrLang.Expr PythonArgType) (Py.Statement SrcSpan)
+            {-funsForAlgo :: CompM m => Algo (FrLang.Expr PythonVarType) (Py.Statement SrcSpan)
                     -> m [([NSRef], QualifiedBinding)]
             funsForAlgo (Algo _name code annotation) = do
                 return []
@@ -141,11 +141,11 @@ instance Integration (Language 'Python) where
             typesFromNS nsRefs = HM.unions <$> mapM (extractFromFile . toFilePath . (,".py") ) nsRefs
 
             verifyAndRegister :: CompM m => FunTypes -> ([NSRef], QualifiedBinding)
-                        -> m (QualifiedBinding, FunType PythonArgType)
+                        -> m (QualifiedBinding, FunType PythonVarType)
             verifyAndRegister fun_types ([candidate], qB@(QualifiedBinding _ qBName)) = undefined
             verifyAndRegister fun_types ( _ , qB@(QualifiedBinding _ qBName)) = undefined-}
 
-            assignTypes :: CompM m => FunTypes -> FrLang.Expr PythonArgType -> m (FrLang.Expr PythonArgType)
+            assignTypes :: CompM m => FunTypes -> FrLang.Expr PythonVarType -> m (FrLang.Expr PythonVarType)
             assignTypes funTypes function = case function of
                 (AppE (LitE (FunRefLit (FunRef qBinding funID _))) args) ->
                     return $
@@ -176,7 +176,7 @@ globOrAlias :: Py.ImportItem SrcSpan -> Import
 globOrAlias  (Py.ImportItem dotted Nothing  annot) = Glob . makeThrow $ toBindings dotted
 globOrAlias  (Py.ImportItem dotted (Just alias) annot) = flip Alias (toBinding alias) . makeThrow $ toBindings dotted
 
-subSuiteToIR::ConvertM m => Sub.Suite -> m (FrLang.Expr PythonArgType)
+subSuiteToIR::ConvertM m => Sub.Suite -> m (FrLang.Expr PythonVarType)
 subSuiteToIR (Sub.PySuite stmts) =
     evalStateT (convertStmts stmts) =<< get
     where
@@ -190,7 +190,7 @@ subSuiteToIR (Sub.PySuite stmts) =
                 return $
                     foldr
                         (\stmt suite -> stmt suite) irLast irHeads
-        stmtToIR:: (ConvertM m) => Sub.Stmt -> m (FrLang.Expr PythonArgType -> FrLang.Expr PythonArgType)
+        stmtToIR:: (ConvertM m) => Sub.Stmt -> m (FrLang.Expr PythonVarType -> FrLang.Expr PythonVarType)
         stmtToIR assign@(Sub.Assign target expr) = do
             case target of
                 (Sub.Single bnd) -> modify (HM.insert bnd Sub.PythonType)
@@ -203,7 +203,7 @@ subSuiteToIR (Sub.PySuite stmts) =
                         return $ LetE pat' expr'
 
         stmtToIR stmt = StmtE <$> subStmtToIR stmt
-        lastStmtToIR :: (ConvertM m) => Sub.Stmt -> m (FrLang.Expr PythonArgType)
+        lastStmtToIR :: (ConvertM m) => Sub.Stmt -> m (FrLang.Expr PythonVarType)
         lastStmtToIR ret@(Sub.Return maybeExpr) =
             case maybeExpr of
                     Just expr -> subExprToIR expr
@@ -223,7 +223,7 @@ subscriptToCall (Sub.StmtExpr (Sub.Subscript bnd keyExpr)) =
     in Sub.StmtExpr (Sub.Call funRef [Sub.Arg keyExpr])
 
 
-subStmtToIR :: ConvertM m=> Sub.Stmt -> m (FrLang.Expr PythonArgType)
+subStmtToIR :: ConvertM m=> Sub.Stmt -> m (FrLang.Expr PythonVarType)
 subStmtToIR (Sub.WhileStmt expr suite) = error "Currently we do not support while-loops. Please use a recursion while we implement it." 
     {-do
     cond <- subExprToIR expr
@@ -259,7 +259,7 @@ subStmtToIR (Sub.StmtExpr expr) = subExprToIR expr
 subStmtToIR Sub.Pass = return $ LitE UnitLit
 
 
-subExprToIR :: ConvertM m => Sub.Expr -> m (FrLang.Expr PythonArgType)
+subExprToIR :: ConvertM m => Sub.Expr -> m (FrLang.Expr PythonVarType)
 subExprToIR (Sub.Var bnd) = return $ VarE bnd defaultType
 subExprToIR (Sub.Int int) = return $ LitE $ NumericLit int
 subExprToIR (Sub.Bool bool) = return $ LitE $ BoolLit bool
@@ -331,29 +331,29 @@ subExprToIR subExpr@(Sub.Subscript bnd expr) = do
     let (Sub.StmtExpr call) = subscriptToCall (Sub.StmtExpr subExpr)
     subExprToIR call
 
-mappingToTuple ::ConvertM m => (Sub.Expr, Sub.Expr) -> m (FrLang.Expr PythonArgType)
+mappingToTuple ::ConvertM m => (Sub.Expr, Sub.Expr) -> m (FrLang.Expr PythonVarType)
 mappingToTuple (key, value) = do
     key' <- subExprToIR key
     val' <- subExprToIR value
     return $ fromList [key', val']
 
-subArgToIR :: ConvertM m => Sub.Argument -> m ( FrLang.Expr PythonArgType)
+subArgToIR :: ConvertM m => Sub.Argument -> m ( FrLang.Expr PythonVarType)
 subArgToIR (Sub.Arg expr) = subExprToIR expr
 
-subParamToIR::ConvertM m => Sub.Param -> m (FrLang.Pat PythonArgType)
+subParamToIR::ConvertM m => Sub.Param -> m (FrLang.Pat PythonVarType)
 subParamToIR (Sub.Param bnd) = do
     modify (HM.insert bnd Sub.PythonType)
     -- We do not need typing in Python so everything gets the default 'python object' type
     return $ VarP bnd defaultType
 
-subTargetToIR :: ConvertM m => Sub.Target -> m (FrLang.Pat PythonArgType)
+subTargetToIR :: ConvertM m => Sub.Target -> m (FrLang.Pat PythonVarType)
 subTargetToIR (Sub.Single bnd) = return $ VarP bnd defaultType
 subTargetToIR (Sub.Tpl (b:bnds)) =
     let v = VarP b defaultType
         vars = map (\bnd -> VarP bnd defaultType) bnds 
     in return $ TupP (v:| vars)
 
-subBinOpToIR:: ConvertM m => Sub.BinOp -> m ( FrLang.Expr PythonArgType)
+subBinOpToIR:: ConvertM m => Sub.BinOp -> m ( FrLang.Expr PythonVarType)
 subBinOpToIR Sub.Plus = toFunRefLit "+"
 subBinOpToIR Sub.Minus = toFunRefLit "-"
 subBinOpToIR Sub.Multiply = toFunRefLit "*"
@@ -384,12 +384,12 @@ subBinOpToIR Sub.ShiftLeft = toFunRefLit "<<"
 subBinOpToIR Sub.ShiftRight = toFunRefLit ">>"
 
 
-subUnOpToIR:: ConvertM m => Sub.UnOp -> m ( FrLang.Expr PythonArgType)
+subUnOpToIR:: ConvertM m => Sub.UnOp -> m ( FrLang.Expr PythonVarType)
 subUnOpToIR Sub.Not  = toFunRefLit "not"
 subUnOpToIR Sub.Invert = toFunRefLit "~"
 
 
-listofPyType :: [a] -> Either Unit (NonEmpty (ArgType PythonArgType))
+listofPyType :: [a] -> Either Unit (NonEmpty (VarType PythonVarType))
 listofPyType [] = Left Unit
 listofPyType (a:args') = Right $ map (const defaultType) (a:|args')
 
@@ -397,7 +397,7 @@ listofPyType (a:args') = Right $ map (const defaultType) (a:|args')
 {- | Turns given string representation into literal expression representig an untyped, 
      'unscoped' (the empty list in as Binding argument) function reference 
 -}
-toFunRefLit :: Monad m => Binding -> m (FrLang.Expr PythonArgType)
+toFunRefLit :: Monad m => Binding -> m (FrLang.Expr PythonVarType)
 toFunRefLit funBind = return $
                         LitE $ FunRefLit $
                         FunRef (QualifiedBinding (makeThrow []) funBind) Nothing Untyped

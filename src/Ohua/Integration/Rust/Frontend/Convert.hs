@@ -149,7 +149,9 @@ convertPath ::
   m (Either Sub.VarRef Sub.CallRef)
 convertPath p@(Path _ segments _) =
   case segments of
-    [segment] -> Left . fromString <$> convertPathSegment segment
+    [segment] -> do
+      refname <- convertPathSegment segment  
+      return $ Left $ fromString refname
     (seg : rest) -> do
       let segs = seg :| rest
       let firstSegs = init segs
@@ -166,7 +168,7 @@ convertPath p@(Path _ segments _) =
 convertPathSegment (PathSegment Ident {name = n} Nothing _) = return n
 convertPathSegment e@PathSegment {} = error $ "Currently, we support type parameters only on the last element of the path.\n" <> show e
 
-convertLastSegment (PathSegment Ident {name = n} ty _) = (n,) <$> sequence (convertGenericArgs <$> ty)
+convertLastSegment (PathSegment Ident {name = n} ty _) = (n,) <$> mapM convertGenericArgs ty
 
 convertGenericArgs :: ConvertM m => GenericArgs Span -> m Sub.GenericArgs
 convertGenericArgs (AngleBracketed args [] _) = Sub.AngleBracketed <$> mapM convertGenericArg args

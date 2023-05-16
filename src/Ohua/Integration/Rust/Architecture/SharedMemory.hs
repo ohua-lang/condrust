@@ -175,7 +175,7 @@ instance Architecture (Architectures 'SharedMemory) where
          in Rust.Block (program ++ [Rust.NoSemi resultHandling noSpan]) Rust.Normal noSpan
       createProgram (Program chans expr tasks) = error $ "Compilations resulted in a result expression: " <> show expr <> "This is probably a bug, please report."
 
-convertToRustType :: ArgType TE.RustTypeAnno -> Maybe Sub.RustType 
+convertToRustType :: VarType TE.RustTypeAnno -> Maybe Sub.RustType 
 convertToRustType = \case 
           TypeVar -> Nothing
           otherType -> Just $ Sub.RustType $ toRustTy otherType
