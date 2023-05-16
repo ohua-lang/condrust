@@ -16,7 +16,7 @@ import Data.Functor.Foldable.TH (makeBaseFunctor)
 import GHC.Exts
 
 data Pat ty
-    = VarP Binding (ArgType ty)
+    = VarP Binding (VarType ty)
     -- Actualy a tuple pattern starts making sense at two or more patterns
     -- but it should have at least one. So I changed this from [] to NonEmpty
     | TupP (NonEmpty (Pat ty))
@@ -24,10 +24,10 @@ data Pat ty
     deriving (Show, Eq, Generic)
 
 data Expr ty
-    -- REMINDER: We need to wrap the host type in an ArgType here, because
+    -- REMINDER: We need to wrap the host type in an VarType here, because
     -- the compiler will introdude variables typed as internal bool/unit/int 
     -- ... that also have to be representable
-    = VarE Binding (ArgType ty)
+    = VarE Binding (VarType ty)
     | LitE (Lit ty)
     | LetE (Pat ty)
            (Expr ty)
