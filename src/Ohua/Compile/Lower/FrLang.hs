@@ -152,8 +152,9 @@ whileToRecursion = return
     -}
 
 
+-- Question: What's the type of this function supposed to be?
 nthFun :: FR.Expr ty
-nthFun = LitE $ FunRefLit $ FunRef ARefs.nth Nothing $ FunType $ Right $ TypeVar :| [TypeVar,TypeVar]
+nthFun = LitE $ FunRefLit $ FunRef ARefs.nth Nothing $ FunType [TypeVar,TypeVar,TypeVar] TypeVar
 
 unstructure :: (Binding, VarType ty) -> NonEmpty (FR.Pat ty) -> FR.Expr ty -> FR.Expr ty
 unstructure (valBnd, valTy) pats = go (toInteger $ length pats) (NE.toList pats)

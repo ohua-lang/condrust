@@ -29,7 +29,8 @@ spec :: Spec
 spec =
     describe "removing destructuring" $ do
         let mkNth0 objBnd i total =
-                pureFunction ALangRefs.nth Nothing (FunType $ Right $ fromList [TypeVar,TypeVar,TypeVar]) `Apply` Lit (NumericLit i) `Apply`
+                -- ToDO: replace with nthFunType :: [Ty] -> Ty -> Funtype/Funref
+                pureFunction ALangRefs.nth Nothing (FunType [TypeVar,TypeVar,TypeVar] TypeVar) `Apply` Lit (NumericLit i) `Apply`
                 Lit (NumericLit total) `Apply`
                 Var objBnd
             runRemDestr =
