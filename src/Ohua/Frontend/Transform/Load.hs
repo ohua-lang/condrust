@@ -1,5 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
-module Ohua.Frontend.Transform.Load (load) where
+module Ohua.Frontend.Transform.Load (loadAlgosAndImports) where
 
 import Ohua.Prelude hiding (Type)
 
@@ -53,13 +53,12 @@ loadDeps lang scope (Namespace _ imps algs) = do
 --   frontend IR here. In a second step
 --   the same is done for all files in the given scope to build up a registry of algorithms, mapping their names
 --   (qualified by the file they come from) to their translated code.
-load :: forall m lang.
+loadAlgosAndImports :: forall m lang.
     (CompM m, Integration lang) 
     => lang -> CompilationScope -> FilePath 
     -> m (HostModule lang, Namespace (Expr (Type lang)) (AlgoSrc lang) (Type lang), NamespaceRegistry (Type lang), HostModule lang)
-load lang scope inFile = do
+loadAlgosAndImports  lang scope inFile = do
     -- logDebugN $ "Loading module: " <> show inFile <> "..."
-    -- REMINDER: Type of placeholder is threaded through here
     (ctxt, ns, placeholder) <- loadNs lang inFile
     -- let ns' = Namespace (makeThrow []) imports algos -- references to functions contain an empty ref
     -- logDebugN $ "Loaded ns: " <> show (ns'^.nsName)

@@ -5,7 +5,7 @@ import Ohua.Prelude hiding (Type)
 
 import Ohua.Frontend.Types
 import Ohua.Frontend.Lang as FrLang
-import Ohua.Frontend.Transform.Load ( load )
+import Ohua.Frontend.Transform.Load ( loadAlgosAndImports  )
 import Ohua.Frontend.Transform.Scopedness ( makeWellScoped )
 import Ohua.Frontend.Transform.Resolve ( resolveNS )
 import Ohua.Frontend.Transform.Envs ( prepareRootAlgoVars )
@@ -24,7 +24,7 @@ frontend :: forall m lang. (CompM m, Integration lang)
          -> FilePath
          -> m ((HostModule lang, Namespace (FrLang.Expr (Type lang)) (AlgoSrc lang) (Type lang)), HostModule lang)
 frontend lang compScope inFile = do
-        (langNs, ns, reg, placeholder) <- load lang compScope inFile
+        (langNs, ns, reg, placeholder) <- loadAlgosAndImports lang compScope inFile
         -- some transformation steps on the algorithm expressions 
         ns'    <- updateExprs' ns trans
         -- inline functions from scope
