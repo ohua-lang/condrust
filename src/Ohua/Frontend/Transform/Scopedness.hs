@@ -39,6 +39,6 @@ contextedTraversal f = go
 makeWellScoped :: Binding -> Expr ty -> Expr ty
 makeWellScoped currentFun expr = runIdentity $ contextedTraversal intoFunLit (HS.singleton currentFun) expr
   where
-    intoFunLit _ (VarE bdg ty) = return $ LitE $ FunRefLit $ FunRef (QualifiedBinding (makeThrow []) bdg) Nothing Untyped
-    intoFunLit _ e = return e -- FIXME type above is not precise enough
-
+    -- Now we have variables typed and those types include a function type for ... variables that bind functions
+    intoFunLit _ (VarE bdg (TypeFunction fTy)) = return $ LitE $ FunRefLit $ FunRef (QualifiedBinding (makeThrow []) bdg) Nothing fTy
+	intoFunLit _ e = return e -- FIXME type above is not precise enough

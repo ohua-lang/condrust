@@ -82,8 +82,8 @@ instance IsString (Expr ty) where
 
 instance IsList (Expr ty) where
     type Item (Expr ty) = Expr ty
-    fromList [] = TupE (FunType $ Left $ Unit) []
-    fromList a@(_:xs) = TupE (FunType $ Right $ TypeVar :| (map (const TypeVar) xs)) a
+    fromList [] = TupE (FunType [] TypeVar ) []
+    fromList a@(_:xs) = TupE (FunType (TypeVar : (map (const TypeVar) xs)) TypeVar) a
 
 instance IsString (Pat ty) where
     fromString = (\bnd -> VarP bnd TypeVar). fromString
