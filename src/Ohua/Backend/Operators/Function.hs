@@ -150,8 +150,8 @@ genFun' ct = \case
         in flip letReceives [varAndReceive]
            $ callWithResult (NE.toList o) (Var v) ct
     where
-        getCallArgs p (FunType (Left Unit)) _ = []
-        getCallArgs p (STFunType _ (Left Unit)) _ = []
+        getCallArgs p (FunType [] TypeVar) _ = []
+        getCallArgs p (STFunType _ [] _retTy) _ = []
         getCallArgs p _ vrs =
           map (\(_,v,_) -> p v) $
           filter (\case (Drop _, _, _) -> False; _ -> True)
