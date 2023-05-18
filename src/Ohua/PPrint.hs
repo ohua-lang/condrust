@@ -54,11 +54,10 @@ prettyLit =
 prettyFunType :: FunType ty -> Doc ann
 prettyFunType = 
     \case
-        Untyped -> "?"
-        FunType (Left _) -> "()"
-        FunType (Right args) -> hsep $ punctuate comma $ toList $ map pretty args
-        STFunType argTy (Left _) -> hsep $ punctuate comma [pretty argTy  <> "()"]
-        STFunType argTy (Right args) -> prettyFunType $ FunType $ Right (argTy <| args) 
+        FunType [] retTy -> "()"
+        FunType args retTy -> hsep $ punctuate comma $ toList $ map pretty args
+        STFunType stateTY [] retTy -> hsep $ punctuate comma [pretty stateTY  <> "()"]
+        STFunType stateTY args retTy -> prettyFunType $ FunType (stateTY : args) retTy 
 
 instance Pretty (VarType ty) where
     pretty = flexText . showNoType

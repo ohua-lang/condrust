@@ -63,7 +63,7 @@ data VarType ty
     | TupleTy (NonEmpty (VarType ty)) 
     -- REMINDER: Can't derive Lift for Unit, therefor not for FunType and therefor I can't have FunType here for now
     --           Find a way to fix this
-    | TypeFunction [VarType ty] (VarType ty)
+    | TypeFunction (FunType ty) -- This is mainly used for inlined algos
     deriving (Lift, Generic)
 
 -- ToDo: This is just a helper until we get types of control nodes right
@@ -71,14 +71,19 @@ controlSignalType :: VarType ty
 controlSignalType = TupleTy $ TypeBool:| [TypeNat]
 
 -- No More untyped functions and functions have a return type
-data FunTypeNew ty where
-     FunTypeNew :: Either Unit (NonEmpty (VarType ty)) -> VarType ty -> FunTypeNew ty
-     STFunTypeNew :: VarType ty -> Either Unit (NonEmpty (VarType ty)) -> VarType ty -> FunTypeNew ty
-
+-- Also the Argument List being either empty or a Nonempty-list means, it's just a list. That changes pattern matchinng downstream
+-- but a) makes them and constructors less convoluted and b) eanbles using FunType in VarType
 data FunType ty where
-     Untyped :: FunType ty
-     FunType :: Either Unit (NonEmpty (VarType ty)) -> FunType ty
-     STFunType :: VarType ty -> Either Unit (NonEmpty (VarType ty)) -> FunType ty
+     -- arguments types -> return type -> function type 
+     FunType :: [VarType ty] -> VarType ty -> FunType ty
+     -- state/object type -> return type -> function type 
+     STFunType :: VarType ty -> [VarType ty] -> VarType ty -> FunType ty
+     deriving (Lift)
+
+data FunTypeOld ty where
+     Untyped :: FunTypeOld ty
+     FunTypeOld :: Either Unit (NonEmpty (VarType ty)) -> FunTypeOld ty
+     STFunTypeOld :: VarType ty -> Either Unit (NonEmpty (VarType ty)) -> FunTypeOld ty
 
 
 data FunRef ty where
