@@ -11,7 +11,7 @@ import Ohua.Core.ALang.Lang as ALang (TypedBinding(..), asBnd, asType)
 import Ohua.Core.Prelude hiding (length)
 import Ohua.Types.Vector as V hiding (map)
 import qualified Data.HashSet as HS
-import Control.Monad (when)
+-- import Control.Monad (when)
 
 data BindingType = State | Data deriving (Show, Eq, Generic)
 
@@ -40,7 +40,7 @@ data DFVar (semType :: BindingType) (ty :: Type) :: Type where
   DFVar :: ATypedBinding a ty -> DFVar a ty
   -- DFNatVar :: ATypedBinding a -> DFVar a (TypeNat ty) 
   -- DFBoolVar ::  ATypedBinding a -> DFVar a 'TypeBool
-  DFStateVar :: ATypedBinding 'State ty -> DFVar 'State ty
+  -- DFStateVar :: ATypedBinding 'State ty -> DFVar 'State ty
 
 -- | Annotations for functions
 data FunANF :: Type where
@@ -176,8 +176,8 @@ data Expr (fun :: FunANF -> Type -> Type) (ty :: Type) :: Type where
 
 -- ToDo: At this point we can/should ensure, that renaming only happens when types are equal
 renameABnd :: TypedBinding ty -> ATypedBinding a ty -> ATypedBinding a ty
-renameABnd bnew (DataBinding (TBind bnd ty)) = DataBinding bnew
-renameABnd bnew (StateBinding (TBind bnd ty)) = StateBinding bnew
+renameABnd bnew (DataBinding (TBind _bnd _ty)) = DataBinding bnew
+renameABnd bnew (StateBinding (TBind _bnd _ty)) = StateBinding bnew
 
 outsApp :: App fty ty -> NonEmpty (TypedBinding ty)
 outsApp (PureFun out _ _) = unwrapVarTB out :| []
@@ -213,6 +213,8 @@ toOutBnds (Direct bnd) = unwrapTB bnd :| []
 insApp :: App fty ty -> [TypedBinding ty]
 insApp (PureFun _ _ i) = extractBndsFromInputs $ NE.toList i
 insApp (StateFun _ _ (DFVar tbnd) i) = unwrapTB tbnd : extractBndsFromInputs (NE.toList i)
+
+
 
 insDFApp :: DFApp fty ty -> [TypedBinding ty]
 insDFApp (PureDFFun _ _ i) = extractBndsFromInputs $ NE.toList i
@@ -265,18 +267,18 @@ unwrapABnd (StateBinding tbnd) = asBnd tbnd
 
 unwrapVarType :: DFVar b ty -> VarType ty
 unwrapVarType  (DFVar atBnd) = asType . unwrapTB $ atBnd
-unwrapVarType  (DFStateVar atBnd) = asType . unwrapTB $ atBnd
+-- unwrapVarType  (DFStateVar atBnd) = asType . unwrapTB $ atBnd
 unwrapVarType  (DFEnvVar ty _lit) = ty
 
 unwrapVarBnd :: DFVar b ty -> Binding
 unwrapVarBnd (DFVar atBnd) = unwrapABnd atBnd
-unwrapVarBnd (DFStateVar atBnd) = unwrapABnd atBnd
+-- unwrapVarBnd (DFStateVar atBnd) = unwrapABnd atBnd
 unwrapVarBnd (DFEnvVar _ _) = error "Tried to unwrap a binding from a literat in DFLang. Please report this error"
 
 unwrapVarTB :: DFVar b ty -> TypedBinding ty
 unwrapVarTB (DFVar atBnd) = unwrapTB atBnd
-unwrapVarTB (DFStateVar atBnd) = unwrapTB atBnd
-unwrapVarTB (DFEnvVar ty _lit) = error "Tried to unwrap a binding from a literat in DFLang. Please report this error"
+-- unwrapVarTB (DFStateVar atBnd) = unwrapTB atBnd
+unwrapVarTB (DFEnvVar _ty _lit) = error "Tried to unwrap a binding from a literat in DFLang. Please report this error"
 
 --ToDo: Remove when TypePropagation is gone!
 replaceType ::  ATypedBinding bty ty -> VarType ty ->  ATypedBinding bty ty

@@ -132,7 +132,7 @@ runFromExpr ::
     -> Expr ty
     -> LoggingT IO (Either Error result)
 runFromExpr opts f tree =
-    runFromBindings opts (f tree) $ HS.fromList [b | Var (TBind b t) <- universe tree]
+    runFromBindings opts (f tree) $ HS.fromList [b | Var (TBind b _t) <- universe tree]
 
 -- | Run a compiler
 -- Creates the state from the tree being passed in
@@ -147,7 +147,7 @@ runFromExprAndType ::
     ty ->
     LoggingT IO (Either Error result)
 runFromExprAndType opts f tree ty =
-    runFromBindings opts (f ty tree) $ HS.fromList [b | Var (TBind b t) <- universe tree]
+    runFromBindings opts (f ty tree) $ HS.fromList [b | Var (TBind b _t) <- universe tree]
 
 runFromBindings ::
        Options
