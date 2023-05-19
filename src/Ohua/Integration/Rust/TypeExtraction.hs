@@ -11,7 +11,7 @@ import Language.Rust.Syntax as Rust hiding (Normal, Type)
 import Language.Rust.Data.Ident (Ident)
 import Language.Rust.Parser (Span)
 import qualified Data.HashMap.Lazy as HM
-import Data.List.NonEmpty
+import Data.List.NonEmpty hiding (map)
 
 
 data RustVarType = Self (Ty ()) (Maybe (Lifetime ())) Mutability | Normal (Ty ()) deriving (Show, Eq)
@@ -47,8 +47,11 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
             catMaybes . concat <$>
             mapM
                 (\case
-                    (Fn _ _ ident decl _ _ _ _ ) -> 
-                        (: []) . Just . (createFunRef ident, ) <$> extractFunType (\x xs -> FunType . Right . (:|xs) <$> convertArg x) decl
+                    (Fn _ _ ident decl _ _ _ _ ) -> do 
+                        let fName = createFunRef ident
+                            (argTys, retTy) = getTypes decl
+                            fType =  FunType argTys retTy
+                        return (Just (fName, fType): [])
                     (Impl _ _ _ _ _ _ _ selfType items _) -> 
                         mapM (extractFromImplItem selfType) items
                     (Trait _ _ ident _ _ _ _ items span) -> 
@@ -73,26 +76,34 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
         createFunRef =
             QualifiedBinding (filePathToNsRef srcFile) .
             toBinding
+        
+        getTypes :: Show a => FnDecl a -> ([VarType RustVarType], VarType RustVarType)
+        getTypes f@(FnDecl _ _ True _) = error $ "Currently, we do not support variadic arguments." <> show f
+        getTypes (FnDecl args retType _ _) =  (map toVarType args, fromMaybeRet retType)
+
+        fromMaybeRet:: Maybe (Ty a) -> VarType RustVarType
+        fromMaybeRet (Just retTy) = Type $ Normal $ deSpan retTy
+        fromMaybeRet Nothing = Type $ Normal rustUnitReturn
 
         extractFunType :: (CompM m, Show a) =>
-            (Arg a -> [VarType RustVarType] -> m (FunType RustVarType)) ->
+            (Arg a -> [VarType RustVarType] -> VarType RustVarType -> m (FunType RustVarType)) ->
             FnDecl a ->
             m (FunType RustVarType)
         extractFunType _ f@(FnDecl _ _ True _) = throwError $ "Currently, we do not support variadic arguments." <> show f
-        extractFunType f (FnDecl args _retTyp _ _) =
+        extractFunType f (FnDecl args retType _ _) =
             case args of
-                [] -> return $ FunType $ Left Unit
-                (x:xs) -> f x  =<< mapM convertArg xs
+                [] -> return $ FunType [] (fromMaybeRet retType)
+                (fstArg: args) -> f fstArg  (map toVarType args) (fromMaybeRet retType)
 
         convertImplArg :: (CompM m, Show a) => Ty a -> Arg a -> m (VarType RustVarType)
         convertImplArg selfType (SelfValue _ mut _) = return $ Type $ Self (void selfType) Nothing mut
         convertImplArg selfType (SelfRegion _ lifeTime mut _) = return $ Type $ Self (void selfType) (void <$>lifeTime) mut
         convertImplArg selfType (SelfExplicit _ _ty mut _) = return $ Type $ Self (void selfType) Nothing mut
-        convertImplArg _ a = convertArg a
+        convertImplArg _ a = return $ toVarType a
 
-        convertArg :: (CompM m, Show a) => Arg a -> m (VarType RustVarType)
-        convertArg (Arg _ _ typ _) = return $ Type $ Normal (void typ)
-        convertArg a = throwError $ "Please report: The impossible happened at argument: " <> show a
+        toVarType :: Show a => Arg a -> VarType RustVarType
+        toVarType (Arg _ _ typ _) = Type $ Normal (deSpan typ)
+        toVarType a = error $ "Please report: The impossible happened at argument: " <> show a
 
         extractFromImplItem :: (CompM m, Show a) => Ty a -> ImplItem a -> m (Maybe (QualifiedBinding, FunType RustVarType))
         extractFromImplItem selfType (MethodI _ _ _ ident _ (MethodSig _ decl) _ _) =
@@ -106,12 +117,10 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
             Just . (createFunRef ident, ) <$> extractFunType (extractFirstArg selfType) decl
         extractFromTraitItem _ _ = return Nothing
 
-        extractFirstArg :: Ty a -> Arg a -> [VarType RustVarType] -> m (FunType RustVarType)
-        extractFirstArg selfType x xs =
+        extractFirstArg :: Ty a -> Arg a -> [VarType RustVarType] -> VarType RustVarType -> m (FunType RustVarType)
+        extractFirstArg selfType fstArg args retTy =
             let funType x0 = case x0 of
-                            (Type Self{}) -> STFunType x0 $ case xs of
-                                   [] -> Left Unit
-                                   (x:xs) -> Right (x :| xs)
-                            _ -> FunType $ Right (x0 :| xs)
-            in funType <$> convertImplArg selfType x
+                            (Type Self{}) -> STFunType x0  args retTy
+                            _ -> FunType (x0 : args) retTy
+            in funType <$> convertImplArg selfType fstArg 
 

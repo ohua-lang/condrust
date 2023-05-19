@@ -149,7 +149,8 @@ instance Integration (Language 'Python) where
             assignTypes funTypes function = case function of
                 (AppE (LitE (FunRefLit (FunRef qBinding funID _))) args) ->
                     return $
-                         AppE (LitE $ FunRefLit $ FunRef qBinding funID $ FunType $ listofPyType args) args
+                    -- Question: (To me) -> can we do better with the return type? i.e. it might be a tuple and we can know that
+                         AppE (LitE $ FunRefLit $ FunRef qBinding funID $ FunType (listofPyType args) defaultType) args
                     {- 
                     case args of
                         -- Note: In Rust this type assignment happens based on the function definitions, while the
@@ -274,7 +275,8 @@ subExprToIR (Sub.Call (Sub.Dotted objBnd funBnd) args) = do
     let receiverTy = defaultType
         receiver = VarE objBnd receiverTy
         argTypes = listofPyType args
-        method = LitE (FunRefLit (FunRef funBnd Nothing $ STFunType receiverTy argTypes))
+        -- Question: Can we know the return type?
+        method = LitE (FunRefLit (FunRef funBnd Nothing $ STFunType receiverTy argTypes defaultType))
     return $ BindE receiver method `AppE` args'
 
 subExprToIR (Sub.Call (Sub.Direct lambdaExpr) args) = do
@@ -308,23 +310,23 @@ subExprToIR (Sub.Lambda params expr) = do
 
 subExprToIR (Sub.Tuple exprs) = do
     exprs' <- mapM subExprToIR exprs
-    tupleCall <- toFunRefLit SF.tupleConstructor
+    tupleCall <- toFunRefLit SF.tupleConstructor (map (const $ Type PythonObject) exprs, Type PythonObject)
     return $ AppE tupleCall exprs'
 
 subExprToIR (Sub.List exprs) = do
     exprs' <- mapM subExprToIR exprs
-    listCall <- toFunRefLit SF.listConstructor
+    listCall <- toFunRefLit SF.listConstructor (map (const $ Type PythonObject)  exprs, Type PythonObject)
     return $ AppE listCall exprs'
 
 -- | Mapping d = {1:2, 3:4} to d = dict(((1,2), (3,4)))
 subExprToIR (Sub.Dict mappings) = do
     exprs' <- mapM (\(k,v) -> subExprToIR $ Sub.Tuple [k,v]) mappings
-    dictCall <- toFunRefLit SF.dictConstructor
+    dictCall <- toFunRefLit SF.dictConstructor (map (const $ Type PythonObject) mappings , Type PythonObject)
     return $ AppE dictCall exprs'
 
 subExprToIR (Sub.Set  exprs) = do
     exprs' <- mapM subExprToIR exprs
-    setCall <- toFunRefLit SF.setConstructor
+    setCall <- toFunRefLit SF.setConstructor (map (const $ Type PythonObject) exprs, Type PythonObject)
     return $ AppE setCall exprs'
 
 subExprToIR subExpr@(Sub.Subscript bnd expr) = do
@@ -354,53 +356,58 @@ subTargetToIR (Sub.Tpl (b:bnds)) =
     in return $ TupP (v:| vars)
 
 subBinOpToIR:: ConvertM m => Sub.BinOp -> m ( FrLang.Expr PythonVarType)
-subBinOpToIR Sub.Plus = toFunRefLit "+"
-subBinOpToIR Sub.Minus = toFunRefLit "-"
-subBinOpToIR Sub.Multiply = toFunRefLit "*"
-subBinOpToIR Sub.Divide = toFunRefLit "/"
-subBinOpToIR Sub.FloorDivide = toFunRefLit "//"
-subBinOpToIR Sub.Modulo = toFunRefLit "%"
-subBinOpToIR Sub.Exponent = toFunRefLit "**"
-subBinOpToIR Sub.MatrixMult = toFunRefLit "@"
+subBinOpToIR Sub.Plus = toFunRefLit "+" simpleBinarySignature
+subBinOpToIR Sub.Minus = toFunRefLit "-" simpleBinarySignature
+subBinOpToIR Sub.Multiply = toFunRefLit "*" simpleBinarySignature
+subBinOpToIR Sub.Divide = toFunRefLit "/" simpleBinarySignature
+subBinOpToIR Sub.FloorDivide = toFunRefLit "//" simpleBinarySignature
+subBinOpToIR Sub.Modulo = toFunRefLit "%" simpleBinarySignature
+subBinOpToIR Sub.Exponent = toFunRefLit "**" simpleBinarySignature
+subBinOpToIR Sub.MatrixMult = toFunRefLit "@" simpleBinarySignature
 
-subBinOpToIR Sub.And = toFunRefLit "and"
-subBinOpToIR Sub.Or  = toFunRefLit "or"
-subBinOpToIR Sub.In = toFunRefLit "in"
-subBinOpToIR Sub.Is = toFunRefLit "is"
-subBinOpToIR Sub.IsNot = toFunRefLit "is not"
-subBinOpToIR Sub.NotIn = toFunRefLit "not in"
+subBinOpToIR Sub.And = toFunRefLit "and" simpleBinarySignature
+subBinOpToIR Sub.Or  = toFunRefLit "or" simpleBinarySignature
+subBinOpToIR Sub.In = toFunRefLit "in" simpleBinarySignature
+subBinOpToIR Sub.Is = toFunRefLit "is" simpleBinarySignature
+subBinOpToIR Sub.IsNot = toFunRefLit "is not" simpleBinarySignature
+subBinOpToIR Sub.NotIn = toFunRefLit "not in" simpleBinarySignature
 
-subBinOpToIR Sub.LessThan = toFunRefLit "<"
-subBinOpToIR Sub.GreaterThan = toFunRefLit ">"
-subBinOpToIR Sub.Equality  = toFunRefLit "=="
-subBinOpToIR Sub.GreaterThanEquals = toFunRefLit ">="
-subBinOpToIR Sub.LessThanEquals = toFunRefLit "<="
-subBinOpToIR Sub.NotEquals = toFunRefLit "!="
+subBinOpToIR Sub.LessThan = toFunRefLit "<"  simpleBinarySignature
+subBinOpToIR Sub.GreaterThan = toFunRefLit ">" simpleBinarySignature
+subBinOpToIR Sub.Equality  = toFunRefLit "==" simpleBinarySignature
+subBinOpToIR Sub.GreaterThanEquals = toFunRefLit ">=" simpleBinarySignature
+subBinOpToIR Sub.LessThanEquals = toFunRefLit "<=" simpleBinarySignature
+subBinOpToIR Sub.NotEquals = toFunRefLit "!=" simpleBinarySignature
 
-subBinOpToIR Sub.BinaryAnd = toFunRefLit "&"
-subBinOpToIR Sub.BinaryOr = toFunRefLit "|"
-subBinOpToIR Sub.Xor = toFunRefLit "^"
-subBinOpToIR Sub.ShiftLeft = toFunRefLit "<<"
-subBinOpToIR Sub.ShiftRight = toFunRefLit ">>"
+subBinOpToIR Sub.BinaryAnd = toFunRefLit "&" simpleBinarySignature
+subBinOpToIR Sub.BinaryOr = toFunRefLit "|" simpleBinarySignature
+subBinOpToIR Sub.Xor = toFunRefLit "^" simpleBinarySignature
+subBinOpToIR Sub.ShiftLeft = toFunRefLit "<<" simpleBinarySignature
+subBinOpToIR Sub.ShiftRight = toFunRefLit ">>" simpleBinarySignature
 
 
 subUnOpToIR:: ConvertM m => Sub.UnOp -> m ( FrLang.Expr PythonVarType)
-subUnOpToIR Sub.Not  = toFunRefLit "not"
-subUnOpToIR Sub.Invert = toFunRefLit "~"
+subUnOpToIR Sub.Not  = toFunRefLit "not" simpleUnarySignature
+subUnOpToIR Sub.Invert = toFunRefLit "~" simpleUnarySignature
 
 
-listofPyType :: [a] -> Either Unit (NonEmpty (VarType PythonVarType))
-listofPyType [] = Left Unit
-listofPyType (a:args') = Right $ map (const defaultType) (a:|args')
+listofPyType :: [a] -> [VarType PythonVarType]
+listofPyType [] = []
+listofPyType args = map (const defaultType) args
 
 
 {- | Turns given string representation into literal expression representig an untyped, 
      'unscoped' (the empty list in as Binding argument) function reference 
 -}
-toFunRefLit :: Monad m => Binding -> m (FrLang.Expr PythonVarType)
-toFunRefLit funBind = return $
+toFunRefLit :: Monad m => Binding -> ([VarType PythonVarType], VarType PythonVarType) -> m (FrLang.Expr PythonVarType)
+toFunRefLit funBind (argTys, retTy) = return $
                         LitE $ FunRefLit $
-                        FunRef (QualifiedBinding (makeThrow []) funBind) Nothing Untyped
+                        FunRef (QualifiedBinding (makeThrow []) funBind) Nothing $ FunType argTys retTy
 
+simpleBinarySignature :: ([VarType PythonVarType], VarType PythonVarType)
+simpleBinarySignature = ([Type PythonObject, Type PythonObject], Type PythonObject)
+
+simpleUnarySignature :: ([VarType PythonVarType], VarType PythonVarType)
+simpleUnarySignature = ([Type PythonObject], Type PythonObject)
 
 toBindings = map toBinding

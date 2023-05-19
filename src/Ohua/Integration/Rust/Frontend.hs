@@ -162,7 +162,7 @@ instance Integration (Language 'Rust) where
     -- For functions from the compiled module (not imported), set the file path to the current file
     let filesAndPaths' = map (first convertOwn) filesAndPaths
     -- Go through all namespace references, parse the files and return all function types defined in there
-    typez <- load $ concatMap fst filesAndPaths'
+    typez <- fnTypesFromFiles $ concatMap fst filesAndPaths'
     -- traceShowM $ "loaded types: " <> show types
     -- For each function reference check the extracted function type, if function is not found or defined multiple
     -- times this will fail
@@ -200,8 +200,8 @@ instance Integration (Language 'Rust) where
       convertOwn n = n
 
       -- | Extract a HashMap of {name: function type} from the given file reference
-      load :: CompM m => [NSRef] -> m FunTypes
-      load nsRefs = HM.unions <$> mapM (extractFromFile . toFilePath . (,".rs")) nsRefs
+      fnTypesFromFiles :: CompM m => [NSRef] -> m FunTypes
+      fnTypesFromFiles nsRefs = HM.unions <$> mapM (extractFromFile . toFilePath . (,".rs")) nsRefs
 
       verifyAndRegister :: CompM m => FunTypes -> ([NSRef], QualifiedBinding) -> m (Maybe (QualifiedBinding, FunType RustVarType))
       verifyAndRegister typez ([candidate], qp@(QualifiedBinding _ nam)) =
@@ -223,23 +223,21 @@ instance Integration (Language 'Rust) where
       --       the same number of arguments as it is applied to. If this does not match then clearly we need to error here!
       -- NO. We don't. Writing correct Rust code is the developers responsibility. We only need to extract types to
       -- implement correct transformations
+      -- ToDo: For now we'll just not fail here, becasue type extraction should only be the first option, annotation of wars is comes afterwards in the check and should be the point where it fails-
       assignTypes typez = \case
-        f@(LitE (FunRefLit (FunRef qb i ft))) | allArgsTyped ft -> return f
-        (LitE (FunRefLit (FunRef qb i _))) ->
+        f@(LitE (FunRefLit (FunRef qb i ft))) | fullyTyped ft -> return f
+        f@(LitE (FunRefLit (FunRef qb i _))) ->
           case HM.lookup qb typez of
             Just typ ->
               -- do
               --     traceShowM $ "Fun: " <> show qb <> " Type: " <> show typ
               return $ LitE $ FunRefLit $ FunRef qb i typ
-            Nothing -> throwError $ "I was unable to determine the types for the call to '" <> show qb <> "'. Please provide type annotations."
+            Nothing -> return f -- throwError $ "I was unable to determine the types for the call to '" <> show qb <> "'. Please provide type annotations."
         e -> return e
 
-      allArgsTyped (FunType Left {}) = True
-      allArgsTyped (FunType (Right args)) = all (\case TypeVar -> False; _ -> True) args
-      allArgsTyped (STFunType TypeVar _) = False
-      allArgsTyped (STFunType _ Left {}) = True
-      allArgsTyped (STFunType _ (Right args)) = all (\case TypeVar -> False; _ -> True) args
-      allArgsTyped _ = False
+      fullyTyped (FunType args retTy) = all (\case TypeVar -> False; _ -> True) (retTy: args)
+      fullyTyped (STFunType sTy argTys retTy) = all (\case TypeVar -> False; _ -> True) (sTy: retTy: argTys)
+      fullyTyped _ = False
 
       fullyResolvedImports = resolvedImports fullyResolved
       aliasImports = resolvedImports aliases
@@ -260,11 +258,11 @@ instance Integration (Language 'Rust) where
       globs = mapMaybe (\case (Glob n) -> Just n; _ -> Nothing) (ohuaNs ^. imports)
 
 
-argTypesFromContext :: SubC.ConvertM m => [Sub.Expr] -> m (Either Unit (NonEmpty (VarType RustVarType)))
+argTypesFromContext :: SubC.ConvertM m => [Sub.Expr] -> m [VarType RustVarType]
 argTypesFromContext args =
     case args of
-    [] -> return $ Left Unit
-    (x : xs) -> Right <$> mapM getVarType (x :| xs)
+    [] -> return []
+    (x : xs) -> mapM getVarType (x : xs)
 
 -- If we don't want additional typing via extraction from scope we need this to succeed 
 -- i.e. no 'TypeVar' results here
@@ -299,14 +297,23 @@ instance ConvertExpr Sub.Expr where
     fun'' <- case fun' of
       LitE (FunRefLit (FunRef ref _ _)) -> do
         -- traceM $ "Context at parsing function " <> show ref <> ": \n" <> show ctxt <> "\n"
+        -- ToDo: When we thread return type annotations to type functions OR use the extracted function type we need ot distinguish two cases
+        --       1. we had no annotation 
+        --          -> we set the currentReturn in the context to TypeVar 
+        --          -> we try to retrieve arg types (which we will have from the context anyways as we're going top down) and the return type for the function
+        --          -> in here we do nothing i.e. just produce a function with return type TypeVar, because we want to give a useful error message
+        --          however, when we're back at the statement context and the currentType in the context is still TypeVar, we error and indicate that the currently 
+        --          assigned variable needs to be annotated
         ty <- argTypesFromContext args
-        return $ LitE (FunRefLit (FunRef ref Nothing $ FunType ty))
+        retTy <- return TypeVar -- get this from context later
+        return $ LitE (FunRefLit (FunRef ref Nothing $ FunType ty retTy))
       -- Currently we don't extract function types correctyl so we still need to type them the good old way
       VarE bnd _ty -> do
         let qBnd = toQualBinding bnd
         -- traceM $ "Parsing function " <> show bnd <> " In Context : \n" <> show ctxt <> "\n"
         ty <- argTypesFromContext args
-        return $ LitE (FunRefLit (FunRef qBnd Nothing $ FunType ty))
+        retTy <- return TypeVar
+        return $ LitE (FunRefLit (FunRef qBnd Nothing $ FunType ty retTy))
       _ -> return fun'
     args' <- mapM convertExpr args
     return $ fun'' `AppE` args'
@@ -316,25 +323,31 @@ instance ConvertExpr Sub.Expr where
     receiver' <- convertExpr receiver
     argTys <- argTypesFromContext args
     receiverTy <- getVarType receiver
+    retTy <- return TypeVar
     -- traceM $ "Context at parsing function " <> show method <> ": \n" <> show ctxt <> "\n"
-    let method' = LitE (FunRefLit (FunRef method Nothing $ STFunType receiverTy argTys))
+    let method' = LitE (FunRefLit (FunRef method Nothing $ STFunType receiverTy argTys retTy))
     args' <- mapM convertExpr args
     return $ BindE receiver' method' `AppE` args'
   convertExpr (Sub.Tuple vars) = do
     vars' <- mapM convertExpr vars
     argTys <- argTypesFromContext vars
-    let funTy = FunType argTys
+    -- A tuple constructor is a function that takes agrs and return a tuple of them
+    let funTy = case argTys of 
+            [] -> FunType [] TypeUnit
+            (t: ts) -> FunType argTys (TupleTy (t:| ts))
     return $ TupE funTy vars'
   convertExpr (Sub.Binary op left right) = do
     left' <- convertExpr left
     right' <- convertExpr right
     types <- argTypesFromContext [left, right]
-    funref <- asFunRef (asBinSymbol op) types
+    let (symbol, retTy) = binOpInfo op
+    funref <- asFunRef symbol types retTy
     return $  AppE funref [left', right']
   convertExpr (Sub.Unary op arg) = do
     arg' <- convertExpr arg
     argTy <- argTypesFromContext [arg]
-    funref <- asFunRef (asUnSymbol op) argTy
+    let (symbol, retTy) = unOpInfo op
+    funref <- asFunRef symbol argTy retTy
     return $ AppE funref [arg']
   convertExpr (Sub.Lit l) = convertExpr l
   convertExpr (Sub.If expr trueBlock falseBlock) = do
@@ -386,7 +399,7 @@ instance ConvertExpr Sub.Expr where
     let argUnit =  Type $ TE.Normal rustUnitReturn
     let argBool =  Type $ TE.Normal rustBool
     let condRef = "cond"
-    let condFunType = FunType $ Right (TypeBool:|[])
+    let condFunType = FunType [TypeBool] (TupleTy (TypeBool:| [TypeBool])) -- we use this to duplicate the condition hence it returns two bools
     let condFun = LitE (FunRefLit (FunRef (toQualBinding "host_id") Nothing condFunType))
     let resultRef = "result"
     let condResultRef = "localCondition"
@@ -412,11 +425,16 @@ instance ConvertExpr Sub.Expr where
     put ctxt -- make sure that the variables are removed again
     return $ LamE args' body'
   convertExpr (Sub.BlockExpr block) = convertExpr block
-  convertExpr (Sub.PathExpr (Sub.CallRef ref tyInfo)) =
+  convertExpr (Sub.PathExpr (Sub.CallRef ref tyInfo)) = do
     -- TODO handle type info (these are bound type parameters)
     -- REMINDER: This is (one) origin of Function References. Check what kind of type annotations may already be 
-    --           present here and incoorporate them.
-    return $ LitE $ FunRefLit $ FunRef ref Nothing Untyped
+    --           present here and incoorporate them
+    -- FIXME: We need the context here, i.e. either we have the function name in the pre-extracted function context, or we 
+    --        need to convert Path's only in the context they apprear in, i.e. we need to know with which arguments they are called and 
+    --        we need to know the current return type 
+    -- Check where CallRefs are produced and how we can constrain there occurence.
+    ctxt <- get 
+    return $ LitE $ FunRefLit $ FunRef ref Nothing $ FunType [TypeVar] TypeVar
   convertExpr (Sub.Var bnd (Just (Sub.RustType ty))) = return $ VarE bnd (Type $ TE.Normal ty)
   convertExpr (Sub.Var bnd Nothing) = do
     -- traceM $ "Parsing var " <> show bnd
@@ -509,27 +527,31 @@ instance ConvertPat Sub.Arg where
       _ -> return ()
     convertPat pat
 
-asBinSymbol:: Sub.BinOp -> Binding
-asBinSymbol Sub.Add =  "+"
-asBinSymbol Sub.Sub =  "-"
-asBinSymbol Sub.Mul =  "*"
-asBinSymbol Sub.Div =  "/"
-asBinSymbol Sub.Lt =  "<"
-asBinSymbol Sub.Lte =  "<="
-asBinSymbol Sub.Gte =  ">="
-asBinSymbol Sub.Gt =  ">"
-asBinSymbol Sub.EqOp =  "=="
-asBinSymbol Sub.OrOp =  "||"
+binOpInfo:: Sub.BinOp -> (Binding, VarType RustVarType)
+-- ToDo: It seems infering the type of binary ops should be easy given the input. However
+--       we might need to incorparate Rusts coercion rules if the two arguments differ in type
+  -- Check if that applicable and if it would be a problem after all since when somethigncan be coerced for this binary op, it can also be coerced downstream probably, if we just take one of the types.
+binOpInfo Sub.Add =  ("+", TypeVar)
+binOpInfo Sub.Sub =  ("-", TypeVar)
+binOpInfo Sub.Mul =  ("*", TypeVar)
+binOpInfo Sub.Div =  ("/", TypeVar)
+binOpInfo Sub.Lt =  ("<", Type $ TE.Normal rustBool)
+binOpInfo Sub.Lte =  ("<=", Type $ TE.Normal rustBool)
+binOpInfo Sub.Gte =  (">=", Type $ TE.Normal rustBool)
+binOpInfo Sub.Gt =  (">", Type $ TE.Normal rustBool)
+binOpInfo Sub.EqOp =  ("==", Type $ TE.Normal rustBool)
+binOpInfo Sub.OrOp =  ("||", Type $ TE.Normal rustBool)
 
-asUnSymbol::Sub.UnOp -> Binding
-asUnSymbol Sub.Deref =  "*"
-asUnSymbol Sub.Not =  "!"
-asUnSymbol Sub.Neg =  "-"
+unOpInfo::Sub.UnOp -> (Binding, VarType RustVarType)
+unOpInfo Sub.Deref =  ("*", TypeVar)
+-- ToDo: negation is a trait and returns whatever the input type implemented it to return i.e. not necessarily of the same type
+unOpInfo Sub.Not =  ("!", TypeVar)
+unOpInfo Sub.Neg =  ("-", TypeVar)
 
-asFunRef :: Monad m => Binding -> Either Unit (NonEmpty (VarType RustVarType)) -> m (FrLang.Expr RustVarType)
-asFunRef op tys = return $
+asFunRef :: Monad m => Binding -> [VarType RustVarType] -> VarType RustVarType -> m (FrLang.Expr RustVarType)
+asFunRef op tys retTy = return $
       LitE $ FunRefLit $
-        FunRef (QualifiedBinding (makeThrow []) op) Nothing (FunType tys)
+        FunRef (QualifiedBinding (makeThrow []) op) Nothing (FunType tys retTy)
 
 
 toQualBinding :: Binding -> QualifiedBinding

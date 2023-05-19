@@ -8,7 +8,7 @@ import Ohua.Integration.Lang hiding (Lang)
 
 import Ohua.Integration.Python.Types
 import Ohua.Integration.Python.Util
-import Ohua.Integration.Python.TypeExtraction
+import Ohua.Integration.Python.TypeExtraction 
 import qualified Ohua.Integration.Python.Backend.Subset as Sub
 import qualified Ohua.Integration.Python.SpecialFunctions as SF
 
@@ -267,7 +267,7 @@ convertFunCall arch funRef args =
                     _ -> map (convertArgument arch) args -}
     -- in
     wrapSubExpr $ Sub.Call
-                    ( unwrapSubStmt $ convertExpr arch $ asUntypedFunctionLiteral funRef)
+                    ( unwrapSubStmt $ convertExpr arch $ asFunctionLiteral funRef (length args))
                     (map (convertArgument arch) args)
 
 
@@ -297,7 +297,7 @@ dotConcat (NSRef refs) bind =
     in fromString concatName
 
 
-asUntypedFunctionLiteral qBinding = TCLang.Lit $ FunRefLit $ FunRef qBinding Nothing Untyped
+asFunctionLiteral qBinding numArgs = TCLang.Lit $ FunRefLit $ FunRef qBinding Nothing $ FunType (replicate numArgs (Type PythonObject)) (Type PythonObject)
 
 
 hasAttrArgs :: Binding -> [Sub.Argument]

@@ -249,7 +249,8 @@ liftFunction collectTy (PureDFFun out fun inp) cont = do
       DFL.Let
         ( PureDFFun
             out
-            (FunRef joinFuture Nothing (FunType $ Right $ collectTy :| []))
+            -- Question: What's the return type supposed to
+            (FunRef joinFuture Nothing (FunType [collectTy] TypeVar))
             (DFVar futuresATBnd :| [])
         )
         cont
@@ -259,10 +260,12 @@ liftFunction collectTy (PureDFFun out fun inp) cont = do
       PureDFFun
         (Direct futuresBnd)
         (FunRef spawnFuture Nothing $ getSpawnFunType fun)
+        -- Question: What's that type supposed to be?
         (DFEnvVar TypeVar (FunRefLit fun) NE.<| inp)
 
-    getSpawnFunType (FunRef _ _ (FunType (Left Unit))) = FunType $ Right $ TypeVar NE.:| []
-    getSpawnFunType (FunRef _ _ (FunType (Right xs))) = FunType $ Right (TypeVar NE.<| xs)
+    -- Question: What the first arg type supposed to be?
+    getSpawnFunType (FunRef _ _ (FunType [] rty)) = FunType [ TypeVar ] rty
+    getSpawnFunType (FunRef _ _ (FunType  xs rty )) = FunType (TypeVar : xs) rty
 
 -- |
 -- All that the language and backend requires to support this transformations are
@@ -292,12 +295,16 @@ lowerTaskPar _ arch = go
 takeN :: QualifiedBinding
 takeN = "ohua.lang/takeN"
 
-takeNLit ty = Lit $ FunRefLit $ FunRef takeN Nothing $ FunType $ Right $ ty :| [TypeVar]
+-- Question: Whats the type supposed to be?
+-- ToDo: This needs a return type parameter
+takeNLit ty = Lit $ FunRefLit $ FunRef takeN Nothing $ FunType  (ty : [TypeVar]) TypeVar
 
 concat :: QualifiedBinding
 concat = "ohua.lang/concat"
 
-concatLit ty = Lit $ FunRefLit $ FunRef concat Nothing $ FunType $ Right $ ty :| [ty]
+-- Question: Whats the type supposed to be?
+-- ToDo: This needs a return type parameter
+concatLit ty = Lit $ FunRefLit $ FunRef concat Nothing $ FunType (ty : [ty]) TypeVar
 
 -- | This transformation adds a limit on the tries per round and therewith provides
 --   a tuning knob to control the number of invalid (colliding) computation per round.
@@ -484,12 +491,12 @@ amorphous numRetries = transformM go
       ( AL.Let
           v
           (Apply f@(Apply
-                    (PureFunctionTy smapF _ (FunType (Right (inpTy :| _))) )
+                    (PureFunctionTy smapF _ (FunType (inpTy : _) retTy ) )
                     _)
                  (AL.Var loopInp'))
           cont
         )
-        -- Question: What types are thos varaibles supposed to have?
+        -- Question: What types are those varaibles supposed to have?
         | smapF == ALRefs.smap && loopIn == loopInp' = do
           taken <- flip TBind TypeVar <$> generateBindingWith "n_taken"
           takenInp <- flip TBind liTy <$> generateBindingWith (loopInBnd <> "_n")
@@ -518,7 +525,7 @@ amorphous numRetries = transformM go
       ( AL.Let
           v
            (Apply f@(Apply
-                    (PureFunctionTy smapF _ (FunType (Right (inpTy :| _))))
+                    (PureFunctionTy smapF _ (FunType (inpTy : _) retTy ))
                     _)
                  (AL.Var loopInp'))
           cont
@@ -564,8 +571,9 @@ third3 (_,_,c) = c
 typeAmorphous :: NormalizedDFExpr ty -> OhuaM (NormalizedDFExpr ty)
 typeAmorphous = return . mapFuns go
     where
-        go (PureDFFun outs (FunRef f id (FunType (Right (a:|(b:c)) )) ) ins) | f == concat =
-            PureDFFun outs (FunRef f id (FunType (Right (TypeList TypeVar :|(TypeList TypeVar:c)) )) ) ins
-        go (PureDFFun outs (FunRef f id (FunType (Right (a :| b) )) ) ins) | f == takeN =
-            PureDFFun outs (FunRef f id (FunType (Right (TypeList TypeVar :| b) )) ) ins
+        go (PureDFFun outs (FunRef f id (FunType (a:b:c) retTy) ) ins) | f == concat =
+            -- Question: What do we do here and what's the types supposed to be?
+            PureDFFun outs (FunRef f id (FunType (TypeList TypeVar : TypeList TypeVar: c ) retTy)) ins
+        go (PureDFFun outs (FunRef f id (FunType (a : b) retTy ) ) ins) | f == takeN =
+            PureDFFun outs (FunRef f id (FunType (TypeList TypeVar : b) retTy) ) ins
         go a = a
