@@ -42,22 +42,22 @@ spec =
           compiled `shouldBe` expected)
 
       it "single state" $
-            (showCode "Compiled: " =<< compileCodeWithDebug  [sourceFile|
-                use crate::funs::*;
+        (showCode "Compiled: " =<< compileCodeWithDebug  [sourceFile|
+              use crate::funs::*;
 
-                 fn test(i:i32) -> () {
-                    let s: State = State::new_state(i);
-                    let stream: Iterator<i32> = iter_i32();
-                    for e in stream {
-                        let e1: State = e;
-                        s.gs(e1);
-                    }
-                    s.gs(5)
-                }
-                |]) >>=
-            (\compiled -> do
-                expected <- showCode "Expected:" singleState 
-                compiled `shouldBe` expected)
+              pub fn test(i:i32) -> i32 {
+                  let mut s: State = State::new_state(i);
+                  let stream: Vec<i32> = iter_i32();
+                  for e in stream {
+                      let e1: i32 = e;
+                      s.gs(e1);
+                  }
+                  s.gs(5)
+              }
+            |]) >>=
+        (\compiled -> do
+            expected <- showCode "Expected:" singleState 
+            compiled `shouldBe` expected)
       )
     describe "loop" ( do
         it "deep state simple" $
@@ -144,7 +144,8 @@ spec =
     describe "Minimal case" (do
         it "minimal state use" $
             (showCode "Compiled: " =<< compileCode  [sourceFile|
-              
+                 use crate::funs::*;
+
                  fn test(i:i32) -> WierdType {
                     let s: State = State::new_state();
                     s.gs(5)
@@ -541,7 +542,7 @@ singleState :: SourceFile Span
 singleState = [sourceFile|
 use crate::funs::*;
 
-fn test(i: i32) -> () {
+pub fn test(i: i32) -> i32 {
   #[derive(Debug)]
   enum RunError {
     SendFailed,
@@ -557,11 +558,11 @@ fn test(i: i32) -> () {
       RunError::RecvFailed
     }
   }
-  let (b_0_0_tx, b_0_0_rx) = std::sync::mpsc::channel::<  (),>();
+  let (b_0_0_tx, b_0_0_rx) = std::sync::mpsc::channel::< i32,>();
   let (s_0_0_1_tx, s_0_0_1_rx) = std::sync::mpsc::channel::<  State,>();
   let (ctrl_0_0_tx, ctrl_0_0_rx) =
     std::sync::mpsc::channel::<  (bool, usize),>();
-  let (d_1_tx, d_1_rx) = std::sync::mpsc::channel::<  State,>();
+  let (d_1_tx, d_1_rx) = std::sync::mpsc::channel::<  i32,>();
   let (s_0_1_1_tx, s_0_1_1_rx) = std::sync::mpsc::channel::<  State,>();
   let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
     Vec::new();
@@ -932,6 +933,8 @@ fn test(i: i32) -> State {
 } |]
 
 minimal = [sourceFile|
+use crate::funs::*;
+
 fn test(i: i32) -> WierdType {
   #[derive(Debug)]
   enum RunError {

@@ -11,7 +11,7 @@ spec :: Spec
 spec =
     describe "Typing tests" $ do
         it "Type from imported function" $
-            (showCode "Compiled: " =<< compileCode  [sourceFile|
+            (showCode "Compiled: " =<< compileCodeWithDebug  [sourceFile|
                 use crate::funs::hello_world;
 
                 fn test() -> String {
@@ -24,7 +24,7 @@ spec =
                 compiled `shouldBe` expected)
                 
         it "Type from Annotation" $
-            (showCode "Compiled: " =<< compileCode  [sourceFile|
+            (showCode "Compiled: " =<< compileCodeWithDebug  [sourceFile|
                 use crate::funs::*;
 
                 fn test() -> String {
@@ -39,7 +39,7 @@ spec =
         -- In this trivial example we would be able to derive the type anyways. But for now I'll 
         -- have it failing.
         it "Type from Neither" $
-            compileCode  [sourceFile|
+            compileCodeWithDebug  [sourceFile|
                 use crate::funs::*;
 
                 fn test() -> String {

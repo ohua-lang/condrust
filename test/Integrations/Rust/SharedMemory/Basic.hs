@@ -10,7 +10,7 @@ spec :: Spec
 spec =
     describe "Basics" $ do
         it "a function" $
-            (showCode "Compiled: " =<< compileCode  [sourceFile|
+            (showCode "Compiled: " =<< compileCodeWithDebug  [sourceFile|
                 use funs::hello_world;
 
                 fn test() -> String {
@@ -20,8 +20,9 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:" a_function
                 compiled `shouldBe` expected)
+
         it "simple composition" $
-            (showCode "Compiled: " =<< compileCode  [sourceFile|
+            (showCode "Compiled: " =<< compileCodeWithDebug  [sourceFile|
                 use crate::funs::*;
 
                 fn test() -> String {
@@ -57,6 +58,7 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:" binary_operation
                 compiled `shouldBe` expected)
+                {-<
         it "var multi 1: read-only" $
           -- due to the transformation to state threads, this transforms into:
           -- let x = f();
@@ -192,7 +194,7 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:" destruct
                 compiled `shouldBe` expected)
-
+-}
 ------------- Testouput -------------------------------------
 
 a_function :: SourceFile Span

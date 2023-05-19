@@ -140,45 +140,76 @@ libFile =
   \ "
 
 funs :: Text
-funs =
-  " \
-  \ fn hello_world() -> String { unimplemented!{} } \
-  \ fn f() -> i32 { unimplemented!{} } \
-  \ fn f_tup() -> (i32,i32) { unimplemented!{} } \
-  \ fn fi_tup(i:i32) -> (i32,i32) { unimplemented!{} } \
-  \ fn f_arc() -> Arc<i32> { unimplemented!{} } \
-  \ fn g(i:i32) -> String { unimplemented!{} } \
-  \ fn h(i:i32) -> i32 { unimplemented!{} } \
-  \ fn h2(i:i32, j:i32) -> i32 { unimplemented!{} }\
-  \ fn f0(i:i32) -> i32 { unimplemented!{} } \
-  \ fn f1(i:i32) -> i32 { unimplemented!{} } \
-  \ fn f2(i:i32) -> i32 { unimplemented!{} } \
-  \ fn g0(i:i32) -> i32 { unimplemented!{} } \
-  \ fn g1(i:i32) -> i32 { unimplemented!{} } \
-  \ fn check(i:i32) -> bool { unimplemented!{} } \
-  \\
-  \ struct S {} \
-  \ impl S { \
-  \   fn new_state(i:i32) -> S { unimplemented!{} } \
-  \   fn gs(self, i:i32) -> i32 { unimplemented!{} } \
-  \   fn modify(&mut self, i:i32) { unimplemented!{} } \
-  \   fn gs1(self, i:i32) -> String { unimplemented!{} } \
-  \ } \
-  \ fn k(s:S) -> () { unimplemented!{} } \
-  \\
-  \ fn iter() -> Iterator<S> { unimplemented!{} } \
-  \ impl Iterator for S { \
-  \   type Item=S; \
-  \   fn next(&mut self) -> Option<S> { unimplemented!{} } \
-  \   fn size_hint(&self) -> (usize, Option<usize>) { unimplemented!{} } \
-  \   fn has_next(&self) -> bool { unimplemented!{} } \
-  \ } \
-  \ impl Clone for S { \
-  \   fn clone(&self) -> Self { unimplemented!() } \
-  \ } \
-  \ fn iter_i32() -> Iterator<i32> { unimplemented!{} } \
-  \ fn f_s(s:&S, i:i32) -> i32 { unimplemented!() } \
-  \ "
+funs = "\
+\ use std::ops::Range;\ 
+\ \
+\ #[derive(Copy, Clone, Debug)]\
+\ pub struct State{\ 
+\     val:i32,\ 
+\ }\ 
+\ \
+\ \
+\ impl State {\ 
+\     pub fn new(val:i32) -> Self {\ 
+\         State{val}\ 
+\     }\ 
+\ \
+\     pub fn new_state(val:i32) -> Self {\ 
+\         State{val}\ 
+\     }\ 
+\ \
+\     pub fn do_stuff(&self, i:i32) -> i32 {\ 
+\         23\ 
+\     }\ 
+\ \
+\     pub fn io(&self) {\ 
+\         println!(\"LOOOP gnihihi\n\")\ 
+\     }\ 
+\ \
+\     pub fn gs(&mut self, num:i32) -> i32 {\ 
+\         self.val += num;\ 
+\         return self.val\ 
+\     }\ 
+\ }\ 
+\ \
+\ pub fn h(i:i32) -> i32 {\ 
+\     let the_answer = if i==23 {i} else {i+1};\ 
+\     the_answer\ 
+\ }\ 
+\ \
+\ pub fn h2(i:i32) -> () {\ 
+\     let the_answer = if i==23 {i+19} else {42};\ 
+\     println!(\"Calls h2 with {}\", i)\ 
+\ }\ 
+\ \
+\ pub fn h3(i:i32, j:i32) -> () {\ 
+\     let the_answer = if i==23 {j} else {42};\ 
+\     println!(\"Calls h2 with {}\", i)\ 
+\ }\ 
+\ \
+\ pub fn check(i:i32) -> bool {\ 
+\     i < 23\ 
+\ }\ 
+\ \
+\ pub fn host_id(i:bool) -> (bool, bool) {\ 
+\     (i,i)\ 
+\ }\ 
+\ \
+\ pub fn iter_i32() -> Vec<i32> {\ 
+\     (1..11).collect()\ 
+\ }\ 
+\ \
+\ pub type ThisIsActuallyUnit = ();\ 
+\ \
+\ pub fn make_unit() -> ThisIsActuallyUnit {\ 
+\     ()\ 
+\ }\ 
+\ \
+\ pub fn f_s(state:State, i:i32) -> i32 {\ 
+\     println!(\"State: {:?}, i: {:?}\", state.val, i);\ 
+\     state.val - i\ 
+\ } \ 
+\ "
 
 benchs :: Text
 benchs =
