@@ -12,7 +12,7 @@ import System.FilePath
 import System.Directory (doesFileExist)
 
 
-deSpan ::(Functor a) =>  a Span -> a ()
+deSpan ::(Functor a) =>  a anno -> a ()
 deSpan = map (const ())
 
 toBinding :: Ident -> Binding
