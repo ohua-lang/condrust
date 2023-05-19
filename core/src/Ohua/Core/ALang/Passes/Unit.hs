@@ -29,7 +29,8 @@ mkUnitFunctionsExplicit e =
         Let v (Apply (Lit (FunRefLit fun@FunRef{})) u@(Lit UnitLit)) ie ->
             Let
                 v
-                ((Lit $ FunRefLit $ FunRef unitFun Nothing $ FunType $ Right $ TypeVar :| [TypeVar]) `Apply`
+                -- Question: Whats the type supposed to be? Shouldn't is take a function and a unit and return something?
+                ((Lit $ FunRefLit $ FunRef unitFun Nothing $ FunType [TypeUnit, TypeVar] TypeVar) `Apply`
                  (Lit $ FunRefLit fun) `Apply`
                  u)
                 ie

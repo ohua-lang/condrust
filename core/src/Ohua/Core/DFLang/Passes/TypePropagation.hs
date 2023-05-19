@@ -11,8 +11,8 @@ import qualified Ohua.Types.Vector as OV
 import qualified Data.List.NonEmpty as NE
 import Ohua.Core.DFLang.PPrint (prettyExpr)
 
-data Exists ty = forall semTy.Exists (DFVar semTy ty) 
-type BindingContext ty = (HM.HashMap Binding (Exists ty)) 
+data Exists ty = forall semTy.Exists (DFVar semTy ty)
+type BindingContext ty = (HM.HashMap Binding (Exists ty))
 
 showContext :: BindingContext ty -> Text
 showContext hm = show (HM.keys hm)
@@ -65,9 +65,9 @@ returnBinding = "finalReturnType"
 
 
 propagateTypesWithRetTy :: ty -> NormalizedDFExpr ty -> NormalizedDFExpr ty
-propagateTypesWithRetTy retType expr  =   
+propagateTypesWithRetTy retType expr  =
   let returnTB = TBind returnBinding (Type retType)
-      context = HM.insert returnBinding (Exists $ DFVar (DataBinding returnTB)) HM.empty 
+      context = HM.insert returnBinding (Exists $ DFVar (DataBinding returnTB)) HM.empty
   in evalState (transformExprM typeBottomUp expr) context
 
 
@@ -85,35 +85,35 @@ typeBottomUp ::
 typeBottomUp (Let (PureDFFun out@(Direct outBnd) f@(FunRef fun _fid fTy) inputs@(DFVar fstatb@(DataBinding (TBind fstBnd _fstTy))  :| scndIn: _)) inCont)
   -- In this case, the function is an Ohua control node. Those nodes allways take two inputs
   -- an nat (0 or 1) and a variable and outputs the variable based on the signal.
-  
+
   -- In a bottom up pass, we've seen the function using the output already.
   -- So we can try to type the input, using the output. 
   -- Also we know the controle signal type
   | fun == Refs.ctrl = do
             -- ctrl:: (bool, nat) -> A -> A
             -- traceM  $ "Typing controle function " <> show fun
-    
+
 
             -- We can type the control input cause it has to be a (bool, nat)
-            let ctrlTB = TBind fstBnd controlSignalType 
-                ctrlInput' =  DFVar $ DataBinding $ ctrlTB
-            updateContext fstatb controlSignalType 
+            let ctrlTB = TBind fstBnd controlSignalType
+                ctrlInput' =  DFVar $ DataBinding ctrlTB
+            updateContext fstatb controlSignalType
             -- We can type the data input using the output, cause they have to have the same type
             knownVars <- get
-            let dataInput = case scndIn of 
-                  (DFVar (DataBinding oldtb))  -> 
+            let dataInput = case scndIn of
+                  (DFVar (DataBinding oldtb))  ->
                       case HM.lookup (unwrapABnd outBnd) knownVars of
-                          Just (Exists (DFVar atB)) -> 
+                          Just (Exists (DFVar atB)) ->
                               let newType = asType . unwrapTB $ atB
                               in DFVar $ DataBinding $ TBind (asBnd oldtb) newType
                           Just (Exists (DFEnvVar newType _)) ->  DFVar $ DataBinding $ TBind (asBnd oldtb) newType
                           Nothing -> scndIn
                   (DFEnvVar _ _) -> scndIn
-                
-            case dataInput of 
+
+            case dataInput of
                (DFVar atbnd) -> updateContext atbnd (asType . unwrapTB $ atbnd)
                _  -> return ()
-  
+
             return $ Let (PureDFFun out f (ctrlInput' :| [dataInput])) inCont
 
   | fun == Refs.collect = do
@@ -121,18 +121,18 @@ typeBottomUp (Let (PureDFFun out@(Direct outBnd) f@(FunRef fun _fid fTy) inputs@
             -- FIXME: Current assumption -> A is always Unit, cause the combination of
             -- of collect and seq is merely to keep calculation going when no actual result is returned from the
             -- loop
-            let aVar = case scndIn of 
+            let aVar = case scndIn of
                   (DFVar atBnd ) -> DFVar $ DataBinding $ TBind (unwrapABnd atBnd) TypeUnit
                   (DFEnvVar _ty lit) -> DFEnvVar TypeUnit lit
 
-            case scndIn of 
+            case scndIn of
                   (DFVar atBnd) -> updateContext atBnd TypeUnit
                   _ -> return ()
             let natVar = DFVar $ replaceType fstatb TypeNat
             updateContext fstatb TypeNat
 
             return $ Let (PureDFFun out f (natVar :| [aVar])) inCont
-            
+
   | fun == Refs.runSTCLangSMap = do
             -- traceM "Typing rustSTCLangSMap function"
             -- This node collects state mutations from a loop i.e. it might be the last point in code 
@@ -146,7 +146,7 @@ typeBottomUp (Let (PureDFFun out@(Direct outBnd) f@(FunRef fun _fid fTy) inputs@
   | fun == Refs.select = do
             -- select :: bool -> A -> A -> A
             -- traceM $ "Typing select"
-    
+
             knownVars <- get
             let realOutTy = case out of
                     Direct something -> case HM.lookup (unwrapABnd something) knownVars of
@@ -155,18 +155,18 @@ typeBottomUp (Let (PureDFFun out@(Direct outBnd) f@(FunRef fun _fid fTy) inputs@
                       Nothing -> TypeVar
                     _ -> unhandledCaseError
 
-            let realFunType = TypeBool :| [realOutTy, realOutTy]
+            let realArgTypes = TypeBool:| [realOutTy, realOutTy]
             -- Type Input vars 
             let typedIns' = NE.map (\case
                       (DFVar oldTB, ty') ->  DFVar (replaceType oldTB ty')
                       (DFEnvVar _ lit, ty') -> DFEnvVar ty' lit
-                  ) $ NE.zip inputs realFunType
+                  ) $ NE.zip inputs realArgTypes
             -- Then we add all the variables and their newly assigned types  to the context
             mapM_ (\case
                     (DFVar atBnd) -> updateContext  atBnd (asType . unwrapTB $ atBnd)
                     _literal -> return ()
                 ) typedIns'
-            return$ Let (PureDFFun out (FunRef fun _fid (FunType (Right realFunType))) typedIns') inCont
+            return$ Let (PureDFFun out (FunRef fun _fid (FunType (NE.toList realArgTypes) realOutTy )) typedIns') inCont
 
   | fun == Refs.seqFun = do
             -- seq:: ([A], Unit) -> Unit 
@@ -175,20 +175,22 @@ typeBottomUp (Let (PureDFFun out@(Direct outBnd) f@(FunRef fun _fid fTy) inputs@
             -- FIXME: I'll pretend it's always list of unit assuming the only purpose of this function
             -- in combination with the collect function is to have certain steps happen list-length times.
             let listTB = TBind fstBnd (TypeList TypeUnit)
-                listInput = DFVar $ DataBinding $ listTB
-            updateContext (DataBinding $ listTB) (TypeList TypeUnit)
+                listInput = DFVar $ DataBinding listTB
+            updateContext (DataBinding listTB) (TypeList TypeUnit)
 
             return $ Let (PureDFFun out f (listInput :| [scndIn])) inCont
-              
+
   | otherwise = do
             -- traceM "Hit a normal function. Should learn from function type"
-            let dataInps' = 
+            let dataInps' =
                   case fTy of
-                    (FunType (Right ftypes)) -> 
+                    -- Actually this should allways be the case if typing works correctly as each function
+                    -- should have as many argument types as inputs
+                    (FunType (argTy:argTys) retTy) ->
                         NE.map (\case
                               (DFVar atBnd, ty') -> DFVar $ replaceType atBnd ty'
                               (DFEnvVar _ lit, ty') -> DFEnvVar ty' lit
-                          ) $ NE.zip inputs ftypes
+                          ) $ NE.zip inputs (argTy:|argTys)
                     _ -> inputs
           -- Then we add all the variables and their newly assigned types (which may still be TypeVar) to the context
           -- As we go bottom up, those variables will be the output of some function in outer scope, so we can type these
@@ -199,15 +201,14 @@ typeBottomUp (Let (PureDFFun out@(Direct outBnd) f@(FunRef fun _fid fTy) inputs@
                 ) dataInps'
             return $ Let (PureDFFun out f dataInps') inCont
 
-typeBottomUp _fo@(Let (PureDFFun out f@(FunRef _fun _fId (FunType (Right inputTypes))) vars) inCont) = do
-  -- We hit a select function of type (bool, a, a) -> a. So we type it's first input type
-  -- and try to derive the second and third from their usages saved in the context
+typeBottomUp _fo@(Let (PureDFFun out f@(FunRef _fun _fId (FunType (iTy: iTys) retTy)) vars) inCont) = do
+    -- vars is a non-empty so we should be sure, that inputTypes also is not en empty list
     -- traceM $ "Typing pure function " <> show fun
     -- We hit any pure function. So we check it's input types and annotate the corresponding variable names.
     let dataInps' = NE.map (\case
                               (DFVar atBnd, ty') -> DFVar $ replaceType atBnd ty'
                               (DFEnvVar _ lit, ty') -> DFEnvVar ty' lit
-                          ) $ NE.zip vars inputTypes
+                          ) $ NE.zip vars (iTy :| iTys)
     -- Then we add all the variables and their newly assigned types (which may still be TypeVar) to the context
     -- As we go bottom up, those variables will be the output of some function in outer scope, so we can type these
     -- fuctions output then.
@@ -245,30 +246,31 @@ typeBottomUp smf@(Let (SMapFun out@(_fst,_scnd,_trd) iterableVar ) inCont) = do
     return $ Let (SMapFun out iterableVar') inCont
 
 -- Stateful Functions
-typeBottomUp (Let (StateDFFun (mState, mData) f@(FunRef _fun _ (STFunType sty tyInfo)) stateIn dataIn) inCont) = do
+typeBottomUp (Let (StateDFFun (mState, mData) f@(FunRef _fun _ (STFunType sty argsTys retTy)) stateIn dataIn) inCont) = do
   -- traceM $ "Typing stateful function " <> show _fun <> " on obj type " <> show sty
   let stateIn' = case stateIn of
         (DFVar atBnd) -> DFVar $ replaceType atBnd (maxType (asType . unwrapTB $ atBnd) sty)
-  let dataIn' = case tyInfo of
-        (Right info) -> NE.map (\case
+  let dataIn' = case argsTys of
+        (aTy:aTys) -> NE.map (\case
                                     (DFVar atBnd, ty') -> DFVar $ replaceType atBnd ty'
                                     (DFEnvVar _ lit, ty') -> DFEnvVar ty' lit
-                                ) $ NE.zip dataIn info
-        (Left Unit) -> dataIn
+                                ) $ NE.zip dataIn (aTy:| aTys)
+        -- This case should be an error
+        [] -> dataIn
   -- Update State typeDispatch
   case stateIn' of
-    (DFVar atBnd) -> do 
+    (DFVar atBnd) -> do
       -- traceM $ "Updating input state" <> show bnd
       updateContext atBnd (maxType (asType . unwrapTB $ atBnd) sty)
       case mState of
-          Just (Direct stateBnd) -> 
+          Just (Direct stateBnd) ->
               -- traceM $ "Updating output state" <> show stateBnd
               updateContext stateBnd (maxType (asType . unwrapTB $ atBnd) sty)
           Just (Destruct stateBnds) -> error $ "Saw destruct of " <> show (NE.length stateBnds) <> ". Please report/handle!"
-          Just (Dispatch stateBnds) -> case stateBnds of 
+          Just (Dispatch stateBnds) -> case stateBnds of
               bnd :| [] -> error $ "Saw dispatch of "<> show bnd <> " binding. Could try to update"
               bdns -> error $ "Saw dispatch of "<> show (NE.length stateBnds) <> " binding. Please report/handle!"
-          Nothing -> return () 
+          Nothing -> return ()
   mapM_ (\case
             (DFVar atbnd) -> updateContext  atbnd (asType . unwrapTB $ atbnd)
             _ -> return ()
@@ -279,7 +281,7 @@ typeBottomUp (Let (StateDFFun (mState, mData) f@(FunRef _fun _ (STFunType sty ty
 typeBottomUp e'@(Let (StateDFFun _oBnds _stFun _stateIn _dataIn) _inCont)  = do
   -- traceM $ "Not typing StateDF function" 
   return e'
-  
+
 -- Recursion
 typeBottomUp (Let (RecurFun finalOut recCtrl argOuts initIns recIns cond result) inCont) = do
   knownVars <- get
@@ -292,7 +294,7 @@ typeBottomUp (Let (RecurFun finalOut recCtrl argOuts initIns recIns cond result)
                 DFVar atBnd ->  DFVar $ replaceType atBnd TypeBool
                 DFEnvVar _ty lit -> DFEnvVar TypeBool lit
 
-  
+
   let result' = case result of
                 DFVar atBnd -> case HM.lookup (unwrapABnd atBnd) knownVars of
                   -- REMINDER: We can not take the 'algo return type' because 
@@ -300,17 +302,17 @@ typeBottomUp (Let (RecurFun finalOut recCtrl argOuts initIns recIns cond result)
                   -- i.e. return of the outer algo need not be the return of the recursion
                   -- HACK: For now we can, because the only position a recursive call can actually appear in is
                   --       currently as the last expression of the outermost algo.
-                  Just (Exists (DFVar atBnd')) ->  DFVar $ replaceType atBnd (maxType (asType . unwrapTB $ atBnd) (asType . unwrapTB $ atBnd') ) 
+                  Just (Exists (DFVar atBnd')) ->  DFVar $ replaceType atBnd (maxType (asType . unwrapTB $ atBnd) (asType . unwrapTB $ atBnd') )
                   Just (Exists (DFEnvVar ty' _lit)) ->  DFVar $ replaceType atBnd (maxType (asType . unwrapTB $ atBnd) ty')
-                  Nothing -> case HM.lookup returnBinding knownVars of 
+                  Nothing -> case HM.lookup returnBinding knownVars of
                                   -- If we can't find the variable by name, we can type the return variable of the recursion using the algo return type as explained above 
                                   Just (Exists (DFVar retTyBnd)) -> DFVar $  replaceType atBnd (asType . unwrapTB $ retTyBnd)
                                   Nothing -> error "I couldn't find the algo return type when trying to type a recursion"
-                DFEnvVar _ty lit -> DFEnvVar TypeBool lit 
-  case result' of 
+                DFEnvVar _ty lit -> DFEnvVar TypeBool lit
+  case result' of
     var@(DFVar atBnd) -> updateContext atBnd (unwrapVarType var)
 
-  
+
   case cond of
         var@(DFVar atBnd) -> modify (HM.insert (unwrapVarBnd var)  $ Exists cond)
         (DFEnvVar _ty _lit) -> return ()
@@ -326,24 +328,24 @@ typeBottomUp _e'@(Let (IfFun outs inVar ) inCont) = do
   -- So we can make sure the input is typed correctly. 
   -- We also know the output type obv. This is not particularly useful in bottom up pass because we've probably typed the two outputs
   -- already, but we can make sure non the less
-  
-  let inVar' = case inVar of 
+
+  let inVar' = case inVar of
           (DFVar atBnd) -> DFVar $ replaceType atBnd TypeBool
           other_v -> other_v -- otherwise its a DFEnvVar
-  
-  case inVar' of 
+
+  case inVar' of
         var@(DFVar atBnd) -> updateContext atBnd (unwrapVarType var)
-        _ -> return()
+        _ -> return ()
 
   return $ Let (IfFun outs inVar' ) inCont
 
-typeBottomUp e'@(Let (SelectFun _out _sign _inOne _inTwo) _inCont) = 
+typeBottomUp e'@(Let (SelectFun _out _sign _inOne _inTwo) _inCont) =
   -- Currently not used 
   return e'
-typeBottomUp e'@(Let (CtrlFun _out _sigIn _dataIn) _inCont) = 
+typeBottomUp e'@(Let (CtrlFun _out _sigIn _dataIn) _inCont) =
   -- Currently not used 
   return e'
-typeBottomUp e'@(Let (CollectFun _out _sizeIn _unitIn ) _inCont ) = 
+typeBottomUp e'@(Let (CollectFun _out _sizeIn _unitIn ) _inCont ) =
     -- Currently not used 
   return e'
 
@@ -352,9 +354,9 @@ typeBottomUp var@(Var atBnd) = do
       let newReturnType =  case HM.lookup returnBinding ctxt of
               Just (Exists rvar@(DFVar retTyBnd)) -> unwrapVarType rvar
               _ -> error $ "Trying to type " <> show (unwrapABnd atBnd) <>" but the return type has already been taken. This is probably a compiler error."
-      
+
       -- we want the return value to have the return type
-      updateContext atBnd  newReturnType 
+      updateContext atBnd  newReturnType
       -- Actually we want to be sure, only the  return value get's the return type this way.
       -- But for now we use the reutrn type also to type recursion
       -- modify (HM.delete returnBinding)
@@ -370,7 +372,7 @@ maybeUpdateByOutData =
                            return newVar
                         Destruct _ -> unhandledCaseError
                         Dispatch _ -> unhandledCaseError
-    
+
 
 -- | Updates the type signatures of two zipped DFVars to match them, 
 --   giving the EnvVar type preference over the (possibly) inferred type of the other DFVar
@@ -429,9 +431,9 @@ maybeUpdate reference var = do
 updateContext :: MonadState (HashMap Binding (Exists ty)) m => ATypedBinding b ty -> VarType ty -> m ()
 updateContext atBnd newType  = do
   -- traceM $ "Updating binding " <> show aBnd <> " to type " <> show newType
-  modify (HM.insert (unwrapABnd atBnd) $ Exists (DFVar $ replaceType atBnd newType)) 
+  modify (HM.insert (unwrapABnd atBnd) $ Exists (DFVar $ replaceType atBnd newType))
 
-  
+
 
 -- | Picks a Argtype from two available ones, choosing any type over TypeVar or the second one.
 -- Problem is, we will assign type twice, when we type recursive functions. In that case we hit the 

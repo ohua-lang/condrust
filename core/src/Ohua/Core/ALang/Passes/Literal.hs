@@ -40,5 +40,6 @@ literalsToFunctions e =
         mkFun v lit body = return $ 
             Let
                 v
-                ((Lit $ FunRefLit $ FunRef R.id Nothing (FunType $ Right (TypeVar:|[]))) `Apply` lit)
+                -- Question: What's the type supposed to be?
+                ((Lit $ FunRefLit $ FunRef R.id Nothing (FunType [TypeVar] TypeVar)) `Apply` lit)
                 body

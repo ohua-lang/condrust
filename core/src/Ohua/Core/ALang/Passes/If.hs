@@ -110,17 +110,18 @@ import Ohua.Core.ALang.Passes.Control (liftIntoCtrlCtxt)
 import qualified Ohua.Core.ALang.Refs as Refs (ifFun, ifThenElse, select)
 import Ohua.Core.ALang.Util (mkDestructured)
 
-import Control.Category ((>>>))
+-- import Control.Category ((>>>))
 import qualified Data.Text as T
 
+-- Question: What'r those types supposed to be? Should this rater be functions of VarTypes?
 selectSf :: Expr ty
-selectSf = Lit $ FunRefLit $ FunRef Refs.select Nothing $ FunType $ Right $ TypeVar :| [ TypeVar, TypeVar]
+selectSf = Lit $ FunRefLit $ FunRef Refs.select Nothing $ FunType [TypeVar, TypeVar, TypeVar] TypeVar
 
 ifFunSf :: Expr ty
-ifFunSf = Lit $ FunRefLit $ FunRef Refs.ifFun Nothing $ FunType $ Right $ TypeVar :| []
+ifFunSf = Lit $ FunRefLit $ FunRef Refs.ifFun Nothing $ FunType [TypeVar] TypeVar
 
 ifSf :: Expr ty
-ifSf = Lit $ FunRefLit $ FunRef Refs.ifThenElse Nothing $ FunType $ Right $ TypeVar :| [TypeVar, TypeVar]
+ifSf = Lit $ FunRefLit $ FunRef Refs.ifThenElse Nothing $ FunType [TypeVar, TypeVar, TypeVar] TypeVar
 
 #if 1
 -- This is a proposal for `ifRewrite` that uses plated to make sure the
@@ -169,7 +170,7 @@ ifRewrite = transformM $ \case
         -- FIXME The proper way to do this would actually define a cond type! Then also
         --       the above error would immediately go away.
         -- Question: I'm not sure if I understand the problem here. but can't we solve it having the actual types now?
-        isUnit (TBind bnd ty) = T.isPrefixOf "_" (unwrap bnd)
+        isUnit (TBind bnd _ty) = T.isPrefixOf "_" (unwrap bnd)
     e -> pure e
 
 #else

@@ -27,7 +27,8 @@ import qualified Ohua.Core.ALang.Refs as Refs (seqFun)
 -- import Ohua.Core.ALang.Util (lambdaArgsAndBody)
 
 seqFunSf :: Expr ty
-seqFunSf = Lit $ FunRefLit $ FunRef Refs.seqFun Nothing $ FunType $ Right $ TypeVar :| []
+-- Question: Whats the type supposed to be?
+seqFunSf = Lit $ FunRefLit $ FunRef Refs.seqFun Nothing $ FunType [TypeVar] TypeVar
 
 -- The below version of seq dates back to a time where did not have the concept of
 -- state threads. State threads sequence side-effects now. And the only means for

@@ -197,10 +197,9 @@ liftIntoCtrlCtxt ctrlIn e0 = do
           Let
             (TBind ctrlOut controlSignalType)
             ( fromListToApply
+                -- Question: What's the type supposed to be?
                 ( FunRef Refs.ctrl Nothing $
-                    FunType $
-                      Right $
-                          map ( const controlSignalType ) actuals'
+                    FunType (toList $ map ( const controlSignalType ) actuals') TypeVar
                 )
                 $ toList actuals'
             )
@@ -246,7 +245,8 @@ splitCtrls = transform go
                         varOut
                         ( Lit
                             ( FunRefLit $
-                                FunRef op i $ FunType $ Right (TypeVar :| [TypeVar])
+                                -- Question: What's the type supposed to be?
+                                FunRef op i $ FunType [TypeVar,TypeVar] TypeVar
                             )
                             `Apply` ctrlSig
                             `Apply` varIn

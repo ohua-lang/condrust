@@ -30,7 +30,7 @@ substitute :: Binding -> Expr ty -> Expr ty -> Expr ty
 -- caught.
 substitute !var val =
     transform $ \case
-        Var (TBind v ty)
+        Var (TBind v _ty)
             | v == var -> val
         other -> other
 
@@ -47,8 +47,8 @@ destructure source bnds =
     map (\(idx, bnd0) -> Let bnd0 $ mkNthExpr idx source) (zip [0 ..] bnds)
   where
     mkNthExpr idx source0 =
-        -- ToDo: Type Function correctly becuase now we should be able to do this
-        pureFunction Refs.nth Nothing (FunType $ Right (TypeVar :| [TypeVar,TypeVar])) `Apply` (Lit $ NumericLit idx) `Apply`
+        -- Question: Whats the type supposed to be
+        pureFunction Refs.nth Nothing (FunType [TypeVar,TypeVar,TypeVar] TypeVar) `Apply` (Lit $ NumericLit idx) `Apply`
         (Lit $ NumericLit $ toInteger $ length bnds) `Apply`
         source0
 
@@ -95,7 +95,7 @@ lambdaLifting e = do
                 UnitLit -> ("unit", TypeUnit)
                 BoolLit b -> (show b, TypeBool)
                 StringLit str -> (show str, TypeString)
-                FunRefLit ref -> error "Unsupported transformation of fun_ref literal" -- FIXME
+                FunRefLit _ref -> error "Unsupported transformation of fun_ref literal" -- FIXME
                 -- ToDo: To get rid of those I'll probably have to require envrefs to be typed ()l in general ?
                 EnvRefLit li -> ("env_" <> show li, TypeVar)
     bindingFromAny anyE = error $ "Sorry, we forgott to implement bindingFromAny for " <> show anyE
@@ -149,21 +149,21 @@ definedBindings e =
 -- intersection, therefore it relies on the fact that the expression is in SSA
 -- form.
 findFreeVariables :: Expr ty -> [Expr ty]
-findFreeVariables e = map Var (findFreeBindings' e)
+findFreeVariables e = map Var (findFreeBindings e)
 
 -- Question: Somehow the original findFreeBindings method gets stuck in some test cases where
 -- arguments come from surrounding scopes e.g. when we're inside a branch or loop for example the case "loop with stateless condition" in Rust/SharedMemory
-findFreeBindings :: Expr ty -> [TypedBinding ty]
+{- findFreeBindings :: Expr ty -> [TypedBinding ty]
 findFreeBindings e =
     sort $ -- makes the list of args deterministic
     toList $
     HS.difference
         (HS.fromList [v | Var v <- universe e])
-        (HS.fromList $ definedBindings e)
+        (HS.fromList $ definedBindings e)-}
 
 -- This version of findFreeVaraibles doesn't sort but oder is deterministic because we do not convert lists to set
-findFreeBindings':: Expr ty -> [TypedBinding ty]
-findFreeBindings' e = 
+findFreeBindings:: Expr ty -> [TypedBinding ty]
+findFreeBindings e = 
     let usedInE = [v | Var v <- universe e]
         boundInE = definedBindings e
     in filter (\bnd -> not (elem bnd boundInE)) usedInE

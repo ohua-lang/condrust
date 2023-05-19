@@ -241,41 +241,42 @@ handleApplyExpr (Apply fn a) = go (a :| []) fn
       case e of
         Apply f arg -> do
           go (arg NE.<| args) f
-        Lit (FunRefLit fr@(FunRef f _ident (FunType argTypes))) -> do
+        Lit (FunRefLit fr@(FunRef f _ident (FunType argTypes retTy))) -> do
           assertTermTypes args argTypes "function" f
           return (fr, Nothing, zip' argTypes args)
-        Lit (FunRefLit (FunRef qb _ Untyped)) ->
-          failWith $ "Wrong function type 'untyped' for pure function: " <> show qb
         Lit (FunRefLit (FunRef qb _ STFunType {})) ->
           failWith $ "Wrong function type 'st' for pure function: " <> show qb
-        BindState _state0 (Lit (FunRefLit (FunRef f _ Untyped))) ->
-          failWith $ "Wrong function type 'untyped' for st function: " <> show f
         BindState _state0 (Lit (FunRefLit (FunRef f _ FunType {}))) ->
           failWith $ "Wrong function type 'pure' for st function: " <> show f
-        BindState state0 (Lit (FunRefLit fr@(FunRef f _ (STFunType sType argTypes)))) -> do
+        BindState state0 (Lit (FunRefLit fr@(FunRef f _ (STFunType sType argTypes retTy)))) -> do
           assertTermTypes args argTypes "stateful function" f
           state' <- expectStateBnd state0
           return (fr, Just state', zip' argTypes args)
         x -> failWith $ "Expected Apply or Var but got: " <> show (x :: ALang.Expr ty)
     assertTermTypes termArgs typeArgs funType f =
       assertE
-        -- length of Unit = 1?
-        -- implement Foldable for Either (Unit (NonEmpty ...))
         (length termArgs == length' typeArgs)
-        $ "Arg types [len: " <> show (length' typeArgs)
+        $ "Arg types [len: "
+          <> show (length typeArgs)
+          <> " types: " <> foldl (\s t -> s <>", " <> show t) "" typeArgs
           <> "] and args [len: "
           <> show (length termArgs)
+          <> " terms: " <> foldl (\s t -> s <>", " <> show t) "" termArgs
           <> "] don't match for stateful "
           <> funType
           <> ": "
           <> show f
-    length' expr = case expr of
-      Left Unit -> 1
-      Right l -> length l
 
-    zip' :: Either Unit (NonEmpty (VarType ty)) -> NonEmpty b -> NonEmpty (VarType ty, b)
-    zip' (Left Unit) bs = NE.zip (TypeVar :| []) bs -- FIXME this seems wrong to me. it should be a unitVal. It points to a problem that we we still have with Unit. We do not distinguish between a unit type and a unit value. and I'm not even sure that there should be such a thing as a unit value unless the controls need it.
-    zip' (Right as) bs = NE.zip as bs
+    -- The compiler adds a Unit term to the terms of an application when it has actually no arguments
+    -- so in that case, we expect the terms list to be one item longer than the list of argument types
+    -- This modification of length fixes the comparison (in a quity hacky way :-/)
+    length' types = if null types
+                      then 1
+                      else length types
+
+    zip' :: [VarType ty] -> NonEmpty b -> NonEmpty (VarType ty, b)
+    zip' [] bs = NE.zip (TypeVar :| []) bs -- FIXME this seems wrong to me. it should be a unitVal. It points to a problem that we we still have with Unit. We do not distinguish between a unit type and a unit value. and I'm not even sure that there should be such a thing as a unit value unless the controls need it.
+    zip' (a:as) bs = NE.zip (a:|as) bs
 handleApplyExpr g = failWith $ "Expected apply but got: " <> show g
 
 -- FIXME This assumption would have been better defined at the type level.
@@ -300,3 +301,4 @@ expectStateBnd :: (HasCallStack, MonadError Error m) => ALang.Expr ty -> m (ATyp
 expectStateBnd (ALang.Var tBnd) = pure $ StateBinding tBnd
 expectStateBnd a =
   throwErrorS $ "State argument must be local binding, was " <> show a
+

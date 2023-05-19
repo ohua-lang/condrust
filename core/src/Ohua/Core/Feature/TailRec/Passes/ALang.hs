@@ -229,11 +229,13 @@ recur = ALangRefs.recur -- allows me to use it in binding position
 recurHof :: QualifiedBinding
 recurHof = "ohua.lang/recur_hof"
 
+-- Question: What'r those types supposed to be? Should this rater be functions of VarTypes?
 recurSf :: Expr ty
-recurSf = pureFunction recur Nothing Untyped
+recurSf = pureFunction recur Nothing $ FunType [] TypeVar
 
 recurHofSf :: Expr ty
-recurHofSf = pureFunction recurHof Nothing Untyped
+recurHofSf = pureFunction recurHof Nothing $ FunType [] TypeVar
+
 
 recurStartMarker :: QualifiedBinding
 recurStartMarker = "ohua.lang.marker/recur_start"
@@ -246,16 +248,18 @@ y :: QualifiedBinding
 y = "ohua.lang/Y"
 
 ySf :: Expr ty
-ySf = pureFunction y Nothing Untyped
+ySf = pureFunction y Nothing $ FunType [] TypeVar
+
 
 recurFun :: QualifiedBinding
 recurFun = ALangRefs.recurFunBnd
 
 recurFunPureFunction :: Expr ty
-recurFunPureFunction = pureFunction recurFun Nothing Untyped
+recurFunPureFunction = pureFunction recurFun Nothing $ FunType [] TypeVar
+
 
 idPureFunction :: Expr ty
-idPureFunction = pureFunction "ohua.lang/id" Nothing (FunType $ Right $ fromList [TypeVar])
+idPureFunction = pureFunction "ohua.lang/id" Nothing (FunType [TypeVar] TypeVar)
 
 -- Phase 1:
 findTailRecs ::
@@ -425,8 +429,8 @@ rewriteCallExpr e = do
         | otherwise = error "Value returned from recursive function was not last value bound, this is not tail recursive!"
     rewriteLastCond (Let v ex ie) = Let v ex $ rewriteLastCond ie
 
-    -- I think this will change in the future
-    genFunType callArgs =  FunType $ Right $ fromList $ map exprType callArgs
+    -- Question: What's the return type supposed to be?
+    genFunType callArgs =  FunType (map exprType callArgs) TypeVar
 
     -- This whole rewriteCond and rewriteBranch algorithm is not correct. That
     -- is to say it only works in the specific case where a single `if` is the

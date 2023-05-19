@@ -15,7 +15,7 @@ module Ohua.Core.ALang.Passes.State where
 
 import Ohua.Core.Prelude
 
-import Ohua.Types.Vector hiding (map, zip, zip3, unzip, unzip3, filter)
+import Ohua.Types.Vector hiding (map, zip, zip3, unzip, unzip3, filter, toList)
 import Ohua.Core.ALang.Lang
 import Ohua.Core.ALang.Util
 import Ohua.Core.ALang.Passes.SSA
@@ -48,18 +48,21 @@ postControlPasses :: Expr ty -> Expr ty
 postControlPasses = transformCtxtExits -- . traceShow "transforming ctxt exists!" -- TODO assert here that no more ctxt exits remain in the code
 
 runSTCLangSMapFun :: Expr ty
-runSTCLangSMapFun = Lit $ FunRefLit $ FunRef Refs.runSTCLangSMap Nothing $ FunType $ Right (TypeVar :| [TypeVar]) -- size and the state, i.e., there is one per state
+runSTCLangSMapFun = Lit $ FunRefLit $ FunRef Refs.runSTCLangSMap Nothing $ FunType [TypeVar, TypeVar] TypeVar -- size and the state, i.e., there is one per state
 
 -- FIXME this functions can not be untyped anymore!
+-- Question: Where isit used and what's the type supposed to be?
 runSTCLangIfFun :: Expr ty
-runSTCLangIfFun = Lit $ FunRefLit $ FunRef Refs.runSTCLangIf Nothing Untyped
+runSTCLangIfFun = Lit $ FunRefLit $ FunRef Refs.runSTCLangIf Nothing $ FunType [] TypeVar
 
 -- invariant: this type of node has at least one var as input (the computation result)
 ctxtExit :: QualifiedBinding
 ctxtExit = "ohua.lang/ctxtExit"
 
+
+-- Question: Where isit used and what's the type supposed to be?
 ctxtExitFunRef :: SNat ('Succ n) -> Expr ty
-ctxtExitFunRef num = Lit $ FunRefLit $ FunRef ctxtExit Nothing $ FunType $ Right $ replicateNE num TypeVar
+ctxtExitFunRef num = Lit $ FunRefLit $ FunRef ctxtExit Nothing $ FunType (toList $ replicateNE num TypeVar) TypeVar
 
 -- | Transforms every stateful function into a fundamental state thread.
 --   Corrects the reference to the state for the rest of the computation.
@@ -89,7 +92,7 @@ transformFundamentalStateThreads = transformM f
 
     stBndForStatefulFun (StatefulFunction _ _ (Var tBnd@(TBind bnd ty))) = do Just . (\newBnd -> (tBnd, TBind newBnd ty)) <$> generateBindingWith bnd
     -- FIXME Once again, this stupid over-generalization of the language is a pain!
-    stBndForStatefulFun e@(StatefulFunction _ _ _) = error $ "state should have been var: " <> show e
+    stBndForStatefulFun e@(StatefulFunction {}) = error $ "state should have been var: " <> show e
     stBndForStatefulFun (e1 `Apply` _)            = stBndForStatefulFun e1
     stBndForStatefulFun _                         = return Nothing
 
@@ -178,7 +181,7 @@ transformControlStateThreads = transformM f
               HS.foldr
               (\missingState c ->
                  Let missingState
-                 (pureFunction Refs.id Nothing (FunType (Right (TypeVar :| [])) )
+                 (pureFunction Refs.id Nothing (FunType [TypeVar] TypeVar) 
                    `Apply` Var missingState)
                  c)
             trueBranch' = applyToBody (`addMissing` trueBranchStatesMissing) trueBranch

@@ -210,7 +210,7 @@ ensureAtLeastOneCall :: (Monad m, MonadGenBnd m) => Expr ty -> m (Expr ty)
 ensureAtLeastOneCall e@(Var _) = do
     newBnd <- generateBinding
     -- QUestion: What happens here and what's the type of newBnd supposed to be?
-    pure $ Let (TBind newBnd TypeVar) (pureFunction Refs.id Nothing (FunType $ Right $ TypeVar :| [])`Apply` e) $ Var (TBind newBnd TypeVar)
+    pure $ Let (TBind newBnd TypeVar) (pureFunction Refs.id Nothing (FunType [TypeVar] TypeVar )`Apply` e) $ Var (TBind newBnd TypeVar)
 ensureAtLeastOneCall e = cata f e
   where
     f (LambdaF bnd body) =
@@ -219,7 +219,7 @@ ensureAtLeastOneCall e = cata f e
                 newBnd <- generateBinding
                 pure $
                     Lambda bnd $
-                    Let (TBind newBnd TypeVar) (pureFunction Refs.id Nothing (FunType $ Right $ TypeVar :| []) `Apply` v) $
+                    Let (TBind newBnd TypeVar) (pureFunction Refs.id Nothing (FunType [TypeVar] TypeVar ) `Apply` v) $
                     Var (TBind newBnd TypeVar)
             eInner -> pure $ Lambda bnd eInner
     f eInner = embed <$> sequence eInner

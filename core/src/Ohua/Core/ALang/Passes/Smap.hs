@@ -33,11 +33,12 @@ import Ohua.Core.Prelude
 
 import Ohua.Core.ALang.PPrint ()
 
+-- Question: What'r those types supposed to be? Should this rater be functions of VarTypes?
 smapSfFun :: Expr ty
-smapSfFun = Lit $ FunRefLit $ FunRef Refs.smapFun Nothing $ FunType $ Right $ TypeVar :| []
+smapSfFun = Lit $ FunRefLit $ FunRef Refs.smapFun Nothing $ FunType [TypeVar] TypeVar
 
 collectSf :: Expr ty
-collectSf = Lit $ FunRefLit $ FunRef Refs.collect Nothing $ FunType $ Right $ TypeVar :| [TypeVar]
+collectSf = Lit $ FunRefLit $ FunRef Refs.collect Nothing $ FunType [TypeVar, TypeVar] TypeVar
 
 smapRewrite :: (Monad m, MonadGenBnd m) => Expr ty -> m (Expr ty)
 smapRewrite =
