@@ -54,9 +54,9 @@ import Ohua.Prelude
 import Data.Functor.Foldable.TH (makeBaseFunctor)
 import Control.Lens.Plated
 -- import Language.Haskell.TH.Syntax (Lift)
-import Control.Category ((>>>))
+-- import Control.Category ((>>>))
 
-import Ohua.Core.Types
+-- import Ohua.Core.Types
 
 -------------------- Basic ALang types --------------------
 
@@ -78,7 +78,7 @@ data TypedBinding ty = TBind Binding (VarType ty) deriving (Show, Generic)
 -- As long as we can not make sure, that every binding and usage side is correctly typed, tranformations, in particular the ones that determine if something is used
 -- should only check if something with the same name, not necesarily the same type annotation is used.
 instance Eq (TypedBinding ty) where
-    (TBind b1 ty1) == (TBind b2 ty2) = b1 == b2
+    (TBind b1 _ty1) == (TBind b2 _ty2) = b1 == b2
 
 asBnd :: TypedBinding ty -> Binding
 asBnd (TBind bnd _ty) = bnd 
@@ -89,23 +89,25 @@ asType (TBind _bnd ty) = ty
 -- ToDo: Actually every expression should be typable at this point
 exprType:: Expr ty -> VarType ty
 exprType e = case e of 
-    Var (TBind bnd ty) -> ty 
+    Var (TBind _bnd ty) -> ty 
     Lit lit -> case getVarType lit of
         Just ty -> ty
         Nothing -> TypeVar 
     -- Let should be typed by e2, because this is what it resturns
-    Let bnd e1 e2 -> error $ "Trying to retrieve the type of a `let expr`, which are currently not typed. Please report this error" 
+    Let _bnd _e1 _e2 -> error $ "Trying to retrieve the type of a `let expr`, which are currently not typed. Please report this error" 
     -- Apply (\x:T1. term:T2) (t:T1), should obviously be typed as T2
-    Apply funE argE -> error $ "Trying to retrieve the type of a `apply expr`, which are currently not typed. Please report this error" 
+    Apply _funE _argE -> error $ "Trying to retrieve the type of a `apply expr`, which are currently not typed. Please report this error" 
     -- Type of an abstraction (\x:T1. term:T2) should be T1 -> T2
-    Lambda argE termE -> error $ "Trying to retrieve the type of a `lambda expr`, which are currently not typed. Please report this error" 
+    Lambda _argE _termE -> error $ "Trying to retrieve the type of a `lambda expr`, which are currently not typed. Please report this error" 
     -- Type of a method Bind obj:TO (\x:T1. term:T2) is (TO, T2), because a new state and the return term are
     -- returned
-    BindState objE methodcallE -> error $ "Trying to retrieve the type of a `method call expr`, which are currently not typed. Please report this error" 
+    BindState _objE _methodcallE -> error $ "Trying to retrieve the type of a `method call expr`, which are currently not typed. Please report this error" 
 
 
-instance Ord (TypedBinding ty)
 instance Hashable (TypedBinding ty)
+
+instance Ord (TypedBinding ty) where
+    (TBind b1 _ty1) <= (TBind b2 _ty2) = b1 <= b2
 
 -------------------- Recursion schemes support --------------------
 
