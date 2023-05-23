@@ -77,7 +77,7 @@ compileModule inCode opts compType = do
                 $ \outDir -> do
                     let compScope = HM.empty
                     let options = if debug then withDebug opts else opts
-                    runCompM
+                    runErrAndLogM
                         LevelWarn
                         $ compile inFile compScope options integrationOptions outDir
                     (caller:modules) <- listDirectory outDir

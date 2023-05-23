@@ -36,7 +36,7 @@ main = do
       copts@CompilerOptions {..} <- runExceptM $ loadConfig config
       let coreOpts = extractCoreOptions copts
       let targetConf = extractIntegrationConfig copts
-      runCompM
+      runErrAndLogM
         (logLevel debug)
         $ compile inputModuleFile compilationScope coreOpts targetConf outputPath
   where

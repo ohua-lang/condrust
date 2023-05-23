@@ -33,7 +33,7 @@ import Ohua.Integration.Architecture (Arch, Architectures)
 import System.FilePath
 
 
-compile :: CompM m
+compile :: ErrAndLogM m
         => FilePath           -- ^ Input: path to the file to be compiled
         -> CompilationScope   -- ^ Frontend config: scope of the current compilation
         -> CoreEnv.Options    -- ^ Core config
@@ -47,7 +47,7 @@ compile inFile compScope coreOpts integConf outDir =
         (compilation inFile compScope coreOpts outDir)
 
 compilation :: forall (lang::Lang) (arch::Arch) m.
-    (CompM m, FullIntegration lang arch)
+    (ErrAndLogM m, FullIntegration lang arch)
     => FilePath 
     -> CompilationScope 
     -> CoreEnv.Options 
@@ -69,7 +69,7 @@ compilation inFile compScope coreOpts outDir optimizations integration arch = do
     B.backend outDir extracted_algos_final ctxt arch enc_module
 
     where
-        -- core ::forall (lang::Lang) (arch::Arch) m ty. (CompM m, FullIntegration lang arch) => ty -> ALang.Expr ty -> m (DFLang.NormalizedDFExpr ty)
+        -- core ::forall (lang::Lang) (arch::Arch) m ty. (ErrAndLogM m, FullIntegration lang arch) => ty -> ALang.Expr ty -> m (DFLang.NormalizedDFExpr ty)
         core = Core.compile coreOpts coreOptimizations
         coreOptimizations =
           case optimizations of

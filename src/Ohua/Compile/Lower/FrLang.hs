@@ -211,7 +211,7 @@ trans =
              "(function arguments or let bound variables) should be single vars or wild card but " <> show p <>
              "is not. Please file a bug."
 
-toAlang' :: CompM m => HS.HashSet Binding -> Expr ty -> m (ALang.Expr ty)
+toAlang' :: ErrAndLogM m => HS.HashSet Binding -> Expr ty -> m (ALang.Expr ty)
 toAlang' taken expr = runGenBndT taken $ transform expr
     where 
         transform =
@@ -220,7 +220,7 @@ toAlang' taken expr = runGenBndT taken $ transform expr
             mkLamSingleArgument >>> 
             removeDestructuring >=> pure . trans
 
-toAlang :: CompM m => FR.Expr ty -> m (ALang.Expr ty)
+toAlang :: ErrAndLogM m => FR.Expr ty -> m (ALang.Expr ty)
 toAlang expr =  toAlang' (definedBindings expr) expr
 
 definedBindings :: FR.Expr ty -> HS.HashSet Binding

@@ -34,7 +34,7 @@ spec =
                 Lit (NumericLit total) `Apply`
                 Var objBnd
             runRemDestr =
-                runCompM LevelDebug .
+                runErrAndLogM LevelDebug .
                 toAlang' (HS.fromList ["a", "b", "c"])
         it "removes destructuring from lets" $
             let objBnd = TBind "d" (TupleTy $ TypeVar :| [TypeVar, TypeVar])

@@ -17,7 +17,7 @@ import qualified Data.HashSet as HS
 import Ohua.Core.DFLang.PPrint (prettyExpr)
 
 -- Invariant in the result type: the result channel is already part of the list of channels.
-toTCLang :: CompM m => NormalizedDFExpr ty -> m (TCProgram (Channel ty) (Com 'Recv ty) (FusableExpr ty))
+toTCLang :: ErrAndLogM m => NormalizedDFExpr ty -> m (TCProgram (Channel ty) (Com 'Recv ty) (FusableExpr ty))
 toTCLang gr = do
     let channels = generateArcsCode gr
     (tasks, resultChan) <- generateNodesCode gr
@@ -25,10 +25,10 @@ toTCLang gr = do
 
 type LoweringM m a = m a
 
-invariantBroken :: CompM m => Text -> LoweringM m a
+invariantBroken :: ErrAndLogM m => Text -> LoweringM m a
 invariantBroken msg = throwError $ "Compiler invariant broken! " <> msg
 
-generateNodesCode :: CompM m => NormalizedDFExpr ty ->  LoweringM m ([FusableExpr ty], Com 'Recv ty)
+generateNodesCode :: ErrAndLogM m => NormalizedDFExpr ty ->  LoweringM m ([FusableExpr ty], Com 'Recv ty)
 generateNodesCode = go
     where
         go (DFLang.Let app cont) = do
@@ -40,7 +40,7 @@ generateNodesCode = go
           -- Question: Done?
           in return ([], SRecv ty $ SChan bnd) -- FIXME needs a concrete type!
 
-generateFunctionCode :: forall ty a m. CompM m => DFApp a ty -> LoweringM m (FusableExpr ty)
+generateFunctionCode :: forall ty a m. ErrAndLogM m => DFApp a ty -> LoweringM m (FusableExpr ty)
 generateFunctionCode = \case
     
     (PureDFFun out fn (DFEnvVar TypeUnit UnitLit:|[]) )-> do
@@ -82,7 +82,7 @@ generateFunctionCode = \case
       toDirect _ Nothing = return Nothing
       toDirect fn e = throwError $ "Unsupported multiple outputs for state on stateful function " <> show fn <> ": " <> show e
 
-pureOut :: (CompM m, Show a) => a -> OutData bty ty -> LoweringM m (NonEmpty (Ops.Result ty))
+pureOut :: (ErrAndLogM m, Show a) => a -> OutData bty ty -> LoweringM m (NonEmpty (Ops.Result ty))
 pureOut _ (Direct out) = return ((Ops.SendResult $ SChan (unwrapABnd out)) :| [])
 pureOut _ (Destruct outs) = do 
   send_results <- mapM directToSendResult outs
@@ -94,7 +94,7 @@ pureOut _ (Dispatch outs) = return $ (Ops.DispatchResult $ map (SChan . unwrapAB
 -- Basically the same as the above, but will error on non-directs for now, to not support
 -- nested outputs 
 -- ToDo: Check if restriction is needed
-directToSendResult :: (CompM m ) => OutData bty ty -> m ( Ops.Result ty)
+directToSendResult :: (ErrAndLogM m ) => OutData bty ty -> m ( Ops.Result ty)
 directToSendResult  (Direct out) = return (Ops.SendResult $ SChan (unwrapABnd out))
 directToSendResult  e = throwError $ "Unsupported output configuration on: " <> show e
 
@@ -122,7 +122,7 @@ generateArcsCode = go
         manuallyDedup :: [Com 'Recv ty] -> [Com 'Recv ty]
         manuallyDedup = foldr (\x acc -> if x `elem` acc then acc else x : acc) []
 -- FIXME see sertel/ohua-core#7: all these errors would immediately go away
-generateNodeCode :: CompM m => DFApp bty ty ->  LoweringM m (FusableExpr ty)
+generateNodeCode :: ErrAndLogM m => DFApp bty ty ->  LoweringM m (FusableExpr ty)
 generateNodeCode e@(SMapFun (dOut,ctrlOut,sizeOut) inp) = do
     let input =
           case inp of
@@ -136,17 +136,17 @@ generateNodeCode e@(SMapFun (dOut,ctrlOut,sizeOut) inp) = do
     sizeOut' <- maybe [] toList <$> intoChan sizeOut
     return $ SMap $ Ops.smapFun input dOut'' ctrlOut' sizeOut'
     where
-      intoChan :: CompM m => Maybe (OutData bty ty ) -> m (Maybe (NonEmpty (Com 'Channel ty)))
+      intoChan :: ErrAndLogM m => Maybe (OutData bty ty ) -> m (Maybe (NonEmpty (Com 'Channel ty)))
       intoChan o = do
         o' <- sequence (serializeOut <$> o)
         let o'' = map (SChan. asBnd) <$> o'
         return o''
 
-      serializeDataOut :: CompM m => NonEmpty (Com 'Channel ty) -> m (Com 'Channel ty)
+      serializeDataOut :: ErrAndLogM m => NonEmpty (Com 'Channel ty) -> m (Com 'Channel ty)
       serializeDataOut (a :| []) = pure a
       serializeDataOut _ = throwError "We currently do not support destructuring and dispatch for loop data."
 
-      serializeOut :: CompM m => OutData b ty -> m (NonEmpty (TypedBinding ty))
+      serializeOut :: ErrAndLogM m => OutData b ty -> m (NonEmpty (TypedBinding ty))
       serializeOut Destruct{} = throwError $ "We currently do not support destructuring on loop data: " <> show e
       serializeOut o = pure $ toOutBnds o
 
@@ -335,7 +335,7 @@ generateNodeCode e@(RecurFun resultOut ctrlOut recArgsOuts recInitArgsIns recArg
         -- stronger typing needed on OutData to prevent this error handling here.
         -- (as a matter of fact it might be possible for some output to be destructured etc.
         --  we need a function here that turns such a thing into the appropriate backend code!)
-        directOut :: CompM m => OutData bty ty -> LoweringM m (Com 'Channel ty)
+        directOut :: ErrAndLogM m => OutData bty ty -> LoweringM m (Com 'Channel ty)
         directOut x = case x of
                         Direct x' -> return $ SChan $ unwrapABnd x'
                         _ -> invariantBroken $ "Control outputs don't match:\n" <> show e
