@@ -50,7 +50,7 @@ instance Integration (Language 'Python) where
          ignored for now. 
     -}
     -- REMINDER: Type of placeholder needs to be adapted here
-    loadNs :: CompM m => Language 'Python -> FilePath -> m (Module, PythonNamespace, Module)
+    loadNs :: ErrAndLogM m => Language 'Python -> FilePath -> m (Module, PythonNamespace, Module)
     loadNs _ srcFile = do
             mod <- liftIO $ load srcFile
             ns <- extractNs mod
@@ -59,7 +59,7 @@ instance Integration (Language 'Python) where
             --  b) the python module consisting of the extracted functions
             return (Module srcFile mod, ns, Module "placeholderlib.py" placeholderModule)
             where
-                extractNs :: CompM m => Py.Module SrcSpan -> m PythonNamespace
+                extractNs :: ErrAndLogM m => Py.Module SrcSpan -> m PythonNamespace
                 extractNs (Py.Module statements) = do
                     imports <- concat . catMaybes <$>
                             mapM
@@ -87,17 +87,17 @@ instance Integration (Language 'Python) where
                                 statements
                     return $ Namespace (filePathToNsRef srcFile) imports algos
 
-                extractAlgo :: CompM m => Py.Statement SrcSpan -> m (FrLang.Expr PythonVarType )
+                extractAlgo :: ErrAndLogM m => Py.Statement SrcSpan -> m (FrLang.Expr PythonVarType )
                 extractAlgo function = do
                     args' <- mapM ((`evalStateT` HM.empty) . subParamToIR <=< paramToSub) (Py.fun_args function)
                     block' <- ((`evalStateT` HM.empty) . subSuiteToIR <=< suiteToSub) (Py.fun_body function)
                     return $ LamE args' block'
 
-                extractImports::CompM m => [Py.ImportItem SrcSpan] -> m [Import]
+                extractImports::ErrAndLogM m => [Py.ImportItem SrcSpan] -> m [Import]
                 extractImports [] = throwError "Invalid: Empty import should not have passed the python parser"
                 extractImports imports  = return $ map globOrAlias imports
 
-                extractRelativeImports::CompM m => Py.ImportRelative SrcSpan -> Py.FromItems SrcSpan -> m [Import]
+                extractRelativeImports::ErrAndLogM m => Py.ImportRelative SrcSpan -> Py.FromItems SrcSpan -> m [Import]
                 extractRelativeImports imp@(Py.ImportRelative numDots mDottedName annot) fromItems =
                     case mDottedName of
                         Just names -> case fromItems of
@@ -116,7 +116,7 @@ instance Integration (Language 'Python) where
     --   As we currently do not 'type' any of the arguments in Python and the number of
     --   (explicit) arguments may vary for each function due to default values, we just assign
     --   a type of [PyObject] to every function call site.
-    loadTypes :: CompM m => Language 'Python ->
+    loadTypes :: ErrAndLogM m => Language 'Python ->
                     Module ->
                     PythonNamespace ->
                     m PythonNamespace
@@ -127,7 +127,7 @@ instance Integration (Language 'Python) where
         types' <- HM.fromList <$> mapM (verifyAndRegister fun_types) filesAndPaths'-}
         updateExprs ohuaNS (transformM (assignTypes HM.empty))
         where
-            {-funsForAlgo :: CompM m => Algo (FrLang.Expr PythonVarType) (Py.Statement SrcSpan)
+            {-funsForAlgo :: ErrAndLogM m => Algo (FrLang.Expr PythonVarType) (Py.Statement SrcSpan)
                     -> m [([NSRef], QualifiedBinding)]
             funsForAlgo (Algo _name code annotation) = do
                 return []
@@ -137,15 +137,15 @@ instance Integration (Language 'Python) where
             convertOwn [] = [filePathToNsRef filepath]
             convertOwn n = n
 
-            typesFromNS :: CompM m => [NSRef] -> m FunTypes
+            typesFromNS :: ErrAndLogM m => [NSRef] -> m FunTypes
             typesFromNS nsRefs = HM.unions <$> mapM (extractFromFile . toFilePath . (,".py") ) nsRefs
 
-            verifyAndRegister :: CompM m => FunTypes -> ([NSRef], QualifiedBinding)
+            verifyAndRegister :: ErrAndLogM m => FunTypes -> ([NSRef], QualifiedBinding)
                         -> m (QualifiedBinding, FunType PythonVarType)
             verifyAndRegister fun_types ([candidate], qB@(QualifiedBinding _ qBName)) = undefined
             verifyAndRegister fun_types ( _ , qB@(QualifiedBinding _ qBName)) = undefined-}
 
-            assignTypes :: CompM m => FunTypes -> FrLang.Expr PythonVarType -> m (FrLang.Expr PythonVarType)
+            assignTypes :: ErrAndLogM m => FunTypes -> FrLang.Expr PythonVarType -> m (FrLang.Expr PythonVarType)
             assignTypes funTypes function = case function of
                 (AppE (LitE (FunRefLit (FunRef qBinding funID _))) args) ->
                     return $

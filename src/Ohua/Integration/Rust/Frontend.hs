@@ -42,7 +42,7 @@ instance Integration (Language 'Rust) where
   type AlgoSrc (Language 'Rust) = Item Span
 
   loadNs ::
-    CompM m =>
+    ErrAndLogM m =>
     Language 'Rust ->
     FilePath ->
     m (Module, Namespace (FrLang.Expr RustVarType) (Item Span) RustVarType, Module)
@@ -54,7 +54,7 @@ instance Integration (Language 'Rust) where
     return (Module srcFile mod, ns, Module "placeholderlib.rs" placeholderModule)
     where
       extractNs ::
-        CompM m =>
+        ErrAndLogM m =>
         SourceFile Span ->
         m (Namespace (FrLang.Expr RustVarType) (Item Span) RustVarType)
 
@@ -96,7 +96,7 @@ instance Integration (Language 'Rust) where
 
       -- FIXME: Paths inside a crate would be use crate::something. Actually we'd need proper name resolution for this i.e. accoding to
       -- how cargo works. For now I'll assume crate imports to just live in the same directory, replacing 'crate' with './'
-      extractImports :: CompM m => [Binding] -> UseTree Span -> m (NonEmpty Import)
+      extractImports :: ErrAndLogM m => [Binding] -> UseTree Span -> m (NonEmpty Import)
       -- UseTreeSimple means: 'use something;' 
       extractImports prefix (UseTreeSimple path (Just alias) _) =
         (:| []) . flip Alias (toBinding alias) . makeThrow . (prefix <>) <$> toBindings path
@@ -149,7 +149,7 @@ instance Integration (Language 'Rust) where
       getReturn (FnDecl _ Nothing _ _ ) = TE.Normal TE.rustUnitReturn
 
   loadTypes ::
-    CompM m =>
+    ErrAndLogM m =>
     Language 'Rust ->
     Module ->
     Namespace (FrLang.Expr RustVarType) (Item Span) RustVarType ->
@@ -172,13 +172,13 @@ instance Integration (Language 'Rust) where
     updateExprs ohuaNs (transformM (assignTypes types'))
 
     where
-      funsForAlgo :: CompM m => Algo (FrLang.Expr RustVarType) (Item Span) RustVarType -> m [([NSRef], QualifiedBinding)]
+      funsForAlgo :: ErrAndLogM m => Algo (FrLang.Expr RustVarType) (Item Span) RustVarType -> m [([NSRef], QualifiedBinding)]
       funsForAlgo (Algo _name code _inputCode _retTy) = do
         traceShowM $ "algo: " <> show _name <> "\n code: \n" <> quickRender code
         -- ToDo: Show types of functions here. They should allready be correct after transformmation to IR
         mapM lookupFunTypes [f | LitE (FunRefLit (FunRef f _ _)) <- universe code]
 
-      lookupFunTypes :: CompM m => QualifiedBinding -> m ([NSRef], QualifiedBinding)
+      lookupFunTypes :: ErrAndLogM m => QualifiedBinding -> m ([NSRef], QualifiedBinding)
       lookupFunTypes q@(QualifiedBinding (NSRef []) nam) =
         return $ (,q) $ maybe globs (: []) $ HM.lookup nam fullyResolvedImports
       lookupFunTypes q@(QualifiedBinding nsRef _name) =
@@ -187,8 +187,11 @@ instance Integration (Language 'Rust) where
               Just a -> return ([NSRef $ unwrap a ++ rest], q)
               Nothing -> case globs of
                 [] ->
+                  -- Question: Supposed we move the type  loading before the actual lowering, and only require a definite typing as we
+                  --           lower the code (i.e. if we do not know the types during lowering we require a type annotation), 
+                    --         should we go on here without an error? -> Spoiler: I think so
                   throwError $
-                    "Invariant broken: I found the module alias reference '"
+                    "I found the module alias reference '"
                       <> show q
                       <> "' that is not listed in the imports and no glob imports (::*) were defined: '"
                       <> show globs
@@ -200,10 +203,10 @@ instance Integration (Language 'Rust) where
       convertOwn n = n
 
       -- | Extract a HashMap of {name: function type} from the given file reference
-      fnTypesFromFiles :: CompM m => [NSRef] -> m FunTypes
+      fnTypesFromFiles :: ErrAndLogM m => [NSRef] -> m FunTypes
       fnTypesFromFiles nsRefs = HM.unions <$> mapM (extractFromFile . toFilePath . (,".rs")) nsRefs
 
-      verifyAndRegister :: CompM m => FunTypes -> ([NSRef], QualifiedBinding) -> m (Maybe (QualifiedBinding, FunType RustVarType))
+      verifyAndRegister :: ErrAndLogM m => FunTypes -> ([NSRef], QualifiedBinding) -> m (Maybe (QualifiedBinding, FunType RustVarType))
       verifyAndRegister typez ([candidate], qp@(QualifiedBinding _ nam)) =
         case HM.lookup (QualifiedBinding candidate nam) typez of
           Just t -> return $ Just (qp, t)
@@ -218,7 +221,7 @@ instance Integration (Language 'Rust) where
           [t] -> return $ Just (qp, t)
           _ -> throwError $ "Multiple definitions of function `" <> show (unwrap nam) <> "` in modules " <> show globs' <> " detected!\nPlease verify again that your code compiles properly by running `rustc`. If the problem persists then please file a bug. (See issue sertel/ohua-frontend#1)"
 
-      assignTypes :: CompM m => FunTypes -> FrLang.Expr RustVarType -> m (FrLang.Expr RustVarType)
+      assignTypes :: ErrAndLogM m => FunTypes -> FrLang.Expr RustVarType -> m (FrLang.Expr RustVarType)
       -- FIXME It is nice to write it like this, really, but this has to check whether the function used in the code has (at the very least)
       --       the same number of arguments as it is applied to. If this does not match then clearly we need to error here!
       -- NO. We don't. Writing correct Rust code is the developers responsibility. We only need to extract types to

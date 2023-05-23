@@ -36,13 +36,13 @@ rustInfer = Infer ()
 --   the types of all defined functions (fn, impl or inside trait) into a 
 --   Hashmap @FunTypes@ mapping function bindings to their types
 
-extractFromFile :: CompM m => FilePath -> m FunTypes
+extractFromFile :: ErrAndLogM m => FilePath -> m FunTypes
 extractFromFile srcFile = extract srcFile =<< liftIO (loadRustFile srcFile)
 
-extract :: forall m a. (CompM m, Show a) => FilePath -> SourceFile a -> m (HM.HashMap QualifiedBinding (FunType RustVarType))
+extract :: forall m a. (ErrAndLogM m, Show a) => FilePath -> SourceFile a -> m (HM.HashMap QualifiedBinding (FunType RustVarType))
 extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
     where
-        extractTypes :: (CompM m, Show a) => [Item a] -> m [(QualifiedBinding, FunType RustVarType)]
+        extractTypes :: (ErrAndLogM m, Show a) => [Item a] -> m [(QualifiedBinding, FunType RustVarType)]
         extractTypes items = 
             catMaybes . concat <$>
             mapM
@@ -85,7 +85,7 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
         fromMaybeRet (Just retTy) = Type $ Normal $ deSpan retTy
         fromMaybeRet Nothing = Type $ Normal rustUnitReturn
 
-        extractFunType :: (CompM m, Show a) =>
+        extractFunType :: (ErrAndLogM m, Show a) =>
             (Arg a -> [VarType RustVarType] -> VarType RustVarType -> m (FunType RustVarType)) ->
             FnDecl a ->
             m (FunType RustVarType)
@@ -95,7 +95,7 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
                 [] -> return $ FunType [] (fromMaybeRet retType)
                 (fstArg: args) -> f fstArg  (map toVarType args) (fromMaybeRet retType)
 
-        convertImplArg :: (CompM m, Show a) => Ty a -> Arg a -> m (VarType RustVarType)
+        convertImplArg :: (ErrAndLogM m, Show a) => Ty a -> Arg a -> m (VarType RustVarType)
         convertImplArg selfType (SelfValue _ mut _) = return $ Type $ Self (void selfType) Nothing mut
         convertImplArg selfType (SelfRegion _ lifeTime mut _) = return $ Type $ Self (void selfType) (void <$>lifeTime) mut
         convertImplArg selfType (SelfExplicit _ _ty mut _) = return $ Type $ Self (void selfType) Nothing mut
@@ -105,14 +105,14 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
         toVarType (Arg _ _ typ _) = Type $ Normal (deSpan typ)
         toVarType a = error $ "Please report: The impossible happened at argument: " <> show a
 
-        extractFromImplItem :: (CompM m, Show a) => Ty a -> ImplItem a -> m (Maybe (QualifiedBinding, FunType RustVarType))
+        extractFromImplItem :: (ErrAndLogM m, Show a) => Ty a -> ImplItem a -> m (Maybe (QualifiedBinding, FunType RustVarType))
         extractFromImplItem selfType (MethodI _ _ _ ident _ (MethodSig _ decl) _ _) =
           case decl of
             FnDecl [] _ _ _ -> return Nothing
             _ -> Just . (createFunRef ident, ) <$> extractFunType (extractFirstArg selfType) decl
         extractFromImplItem _ _ = return Nothing
 
-        extractFromTraitItem :: (CompM m, Show a) => Ty a -> TraitItem a -> m (Maybe (QualifiedBinding, FunType RustVarType ))
+        extractFromTraitItem :: (ErrAndLogM m, Show a) => Ty a -> TraitItem a -> m (Maybe (QualifiedBinding, FunType RustVarType ))
         extractFromTraitItem selfType (MethodT _ ident _ (MethodSig _ decl) _ _) =
             Just . (createFunRef ident, ) <$> extractFunType (extractFirstArg selfType) decl
         extractFromTraitItem _ _ = return Nothing

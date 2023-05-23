@@ -16,7 +16,7 @@ import System.FilePath (takeFileName)
 import Language.Rust.Data.Ident
 
 serialize ::
-  CompM m =>
+  ErrAndLogM m =>
   Module ->
   Namespace (Program chan expr stmts TE.RustTypeAnno) anno  TE.RustTypeAnno ->
   (Program chan expr stmts TE.RustTypeAnno -> Block ()) ->

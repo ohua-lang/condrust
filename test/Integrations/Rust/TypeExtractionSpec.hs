@@ -17,7 +17,7 @@ import Ohua.Integration.Rust.TypeExtraction
 
 
 -- extractTypes :: Show a => SourceFile a -> IO (HM.HashMap QualifiedBinding (FunType (RustVarType)))
--- extractTypes srcFile = runCompM LevelDebug $ extract "" srcFile
+-- extractTypes srcFile = runErrAndLogM LevelDebug $ extract "" srcFile
 
 -- ToDo: We don't use this type extraction any more. So they're commented out to avoid conflicts with changes
 -- in used code. Replace with appropriate tests. (If there's time before the 'big rewrite')

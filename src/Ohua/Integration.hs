@@ -56,7 +56,7 @@ data Integration =
         (Maybe (CConfig.CustomPasses (B.Type (Language lang))))
 
 class Apply integration where
-    apply :: CompM m
+    apply :: ErrAndLogM m
         => integration
         -> Compiler m a
         -> m a
@@ -64,7 +64,7 @@ class Apply integration where
 instance Apply Integration where
     apply (I lang arch customCorePasses) comp = comp customCorePasses lang arch
 
-runIntegration :: CompM m
+runIntegration :: ErrAndLogM m
                 => Text
                 -> Config
                 -> Compiler m a

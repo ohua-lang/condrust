@@ -20,14 +20,14 @@ type FunTypes = HM.HashMap QualifiedBinding (FunType PythonTypeAnno)
 -- We currently do none of this scope type extracction but 
 -- determine the type of functions only at call side 
 {--
-extractFromFile :: CompM m => FilePath -> m FunTypes
+extractFromFile :: ErrAndLogM m => FilePath -> m FunTypes
 extractFromFile srcFile = extract srcFile =<< liftIO (load srcFile)
 
 
-extract :: forall m a. (CompM m, Show a) => FilePath -> Module a -> m (HM.HashMap QualifiedBinding (FunType PythonVarType))
+extract :: forall m a. (ErrAndLogM m, Show a) => FilePath -> Module a -> m (HM.HashMap QualifiedBinding (FunType PythonVarType))
 extract srcFile (Module statements) = HM.fromList <$> extractTypes statements
     where
-        extractTypes:: (CompM m, Show a) => [Statement a] -> m [(QualifiedBinding, FunType PythonVarType)]
+        extractTypes:: (ErrAndLogM m, Show a) => [Statement a] -> m [(QualifiedBinding, FunType PythonVarType)]
         extractTypes statements = 
             catMaybes . concat <$>
             mapM
@@ -42,7 +42,7 @@ extract srcFile (Module statements) = HM.fromList <$> extractTypes statements
         createFunRef = 
             QualifiedBinding (filePathToNsRef srcFile) . toBinding
 
-        extractFunType :: (CompM m, Show a) => 
+        extractFunType :: (ErrAndLogM m, Show a) => 
             (Parameter a -> [VarType PythonVarType] -> m (FunType PythonVarType)) -> 
             [Parameter a] -> 
             m (FunType PythonVarType)
@@ -51,7 +51,7 @@ extract srcFile (Module statements) = HM.fromList <$> extractTypes statements
                 (x:xs) -> convert x  =<< mapM convertArg xs
 
 
-        convertArg :: (CompM m, Show a) => Parameter a -> m (VarType PythonVarType)
+        convertArg :: (ErrAndLogM m, Show a) => Parameter a -> m (VarType PythonVarType)
         convertArg param@Param{} = return $ Type $ annotation_or_error param
         convertArg argsP@VarArgsPos{}= throwError "Currently we can't type varargs"
         convertArg kargsP@VarArgsKeyword{}= throwError "Currently we can't type kwargs" 
