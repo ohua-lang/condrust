@@ -68,7 +68,7 @@ pipeline CustomPasses {..} returnType e = do
     pure dfFinal
 
 -- | Run the pipeline in an arbitrary monad that supports error reporting.
-compile :: CompM m => Options -> CustomPasses ty -> ty -> ALang.Expr ty-> m (NormalizedDFExpr ty)
+compile :: ErrAndLogM m => Options -> CustomPasses ty -> ty -> ALang.Expr ty-> m (NormalizedDFExpr ty)
 compile opts passes returnType expr = do
     logFn <- askLoggerIO
     let passes' =
