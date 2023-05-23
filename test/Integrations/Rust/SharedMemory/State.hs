@@ -42,7 +42,7 @@ spec =
           compiled `shouldBe` expected)
 
       it "single state" $
-        (showCode "Compiled: " =<< compileCodeWithDebug  [sourceFile|
+        (showCode "Compiled: " =<< compileCode  [sourceFile|
               use crate::funs::*;
 
               pub fn test(i:i32) -> i32 {

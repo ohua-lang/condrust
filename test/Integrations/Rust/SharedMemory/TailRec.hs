@@ -36,7 +36,7 @@ spec =
                 fn rec(one:i32, two:i32) -> i32 {
                     let i:i32 = h(one);
                     let j:i32 = h(two);
-                    let k:i32 = h2(i, j);
+                    let k:i32 = h4(i, j);
                     if check(k) {
                         rec(i,j)
                     } else {
@@ -58,7 +58,7 @@ spec =
                 fn rec(one: i32) -> i32 {
                     let i:i32 = h(one);
                     let j:i32 = f();
-                    let k:i32 = h2(i, j);
+                    let k:i32 = h4(i, j);
                     if check(k) {
                         rec(k)
                     } else {
@@ -81,7 +81,7 @@ spec =
 
                 fn rec(one: i32) -> () {
                     let i:i32 = h(one);
-                    let k:() = h2(i);
+                    let k:i32 = h2(i);
                     if check(k) {
                         rec(i)
                     } else {
@@ -94,7 +94,7 @@ spec =
                 }
                 |]) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" return_unit
+                expected <- showCode "Expected:" returnUnit
                 compiled `shouldBe` expected)
                 
         it "FAIL: Use local result more than once. This should error but returns invalid code" $
@@ -309,7 +309,7 @@ use crate::funs::*;
 fn rec(one: i32, two: i32) -> i32 {
   let i: i32 = h(one);
   let j: i32 = h(two);
-  let k: i32 = h2(i, j);
+  let k: i32 = h4(i, j);
   if check(k) { rec(i, j) } else { k }
 }
 
@@ -352,7 +352,7 @@ fn test() -> i32 {
       loop {
         let var_0 = i_0_0_0_rx.recv()?;
         let var_1 = j_0_0_0_rx.recv()?;
-        let k_0_0_0 = h2(var_0, var_1);
+        let k_0_0_0 = h4(var_0, var_1);
         k_0_0_0_tx.send(k_0_0_0)?;
         ()
       }
@@ -416,7 +416,7 @@ use crate::funs::*;
 fn rec(one: i32) -> i32 {
   let i: i32 = h(one);
   let j: i32 = f();
-  let k: i32 = h2(i, j);
+  let k: i32 = h4(i, j);
   if check(k) { rec(k) } else { k }
 }
 
@@ -478,7 +478,7 @@ fn test() -> i32 {
       loop {
         let var_0 = i_0_0_0_rx.recv()?;
         let var_1 = j_0_0_0_rx.recv()?;
-        let k_0_0_0 = h2(var_0, var_1);
+        let k_0_0_0 = h4(var_0, var_1);
         k_0_0_0_tx.send(k_0_0_0)?;
         ()
       }
@@ -526,12 +526,12 @@ fn test() -> i32 {
 }
                     |]
 
-return_unit = [sourceFile|
+returnUnit = [sourceFile|
 use crate::funs::*;
 
 fn rec(one: i32) -> () {
   let i: i32 = h(one);
-  let k: () = h2(i);
+  let k: i32 = h2(i);
   if check(k) { rec(i) } else { k }
 }
 
@@ -555,7 +555,7 @@ fn test() -> () {
   let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel::<  bool,>();
   let (one_0_0_0_tx, one_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (i_0_0_0_tx, i_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
-  let (k_0_0_0_tx, k_0_0_0_rx) = std::sync::mpsc::channel::<  (),>();
+  let (k_0_0_0_tx, k_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
     Vec::new();
   tasks

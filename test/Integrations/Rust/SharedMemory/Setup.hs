@@ -159,7 +159,7 @@ funs = "\
 \     }\ 
 \ \
 \     pub fn do_stuff(&self, i:i32) -> i32 {\ 
-\         23\ 
+\         i\ 
 \     }\ 
 \ \
 \     pub fn io(&self) {\ 
@@ -170,6 +170,16 @@ funs = "\
 \         self.val += num;\ 
 \         return self.val\ 
 \     }\ 
+\ \
+\     pub fn do_it(&mut self, input:String) -> () {\ 
+\         println!(\"Got {:}\", input);\
+\         self.val += 1;\ 
+\     }\ 
+\ \
+\    pub fn get_num(&self) -> i32 {\
+\        self.val \
+\    }\
+\ \
 \ }\ 
 \ \
 \ pub fn h(i:i32) -> i32 {\ 
@@ -177,7 +187,12 @@ funs = "\
 \     the_answer\ 
 \ }\ 
 \ \
-\ pub fn h2(i:i32) -> () {\ 
+\ pub fn g() -> String {\ 
+\     let the_answer = String::from(\"Hello, world!\");\ 
+\     the_answer\ 
+\ }\ 
+\ \
+\ pub fn h2(i:i32) -> i32 {\ 
 \     let the_answer = if i==23 {i+19} else {42};\ 
 \     println!(\"Calls h2 with {}\", i)\ 
 \ }\ 
@@ -185,6 +200,10 @@ funs = "\
 \ pub fn h3(i:i32, j:i32) -> () {\ 
 \     let the_answer = if i==23 {j} else {42};\ 
 \     println!(\"Calls h2 with {}\", i)\ 
+\ }\ 
+\ \
+\ pub fn h4(i:i32, j:i32) -> i32 {\ 
+\     i+j\ 
 \ }\ 
 \ \
 \ pub fn check(i:i32) -> bool {\ 
@@ -205,10 +224,31 @@ funs = "\
 \     ()\ 
 \ }\ 
 \ \
+\ pub fn some_int() -> i32 {\ 
+\     11\ 
+\ }\ 
+\ \
+\ pub fn take_string(s:String) -> usize {\ 
+\     s.len()\ 
+\ }\ 
+\ \
 \ pub fn f_s(state:State, i:i32) -> i32 {\ 
 \     println!(\"State: {:?}, i: {:?}\", state.val, i);\ 
 \     state.val - i\ 
 \ } \ 
+\ \
+\ pub fn random_bool() -> bool {\
+\    true\
+\}\
+\  \
+\ pub fn somefun() -> i32 {\
+\    42\
+\ }\
+\ \
+\ pub fn otherfun() -> i32 {\
+\    23\
+\ }\
+\ \
 \ "
 
 benchs :: Text

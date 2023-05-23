@@ -113,8 +113,8 @@ spec =
             (showCode "Compiled: " =<< compileCode  [sourceFile|
                 use crate::funs::*;
 
-                fn test() -> S {
-                    let s:S = S::new_state();
+                fn test() -> State {
+                    let s:State = State::new_state();
                     let stream: Iterator<S> = iter_i32();
                     for e in stream {
                         let e1: S = e; 
@@ -131,8 +131,8 @@ spec =
             (showCode "Compiled: " =<< compileCode [sourceFile|
                 use crate::funs::*;
 
-                fn test(stream: Vec<i32>) -> S {
-                    let s:S = S::new_state();
+                fn test(stream: Vec<i32>) -> State {
+                    let s:State = State::new_state();
                     for e in stream {
                         let e1: i32 = e;
                         let r: i32 = h(e1);
@@ -145,11 +145,13 @@ spec =
                 expected <- showCode "Expected:" envVar
                 compiled `shouldBe` expected)
 
-        it "ERROR: conditions and literals" $ -- typing of unit literals seems broken
-            compileCode  [sourceFile|
-               fn test() -> i32 {
-                  let s:State = new();
-                  for num in random() {
+        it "ERROR: Conditions and literals - UnitLit is not removed everywhere" $ -- typing of unit literals seems broken
+            (showCode "Compiled: " =<<compileCode  [sourceFile|
+                use crate::funs::*;
+
+                fn test() -> i32 {
+                  let mut s:State = new();
+                  for num in iter_i32() {
                     let ok: bool = random_bool();
                     let iNum:i32 =
                       if ok {
@@ -157,21 +159,20 @@ spec =
                       } else {
                         otherfun()
                       };
-                    s.update(iNum);
+                    s.gs(iNum);
                   }
                   s.get_num()
                 }
-              |] `shouldThrow` anyException
-           {- }>>=
+              |]) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" loop_envvar
-                compiled `shouldBe` expected)-}
+                expected <- showCode "Expected:" loopEnvVar
+                compiled `shouldBe` expected)
  {-      it "imperative while " $
             (showCode "Compiled: " =<< compileCodeWithRec  [sourceFile|
                 use crate::funs::*;
 
-                fn test() -> S {
-                    let state:State = S::new_state();
+                fn test() -> State {
+                    let state:State = State::new_state();
                     let mut i:i32 = I32::new(1);
                     while islowerthan23(i) {
                         state.gs(i);
@@ -195,7 +196,7 @@ imperative :: SourceFile Span
 imperative =  [sourceFile|
 use crate::funs::*;
 
-fn test() -> S {
+fn test() -> State {
   #[derive(Debug)]
   enum RunError {
     SendFailed,
@@ -211,11 +212,11 @@ fn test() -> S {
       RunError::RecvFailed
     }
   }
-  let (s_0_1_0_tx, s_0_1_0_rx) = std::sync::mpsc::channel::<  S,>();
-  let (s_0_0_1_tx, s_0_0_1_rx) = std::sync::mpsc::channel::<  S,>();
+  let (s_0_1_0_tx, s_0_1_0_rx) = std::sync::mpsc::channel::<  State,>();
+  let (s_0_0_1_tx, s_0_0_1_rx) = std::sync::mpsc::channel::<  State,>();
   let (ctrl_0_0_tx, ctrl_0_0_rx) =
     std::sync::mpsc::channel::<  (bool, usize),>();
-  let (d_0_tx, d_0_rx) = std::sync::mpsc::channel::<  S,>();
+  let (d_0_tx, d_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (r_0_0_0_tx, r_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
     Vec::new();
@@ -257,7 +258,7 @@ fn test() -> S {
     }));
   tasks
     .push(Box::new(move || -> _ {
-      let s_0_0_1 = S::new_state();
+      let s_0_0_1 = State::new_state();
       s_0_0_1_tx.send(s_0_0_1)?;
       Ok(())
     }));
@@ -303,7 +304,7 @@ envVar :: SourceFile Span
 envVar = [sourceFile|
 use crate::funs::*;
 
-fn test(stream: Vec<  i32,>) -> S {
+fn test(stream: Vec<  i32,>) -> State {
   #[derive(Debug)]
   enum RunError {
     SendFailed,
@@ -319,8 +320,8 @@ fn test(stream: Vec<  i32,>) -> S {
       RunError::RecvFailed
     }
   }
-  let (s_0_1_0_tx, s_0_1_0_rx) = std::sync::mpsc::channel::<  S,>();
-  let (s_0_0_1_tx, s_0_0_1_rx) = std::sync::mpsc::channel::<  S,>();
+  let (s_0_1_0_tx, s_0_1_0_rx) = std::sync::mpsc::channel::<  State,>();
+  let (s_0_0_1_tx, s_0_0_1_rx) = std::sync::mpsc::channel::<  State,>();
   let (ctrl_0_0_tx, ctrl_0_0_rx) =
     std::sync::mpsc::channel::<  (bool, usize),>();
   let (d_0_tx, d_0_rx) = std::sync::mpsc::channel::<  i32,>();
@@ -364,7 +365,7 @@ fn test(stream: Vec<  i32,>) -> S {
     }));
   tasks
     .push(Box::new(move || -> _ {
-      let s_0_0_1 = S::new_state();
+      let s_0_0_1 = State::new_state();
       s_0_0_1_tx.send(s_0_0_1)?;
       Ok(())
     }));
@@ -404,4 +405,9 @@ fn test(stream: Vec<  i32,>) -> S {
     Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
   }
 }
+|]
+
+loopEnvVar :: SourceFile Span
+loopEnvVar =  [sourceFile|
+fn todo(){}
 |]
