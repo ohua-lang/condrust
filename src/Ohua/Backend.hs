@@ -14,7 +14,7 @@ import System.FilePath as Path ((</>))
 
 
 backend ::
-        ( CompM m
+        ( ErrAndLogM m
         , Integration lang
         , Architecture arch
         , Transform arch

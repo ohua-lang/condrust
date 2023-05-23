@@ -68,7 +68,7 @@ class Integration lang where
 
     -- TODO I believe now that this function does not belong into the interface anymore!
     lower ::
-      ( CompM m
+      ( ErrAndLogM m
       , Architecture arch
       , Lang arch ~ lang
       , ty ~ Type lang)
@@ -103,14 +103,14 @@ class Architecture arch where
         , lang ~ Lang arch
         , ty ~ Type (Lang arch)
         , expr ~ Expr (Lang arch)
-        , CompM m)
+        , ErrAndLogM m)
         => arch
         -> HostModule lang
         -> Namespace (Program (Chan arch) expr (Task lang) ty) (AlgoSrc lang) ty
         -> m (Namespace (Program (Chan arch) expr (ATask arch) ty) (AlgoSrc lang) ty)
 
     serialize ::
-        ( CompM m
+        ( ErrAndLogM m
         , Integration (Lang arch)
         , lang ~ Lang arch
         , ty ~ Type (Lang arch)
