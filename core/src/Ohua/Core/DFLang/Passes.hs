@@ -230,6 +230,26 @@ handleDefinitionalExpr' _ e _ =
 
 -- | Analyze an apply expression, extracting the inner stateful
 -- function and the nested arguments as a list.
+--Question: I've noticed (through error messages, that this isn't just called with stateful functions. e.g. in the testcase
+{-                use crate::funs::*;
+
+                fn rec(one:i32, two:i32) -> i32 {
+                    let i:i32 = h(one);
+                    let j:i32 = h(two);
+                    let k:i32 = h4(i, j);
+                    if check(k) {
+                        rec(i,j)
+                    } else {
+                        k
+                    }
+                }
+
+                fn test() -> i32 {
+                    rec(2,4)
+                }
+    (At least) the function h4 is also processed here. So is it supposed to only process stateful calls or is the error message wrong?
+-}
+
 handleApplyExpr ::
   forall m ty.
   (MonadOhua m) =>
