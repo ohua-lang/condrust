@@ -10,7 +10,7 @@ module Ohua.Types.Computation
     , MonadLoggerIO(askLoggerIO)
     , LogLevel(..), LogSource, logDebugN, logInfoN
     , logWarnN, logErrorN, logOtherN
-    , CompM, runCompM
+    , ErrAndLogM, runErrAndLogM
     -- ** Helper functions for building instances of 'MonadGenBnd'
     , GenBndT, runGenBndT
     , generateBindingIn, generateBindingWithIn
@@ -27,10 +27,10 @@ import Ohua.Internal.Monad
 import Ohua.Types.Error
 
 
-type CompM m = ( MonadError Error m, MonadLoggerIO m )
+type ErrAndLogM m = ( MonadError Error m, MonadLoggerIO m )
 
-runCompM :: LogLevel -> ExceptT Error (LoggingT IO) a -> IO a
-runCompM targetLevel c =
+runErrAndLogM :: LogLevel -> ExceptT Error (LoggingT IO) a -> IO a
+runErrAndLogM targetLevel c =
     runStderrLoggingT $
     filterLogger (\_ level -> level >= targetLevel) $
     runExceptT c >>= either exitError pure
