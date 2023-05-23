@@ -39,6 +39,8 @@ contextedTraversal f = go
 makeWellScoped :: Binding -> Expr ty -> Expr ty
 makeWellScoped currentFun expr = runIdentity $ contextedTraversal intoFunLit (HS.singleton currentFun) expr
   where
+    -- Question should this map all variables ? 
     -- Now we have variables typed and those types include a function type for ... variables that bind functions
     intoFunLit _ (VarE bdg (TypeFunction fTy)) = return $ LitE $ FunRefLit $ FunRef (QualifiedBinding (makeThrow []) bdg) Nothing fTy
+    -- intoFunLit _ (VarE bdg ty) = return $ LitE $ FunRefLit $ FunRef (QualifiedBinding (makeThrow []) bdg) Nothing ty
     intoFunLit _ e = return e -- FIXME type above is not precise enough
