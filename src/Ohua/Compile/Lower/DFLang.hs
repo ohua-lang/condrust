@@ -42,9 +42,17 @@ generateNodesCode = go
 
 generateFunctionCode :: forall ty a m. CompM m => DFApp a ty -> LoweringM m (FusableExpr ty)
 generateFunctionCode = \case
+    
     (PureDFFun out fn (DFEnvVar TypeUnit UnitLit:|[]) )-> do
         out' <- pureOut fn out
         return $ Fusion.Fun $ Ops.PureFusable [] (Ops.Call fn) out'
+     -- Question: UnitLits can sneak in, in different forms but we never want them to appear in the output
+     -- However I can't filterm them out here, because that breaks something in the downstream fusion and this something seems to be resposible to
+     -- filter out unit literals in MOST cases. What's that something and shouldn't we have a common elimiation for ohua-introduces unit lits?
+    {-(PureDFFun out fn (DFVar ( DataBinding (TBind _bnd TypeUnit)) :|[]) ) -> do
+        out' <- pureOut fn out
+        return $ Fusion.Fun $ Ops.PureFusable [] (Ops.Call fn) out'-}
+    
     (PureDFFun out fn inp) -> do
         let args = toList $ map generateReceive inp
         out' <- pureOut fn out
@@ -268,6 +276,10 @@ generateNodeCode e@(PureDFFun out (FunRef funName _fID _fType) inp) | funName ==
      generateNodeCode $ PureDFFun out f (v:|[])
 
    (DFEnvVar _t (FunRefLit pr@(FunRef n i ty)) :| [v]) -> -- FIXME this feels like a bug to me. why do we take this detour via unitFun???
+     -- For some reason the added UnitLit argument might arive here as DFVar or DFEnvVar 
+     -- so we can either repace both by one of theme here to catch only one case in 'generateFunctionCode', or catch both patterns later 
+     -- I prefer the second option, since I Don't know if there's any other way a UnitLit can sneak in as an argument and it is always wrong to
+      -- kepp them
      generateFunctionCode $ trace ("generating function code for " <> show n <>" with argument" <>  show v)  PureDFFun out pr (v:|[])
      
    _ -> invariantBroken $ "unknown function as first argument or wrong number of arguments (expected 2) to unitFun:\n" <> show e
