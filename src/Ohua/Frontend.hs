@@ -18,7 +18,7 @@ import Control.Lens.Combinators ( over )
 -- REMINDER: Definition of the frontend interface needs to be 
 --           adapted when placeholder type changes
 
-frontend :: forall m lang. (CompM m, Integration lang)
+frontend :: forall m lang. (ErrAndLogM m, Integration lang)
          => lang
          -> CompilationScope
          -> FilePath
@@ -43,17 +43,17 @@ frontend lang compScope inFile = do
         -- _      <- updateExprs' fNs linearState
         return (finalNs, placeholder)
     where
-        trans :: CompM m => Binding -> FrLang.Expr ty -> m (FrLang.Expr ty)
+        trans :: ErrAndLogM m => Binding -> FrLang.Expr ty -> m (FrLang.Expr ty)
         trans b e = prepareRootAlgoVars .  transformFinalLiterals =<< wellScopedness b e
 
         -- | Make sure that every variable is either let-bound in the scope before usage i.e. actually a local variable
         --   or considered a reference to a function imported or defined in scope
         -- QUESTION: Why do we do this? Shouldn't that be given by the parser/AST?        
-        wellScopedness :: CompM m => Binding -> FrLang.Expr ty -> m (FrLang.Expr ty)
+        wellScopedness :: ErrAndLogM m => Binding -> FrLang.Expr ty -> m (FrLang.Expr ty)
         wellScopedness b e = pure $ makeWellScoped b e
 
         -- REMINDER: We need to add linear state use to the 'official assumptions' of our programming model (and write that down somewhere)
         -- REMINDER: This function is currently pointless. We keep it (commented out) as a placeholder, to remind us
         -- where the programming model should be checked 
-        -- linearState :: CompM m => Binding -> FrLang.Expr ty -> m ()
+        -- linearState :: ErrAndLogM m => Binding -> FrLang.Expr ty -> m ()
         -- linearState _ = (trace "Checking linear state usage") checkLinearUsage

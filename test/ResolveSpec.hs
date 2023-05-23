@@ -12,7 +12,7 @@ import Test.Hspec
 spec :: Spec
 spec =
     describe "ns resolution" $ do
-        let resolve = runCompM LevelWarn . R.resolveNS
+        let resolve = runErrAndLogM LevelWarn . R.resolveNS
         it "loading a 'normal' expression" $
             resolve
                 ( Namespace 

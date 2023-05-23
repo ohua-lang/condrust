@@ -24,7 +24,7 @@ data Ctxt =
 
 {-
 
-checkLinearUsage :: CompM m => Expr ty -> m ()
+checkLinearUsage :: ErrAndLogM m => Expr ty -> m ()
 checkLinearUsage expr = f (Ctxt HM.empty HM.empty) expr >> return ()
   where
     f ctxt e@(BindE (VarE bnd) b) = do

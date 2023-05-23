@@ -14,12 +14,12 @@ class Integration lang where
     type Type lang :: *
     type AlgoSrc lang :: *
     
-    loadNs :: CompM m
+    loadNs :: ErrAndLogM m
            => lang
            -> FilePath
            -> m (HostModule lang, Namespace (Expr (Type lang)) (AlgoSrc lang) (Type lang), HostModule lang)
 
-    loadTypes :: CompM m
+    loadTypes :: ErrAndLogM m
               => lang -> HostModule lang
               ->    Namespace (Expr (Type lang)) (AlgoSrc lang) (Type lang)
               -> m (Namespace (Expr (Type lang)) (AlgoSrc lang) (Type lang))

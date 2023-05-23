@@ -12,7 +12,7 @@ import qualified Data.HashMap.Strict as HM
 -- FIXME This wants to check whether an import is registered in the global list. 
 --       But this can only be performed the other way around because other imports may refer to functions instead of algos.
 --       So what is this supposed to verify at all???
--- verify :: CompM m => CompilationScope -> Namespace FrLang.Expr -> m ()
+-- verify :: ErrAndLogM m => CompilationScope -> Namespace FrLang.Expr -> m ()
 -- verify compScope ns =
 --     mapM_
 --         (\imp -> if HM.member (imp^.nsRef) compScope 
@@ -27,7 +27,7 @@ import qualified Data.HashMap.Strict as HM
 --   Just load all algorithms that exist in the project scope. By using
 --   a lazy hashmap, this should only load the algo once actually needed.
 loadDeps :: forall m lang.
-    (CompM m, Integration lang) 
+    (ErrAndLogM m, Integration lang) 
     => lang -> CompilationScope -> Namespace (Expr (Type lang)) (AlgoSrc lang) (Type lang) -> m (NamespaceRegistry (Type lang))
 loadDeps lang scope (Namespace _ imps algs) = do
     let currentNs = Namespace (makeThrow []) imps algs
@@ -54,7 +54,7 @@ loadDeps lang scope (Namespace _ imps algs) = do
 --   the same is done for all files in the given scope to build up a registry of algorithms, mapping their names
 --   (qualified by the file they come from) to their translated code.
 loadAlgosAndImports :: forall m lang.
-    (CompM m, Integration lang) 
+    (ErrAndLogM m, Integration lang) 
     => lang -> CompilationScope -> FilePath 
     -> m (HostModule lang, Namespace (Expr (Type lang)) (AlgoSrc lang) (Type lang), NamespaceRegistry (Type lang), HostModule lang)
 loadAlgosAndImports  lang scope inFile = do
