@@ -23,6 +23,13 @@ declareLenses[d|
           deriving (Show, Eq)
     |]
 
+
+-- ToDo: If we decide to do it this way, globals should also contain the type of global variables
+--       For now I skip that because it would add another type parameter to all the other lenses and the Bindings should
+--       suffice to identify globals in the backend.
+newtype Global = Global Binding deriving (Show, Eq)
+
+
 -- REMINDER: As long as not all expressions are typed and as long as therefore Ohua nodes are introduced with type
 -- variables and as long as therefore I need to have a type propagation pass to type them....As long as this is the
 -- case I need an extra field in the Algo definition to carry through the return type of the original code.  
@@ -31,7 +38,7 @@ declareLenses[d|
 -- to match on to extract the type and b) we'd carry lots of stuff through the compile steps when all we need is one type.
 
 declareLenses[d|
-     data Algo expr inpt retTy= Algo 
+     data Algo expr inpt retTy = Algo 
           { algoName :: Binding
           , algoCode :: expr
           , algoInputCode :: inpt
@@ -48,6 +55,7 @@ declareLenses[d|
      data Namespace expr inpt retTy = Namespace 
           { nsName :: NSRef
           , imports :: [Import]
+          , globals :: [Global]
           , algos :: [Algo expr inpt retTy]
           } deriving (Show, Eq)
     |]
