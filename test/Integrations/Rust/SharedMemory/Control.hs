@@ -20,7 +20,7 @@ spec =
                     let o2: i32 = one.clone();
                     let i: i32 = h(o2);
                     let j: i32 = h(one);
-                    let k: i32 = h2(i, j);
+                    let k: i32 = h4(i, j);
                     let k2: i32 = k.clone();
                     if check(k2) {
                         rec(k)
@@ -45,7 +45,7 @@ spec =
                 fn rec(one:i32, two:i32) -> i32 {
                     let i: i32 = h(one);
                     let i1: i32 = i.clone();
-                    let k: i32 = h2(two, i);
+                    let k: i32 = h4(two, i);
                     let k1: i32 = k.clone();
                     if check(k) {
                         rec(k1,i1)
@@ -71,7 +71,7 @@ fn rec(one: i32) -> i32 {
   let o2: i32 = one.clone();
   let i: i32 = h(o2);
   let j: i32 = h(one);
-  let k: i32 = h2(i, j);
+  let k: i32 = h4(i, j);
   let k2: i32 = k.clone();
   if check(k2) { rec(k) } else { k }
 }
@@ -127,7 +127,7 @@ fn test() -> i32 {
       loop {
         let var_0 = i_0_0_0_rx.recv()?;
         let var_1 = j_0_0_0_rx.recv()?;
-        let k_0_0_1 = h2(var_0, var_1);
+        let k_0_0_1 = h4(var_0, var_1);
         k_0_0_1_tx.send(k_0_0_1)?;
         ()
       }
@@ -193,7 +193,7 @@ use crate::funs::*;
 fn rec(one: i32, two: i32) -> i32 {
   let i: i32 = h(one);
   let i1: i32 = i.clone();
-  let k: i32 = h2(two, i);
+  let k: i32 = h4(two, i);
   let k1: i32 = k.clone();
   if check(k) { rec(k1, i1) } else { k1 }
 }
@@ -249,7 +249,7 @@ fn test() -> i32 {
       loop {
         let var_0 = two_0_0_0_rx.recv()?;
         let var_1 = i_0_0_0_0_rx.recv()?;
-        let k_0_0_1 = h2(var_0, var_1);
+        let k_0_0_1 = h4(var_0, var_1);
         k_0_0_1_tx.send(k_0_0_1)?;
         ()
       }

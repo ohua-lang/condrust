@@ -20,14 +20,14 @@ import qualified Integrations.Rust.SharedMemory.WIP as TestTypextraction
 spec :: Spec
 spec =
     Basic.spec  >>
-    TestTypextraction.spec  >>
+    TestTypextraction.spec >>
     If.spec >>
-    State.spec {->>
+    State.spec >>
     SMap.spec >>
     TailRec.spec >>   
     -- ohua-lang/ohuac#32
     -- Benchmark.spec >>
     Control.spec >>
-    Scoping.spec-} {- >>
-    Restrictions.spec-}
+    Scoping.spec {- >>
+    -- Restrictions.spec-}
  

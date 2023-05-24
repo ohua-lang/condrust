@@ -13,10 +13,11 @@ spec =
         it "Scope Bindings" $
          (showCode "Compiled: " =<< compileCode  
             [sourceFile|
+                    use crate::funs::*;
 
                     fn test() -> i32 {
                         let x:i32 = f();
-                        let s:State = State::new();
+                        let mut s:State = State::new(x);
                         {
                             let x:String = g();
                             s.do_it(x);
@@ -31,11 +32,12 @@ spec =
         it "(For)Loop Scope Bindings" $
          (showCode "Compiled: " =<< compileCode
             [sourceFile|
-
+                use crate::funs::*;
+                
                 fn test() -> i32 {
                     let x:i32 = f();
-                    let s:State = State::new();
-                    for i in iter() {
+                    let mut s:State = State::new(x);
+                    for i in iter_i32() {
                         let x:String = g();
                         s.do_it(x);
                     }
@@ -43,16 +45,17 @@ spec =
                 }
             |]) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" scoped_for
+                expected <- showCode "Expected:" scopedFor
                 compiled `shouldBe` expected)
                 
         it "[ERROR] Branch Scope Bindings" $
          compileCode  
             [sourceFile|
+                use crate::funs::*;
 
                 fn test() -> i32 {
                     let x:i32 = f();
-                    let s:State = State::new();
+                    let s:State = State::new(x);
                     if check() {
                         let x:String = g();
                         s.do_it(x)
@@ -62,9 +65,9 @@ spec =
             |] `shouldThrow` anyException
 
         it "Global const in scope" $
-         (showCode "Compiled: " =<< compileCode  
+         (showCode "Compiled: " =<< compileCode
             [sourceFile|
-
+                use crate::funs::*;
                 const global:i32 = 9;
 
                 fn test() -> i32 {
@@ -74,13 +77,14 @@ spec =
                 }
             |]) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" scoped_const
+                expected <- showCode "Expected:" scopedConst
                 compiled `shouldBe` expected)
 
         it "Global const in 'all' algos" $
          (showCode "Compiled: " =<< compileCode  
             [sourceFile|
-
+                use crate::funs::*;
+                
                 const global:i32 = 9;
                 static st_thing:Char = 'V';
 
@@ -97,31 +101,33 @@ spec =
                 }
             |]) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" scoped_static
+                expected <- showCode "Expected:" scopedStatic
                 compiled `shouldBe` expected)
 
         it "Global vs local shadowing" $
          (showCode "Compiled: " =<< compileCode  
             [sourceFile|
-
+                use crate::funs::*;
+                
                 const global:i32 = 9;
                 static st_thing:Char = 'V';
 
-                fn test() -> i32 {
-                    let first:i32 = fun(global);
-                    let global:String = f();
-                    let y:String = second_algo(global);
-                    h(y)
+                fn test() -> usize {
+                    let first:i32 = h(global);
+                    let global:i32 = h2(first);
+                    let y:String = take_char_i(st_thing, global);
+                    take_string(y)
                 }
             |]) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" scoped_global_local
+                expected <- showCode "Expected:" scopedGlobalLocal
                 compiled `shouldBe` expected)
 
         it "local vs local shadowing" $
          (showCode "Compiled: " =<< compileCode  
             [sourceFile|
-
+                use crate::funs::*;
+                
                 fn test() -> i32 {
                     let x:i32 = f();
                     let x:String = fun_call(x);
@@ -132,29 +138,31 @@ spec =
         it "local vs inner local shadowing" $
          (showCode "Compiled: " =<< compileCode  
             [sourceFile|
-
+                use crate::funs::*;
+                
                 fn test() -> i32 {
-                    let x:i32 = f(); 
+                    let x:i32 = some_int(); 
                     let y:String = {
                         let x:String = fun_call();
                         x
                     };
-                    h(x,y)
+                    h4(x,y)
                 }
             |]) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" scoped_local_inner
+                expected <- showCode "Expected:" scopedLocalInner
                 compiled `shouldBe` expected)
 
 
         it "Error on mutable globals" $
          compileCode  
             [sourceFile|
-
+                use crate::funs::*;
+                
                 static mut st_thing:String = String::from(" times hello");
 
                 fn test() -> i32 {
-                    let x:i32 = f(st_thing);
+                    let x:i32 = take_string(st_thing);
                     let y:String = second_algo(x);
                     h(y)
                 }
@@ -164,6 +172,8 @@ spec =
 --------------- Testoutputs -----------------------
 scoped :: SourceFile Span
 scoped = [sourceFile|
+use crate::funs::*;
+
 fn test() -> i32 {
   #[derive(Debug)]
   enum RunError {
@@ -212,9 +222,12 @@ fn test() -> i32 {
     }));
   tasks
     .push(Box::new(move || -> _ {
-      let s_0_0_1 = State::new();
-      s_0_0_1_tx.send(s_0_0_1)?;
-      Ok(())
+      loop {
+        let var_0 = x_0_0_0_rx.recv()?;
+        let s_0_0_1 = State::new(var_0);
+        s_0_0_1_tx.send(s_0_0_1)?;
+        ()
+      }
     }));
   tasks
     .push(Box::new(move || -> _ {
@@ -237,11 +250,12 @@ fn test() -> i32 {
     Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
   }
 }
-
 |]
 
-scoped_for :: SourceFile Span
-scoped_for = [sourceFile|
+scopedFor :: SourceFile Span
+scopedFor = [sourceFile|
+use crate::funs::*;
+
 fn test() -> i32 {
   #[derive(Debug)]
   enum RunError {
@@ -276,7 +290,7 @@ fn test() -> i32 {
           let sig = ctrl_0_1_rx.recv()?;
           let count = sig.1;
           for _ in 0 .. count {
-            let x_1_0_0 = g();
+            let x_1_0_0 = g(());
             x_1_0_0_tx.send(x_1_0_0)?;
             ()
           };
@@ -317,7 +331,7 @@ fn test() -> i32 {
     }));
   tasks
     .push(Box::new(move || -> _ {
-      let mut a_0_0 = iter();
+      let mut a_0_0 = iter_i32();
       let hasSize =
         {
           let tmp_has_size = a_0_0.iter().size_hint();
@@ -349,9 +363,12 @@ fn test() -> i32 {
     }));
   tasks
     .push(Box::new(move || -> _ {
-      let s_0_0_1 = State::new();
-      s_0_0_1_tx.send(s_0_0_1)?;
-      Ok(())
+      loop {
+        let var_0 = x_0_0_0_rx.recv()?;
+        let s_0_0_1 = State::new(var_0);
+        s_0_0_1_tx.send(s_0_0_1)?;
+        ()
+      }
     }));
   tasks
     .push(Box::new(move || -> _ {
@@ -376,8 +393,10 @@ fn test() -> i32 {
 }
 |]
 
-scoped_const :: SourceFile Span
-scoped_const = [sourceFile|
+scopedConst :: SourceFile Span
+scopedConst = [sourceFile|
+use crate::funs::*;
+
 const global: i32 = 9;
 
 fn test() -> i32 {
@@ -398,7 +417,7 @@ fn test() -> i32 {
   }
   let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
-  let (y_0_0_0_tx, y_0_0_0_rx) = std::sync::mpsc::channel::<  String,>();
+  let (y_0_0_0_tx, y_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
     Vec::new();
   tasks
@@ -442,8 +461,11 @@ fn test() -> i32 {
 }
 |]
 
-scoped_static :: SourceFile Span
-scoped_static = [sourceFile|
+scopedStatic :: SourceFile Span
+scopedStatic = [sourceFile|
+use crate::funs::*;
+                
+
 const global: i32 = 9;
 
 static st_thing: Char = 'V';
@@ -572,13 +594,15 @@ fn second_algo(arg: i32) -> String {
   }
 }
 |]
-scoped_global_local :: SourceFile Span
-scoped_global_local = [sourceFile|
+scopedGlobalLocal :: SourceFile Span
+scopedGlobalLocal = [sourceFile|
+use crate::funs::*;
+
 const global: i32 = 9;
 
 static st_thing: Char = 'V';
 
-fn test() -> i32 {
+fn test() -> usize {
   #[derive(Debug)]
   enum RunError {
     SendFailed,
@@ -594,9 +618,9 @@ fn test() -> i32 {
       RunError::RecvFailed
     }
   }
-  let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
-  let (global_0_0_0_tx, global_0_0_0_rx) =
-    std::sync::mpsc::channel::<  String,>();
+  let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel::<  usize,>();
+  let (first_0_0_0_tx, first_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (global_1_0_0_tx, global_1_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (y_0_0_0_tx, y_0_0_0_rx) = std::sync::mpsc::channel::<  String,>();
   let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
     Vec::new();
@@ -604,7 +628,7 @@ fn test() -> i32 {
     .push(Box::new(move || -> _ {
       loop {
         let var_0 = y_0_0_0_rx.recv()?;
-        let a_0_0 = h(var_0);
+        let a_0_0 = take_string(var_0);
         a_0_0_tx.send(a_0_0)?;
         ()
       }
@@ -612,16 +636,25 @@ fn test() -> i32 {
   tasks
     .push(Box::new(move || -> _ {
       loop {
-        let var_0 = global_0_0_0_rx.recv()?;
-        let y_0_0_0 = second_algo(var_0);
+        let var_1 = global_1_0_0_rx.recv()?;
+        let y_0_0_0 = take_char_i(st_thing, var_1);
         y_0_0_0_tx.send(y_0_0_0)?;
         ()
       }
     }));
   tasks
     .push(Box::new(move || -> _ {
-      let global_0_0_0 = f();
-      global_0_0_0_tx.send(global_0_0_0)?;
+      loop {
+        let var_0 = first_0_0_0_rx.recv()?;
+        let global_1_0_0 = h2(var_0);
+        global_1_0_0_tx.send(global_1_0_0)?;
+        ()
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      let first_0_0_0 = h(global);
+      first_0_0_0_tx.send(first_0_0_0)?;
       Ok(())
     }));
   let handles: Vec<  std::thread::JoinHandle<  _,>,> =
@@ -642,8 +675,10 @@ fn test() -> i32 {
 
 |]
 
-scoped_local_inner :: SourceFile Span
-scoped_local_inner = [sourceFile|
+scopedLocalInner :: SourceFile Span
+scopedLocalInner = [sourceFile|
+use crate::funs::*;
+
 fn test() -> i32 {
   #[derive(Debug)]
   enum RunError {
@@ -661,7 +696,7 @@ fn test() -> i32 {
     }
   }
   let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
-  let (x_1_0_0_tx, x_1_0_0_rx) = std::sync::mpsc::channel::<  String,>();
+  let (x_1_0_0_tx, x_1_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
     Vec::new();
@@ -670,7 +705,7 @@ fn test() -> i32 {
       loop {
         let var_0 = x_0_0_0_rx.recv()?;
         let var_1 = x_1_0_0_rx.recv()?;
-        let a_0_0 = h(var_0, var_1);
+        let a_0_0 = h4(var_0, var_1);
         a_0_0_tx.send(a_0_0)?;
         ()
       }
@@ -683,7 +718,7 @@ fn test() -> i32 {
     }));
   tasks
     .push(Box::new(move || -> _ {
-      let x_0_0_0 = f();
+      let x_0_0_0 = some_int();
       x_0_0_0_tx.send(x_0_0_0)?;
       Ok(())
     }));

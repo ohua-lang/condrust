@@ -145,7 +145,7 @@ spec =
                 expected <- showCode "Expected:" envVar
                 compiled `shouldBe` expected)
 
-        it "ERROR: Conditions and literals - UnitLit is not removed everywhere" $ -- typing of unit literals seems broken
+        it "FAIL: Conditions and literals - UnitLit is not removed everywhere" $ -- typing of unit literals seems broken
             (showCode "Compiled: " =<<compileCode  [sourceFile|
                 use crate::funs::*;
 
@@ -409,5 +409,247 @@ fn test(stream: Vec<  i32,>) -> State {
 
 loopEnvVar :: SourceFile Span
 loopEnvVar =  [sourceFile|
-fn todo(){}
+use crate::funs::*;
+
+fn test() -> i32 {
+  #[derive(Debug)]
+  enum RunError {
+    SendFailed,
+    RecvFailed,
+  }
+  impl<  T: Send,> From<  std::sync::mpsc::SendError<  T,>,> for RunError {
+    fn from(_err: std::sync::mpsc::SendError<  T,>) -> Self {
+      RunError::SendFailed
+    }
+  }
+  impl From<  std::sync::mpsc::RecvError,> for RunError {
+    fn from(_err: std::sync::mpsc::RecvError) -> Self {
+      RunError::RecvFailed
+    }
+  }
+  let (e_0_0_tx, e_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (s_0_0_1_tx, s_0_0_1_rx) = std::sync::mpsc::channel::<  State,>();
+  let (ctrl_0_0_tx, ctrl_0_0_rx) =
+    std::sync::mpsc::channel::<  (bool, usize),>();
+  let (ctrl_0_1_tx, ctrl_0_1_rx) =
+    std::sync::mpsc::channel::<  (bool, usize),>();
+  let (ctrl_0_2_tx, ctrl_0_2_rx) =
+    std::sync::mpsc::channel::<  (bool, usize),>();
+  let (ctrl_0_3_tx, ctrl_0_3_rx) =
+    std::sync::mpsc::channel::<  (bool, usize),>();
+  let (ok_0_0_0_0_tx, ok_0_0_0_0_rx) = std::sync::mpsc::channel::<  bool,>();
+  let (lit_unit_0_3_tx, lit_unit_0_3_rx) = std::sync::mpsc::channel::<  (),>();
+  let (ctrlTrue_0_tx, ctrlTrue_0_rx) =
+    std::sync::mpsc::channel::<  (bool, usize),>();
+  let (lit_unit_0_4_tx, lit_unit_0_4_rx) = std::sync::mpsc::channel::<  (),>();
+  let (ctrlFalse_0_tx, ctrlFalse_0_rx) =
+    std::sync::mpsc::channel::<  (bool, usize),>();
+  let (c_0_0_tx, c_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (b_0_0_tx, b_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (ok_0_0_0_1_tx, ok_0_0_0_1_rx) = std::sync::mpsc::channel::<  bool,>();
+  let (result_1_tx, result_1_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (s_0_1_1_tx, s_0_1_1_rx) = std::sync::mpsc::channel::<  State,>();
+  let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
+    Vec::new();
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
+        let mut renew = false;
+        while !renew {
+          let sig = ctrl_0_3_rx.recv()?;
+          let count = sig.1;
+          for _ in 0 .. count {
+            let mut renew = false;
+            let lit_unit_0_1 = lit_unit_0_4_rx.recv()?;
+            while !renew {
+              let sig = ctrlFalse_0_rx.recv()?;
+              let count = sig.1;
+              for _ in 0 .. count {
+                let c_0_0 = otherfun(lit_unit_0_1);
+                c_0_0_tx.send(c_0_0)?;
+                ()
+              };
+              let renew_next_time = sig.0;
+              renew = renew_next_time;
+              ()
+            };
+            ()
+          };
+          let renew_next_time = sig.0;
+          renew = renew_next_time;
+          ()
+        }
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
+        let mut renew = false;
+        while !renew {
+          let sig = ctrl_0_2_rx.recv()?;
+          let count = sig.1;
+          for _ in 0 .. count {
+            let mut renew = false;
+            let lit_unit_0_0 = lit_unit_0_3_rx.recv()?;
+            while !renew {
+              let sig = ctrlTrue_0_rx.recv()?;
+              let count = sig.1;
+              for _ in 0 .. count {
+                let b_0_0 = somefun(lit_unit_0_0);
+                b_0_0_tx.send(b_0_0)?;
+                ()
+              };
+              let renew_next_time = sig.0;
+              renew = renew_next_time;
+              ()
+            };
+            ()
+          };
+          let renew_next_time = sig.0;
+          renew = renew_next_time;
+          ()
+        }
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
+        let mut renew = false;
+        while !renew {
+          let sig = ctrl_0_1_rx.recv()?;
+          let count = sig.1;
+          for _ in 0 .. count {
+            let res = random_bool(());
+            ok_0_0_0_0_tx.send(res)?;
+            ok_0_0_0_1_tx.send(res)?;
+            ()
+          };
+          let renew_next_time = sig.0;
+          renew = renew_next_time;
+          ()
+        }
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
+        let mut var_0 = s_0_1_1_rx.recv()?;
+        let e_0_0 = var_0.get_num();
+        e_0_0_tx.send(e_0_0)?;
+        ()
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
+        let branchSelection = ok_0_0_0_1_rx.recv()?;
+        if branchSelection {
+          let result = b_0_0_rx.recv()?;
+          result_1_tx.send(result)?
+        } else { let result = c_0_0_rx.recv()?; result_1_tx.send(result)? }
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
+        let branchSelection = ok_0_0_0_0_rx.recv()?;
+        if branchSelection {
+          let ctrlTrue = (true, 1);
+          let ctrlFalse = (true, 0);
+          ctrlTrue_0_tx.send(ctrlTrue)?;
+          ctrlFalse_0_tx.send(ctrlFalse)?
+        } else {
+          let ctrlTrue = (true, 0);
+          let ctrlFalse = (true, 1);
+          ctrlTrue_0_tx.send(ctrlTrue)?;
+          ctrlFalse_0_tx.send(ctrlFalse)?
+        }
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      let mut a_0_0 = iter_i32();
+      let hasSize =
+        {
+          let tmp_has_size = a_0_0.iter().size_hint();
+          tmp_has_size.1.is_some()
+        };
+      Ok(if hasSize {
+        let size = a_0_0.len();
+        let ctrl = (true, size);
+        ctrl_0_0_tx.send(ctrl)?;
+        let ctrl = (true, size);
+        ctrl_0_1_tx.send(ctrl)?;
+        let ctrl = (true, size);
+        ctrl_0_2_tx.send(ctrl)?;
+        let ctrl = (true, size);
+        ctrl_0_3_tx.send(ctrl)?;
+        ()
+      } else {
+        let mut size = 0;
+        for d in a_0_0 {
+          let ctrl = (false, 1);
+          ctrl_0_0_tx.send(ctrl)?;
+          let ctrl = (false, 1);
+          ctrl_0_1_tx.send(ctrl)?;
+          let ctrl = (false, 1);
+          ctrl_0_2_tx.send(ctrl)?;
+          let ctrl = (false, 1);
+          ctrl_0_3_tx.send(ctrl)?;
+          size = size + 1;
+          ()
+        };
+        let ctrl = (true, 0);
+        ctrl_0_0_tx.send(ctrl)?;
+        let ctrl = (true, 0);
+        ctrl_0_1_tx.send(ctrl)?;
+        let ctrl = (true, 0);
+        ctrl_0_2_tx.send(ctrl)?;
+        let ctrl = (true, 0);
+        ctrl_0_3_tx.send(ctrl)?;
+        ()
+      })
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      let s_0_0_1 = new();
+      s_0_0_1_tx.send(s_0_0_1)?;
+      Ok(())
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
+        let mut renew = false;
+        let mut s_0_0_1_0 = s_0_0_1_rx.recv()?;
+        while !renew {
+          let sig = ctrl_0_0_rx.recv()?;
+          let count = sig.1;
+          for _ in 0 .. count {
+            let var_1 = result_1_rx.recv()?;
+            s_0_0_1_0.gs(var_1);
+            ()
+          };
+          let renew_next_time = sig.0;
+          renew = renew_next_time;
+          ()
+        };
+        s_0_1_1_tx.send(s_0_0_1_0)?;
+        ()
+      }
+    }));
+  let handles: Vec<  std::thread::JoinHandle<  _,>,> =
+    tasks
+      .into_iter()
+      .map(|t| { std::thread::spawn(move || { let _ = t(); }) })
+      .collect();
+  for h in handles {
+    if let Err(_) = h.join() {
+      eprintln!("[Error] A worker thread of an Ohua algorithm has panicked!");
+    }
+  }
+  match e_0_0_rx.recv() {
+    Ok(res) => res,
+    Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
+  }
+}
 |]

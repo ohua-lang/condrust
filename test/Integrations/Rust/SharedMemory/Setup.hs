@@ -194,7 +194,8 @@ funs = "\
 \ \
 \ pub fn h2(i:i32) -> i32 {\ 
 \     let the_answer = if i==23 {i+19} else {42};\ 
-\     println!(\"Calls h2 with {}\", i)\ 
+\     println!(\"Calls h2 with {}\", i);\
+\     the_answer\
 \ }\ 
 \ \
 \ pub fn h3(i:i32, j:i32) -> () {\ 
@@ -226,6 +227,10 @@ funs = "\
 \ \
 \ pub fn some_int() -> i32 {\ 
 \     11\ 
+\ }\ 
+\ \
+\ pub fn take_char_i(c:Char, i:i32) -> String {\ 
+\     format!(\"Got {} and {}\", c, i)\ 
 \ }\ 
 \ \
 \ pub fn take_string(s:String) -> usize {\ 
