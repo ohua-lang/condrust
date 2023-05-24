@@ -69,6 +69,8 @@ instance Integration (Language 'Python) where
                                                         from_items= items} -> Just <$> extractRelativeImports modName items
                                     _ -> return Nothing)
                                 statements
+                    -- ToDo: add proper extraction of gloabl assignments 
+                    globals <- return [] 
                     -- ISSUE: Algo extraction needs a State Monad
                     -- During extraction we want to encapsulate non-compilable code into functions, move those to a library
                     -- and replace the code by a call to that library function. So the State of the monad needs to be of 
@@ -82,16 +84,18 @@ instance Integration (Language 'Python) where
                                                 (toBinding$ Py.fun_name fun)
                                                 e
                                                 fun
-                                                PythonObject) <$> extractAlgo fun
+                                                PythonObject) <$> extractAlgo fun globals 
                                     _ -> return Nothing)
                                 statements
-                    return $ Namespace (filePathToNsRef srcFile) imports algos
+                    return $ Namespace (filePathToNsRef srcFile) imports globals algos
 
-                extractAlgo :: ErrAndLogM m => Py.Statement SrcSpan -> m (FrLang.Expr PythonVarType )
-                extractAlgo function = do
+                extractAlgo :: ErrAndLogM m => Py.Statement SrcSpan -> [Global] -> m (FrLang.Expr PythonVarType )
+                extractAlgo function globals = do
+                    let globArgs = map (\(Global bnd) -> VarP bnd defaultType) globals
+                    -- ToDo: replace empty context with globals filled context if needed
                     args' <- mapM ((`evalStateT` HM.empty) . subParamToIR <=< paramToSub) (Py.fun_args function)
                     block' <- ((`evalStateT` HM.empty) . subSuiteToIR <=< suiteToSub) (Py.fun_body function)
-                    return $ LamE args' block'
+                    return $ LamE (globArgs ++ args') block'
 
                 extractImports::ErrAndLogM m => [Py.ImportItem SrcSpan] -> m [Import]
                 extractImports [] = throwError "Invalid: Empty import should not have passed the python parser"

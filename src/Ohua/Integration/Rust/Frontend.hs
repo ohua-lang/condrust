@@ -92,7 +92,7 @@ instance Integration (Language 'Rust) where
                       _ -> return Nothing
                   )
                   items
-            return $ Namespace (filePathToNsRef srcFile) imports algos
+            return $ Namespace (filePathToNsRef srcFile) imports (map Global $ HM.keys globs) algos
 
       -- FIXME: Paths inside a crate would be use crate::something. Actually we'd need proper name resolution for this i.e. accoding to
       -- how cargo works. For now I'll assume crate imports to just live in the same directory, replacing 'crate' with './'
@@ -122,11 +122,18 @@ instance Integration (Language 'Rust) where
         Block Span ->
         m (FrLang.Expr RustVarType)
       extractAlgo (FnDecl args _ _ _) block = do
+        -- globally defined values are (implicit) arguments to each function
+        -- we get them from the context BEFORE parsing the algo and make them explicit argumets here. 
+        -- BUT we need to treat them differently in non-shared-memory backends. This can be acchieved by also 
+        --     saving them in an external structure (another field in the Algo type) but it would be better to modify the 
+        --     Language IRs to reflect the 'environment' other than the arguments of compiled algorithms
+        implGlobalArgs <- fromGlobals
+        -- traceM $ "Implicit Arguments:" <> show implGlobalArgs
         -- Add the parameters and their types to the context
         args' <- mapM (convertPat <=< SubC.convertArg) args
         -- Convert the function block
         block' <- convertIntoFrExpr block
-        return $ LamE args' block'
+        return $ LamE (implGlobalArgs ++ args') block'
 
       convertIntoFrExpr :: SubC.ConvertM m => Block Span -> m (FrLang.Expr RustVarType)
       convertIntoFrExpr rustBlock = do
@@ -147,6 +154,12 @@ instance Integration (Language 'Rust) where
       -- make the return type more specific
       getReturn (FnDecl _ (Just ty) _ _ ) = TE.Normal $ deSpan ty
       getReturn (FnDecl _ Nothing _ _ ) = TE.Normal TE.rustUnitReturn
+
+      fromGlobals:: SubC.ConvertM m => m [FrLang.Pat RustVarType]
+      fromGlobals = do
+        ctxt <- get 
+        return $ map (\(bnd, (Sub.RustType ty)) -> VarP bnd (Type $ TE.Normal ty)) (HM.toList ctxt)
+
 
   loadTypes ::
     ErrAndLogM m =>
@@ -335,7 +348,7 @@ instance ConvertExpr Sub.Expr where
     vars' <- mapM convertExpr vars
     argTys <- argTypesFromContext vars
     -- A tuple constructor is a function that takes agrs and return a tuple of them
-    let funTy = case argTys of 
+    let funTy = case argTys of
             [] -> FunType [] TypeUnit
             (t: ts) -> FunType argTys (TupleTy (t:| ts))
     return $ TupE funTy vars'
@@ -436,7 +449,7 @@ instance ConvertExpr Sub.Expr where
     --        need to convert Path's only in the context they apprear in, i.e. we need to know with which arguments they are called and 
     --        we need to know the current return type 
     -- Check where CallRefs are produced and how we can constrain there occurence.
-    ctxt <- get 
+    ctxt <- get
     return $ LitE $ FunRefLit $ FunRef ref Nothing $ FunType [TypeVar] TypeVar
   convertExpr (Sub.Var bnd (Just (Sub.RustType ty))) = return $ VarE bnd (Type $ TE.Normal ty)
   convertExpr (Sub.Var bnd Nothing) = do
@@ -447,7 +460,7 @@ instance ConvertExpr Sub.Expr where
       -- We also get here when we convert function names, for which we currently have no proper typing in place so
       -- for now I'll insert a placeholder type, that is replaces as we return from here to typing the Call expression
       -- ToDo: Fix type when we have proper function type extraction again
-      Nothing -> (trace $ "Trying to type Variable " <> show bnd ) return $ VarE bnd TypeVar -- error $ "No type info found for " <> show bnd
+      Nothing -> {-(trace $ "Trying to type Variable " <> show bnd )-} return $ VarE bnd TypeVar -- error $ "No type info found for " <> show bnd
 
 instance ConvertExpr Sub.Block where
   convertExpr (Sub.RustBlock Sub.Normal stmts) =
