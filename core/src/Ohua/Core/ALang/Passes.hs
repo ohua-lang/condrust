@@ -231,14 +231,14 @@ ensureAtLeastOneCall e = cata f e
 removeUnusedBindings :: Expr ty -> Expr ty
 removeUnusedBindings = fst . runWriter . cata go
   where
-    go (VarF val) = tell (HS.singleton val) >> return (Var val)
-    go (LetF b val body) = do
+    go (VarF (TBind val ty)) = tell (HS.singleton val) >> return (Var (TBind val ty))
+    go (LetF (TBind b tb) val body) = do
         (inner, used) <- listen body
         if not $ b `HS.member` used
             then return inner
             else do
                 val' <- val
-                pure $ Let b val' inner
+                pure $ Let (TBind b tb) val' inner
     go e = embed <$> sequence e
 
 newtype MonoidCombineHashMap k v =
@@ -267,6 +267,7 @@ instance Monoid WasTouched where
 
 type TouchMap = MonoidCombineHashMap Binding (WasTouched, WasTouched)
 
+-- Question: Wwhat to do with types of variables here?
 wasTouchedAsFunction :: TypedBinding ty  -> TouchMap
 wasTouchedAsFunction (TBind bnd _ty) = MonoidCombineHashMap $ HM.singleton bnd (Yes, No)
 
@@ -292,26 +293,26 @@ removeCurrying ::
     -> m (Expr ty)
 removeCurrying e = fst <$> evalRWST (para inlinePartials e) mempty ()
   where
-    inlinePartials (LetF bnd (_, val) (_, body)) = do
+    inlinePartials (LetF tBnd (_, val) (_, body)) = do
         val' <- val
-        (body', touched) <- listen $ local (HM.insert bnd val') body
-        case lookupTouchState bnd touched of
+        (body', touched) <- listen $ local (HM.insert (asBnd tBnd) val') body
+        case lookupTouchState tBnd touched of
             (Yes, Yes) ->
                 throwErrorDebugS $
-                "Binding was used as function and value " <> show bnd
+                "Binding was used as function and value " <> show tBnd
             (Yes, _) -> pure body'
-            _ -> pure $ Let bnd val' body'
-    inlinePartials (ApplyF (Var bnd, _) (_, arg)) = do
-        tell $ wasTouchedAsFunction bnd
-        val <- asks (HM.lookup bnd)
+            _ -> pure $ Let tBnd val' body'
+    inlinePartials (ApplyF (Var tbnd, _) (_, arg)) = do
+        tell $ wasTouchedAsFunction tbnd
+        val <- asks (HM.lookup $ asBnd tbnd)
         Apply <$>
             maybe
-                (failWith $ "No suitable value found for binding " <> show bnd <> 
+                (failWith $ "No suitable value found for binding " <> show tbnd <> 
                     " in expression:\n" <> quickRender e)
                 pure
                 val <*>
             arg
-    inlinePartials (VarF bnd) = tell (wasTouchedAsValue bnd) >> pure (Var bnd)
+    inlinePartials (VarF tbnd) = tell (wasTouchedAsValue tbnd) >> pure (Var tbnd)
     inlinePartials innerExpr = embed <$> traverse snd innerExpr
 
 -- | Ensures the expression is a sequence of let statements terminated
@@ -349,12 +350,12 @@ applyToPureFunction =
 noUndefinedBindings :: MonadOhua m => Expr ty -> m ()
 noUndefinedBindings = flip runReaderT mempty . cata go
   where
-    go (LetF b val body) = val >> registerBinding b body
-    go (VarF bnd) = do
-        isDefined <-  asks (HS.member bnd)
-        unless isDefined $ failWith $ "Not in scope " <> show bnd
+    go (LetF tb val body) = val >> registerBinding (asBnd tb) body
+    go (VarF tbnd) = do
+        isDefined <-  asks (HS.member $ asBnd tbnd)
+        unless isDefined $ failWith $ "Not in scope " <> show tbnd
         
-    go (LambdaF b body) = registerBinding b body
+    go (LambdaF tb body) = registerBinding (asBnd tb) body
     go e@(LitF _a ) = sequence_ e
     go e@(ApplyF _a _b ) = sequence_ e
     go e@(BindStateF _a _b ) = sequence_ e 
