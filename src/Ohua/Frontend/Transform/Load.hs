@@ -29,8 +29,8 @@ import qualified Data.HashMap.Strict as HM
 loadDeps :: forall m lang.
     (ErrAndLogM m, Integration lang) 
     => lang -> CompilationScope -> Namespace (Expr (Type lang)) (AlgoSrc lang) (Type lang) -> m (NamespaceRegistry (Type lang))
-loadDeps lang scope (Namespace _ imps algs) = do
-    let currentNs = Namespace (makeThrow []) imps algs
+loadDeps lang scope (Namespace _name imps globs algs) = do
+    let currentNs = Namespace (makeThrow []) imps globs algs
     let registry' = registerAlgos HM.empty currentNs
     modules <- mapM (\path -> (\(_,snd,_) -> snd) <$> loadNs lang (toFilePath path)) $ HM.toList scope
     let registry'' = foldl registerAlgos registry' modules

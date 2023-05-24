@@ -15,8 +15,6 @@ import Ohua.Frontend.Transform.FinalLiterals ( transformFinalLiterals )
 
 import Control.Lens.Combinators ( over )
 
--- REMINDER: Definition of the frontend interface needs to be 
---           adapted when placeholder type changes
 
 frontend :: forall m lang. (ErrAndLogM m, Integration lang)
          => lang
