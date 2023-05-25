@@ -11,6 +11,6 @@ prepareRootAlgoVars :: ErrAndLogM m => Expr ty -> m (Expr ty)
 prepareRootAlgoVars (LamE vars body) =  go vars body
   where
     go ((VarP x xty):xs) rest =
-        go xs $ LetE (VarP x xty) (LitE $ EnvRefLit x) rest
+        go xs $ LetE (VarP x xty) (LitE $ EnvRefLit x xty) rest
     go [] rest = return rest
 prepareRootAlgoVars _ = throwError "compiler invariant broken"
