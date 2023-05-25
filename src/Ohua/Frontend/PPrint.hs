@@ -24,9 +24,9 @@ afterLetIndent :: Int
 afterLetIndent = 0
 
 instance Pretty (Pat ty) where
-    pretty (VarP b ty) = pretty b
+    pretty (VarP b ty) = pretty b <> "::" <> pretty ty
     pretty (TupP pats) = align $ tupled $ map pretty (NE.toList pats)
-    pretty UnitP = "()"
+    pretty (WildP ty) = "_"  <> "::" <> pretty ty
 
 instance Pretty (Expr ty) where
     pretty (VarE bnd ty) = pretty bnd

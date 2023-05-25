@@ -28,8 +28,8 @@ contextedTraversal f = go
         go ctxt e = descendM (go ctxt) e
         descendM = mapMOf plate -- http://hackage.haskell.org/package/lens-3.0.6/docs/Control-Lens-Plated.html#v:descendM
         --descend = over plate -- note composOp = descend = over plate -> https://www.stackage.org/haddock/lts-14.25/lens-4.17.1/Control-Lens-Plated.html#v:para (below)
-        goPat UnitP = []
-        goPat (VarP bdg pTy) = [bdg]
+        goPat (WildP _ty) = []
+        goPat (VarP bdg _pTy) = [bdg]
         goPat (TupP ps) = join $ Ohua.Prelude.map goPat (NE.toList ps)
 
 -- | This transformation establishes well-scopedness 

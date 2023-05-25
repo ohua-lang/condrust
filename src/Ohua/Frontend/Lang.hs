@@ -21,7 +21,7 @@ data Pat ty
     -- Actualy a tuple pattern starts making sense at two or more patterns
     -- but it should have at least one. So I changed this from [] to NonEmpty
     | TupP (NonEmpty (Pat ty))
-    | UnitP -- ToDo :Rename because it's actually _ and has a type
+    | WildP (VarType ty)
     deriving (Show, Eq, Generic)
 
 data Expr ty
@@ -120,7 +120,7 @@ instance IsString (Pat ty) where
 instance IsList (Pat ty) where
     type Item (Pat ty) = (Pat ty)
     fromList (p:ps) = TupP (p:| ps)
-    -- Reminder: Depending on where this is needed we could create a UnitP from an empty list.
+    -- Reminder: Depending on where this is needed we could create a WildP from an empty list.
     fromList [] = error $ "Cannot create a tuple pattern from an empty list"
     toList p = error $ "Ohua tried to convert the pattern "
                 <>show p <>"into a list, which is not supported"
