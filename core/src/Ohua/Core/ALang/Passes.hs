@@ -255,7 +255,7 @@ instance Monoid WasTouched where
 
 type TouchMap = MonoidCombineHashMap Binding (WasTouched, WasTouched)
 
--- Question: What to do with types of variables here?
+
 wasTouchedAsFunction :: TypedBinding ty  -> TouchMap
 wasTouchedAsFunction (TBind bnd _ty) = MonoidCombineHashMap $ HM.singleton bnd (Yes, No)
 
@@ -364,9 +364,8 @@ liftApplyToLetArgsIn =
     lrPrewalkExprM $ \case
         Apply fn arg@(Apply _ _) -> do
             bnd <- generateBinding
-            -- ToDo: To type variables bound to the branches, we need to knwo the type of the variable bound to the whole if-then-else
-            
-            return $ Let (TBind bnd TypeVar) arg $ Apply fn (Var (TBind bnd TypeVar))
+            let argTy = exprType arg    
+            return $ Let (TBind bnd argTy) arg $ Apply fn (Var (TBind bnd argTy))
         a -> return a
 
 -- normalizeBind :: (MonadError Error m, MonadGenBnd m) => Expr ty -> m (Expr ty)

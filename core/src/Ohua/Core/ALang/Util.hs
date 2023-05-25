@@ -9,6 +9,7 @@
 -- This source code is licensed under the terms described in the associated LICENSE.TXT file
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Ohua.Core.ALang.Util where
 
@@ -97,7 +98,6 @@ lambdaLifting e = do
                 BoolLit b -> (show b, TypeBool)
                 StringLit str -> (show str, TypeString)
                 FunRefLit _ref -> error "Unsupported transformation of fun_ref literal" -- FIXME
-                -- ToDo: To get rid of those I'll probably have to require envrefs to be typed ()l in general ?
                 EnvRefLit li ty -> ("env_" <> show li, ty)
     bindingFromAny anyE = error $ "Sorry, we forgott to implement bindingFromAny for " <> show anyE
 

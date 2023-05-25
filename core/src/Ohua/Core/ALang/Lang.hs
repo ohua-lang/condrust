@@ -55,7 +55,7 @@ import Control.Lens.Plated
 
 
 -------------------- Basic ALang types --------------------
-
+-- ToDo: This needs to include the functions from Alang Refs as constructors
 -- | An expression in the algorithm language.
 data Expr ty
     = Var (TypedBinding ty)  -- ^ Reference to a value via binding: @x@ -> @Var "x"@
@@ -68,12 +68,13 @@ data Expr ty
 
 type AExpr = Expr
 
--- ToDo: Actually every expression should be typable at this point
+
 exprType:: Expr ty -> VarType ty
 exprType e = case e of 
     Var (TBind _bnd varTy) -> case varTy of
         TypeFunction funTy -> getReturnType funTy
         ty -> ty
+    -- We aim for "return types" here so if the literal is a function, this will evaluate to the functions return type
     Lit lit -> getVarType lit
     -- Let should be typed by e2, because this is what it resturns
     Let _bnd _e1 e2 -> exprType e2
@@ -83,7 +84,6 @@ exprType e = case e of
     -- if the frontend integration allows for generics, than the backend should accept them .. we don't do the derivation
     Apply funE _argE -> exprType funE
     -- Type of an abstraction (\x:T1. term:T2) should be T1 -> T2
-    -- Question: Do we use the same argument as for application here and go only fr the return type? 
     Lambda _argE termE -> exprType termE
     -- Type of a method Bind obj:TO (\x:T1. term:T2) is actually (TO, T2), but we mean the type it should
     -- explicitely evaluate to in the host language so it is T2
@@ -98,11 +98,6 @@ instance Ord (TypedBinding ty) where
 -------------------- Recursion schemes support --------------------
 
 makeBaseFunctor ''Expr
-
--- deriving instance Lift a => Lift (ExprF ty a)
-
--- deriving instance Eq a => Eq (ExprF ty a)
---deriving instance (Ord bndType, Ord refType, Ord a) => Ord (AExprF bndType refType a)
 
 instance Container (ExprF ty a)
 

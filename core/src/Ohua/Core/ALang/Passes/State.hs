@@ -47,11 +47,12 @@ preControlPasses =
 postControlPasses :: Expr ty -> Expr ty
 postControlPasses = transformCtxtExits -- . traceShow "transforming ctxt exists!" -- TODO assert here that no more ctxt exits remain in the code
 
+-- ToDo: Inputs are state + ctrl or nat and the output is the state
 runSTCLangSMapFun :: Expr ty
 runSTCLangSMapFun = Lit $ FunRefLit $ FunRef Refs.runSTCLangSMap Nothing $ FunType [TypeVar, TypeVar] TypeVar -- size and the state, i.e., there is one per state
 
 -- FIXME this functions can not be untyped anymore!
--- Question: Where isit used and what's the type supposed to be?
+-- ToDo: This is supposed to support state threading in branches and currently not used
 runSTCLangIfFun :: Expr ty
 runSTCLangIfFun = Lit $ FunRefLit $ FunRef Refs.runSTCLangIf Nothing $ FunType [] TypeVar
 
@@ -60,7 +61,7 @@ ctxtExit :: QualifiedBinding
 ctxtExit = "ohua.lang/ctxtExit"
 
 
--- Question: Where isit used and what's the type supposed to be?
+-- Question: Where is it used and what's the type supposed to be?
 ctxtExitFunRef :: SNat ('Succ n) -> Expr ty
 ctxtExitFunRef num = Lit $ FunRefLit $ FunRef ctxtExit Nothing $ FunType (toList $ replicateNE num TypeVar) TypeVar
 

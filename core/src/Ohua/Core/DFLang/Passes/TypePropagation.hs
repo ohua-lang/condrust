@@ -167,6 +167,7 @@ typeBottomUp (Let (PureDFFun out@(Direct outBnd) f@(FunRef fun _fid fTy) inputs@
                 ) typedIns'
             return$ Let (PureDFFun out (FunRef fun _fid (FunType (NE.toList realArgTypes) realOutTy )) typedIns') inCont
 
+  -- ToDo: Check if this still exists
   | fun == Refs.seqFun = do
             -- seq:: ([A], Unit) -> Unit 
             -- The Problem is, seq, doesn'T pass on the type information of A so we can't

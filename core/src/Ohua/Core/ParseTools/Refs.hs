@@ -4,6 +4,9 @@ import Ohua.Core.Prelude
 
 import Ohua.Core.ALang.Lang
 
+import Ohua.Prelude
+
+-- ToDo: Replace all occurences with Alang equivalents and hide module from extern of core.
 ohuaLangNS :: NSRef
 ohuaLangNS = makeThrow ["ohua", "lang"]
 
@@ -13,16 +16,16 @@ mkQualVar nspace name0 = pureFunction (QualifiedBinding nspace name0) Nothing
 mkOhuaLangRef :: Binding -> FunType ty -> Expr ty
 mkOhuaLangRef = mkQualVar ohuaLangNS
 
-ifBuiltin :: Expr ty
--- Question: What's the type suppsed to be?
-ifBuiltin = mkOhuaLangRef "if" (FunType [TypeVar,TypeVar,TypeVar] TypeVar)
+ifBuiltin :: VarType ty -> Expr ty
+ifBuiltin vTy = mkOhuaLangRef "if" (FunType [TypeBool ,vTy ,vTy ] vTy)
 
 smapBuiltin :: Expr ty
--- Question: What's the type suppsed to be?
+-- HO for-loop: function -> collection to apply function to -> typeOfCollection ( return Type function)
 smapBuiltin = mkOhuaLangRef "smap" (FunType [TypeVar, TypeVar] TypeVar )
 
 seqBuiltin :: Expr ty
--- Question: What's the type suppsed to be?
+-- Operator (historisch) um eine Expression vor der anderen laufen zu lassen
+-- ToDo: check if we still need that anywhere
 seqBuiltin = mkOhuaLangRef "seq" (FunType [TypeVar, TypeVar] TypeVar )
 
 funcTyConRef :: QualifiedBinding

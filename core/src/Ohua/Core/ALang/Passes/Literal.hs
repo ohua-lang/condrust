@@ -40,6 +40,6 @@ literalsToFunctions e =
         mkFun v lit body = return $ 
             Let
                 v
-                -- Question: What's the type supposed to be?
+                -- ToDo: Thats just an id function on the literal i.e. a -> a
                 ((Lit $ FunRefLit $ FunRef R.id Nothing (FunType [TypeVar] TypeVar)) `Apply` lit)
                 body
