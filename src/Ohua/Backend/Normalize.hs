@@ -42,6 +42,10 @@ normalizeIndirect :: TaskExpr ty -> TaskExpr ty
 normalizeIndirect = transformWithState go
   where
     go (Let x y@Var {} ct) =
+      -- Question: This is the only place where containcBinding is used and a comment close to it's definition says this
+      --           function should be "remvoved ASAP"
+      --           So do we meanwhile know how we get here and why this function is necessary and so fragile at the same time?
+
       -- NOTE(feliix42): Don't do the substitution if a subsequent check shows remaining bindings in the Expr. This is to avoid producing invalid code.
       -- FIXME (Sebastian): This is a hack. I do not understand the problem here. Please explain and open an issue.
       let
@@ -49,7 +53,6 @@ normalizeIndirect = transformWithState go
         newExpr = substitute (x, y) ct
       in
         if containsBinding newExpr x then 
-          -- traceShow ("Note: Aborted a normalization of variable " <> show x <> " because I couldn't rename all occurences.") $
           Let x y ct else newExpr
     go e = e
 

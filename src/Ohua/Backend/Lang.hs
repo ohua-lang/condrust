@@ -90,7 +90,7 @@ data TaskExpr ty
 instance Hashable (TaskExpr ty)
 
 -- To ease adaption of code sites using the former First and Second
--- ToDo: Obviously doing it this way we loose the 'type-control' of indexing
+-- TODO: Obviously doing it this way we loose the 'type-control' of indexing
 -- maybe we can restore that later using Singletons? 
 firstIndexing:: Binding -> TaskExpr ty
 firstIndexing bnd = Indexing bnd 0
