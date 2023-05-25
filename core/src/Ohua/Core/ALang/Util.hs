@@ -98,7 +98,7 @@ lambdaLifting e = do
                 StringLit str -> (show str, TypeString)
                 FunRefLit _ref -> error "Unsupported transformation of fun_ref literal" -- FIXME
                 -- ToDo: To get rid of those I'll probably have to require envrefs to be typed ()l in general ?
-                EnvRefLit li -> ("env_" <> show li, TypeVar)
+                EnvRefLit li ty -> ("env_" <> show li, ty)
     bindingFromAny anyE = error $ "Sorry, we forgott to implement bindingFromAny for " <> show anyE
 
 
@@ -167,7 +167,7 @@ findLiterals e =
           case l of
               UnitLit -> [l]
               NumericLit _ -> [l]
-              EnvRefLit _ -> [l]
+              EnvRefLit _ _-> [l]
               BoolLit _ -> [l]
               StringLit _ -> [l]
               _ -> []

@@ -239,7 +239,7 @@ typeBottomUp smf@(Let (SMapFun out@(_fst,_scnd,_trd) iterableVar ) inCont) = do
                       DFEnvVar _ l -> do
                         let v = DFEnvVar iterableVarTy l
                         case l of
-                          (EnvRefLit b) -> modify $ HM.insert b $ Exists v
+                          (EnvRefLit b _ty) -> modify $ HM.insert b $ Exists v
                           _ -> return ()
                         return v
     return $ Let (SMapFun out iterableVar') inCont
@@ -412,9 +412,7 @@ maybeUpdate reference var = do
                   Just (Exists (DFVar oldatBnd)) -> DFVar $ replaceType atBnd (maxType (asType . unwrapTB $ atBnd) (asType . unwrapTB $ oldatBnd))
                   Just (Exists (DFEnvVar ty' _bnd)) -> DFVar $ replaceType atBnd (maxType (asType . unwrapTB $ atBnd) ty')
                   Nothing -> var
-          (DFEnvVar TypeVar lit) -> case getVarType lit of
-                                  Just ty' -> DFEnvVar ty' lit
-                                  Nothing  -> var
+          (DFEnvVar TypeVar lit) -> DFEnvVar (getVarType lit) lit
           (DFEnvVar _ _) -> var
 
   case newVar of

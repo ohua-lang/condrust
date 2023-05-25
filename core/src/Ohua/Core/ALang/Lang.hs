@@ -74,9 +74,7 @@ exprType e = case e of
     Var (TBind _bnd varTy) -> case varTy of
         TypeFunction funTy -> getReturnType funTy
         ty -> ty
-    Lit lit -> case getVarType lit of
-        Just ty -> ty
-        Nothing -> TypeVar 
+    Lit lit -> getVarType lit
     -- Let should be typed by e2, because this is what it resturns
     Let _bnd _e1 e2 -> exprType e2
     -- Apply (\x:T1. term:T2) (t:T1), should obviously be typed as T2
