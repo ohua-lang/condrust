@@ -56,7 +56,7 @@ removeDestructuring =
 giveEmptyLambdaUnitArgument :: FR.Expr ty -> FR.Expr ty
 giveEmptyLambdaUnitArgument =
     rewrite $ \case
-        LamE [] e -> Just $ LamE [UnitP] e
+        LamE [] e -> Just $ LamE [WildP (FR.exprType e)] e
         _ -> Nothing
 
 -- | The idea here is, that we transform a while loop to a recursive call
@@ -152,7 +152,7 @@ whileToRecursion = return
     -}
 
 
--- Question: What's the type of this function supposed to be?
+-- ToDo: Replace by Alang definition
 nthFun :: FR.Expr ty
 nthFun = LitE $ FunRefLit $ FunRef ARefs.nth Nothing $ FunType [TypeVar,TypeVar,TypeVar] TypeVar
 
@@ -190,11 +190,15 @@ trans =
                     "Invariant broken: Found multi apply or destructure lambda: " <>
                     show p
         IfEF cont then_ else_ ->
-            ifBuiltin `Apply` cont `Apply` Lambda (TBind "_" TypeVar) then_ `Apply`
-            Lambda (TBind "_" TypeVar) else_
+            -- ToDo: Replace ifBuildtIn by Alang definition
+            ifBuiltin 
+                (ALang.exprType  then_)
+                `Apply` cont  
+                    `Apply` Lambda (TBind "_" TypeUnit) then_ 
+                    `Apply` Lambda (TBind "_" TypeUnit) else_
         MapEF function coll -> smapBuiltin `Apply` function `Apply` coll
         BindEF ref e -> BindState ref e
-        StmtEF e1 cont -> Let (TBind "_" TypeVar) e1 cont
+        StmtEF e1 cont -> Let (TBind "_" TypeUnit) e1 cont
         SeqEF source target -> seqBuiltin `Apply` source `Apply` target
         TupEF fty parts -> foldl Apply (pureFunction mkTuple Nothing fty) parts
         WhileEF cond _body ->  error "While loop has not been replaced. Please file a bug"
@@ -205,7 +209,7 @@ trans =
             -- Reminder: The underscore is used to represent things that will be
             -- ignored later i.e. not send, meaning we will not need to type channels for it
             -- FIXME: This shouldn't be stringly typed
-            UnitP -> TBind "_" TypeVar
+            WildP ty -> TBind "_" ty
             p -> error $ 
              "Compiler screwed up. At this point any patterns" <>
              "(function arguments or let bound variables) should be single vars or wild card but " <> show p <>
@@ -234,6 +238,6 @@ tupTypeFrom pats = TupleTy $ NE.map getPType pats
     where 
         getPType (VarP _b ty) = ty
         -- ToDO: Or would we add a unit type here? 
-        getPType (UnitP) = error $ "Encountered a unit inside a tuple pattern, like \"let (a, (), b) = ...\". Please file a bug"
+        getPType (WildP ty) = error $ "Encountered a unit inside a tuple pattern, like \"let (a, (), b) = ...\". Please file a bug"
         -- Actually we could probably support it. Also we should have cought that case before
         getPType (TupP _ ) = error $ "Encountered a nested tuple pattern, like \"let (a, (b, c)) = ...\". This is currently not supported"
