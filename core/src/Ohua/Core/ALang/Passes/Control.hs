@@ -191,15 +191,18 @@ liftIntoCtrlCtxt ctrlIn e0 = do
       pure lam'
     else do
       let actuals' = Var ctrlIn :| actuals
+      let actualsTypes = map exprType actuals
+      let retTy = case actualsTypes of 
+            [] -> TypeUnit -- Question: Should this error? 
+            (t:tys) -> TupleTy (t :| tys)
       let ie = mkDestructured formals (TBind ctrlOut controlSignalType) e
       return $
         mkLambda originalFormals $
           Let
             (TBind ctrlOut controlSignalType)
             ( fromListToApply
-                -- Question: What's the type supposed to be?
                 ( FunRef Refs.ctrl Nothing $
-                    FunType (toList $ map ( const controlSignalType ) actuals') TypeVar
+                    FunType (controlSignalType: actualsTypes) retTy
                 )
                 $ toList actuals'
             )
@@ -239,14 +242,12 @@ splitCtrls = transform go
           | op == Refs.ctrl ->
             let outs = findDestructured cont v
              in foldr
-                  ( \(varOut, varIn) c ->
-                    -- ToDo: At this point all the vars should hae tpyes so fix the TypeVar usage
+                  ( \(bound@(TBind _n ty), varIn) c ->
                       Let
-                        varOut
+                        bound
                         ( Lit
                             ( FunRefLit $
-                                -- Question: What's the type supposed to be?
-                                FunRef op i $ FunType [TypeVar,TypeVar] TypeVar
+                                FunRef op i $ FunType [controlSignalType, ty] ty
                             )
                             `Apply` ctrlSig
                             `Apply` varIn

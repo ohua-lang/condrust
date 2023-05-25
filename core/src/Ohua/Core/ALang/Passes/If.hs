@@ -113,15 +113,16 @@ import Ohua.Core.ALang.Util (mkDestructured)
 -- import Control.Category ((>>>))
 import qualified Data.Text as T
 
--- Question: What'r those types supposed to be? Should this rater be functions of VarTypes?
-selectSf :: Expr ty
-selectSf = Lit $ FunRefLit $ FunRef Refs.select Nothing $ FunType [TypeVar, TypeVar, TypeVar] TypeVar
+selectSf :: VarType ty -> Expr ty
+selectSf vty = Lit $ FunRefLit $ FunRef Refs.select Nothing $ FunType [TypeBool, vty, vty] vty
 
+-- | The controle node that triggers either the then or the else branch, depending on the input bool
 ifFunSf :: Expr ty
-ifFunSf = Lit $ FunRefLit $ FunRef Refs.ifFun Nothing $ FunType [TypeVar] TypeVar
+ifFunSf = Lit $ FunRefLit $ FunRef Refs.ifFun Nothing $ FunType [TypeBool] (TupleTy $ controlSignalType:|[controlSignalType])
 
-ifSf :: Expr ty
-ifSf = Lit $ FunRefLit $ FunRef Refs.ifThenElse Nothing $ FunType [TypeVar, TypeVar, TypeVar] TypeVar
+-- | Just a literal representing an if-function i.e. \con t1 t2 : if cond then t1 else t2
+ifSf :: VarType ty -> Expr ty
+ifSf vty = Lit $ FunRefLit $ FunRef Refs.ifThenElse Nothing $ FunType [TypeBool, vty, vty] vty
 
 #if 1
 -- This is a proposal for `ifRewrite` that uses plated to make sure the
@@ -142,13 +143,17 @@ ifRewrite = transformM $ \case
                 trueResultBnd <- generateBindingWith "trueResult"
                 falseResultBnd <- generateBindingWith "falseResult"
                 resultBnd <- generateBindingWith "result"
-                 -- ToDo: Type returns correctly. See comment on the other ifRewrite function
+                let (typeTrue, typeFalse) = (exprType trueBody, exprType falseBody)
+                assertE (typeTrue == typeFalse) $
+                        " Error: Types of branching experssion do not match. Cannot decide the type of" <> 
+                        " controle nodes collecting from both branches"
                 let ctrlTrue = (TBind ctrlTrueBnd controlSignalType)
                     ctrlFalse= (TBind ctrlFalseBnd controlSignalType)
                     ctrls = (TBind ctrlsBnd (TupleTy $ controlSignalType:|[controlSignalType]))
-                    trueResult = (TBind trueResultBnd TypeVar)
-                    falseResult = (TBind falseResultBnd TypeVar)
-                    result = (TBind resultBnd TypeVar)
+                    trueResult = (TBind trueResultBnd typeTrue)
+                    falseResult = (TBind falseResultBnd typeFalse)
+                    -- We can take either true or false type for the result
+                    result = (TBind resultBnd typeTrue)
                     
                 trueBranch' <- liftIntoCtrlCtxt ctrlTrue trueBody
                 falseBranch' <- liftIntoCtrlCtxt ctrlFalse falseBody   
@@ -161,7 +166,7 @@ ifRewrite = transformM $ \case
                     Let falseResult falseBranch' $
                     Let
                     result
-                    (Apply (Apply (Apply selectSf cond) $ Var trueResult) $
+                    (Apply (Apply (Apply (selectSf typeTrue) cond) $ Var trueResult) $
                      Var falseResult) $
                     Var result
               _ -> throwError $ "Found if with unexpected, non-unit-lambda branch(es)\ntrue:\n " <> show trueBranch <> "\nfalse:\n" <> show falseBranch

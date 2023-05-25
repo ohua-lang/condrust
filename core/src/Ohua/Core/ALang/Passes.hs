@@ -179,7 +179,8 @@ ensureFinalLet' =
             | isVarOrLambdaF any0 -> embed <$> traverse snd any0 -- Don't rebind a lambda or var. Continue or terminate
             | otherwise -> do -- Rebind anything else
                 newBnd <- generateBinding
-                -- Question: What happens here and whats the type of newBnd supposed to be?
+                -- Questio: What happens here and whats the type of newBnd supposed to be?
+                -- Answer: The type of newBnd should be the type ("return type") of any0
                 pure $ Let (TBind newBnd TypeVar) (embed $ fmap fst any0) (Var (TBind newBnd TypeVar))
   where
     isVarOrLambdaF =
@@ -188,18 +189,6 @@ ensureFinalLet' =
             LambdaF {} -> True
             _ -> False
 
--- | Obsolete, will be removed soon. Replaced by `ensureFinalLet'`
-ensureFinalLet'' :: MonadOhua m => Expr ty -> m (Expr ty)
-ensureFinalLet'' (Let a e b) = Let a e <$> ensureFinalLet' b
-ensureFinalLet'' v@(Var _) = return v
-    -- I'm not 100% sure about this case, perhaps this ought to be in
-    -- `ensureFinalLetInLambdas` instead
-ensureFinalLet'' (Lambda b body) = Lambda b <$> ensureFinalLet' body
-ensureFinalLet'' a = do
-    newBnd <- generateBinding
-    -- Question: What happens here and whats the type of newBnd supposed to be?
-    return $ Let (TBind newBnd TypeVar) a (Var (TBind newBnd TypeVar))
-
 ensureFinalLetInLambdas :: MonadOhua m => Expr ty -> m (Expr ty)
 ensureFinalLetInLambdas =
     cata $ \case
@@ -207,21 +196,20 @@ ensureFinalLetInLambdas =
         a -> embed <$> sequence a
 
 ensureAtLeastOneCall :: (Monad m, MonadGenBnd m) => Expr ty -> m (Expr ty)
-ensureAtLeastOneCall e@(Var _) = do
+ensureAtLeastOneCall e@(Var (TBind bnd ety)) = do
     newBnd <- generateBinding
-    -- QUestion: What happens here and what's the type of newBnd supposed to be?
-    pure $ Let (TBind newBnd TypeVar) (pureFunction Refs.id Nothing (FunType [TypeVar] TypeVar )`Apply` e) $ Var (TBind newBnd TypeVar)
+    pure $ Let (TBind newBnd ety) (pureFunction Refs.id Nothing (FunType [ety] ety )`Apply` e) $ Var (TBind newBnd ety)
 ensureAtLeastOneCall e = cata f e
   where
-    f (LambdaF bnd body) =
+    f (LambdaF tbnd body) =
         body >>= \case
-            v@(Var _) -> do
+            v@(Var (TBind bnd vty)) -> do
                 newBnd <- generateBinding
                 pure $
-                    Lambda bnd $
-                    Let (TBind newBnd TypeVar) (pureFunction Refs.id Nothing (FunType [TypeVar] TypeVar ) `Apply` v) $
-                    Var (TBind newBnd TypeVar)
-            eInner -> pure $ Lambda bnd eInner
+                    Lambda tbnd $
+                    Let (TBind newBnd vty) (pureFunction Refs.id Nothing (FunType [vty] vty ) `Apply` v) $
+                    Var (TBind newBnd vty)
+            eInner -> pure $ Lambda tbnd eInner
     f eInner = embed <$> sequence eInner
 
 -- | Removes bindings that are never used.
@@ -267,7 +255,7 @@ instance Monoid WasTouched where
 
 type TouchMap = MonoidCombineHashMap Binding (WasTouched, WasTouched)
 
--- Question: Wwhat to do with types of variables here?
+-- Question: What to do with types of variables here?
 wasTouchedAsFunction :: TypedBinding ty  -> TouchMap
 wasTouchedAsFunction (TBind bnd _ty) = MonoidCombineHashMap $ HM.singleton bnd (Yes, No)
 

@@ -47,8 +47,9 @@ destructure source bnds =
     map (\(idx, bnd0) -> Let bnd0 $ mkNthExpr idx source) (zip [0 ..] bnds)
   where
     mkNthExpr idx source0 =
-        -- Question: Whats the type supposed to be
-        pureFunction Refs.nth Nothing (FunType [TypeVar,TypeVar,TypeVar] TypeVar) `Apply` (Lit $ NumericLit idx) `Apply`
+        -- Q: Whats the type supposed to be
+        -- Answer: The third input type is the type of source0 and the return type is the idx'th element of the type os source0 which is hopefully a tuple type
+        pureFunction Refs.nth Nothing (FunType [TypeNat, TypeNat, TypeVar] TypeVar) `Apply` (Lit $ NumericLit idx) `Apply`
         (Lit $ NumericLit $ toInteger $ length bnds) `Apply`
         source0
 
@@ -150,16 +151,6 @@ definedBindings e =
 -- form.
 findFreeVariables :: Expr ty -> [Expr ty]
 findFreeVariables e = map Var (findFreeBindings e)
-
--- Question: Somehow the original findFreeBindings method gets stuck in some test cases where
--- arguments come from surrounding scopes e.g. when we're inside a branch or loop for example the case "loop with stateless condition" in Rust/SharedMemory
-{- findFreeBindings :: Expr ty -> [TypedBinding ty]
-findFreeBindings e =
-    sort $ -- makes the list of args deterministic
-    toList $
-    HS.difference
-        (HS.fromList [v | Var v <- universe e])
-        (HS.fromList $ definedBindings e)-}
 
 -- This version of findFreeVaraibles doesn't sort but oder is deterministic because we do not convert lists to set
 findFreeBindings:: Expr ty -> [TypedBinding ty]
