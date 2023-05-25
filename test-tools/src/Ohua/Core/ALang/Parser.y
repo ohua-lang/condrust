@@ -113,10 +113,10 @@ SimpleExp
     | envRef                     { Lit $ EnvRefLit $1 }
     | qualid                     { Lit $ FunRefLit $ FunRef $1 Nothing Untyped }
     | id                         { Var $1 }
-
+-- ToDo: This will not work any more because WildP a) should be represented as '_' and b) has a type now although i don't know how to incorporate this here
 Exp :: { Exp }
     : Exp SimpleExp             { Apply $1 $2 }
-    | 'λ' or(UnitP, many1(Pat)) '->' Exp   
+    | 'λ' or(WildP, many1(Pat)) '->' Exp   
                                 { foldr (\e cont -> Lambda e cont) $4 $ either id toList $2 }
     | let Let in Exp            { $2 $4 }
     | if Exp then Exp else Exp  { ifBuiltin `Apply` $2 `Apply` $4 `Apply` $6 }
@@ -135,7 +135,7 @@ LetRhs
                                             then a 
                                             else foldr (\x' cont -> Lambda x' cont) a xs) }
 
-UnitP
+WildP
     : '('')'                    { [] }
 
 Pat :: { Binding }
