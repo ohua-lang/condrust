@@ -24,7 +24,8 @@ convertExp (Sub.Lit (BoolLit b)) = Rust.Lit [] (Bool b Unsuffixed noSpan) noSpan
 convertExp (Sub.Lit (StringLit str)) = Rust.Lit [] (Str str Cooked Unsuffixed noSpan) noSpan
 convertExp (Sub.Lit UnitLit) =
   TupExpr [] [] noSpan
-convertExp (Sub.Lit (EnvRefLit _hostExpr)) =
+-- Question: Why is this an error?
+convertExp (Sub.Lit (EnvRefLit _hostExpr _ty)) =
   error "Host expression encountered! This is a compiler error. Please report!"
 convertExp (Sub.Lit (FunRefLit (FunRef qBnd _ _type))) =
   PathExpr [] Nothing (convertQualBnd qBnd) noSpan

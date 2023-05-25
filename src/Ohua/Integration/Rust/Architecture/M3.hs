@@ -99,7 +99,7 @@ instance Architecture (Architectures 'M3) where
     Right b@BoolLit{} -> asMethodCall $ Sub.Lit b
     Right s@StringLit{} -> asMethodCall $ Sub.Lit s
     Right UnitLit -> asMethodCall $ Sub.Lit UnitLit
-    Right (EnvRefLit bnd) -> asMethodCall $ Sub.Var bnd
+    Right (EnvRefLit bnd _ty) -> asMethodCall $ Sub.Var bnd
     Right (FunRefLit _) -> error "Invariant broken: Got asked to send a function reference via channel which should have been caught in the backend."
     (Left d) -> asMethodCall $ Sub.Var d
     where

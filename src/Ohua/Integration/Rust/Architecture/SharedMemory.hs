@@ -65,7 +65,7 @@ instance Architecture (Architectures 'SharedMemory) where
     Right b@BoolLit{} -> trySend $ Sub.Lit b
     Right s@StringLit{} -> trySend $ Sub.Lit s
     Right UnitLit -> trySend $ Sub.Lit UnitLit
-    Right (EnvRefLit bnd) -> trySend $ Sub.Var bnd
+    Right (EnvRefLit bnd _ty) -> trySend $ Sub.Var bnd
     Right (FunRefLit _) -> error "Invariant broken: Got tasked to send a function reference via channel which should have been caught in the backend."
     where
       trySend bnd = Sub.Try $

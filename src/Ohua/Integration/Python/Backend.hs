@@ -60,7 +60,7 @@ instance Integration (Language 'Python) where
 
             convertEnvs :: TCLang.TaskExpr PythonTypeAnno -> TCLang.TaskExpr PythonTypeAnno
             convertEnvs = cata $ \case
-                LitF (EnvRefLit arg) -> Var arg
+                LitF (EnvRefLit arg _ty) -> Var arg 
                 e -> embed e
 
             argToVar :: Py.Parameter a -> TCLang.TaskExpr PythonTypeAnno
@@ -71,7 +71,8 @@ instance Integration (Language 'Python) where
     convertExpr _ (TCLang.Lit (BoolLit b)) = wrapSubExpr $ Sub.Bool b
     convertExpr _ (TCLang.Lit (StringLit str)) = wrapSubExpr $ Sub.Strings [str]
     convertExpr _ (TCLang.Lit UnitLit) = wrapSubExpr Sub.None
-    convertExpr _ (TCLang.Lit (EnvRefLit _hostExpr)) = error "Host expression encountered! This is a compiler error. Please report!"
+    -- Question: Why is it an error?
+    convertExpr _ (TCLang.Lit (EnvRefLit _hostExpr _ty)) = error "Host expression encountered! This is a compiler error. Please report!"
 
     convertExpr _ (TCLang.Lit (FunRefLit (FunRef qBnd mFunID _type))) = case qBnd of
         (QualifiedBinding (NSRef []) bnd) -> wrapSubExpr (Sub.Var bnd)

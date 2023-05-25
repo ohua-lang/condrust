@@ -49,7 +49,7 @@ instance Integration (Language 'Rust) where
 
       convertEnvs :: TCLang.TaskExpr RustTypeAnno -> TCLang.TaskExpr RustTypeAnno
       convertEnvs = cata $ \case
-        LitF (EnvRefLit arg) -> Var arg
+        LitF (EnvRefLit arg _ty) -> Var arg
         e -> embed e
 
   convertExpr _ (TCLang.Var b) = Sub.Var b
