@@ -1,15 +1,21 @@
 module Ohua.Types
     ( FnId
     , Binding
+    , TypedBinding(..)
+    , asBnd, asType
     , NSRef(..)
     , QualifiedBinding(..)
     , VarType(..)
     , controlSignalType
     , FunType(..)
+    , getReturnType
     , toFilePath
     , symbolFromString
     , FunRef(..)
-    , Lit(..), getVarType
+    , getRefType
+    , getRefReturnType
+    , Lit(..)
+    , getVarType
     , Unit(..)
     , module Ohua.Types.Computation
     , module Ohua.Types.Classes

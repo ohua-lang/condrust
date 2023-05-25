@@ -1,7 +1,7 @@
 module Ohua.Types.Literal where
 
 import Universum
-import Ohua.Types.Reference ( FunRef(..), Binding, VarType(..) )
+import Ohua.Types.Reference ( FunRef(..), Binding, VarType(..), getRefReturnType )
 
 -- | Literals of kinds we expect any host language to support
 data Lit ty
@@ -22,6 +22,6 @@ getVarType :: Lit ty -> Maybe (VarType ty)
 getVarType (NumericLit _) = Just TypeNat
 getVarType (BoolLit _)    = Just TypeBool
 getVarType UnitLit        = Just TypeUnit
-getVarType (StringLit _)  = Nothing
+getVarType (StringLit _)  = Just TypeString
 getVarType (EnvRefLit _)  = Nothing
-getVarType (FunRefLit _)  = Nothing
+getVarType (FunRefLit fRef)  = Just $ getRefReturnType fRef

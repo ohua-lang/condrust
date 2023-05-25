@@ -23,31 +23,6 @@ import Ohua.Types.Unit (Unit)
 import qualified Text.Show
 
 
--- | A binding name
-newtype Binding =
-    Binding Text
-    deriving (Eq, Hashable, Generic, Ord, Monoid, Semigroup, NFData, Show, Lift)
-
--- | Hierarchical reference to a namespace
-newtype NSRef =
-    NSRef [Binding]
-    deriving (Eq, Generic, NFData, Ord, Show, Lift)
-
--- | A qualified binding. References a particular bound value inside a
--- namespace.
-declareFields [d|
-    data QualifiedBinding = QualifiedBinding
-        { qualifiedBindingNamespace :: NSRef
-        , qualifiedBindingName      :: Binding
-        } deriving (Eq, Generic, Ord, Show, Lift)
-  |]
-
--- | The numeric id of a function call site
-newtype FnId =
-    FnId Int
-    deriving (Eq, Ord, Generic, Enum, Num, NFData, Hashable, Show, Lift)
-
-
 -- | Internal type representations. While Type and TupleTy capture types from the
 --   host language, TypeVar, TypeNat and TypeBool are used internaly to construct nodes
 --   They must be mapped to the according types of the host language in the backend or, in 
@@ -66,13 +41,7 @@ data VarType ty
     | TypeFunction (FunType ty) -- This is mainly used for inlined algos
     deriving (Lift, Generic)
 
--- ToDo: This is just a helper until we get types of control nodes right
-controlSignalType :: VarType ty
-controlSignalType = TupleTy $ TypeBool:| [TypeNat]
 
--- No More untyped functions and functions have a return type
--- Also the Argument List being either empty or a Nonempty-list means, it's just a list. That changes pattern matchinng downstream
--- but a) makes them and constructors less convoluted and b) eanbles using FunType in VarType
 data FunType ty where
      -- arguments types -> return type -> function type 
      FunType :: [VarType ty] -> VarType ty -> FunType ty
@@ -80,18 +49,9 @@ data FunType ty where
      STFunType :: VarType ty -> [VarType ty] -> VarType ty -> FunType ty
      deriving (Lift)
 
-data FunTypeOld ty where
-     Untyped :: FunTypeOld ty
-     FunTypeOld :: Either Unit (NonEmpty (VarType ty)) -> FunTypeOld ty
-     STFunTypeOld :: VarType ty -> Either Unit (NonEmpty (VarType ty)) -> FunTypeOld ty
-
-
-data FunRef ty where
-    FunRef :: QualifiedBinding -> Maybe FnId -> FunType ty -> FunRef ty
-
---------------------------------------------------------------
---                           Instances
---------------------------------------------------------------
+-- ToDo: This is just a helper until we get types of control nodes right
+controlSignalType :: VarType ty
+controlSignalType = TupleTy $ TypeBool:| [TypeNat]
 
 instance EqNoType (VarType ty) where
     TypeVar ~= TypeVar = True
@@ -102,6 +62,8 @@ instance EqNoType (VarType ty) where
     Type _ ~= Type _ = True -- skipping to type info here!
     (TupleTy ts) ~= (TupleTy ts') = ts == ts' -- tuns into ~=, see instance below
     (TypeList inner1) ~= (TypeList inner2) = inner1 == inner2
+    -- Question: Should Function types be comparable?
+    
     _ ~= _ = False
 
 instance Eq (VarType ty) where
@@ -136,6 +98,71 @@ deriving instance Show (FunType ty)
 deriving instance Eq (FunType ty)
 deriving instance Generic (FunType ty)
 instance Hashable (FunType ty)
+
+--------------------------------------------------------------
+--               Representation of Variables 
+--------------------------------------------------------------
+
+-- | A binding name
+newtype Binding =
+    Binding Text
+    deriving (Eq, Hashable, Generic, Ord, Monoid, Semigroup, NFData, Show, Lift)
+
+-- | A typed Binding 
+data TypedBinding ty = TBind Binding (VarType ty) deriving (Show, Generic)
+
+-- As long as we can not make sure, that every binding and usage side is correctly typed, tranformations, in particular the ones that determine if something is used
+-- should only check if something with the same name, not necesarily the same type annotation is used.
+instance Eq (TypedBinding ty) where
+    (TBind b1 _ty1) == (TBind b2 _ty2) = b1 == b2
+
+asBnd :: TypedBinding ty -> Binding
+asBnd (TBind bnd _ty) = bnd 
+
+asType :: TypedBinding ty -> VarType ty
+asType (TBind _bnd ty) = ty 
+
+-- | Hierarchical reference to a namespace
+newtype NSRef =
+    NSRef [Binding]
+    deriving (Eq, Generic, NFData, Ord, Show, Lift)
+
+-- | A qualified binding. References a particular bound value inside a
+-- namespace.
+declareFields [d|
+    data QualifiedBinding = QualifiedBinding
+        { qualifiedBindingNamespace :: NSRef
+        , qualifiedBindingName      :: Binding
+        } deriving (Eq, Generic, Ord, Show, Lift)
+  |]
+
+--------------------------------------------------------------
+--             Representation of Functions
+--------------------------------------------------------------
+
+
+-- | The numeric id of a function call site
+newtype FnId =
+    FnId Int
+    deriving (Eq, Ord, Generic, Enum, Num, NFData, Hashable, Show, Lift)
+
+-- Actually we can only do it this way, i.e. without involving the argument type
+-- at each call side because we assume that either generics are not allowed or
+-- are also allowed in the backend such that we can consider a generic return type 
+-- as fully resolved.
+getReturnType:: FunType ty -> VarType ty
+getReturnType (FunType _ins out) = out
+getReturnType (STFunType _s _ins out) = out
+
+data FunRef ty where
+    FunRef :: QualifiedBinding -> Maybe FnId -> FunType ty -> FunRef ty
+
+getRefType (FunRef _q _i funTy) = funTy
+getRefReturnType (FunRef _q _i funTy) = getReturnType funTy
+
+--------------------------------------------------------------
+--                           Instances
+--------------------------------------------------------------
 
 deriving instance Show (FunRef ty)
 deriving instance Eq (FunRef ty)
