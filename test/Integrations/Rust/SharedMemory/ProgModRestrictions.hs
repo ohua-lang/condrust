@@ -76,9 +76,7 @@ spec =
                     }
             |]   `shouldThrow` anyException
         
-        -- QUESTION: I'm not sure if this should work anyways. Question is are 
-        --           States passed as algorithm in put already 'used as function input'
-        --           i.e. can envvars ever be state and are algorithms and function the same in this regard?
+        -- This shouldn't work because things can either be arguments OR states, not both
         it "Env vars are state OR function input - Input first" $
          compileCode  
             [sourceFile|
