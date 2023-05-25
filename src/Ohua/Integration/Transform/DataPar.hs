@@ -200,13 +200,15 @@ rewrite liftCollectTy (SMap smapF body collectF) = do
       | not (isIgnorable $ funRef fun) = do
         outTy <- findOutTy fun cont
         let outTy' = liftOutTy outTy
-        liftFunction outTy' fun cont
+        liftFunction outTy' outTy fun cont
     rewriteBody e = pure e
     
     -- Question: Can we get rid of this having the type annotation of the bound variable
+    -- Yes just pattern match on the function type FunType :: [VarType ty] -> VarType ty -> FunType ty
     findOutTy :: DFApp 'Fun ty -> NormalizedDFExpr ty -> OhuaM (VarType ty)
     findOutTy fun cont = 
         case DFL.outsDFApp fun of
+            -- make this a mathc on ty being TypeVar which should error or any type which is the type we want
             [TBind bnd ty] -> case findOutTy' bnd cont of
                         [] -> invariantBroken $ "found unused output:" <> show bnd <> " for function: " <> show fun
                         (t:_) -> return t
@@ -233,14 +235,15 @@ isIgnorable _ = False
 
 liftFunction :: forall ty.
                 VarType ty
+             -> VarType ty
              -> DFApp 'Fun ty
              -> NormalizedDFExpr ty 
              -> OhuaM (NormalizedDFExpr ty)
-liftFunction collectTy (PureDFFun out fun inp) cont = do
-  -- Question: Whats the type of futureBnd supposed to be?
-  futuresATBnd <- DataBinding . flip TBind TypeVar <$> generateBindingWith "futures"
+liftFunction collectTy retTy (PureDFFun out fun inp) cont = do
+  let funTy = getRefType fun
+  futuresATBnd <- DataBinding . flip TBind collectTy <$> generateBindingWith "futures"
   outBound <- handleOutputSide futuresATBnd
-  let spawned = handleFun futuresATBnd
+  let spawned = handleFun futuresATBnd funTy
   return $ DFL.Let spawned outBound
   where
     handleOutputSide :: ATypedBinding 'Data ty -> OhuaM (NormalizedDFExpr ty)
@@ -249,23 +252,22 @@ liftFunction collectTy (PureDFFun out fun inp) cont = do
       DFL.Let
         ( PureDFFun
             out
-            -- Question: What's the return type supposed to
-            (FunRef joinFuture Nothing (FunType [collectTy] TypeVar))
+            (FunRef joinFuture Nothing (FunType [collectTy] retTy))
             (DFVar futuresATBnd :| [])
         )
         cont
 
-    handleFun :: ATypedBinding 'Data ty -> DFApp 'Fun ty
-    handleFun futuresBnd =
+    handleFun :: ATypedBinding 'Data ty -> FunType ty -> DFApp 'Fun ty
+    handleFun futuresBnd funTy =
       PureDFFun
         (Direct futuresBnd)
-        (FunRef spawnFuture Nothing $ getSpawnFunType fun)
-        -- Question: What's that type supposed to be?
-        (DFEnvVar TypeVar (FunRefLit fun) NE.<| inp)
+        (FunRef spawnFuture Nothing $ getSpawnFunType fun funTy)
 
-    -- Question: What the first arg type supposed to be?
-    getSpawnFunType (FunRef _ _ (FunType [] rty)) = FunType [ TypeVar ] rty
-    getSpawnFunType (FunRef _ _ (FunType  xs rty )) = FunType (TypeVar : xs) rty
+        (DFEnvVar (TypeFunction funTy) (FunRefLit fun) NE.<| inp)
+
+
+    getSpawnFunType (FunRef _ _ (FunType [] rty)) funTy = FunType [ (TypeFunction funTy) ] rty
+    getSpawnFunType (FunRef _ _ (FunType  xs rty )) funTy = FunType ((TypeFunction funTy) : xs) rty
 
 -- |
 -- All that the language and backend requires to support this transformations are
@@ -295,16 +297,12 @@ lowerTaskPar _ arch = go
 takeN :: QualifiedBinding
 takeN = "ohua.lang/takeN"
 
--- Question: Whats the type supposed to be?
--- ToDo: This needs a return type parameter
-takeNLit ty = Lit $ FunRefLit $ FunRef takeN Nothing $ FunType  (ty : [TypeVar]) TypeVar
+takeNLit ty = Lit $ FunRefLit $ FunRef takeN Nothing $ FunType  (ty : [TypeNat]) ty
 
 concat :: QualifiedBinding
 concat = "ohua.lang/concat"
 
--- Question: Whats the type supposed to be?
--- ToDo: This needs a return type parameter
-concatLit ty = Lit $ FunRefLit $ FunRef concat Nothing $ FunType (ty : [ty]) TypeVar
+concatLit ty = Lit $ FunRefLit $ FunRef concat Nothing $ FunType (ty : [ty]) ty
 
 -- | This transformation adds a limit on the tries per round and therewith provides
 --   a tuning knob to control the number of invalid (colliding) computation per round.
@@ -532,7 +530,7 @@ amorphous numRetries = transformM go
         )
         | smapF == ALRefs.smap && loopIn == loopInp' = do
           -- Question: What are the types of varaibles supposed to be?
-          taken <- flip TBind TypeVar <$> generateBindingWith "n_taken"
+          taken <- flip TBind TypeNat <$> generateBindingWith "n_taken"
           takenInp <- flip TBind liTy <$> generateBindingWith (loopInBnd <> "_n")
           nResults <- flip TBind TypeVar <$> generateBindingWith "n_results"
           return $
