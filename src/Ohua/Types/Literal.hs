@@ -12,16 +12,16 @@ data Lit ty
     -- Reminder: To support any kind of host literals we could have:
     -- We would need to require however, that any of the possible literals can be turned  into/recovered from a string
     --  | Hostlit String (VarType ty)
-    | EnvRefLit Binding -- ^ a variable bound by the outermost lambda that we compile
+    | EnvRefLit Binding (VarType ty)-- ^ a variable bound by the outermost lambda that we compile
     | FunRefLit (FunRef ty) -- ^ Reference to an external function
     deriving (Show, Eq, Generic)
 
 instance Hashable (Lit ty)
 
-getVarType :: Lit ty -> Maybe (VarType ty)
-getVarType (NumericLit _) = Just TypeNat
-getVarType (BoolLit _)    = Just TypeBool
-getVarType UnitLit        = Just TypeUnit
-getVarType (StringLit _)  = Just TypeString
-getVarType (EnvRefLit _)  = Nothing
-getVarType (FunRefLit fRef)  = Just $ getRefReturnType fRef
+getVarType :: Lit ty -> VarType ty
+getVarType (NumericLit _) = TypeNat
+getVarType (BoolLit _)    = TypeBool
+getVarType UnitLit        = TypeUnit
+getVarType (StringLit _)  = TypeString
+getVarType (EnvRefLit _b vTy)  = vTy
+getVarType (FunRefLit fRef)  = getRefReturnType fRef

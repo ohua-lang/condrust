@@ -47,7 +47,7 @@ prettyLit =
         FunRefLit funRef -> pretty funRef
         NumericLit n -> pretty n
         UnitLit -> "()"
-        EnvRefLit he -> "$" <> pretty he
+        EnvRefLit he ty -> "$" <> pretty he <> "::" <> pretty ty
         BoolLit b -> pretty b
         StringLit str -> pretty str
 
