@@ -100,14 +100,15 @@ substitute (bnd, e) = transform go
 
     replaceEither (Left b) | b == bnd = case e of
                                (Var newBnd) -> Left newBnd
-                               (Lit (EnvRefLit l)) -> Left l
+                               (Lit (EnvRefLit l _)) -> Left l
                                -- NOTE(feliix42): Not sure if it makes sense to check for `FunRefLit` here
+                               -- Question: What do we do here and does it make sense?
                                (Lit l) -> Right l
     replaceEither e' = e'
 
     replaceWhenVar :: Binding -> TaskExpr ty -> Binding
     replaceWhenVar b (Var newBnd) = newBnd
-    replaceWhenVar b (Lit (EnvRefLit newBnd)) = newBnd
+    replaceWhenVar b (Lit (EnvRefLit newBnd _ )) = newBnd
     replaceWhenVar b _ = b
 
     updateVar (Var b) | b == bnd = e

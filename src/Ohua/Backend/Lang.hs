@@ -111,7 +111,7 @@ containsBinding (Stmt expr cont) b = containsBinding expr b || containsBinding c
 containsBinding (Assign bnd effect) b = bnd == b || containsBinding effect b
 containsBinding ReceiveData{} _ = False
 containsBinding (SendData (SSend _ (Left bnd))) b = bnd == b
-containsBinding (SendData (SSend _ (Right (EnvRefLit bnd)))) b = bnd == b
+containsBinding (SendData (SSend _ (Right (EnvRefLit bnd _ty)))) b = bnd == b
 containsBinding (SendData (SSend _ _)) _ = False
 containsBinding (EndlessLoop expr) b = containsBinding expr b
 containsBinding (ForEach bnd1 bnd2 expr) b = bnd1 == b || bnd2 == b || containsBinding expr b
