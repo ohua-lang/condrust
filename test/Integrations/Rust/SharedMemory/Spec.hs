@@ -29,5 +29,5 @@ spec =
     -- Benchmark.spec >>
     Control.spec >>
     Scoping.spec {- >>
-    -- Restrictions.spec-}
+    Restrictions.spec-}
  
