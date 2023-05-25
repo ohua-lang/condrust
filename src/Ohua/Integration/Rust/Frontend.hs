@@ -17,7 +17,7 @@ import Language.Rust.Parser (Span)
 import Language.Rust.Syntax as Rust hiding (Rust)
 import Ohua.Frontend.Lang as FrLang
     ( Expr(..),
-      Pat(TupP, VarP, UnitP) )
+      Pat(TupP, VarP, WildP) )
 import Ohua.Frontend.PPrint ()
 import Ohua.Frontend.Types
 import Ohua.Integration.Lang
@@ -29,6 +29,8 @@ import Ohua.Integration.Rust.Util
 import Ohua.Prelude hiding (getVarType)
 import qualified Control.Applicative as Hm
 
+-- ToDo: Replace TypeVar by rustInfer. We want to eliminate TypeVar from the internal VarType yet need a way to represent unknown types
+--       because typing for the Rust Input will happen in three steps and there will be intermediately unknown types 
 
 class ConvertExpr a where
   convertExpr :: SubC.ConvertM m => a -> m (FrLang.Expr RustVarType)
@@ -171,7 +173,7 @@ instance Integration (Language 'Rust) where
   loadTypes _ (Module ownFile _) ohuaNs = do
     -- Extract namespace reference (filepath) and Qualified name for all functions called in each algo
     filesAndPaths <- concat <$> mapM funsForAlgo (ohuaNs ^. algos)
-    traceShowM $ "files and paths: " <> show filesAndPaths
+    -- traceShowM $ "files and paths: " <> show filesAndPaths
     -- For functions from the compiled module (not imported), set the file path to the current file
     let filesAndPaths' = map (first convertOwn) filesAndPaths
     -- Go through all namespace references, parse the files and return all function types defined in there
@@ -187,7 +189,7 @@ instance Integration (Language 'Rust) where
     where
       funsForAlgo :: ErrAndLogM m => Algo (FrLang.Expr RustVarType) (Item Span) RustVarType -> m [([NSRef], QualifiedBinding)]
       funsForAlgo (Algo _name code _inputCode _retTy) = do
-        traceShowM $ "algo: " <> show _name <> "\n code: \n" <> quickRender code
+        -- traceShowM $ "algo: " <> show _name <> "\n code: \n" <> quickRender code
         -- ToDo: Show types of functions here. They should allready be correct after transformmation to IR
         mapM lookupFunTypes [f | LitE (FunRefLit (FunRef f _ _)) <- universe code]
 
@@ -508,12 +510,12 @@ fromIdent :: Sub.IdentPat -> Binding
 fromIdent (Sub.IdentPat _mode bnd) =  bnd
 
 instance ConvertPat Sub.Pat where
-  convertPat Sub.WildP = return $ VarP (fromString "_") (Type $ TE.Normal rustInfer)
+  convertPat Sub.WildP   = return $ VarP (fromString "_") TypeVar
   convertPat (Sub.IdentP ip) = convertPat ip
   -- It is possible to bind: let () = e1; in Rust, iff e1 evaluates to ()
   -- The pattern in this case would be TupP [], because language-rust has no Unit pattern
   -- However we do so we distinguish cases here 
-  convertPat (Sub.TupP []) = return UnitP
+  convertPat (Sub.TupP []) = return $ FrLang.WildP TypeUnit
   convertPat (Sub.TupP (pt: pts)) = do
     pt' <- convertPat pt
     pts' <- mapM convertPat pts
