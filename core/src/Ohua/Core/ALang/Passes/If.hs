@@ -124,7 +124,7 @@ ifFunSf = Lit $ FunRefLit $ FunRef Refs.ifFun Nothing $ FunType [TypeBool] (Tupl
 ifSf :: VarType ty -> Expr ty
 ifSf vty = Lit $ FunRefLit $ FunRef Refs.ifThenElse Nothing $ FunType [TypeBool, vty, vty] vty
 
-#if 1
+
 -- This is a proposal for `ifRewrite` that uses plated to make sure the
 -- recursion is handled correctly. As far as I can tell the other version does
 -- not recurse properly onto the branches.
@@ -171,57 +171,5 @@ ifRewrite = transformM $ \case
                     Var result
               _ -> throwError $ "Found if with unexpected, non-unit-lambda branch(es)\ntrue:\n " <> show trueBranch <> "\nfalse:\n" <> show falseBranch
       where
-        -- This test needs to improve
-        -- FIXME The proper way to do this would actually define a cond type! Then also
-        --       the above error would immediately go away.
-        -- Question: I'm not sure if I understand the problem here. but can't we solve it having the actual types now?
-        isUnit (TBind bnd _ty) = T.isPrefixOf "_" (unwrap bnd)
+        isUnit (TBind bnd ty) = ty == TypeUnit
     e -> pure e
-
-#else
-
--- ToDo: To type the returns of if expressions correctly we need to thread the type of the current outer let
--- expression through, i.e. when transforming let a: Ty = if x then y else z, we need to remember Ty to type y and z
-ifRewrite :: MonadGenBnd m => Expr ty -> m (Expr ty)
-ifRewrite (Let v a b) = Let v <$> ifRewrite a <*> ifRewrite b
-ifRewrite (Lambda v e) = Lambda v <$> ifRewrite e
-ifRewrite (Apply (Apply (Apply f cond) trueBranch) falseBranch) | f == ifSf
-    -- traceM $ "true branch: " <> (show trueBranch)
-    -- traceM $ "false branch: " <> (show falseBranch)
- = do
-    trueBranch' <- ifRewrite trueBranch
-    falseBranch' <- ifRewrite falseBranch
-    -- post traversal transformation:
-    ctrlTrue <- generateBindingWith "ctrlTrue"
-    ctrlFalse <- generateBindingWith "ctrlFalse"
-    trueBranch'' <- liftIntoCtrlCtxt ctrlTrue trueBranch'
-    falseBranch'' <- liftIntoCtrlCtxt ctrlFalse falseBranch'
-    -- now these can become normal expressions
-    -- TODO match against "()" - unit symbol for args
-    -- FIXME This is an assumption that should be covered by the type of this call!
-    let ([_], trueBranch''') = lambdaArgsAndBody trueBranch''
-    let ([_], falseBranch''') = lambdaArgsAndBody falseBranch''
-    -- return $
-    --     [ohualang|
-    --       let ($var:ctrlTrue, $var:ctrlFalse) = ohua.lang/ifFun $var:cond in
-    --         let trueResult = $expr:trueBranch' in
-    --          let falseResult = $expr:falseBranch' in
-    --           let result = ohua.lang/select cond trueResult falseResult in
-    --             result
-    --                |]
-    ctrls <- generateBindingWith "ctrls"
-    trueResult <- generateBindingWith "trueResult"
-    falseResult <- generateBindingWith "falseResult"
-    result <- generateBindingWith "result"
-    return $
-        Let ctrls (Apply ifFunSf cond) $
-        mkDestructured [ctrlTrue, ctrlFalse] ctrls $
-        Let trueResult trueBranch''' $
-        Let falseResult falseBranch''' $
-        Let
-            result
-            (Apply (Apply (Apply selectSf cond) $ Var trueResult) $
-             Var falseResult) $
-        Var result
-ifRewrite e = return e
-#endif
