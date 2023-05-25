@@ -3,6 +3,7 @@
 module Ohua.Frontend.Lang
     ( Pat(..)
     , Expr(..)
+    , exprType
     , PatF(..)
     , ExprF(..)
     , patterns
@@ -20,7 +21,7 @@ data Pat ty
     -- Actualy a tuple pattern starts making sense at two or more patterns
     -- but it should have at least one. So I changed this from [] to NonEmpty
     | TupP (NonEmpty (Pat ty))
-    | UnitP
+    | UnitP -- ToDo :Rename because it's actually _ and has a type
     deriving (Show, Eq, Generic)
 
 data Expr ty
@@ -48,8 +49,36 @@ data Expr ty
             (Expr ty) -- ^ An expression with the return value ignored
     | SeqE (Expr ty)
            (Expr ty)
+    -- ToDo: make it NonEmpty (see type porblem below)
     | TupE (FunType ty) [Expr ty] -- ^ create a tuple value that can be destructured
     deriving (Show, Generic)
+
+
+exprType:: Expr ty -> VarType ty
+exprType (VarE _b ty) = ty
+-- We aim for "return types" here so if the literal is a function, 
+-- this will evaluate to the functions return type
+exprType (LitE  lit) = getVarType lit
+exprType (LetE _p _e cont) = exprType cont
+exprType (AppE fun args) = exprType fun
+-- Type of an abstraction (\x:T1. term:T2) as generics are a 'problem' of the host language
+-- we do not handle any subtitution here and just take the return type of the term
+exprType (LamE _p term) = exprType term
+exprType (IfE c t1 t2) = exprType t1 -- we could also use t2 as they should be equal
+exprType (WhileE c body) = TypeUnit -- This will change dwnstream
+-- Question: How can we know this one ? 
+-- The return of a map (t1->t2) (c t1) should be (c t2) but we cannot recombine host types 
+exprType (MapE fun container) = TypeVar 
+-- The (explicit) return type of a function, bound to a state is still the return type of the function
+exprType (BindE _s f) = exprType f
+-- Question: Correct?
+exprType StmtE{} = TypeUnit  
+-- This just makes shure e1 is evaluated although its result is ignored
+exprType (SeqE e1 e2) = exprType e2
+exprType (TupE f (e:es)) = TupleTy (exprType e :| map exprType es) 
+-- ToDo: This is wrong in every case where Unit != None
+exprType (TupE f []) = TypeUnit 
+
 
 patterns :: Traversal' (Expr ty) (Pat ty)
 patterns f =
