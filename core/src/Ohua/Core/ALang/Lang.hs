@@ -83,10 +83,11 @@ exprType e = case e of
     -- if the frontend integration allows for generics, than the backend should accept them .. we don't do the derivation
     Apply funE _argE -> exprType funE
     -- Type of an abstraction (\x:T1. term:T2) should be T1 -> T2
-    Lambda _argE _termE -> error $ "Trying to retrieve the type of a `lambda expr`, which are currently not typed. Please report this error" 
-    -- Type of a method Bind obj:TO (\x:T1. term:T2) is (TO, T2), because a new state and the return term are
-    -- returned
-    BindState _objE _methodcallE -> error $ "Trying to retrieve the type of a `method call expr`, which are currently not typed. Please report this error" 
+    -- Question: Do we use the same argument as for application here and go only fr the return type? 
+    Lambda _argE termE -> exprType termE
+    -- Type of a method Bind obj:TO (\x:T1. term:T2) is actually (TO, T2), but we mean the type it should
+    -- explicitely evaluate to in the host language so it is T2
+    BindState _objE methodcallE -> exprType methodcallE
 
 
 instance Hashable (TypedBinding ty)
