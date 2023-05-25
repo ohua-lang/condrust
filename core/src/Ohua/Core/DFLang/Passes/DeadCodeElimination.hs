@@ -8,8 +8,6 @@ import Data.Tuple.Extra (fst3)
 import Ohua.Core.DFLang.Lang as L
 import Ohua.Core.Prelude
 import qualified Ohua.Types.Vector as V
-import Ohua.Core.ALang.Lang as ALang (TypedBinding(..))
-
 
 eliminate :: (MonadOhua m) => NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
 eliminate expr = do

@@ -35,7 +35,6 @@
 module Ohua.Core.ALang.Lang
   ( Expr(..)
   , AExpr
-  , TypedBinding(..), asBnd, asType
   , exprType
   -- ** Convenience patterns
   , pattern PureFunction, pattern PureFunctionTy, pattern PureFunctionF
@@ -53,10 +52,7 @@ import Ohua.Prelude
 
 import Data.Functor.Foldable.TH (makeBaseFunctor)
 import Control.Lens.Plated
--- import Language.Haskell.TH.Syntax (Lift)
--- import Control.Category ((>>>))
 
--- import Ohua.Core.Types
 
 -------------------- Basic ALang types --------------------
 
@@ -71,32 +67,23 @@ data Expr ty
     deriving (Show, Eq, Generic)
 
 type AExpr = Expr
--- ToDo: Tyed Binding realy does belong in into commons as we need it everywhere in DFLang and
---       could already start using it in FRLang I think
-data TypedBinding ty = TBind Binding (VarType ty) deriving (Show, Generic)
-
--- As long as we can not make sure, that every binding and usage side is correctly typed, tranformations, in particular the ones that determine if something is used
--- should only check if something with the same name, not necesarily the same type annotation is used.
-instance Eq (TypedBinding ty) where
-    (TBind b1 _ty1) == (TBind b2 _ty2) = b1 == b2
-
-asBnd :: TypedBinding ty -> Binding
-asBnd (TBind bnd _ty) = bnd 
-
-asType :: TypedBinding ty -> VarType ty
-asType (TBind _bnd ty) = ty 
 
 -- ToDo: Actually every expression should be typable at this point
 exprType:: Expr ty -> VarType ty
 exprType e = case e of 
-    Var (TBind _bnd ty) -> ty 
+    Var (TBind _bnd varTy) -> case varTy of
+        TypeFunction funTy -> getReturnType funTy
+        ty -> ty
     Lit lit -> case getVarType lit of
         Just ty -> ty
         Nothing -> TypeVar 
     -- Let should be typed by e2, because this is what it resturns
-    Let _bnd _e1 _e2 -> error $ "Trying to retrieve the type of a `let expr`, which are currently not typed. Please report this error" 
+    Let _bnd _e1 e2 -> exprType e2
     -- Apply (\x:T1. term:T2) (t:T1), should obviously be typed as T2
-    Apply _funE _argE -> error $ "Trying to retrieve the type of a `apply expr`, which are currently not typed. Please report this error" 
+    -- Obviously we should typecheck AND with generic functions T2 could depend on T1. 
+    -- However we consider generics in the host language a problem of the host languange i.e. 
+    -- if the frontend integration allows for generics, than the backend should accept them .. we don't do the derivation
+    Apply funE _argE -> exprType funE
     -- Type of an abstraction (\x:T1. term:T2) should be T1 -> T2
     Lambda _argE _termE -> error $ "Trying to retrieve the type of a `lambda expr`, which are currently not typed. Please report this error" 
     -- Type of a method Bind obj:TO (\x:T1. term:T2) is (TO, T2), because a new state and the return term are

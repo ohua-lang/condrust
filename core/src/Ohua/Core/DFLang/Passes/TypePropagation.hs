@@ -4,7 +4,6 @@ module Ohua.Core.DFLang.Passes.TypePropagation where
 import Data.HashMap.Lazy as HM hiding (map, foldl')
 import Ohua.Core.DFLang.Lang hiding (length)
 import qualified Ohua.Core.DFLang.Refs as Refs
-import Ohua.Core.ALang.Lang as ALang (TypedBinding(..), asBnd, asType)
 import Ohua.Core.Prelude
 import qualified Ohua.Types.Vector as OV
 

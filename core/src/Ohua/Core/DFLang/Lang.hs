@@ -1,5 +1,4 @@
 {-# LANGUAGE DataKinds #-}
--- {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ScopedTypeVariables, NoOverloadedLists #-}
 {-# LANGUAGE LambdaCase #-}
 
@@ -7,11 +6,10 @@ module Ohua.Core.DFLang.Lang where
 
 import qualified Data.List.NonEmpty as NE
 import Ohua.Core.ALang.Refs as ALangRefs (recurFun, smapFun, ifFun, collect, select, ctrl)
-import Ohua.Core.ALang.Lang as ALang (TypedBinding(..), asBnd, asType)
 import Ohua.Core.Prelude hiding (length)
 import Ohua.Types.Vector as V hiding (map)
 import qualified Data.HashSet as HS
--- import Control.Monad (when)
+
 
 data BindingType = State | Data deriving (Show, Eq, Generic)
 

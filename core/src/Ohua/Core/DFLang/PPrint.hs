@@ -9,7 +9,6 @@ import Data.Text.Prettyprint.Doc as PP
 
 import Ohua.Types.Reference ()
 import Ohua.Core.ALang.PPrint ()
-import Ohua.Core.ALang.Lang as ALang (asType, asBnd)
 import Ohua.Core.DFLang.Lang
 
 import Data.Text.Prettyprint.Doc.Render.Text

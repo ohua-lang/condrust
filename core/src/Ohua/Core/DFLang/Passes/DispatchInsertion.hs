@@ -11,7 +11,7 @@ import qualified Ohua.Core.DFLang.Refs as DFLangRefs
 import Ohua.Core.DFLang.Lang hiding (length)
 import Ohua.Core.Prelude hiding (Nat)
 import Ohua.Types.Vector
-import Ohua.Core.ALang.Lang as ALang (TypedBinding(..))
+
 
 
 data UsageSite = Pure | StateThread | SMap | If | Rec | Collect | Select | Ctrl deriving Eq
