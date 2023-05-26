@@ -251,25 +251,23 @@ convertFunCall arch SF.SetConstructor args =
     wrapSubExpr $ Sub.Set items
     where items = map (unwrapSubStmt . convertExpr arch) args
 
-convertFunCall arch op [arg] | isJust $ unOp op =
-    wrapSubExpr $ Sub.UnaryOp (fromJust $ unOp op) arg'
-    where
-        arg' =  unwrapSubStmt $ convertExpr arch arg
-        unOp = \case
-            FunRepresentationOf "not" -> Just Sub.Not
-            FunRepresentationOf "~" -> Just Sub.Invert
-            _ -> Nothing
+convertFunCall arch op [arg] 
+    | isJust $ unOp op =
+        wrapSubExpr $ Sub.UnaryOp (fromJust $ unOp op) arg'
+        where
+            arg' =  unwrapSubStmt $ convertExpr arch arg
+            unOp = \case
+                FunRepresentationOf "not" -> Just Sub.Not
+                FunRepresentationOf "~" -> Just Sub.Invert
+                _ -> Nothing
 
 convertFunCall arch funRef args =
-    -- TODO: I currently do not need to remove single Unit Literals from function calls: But if functions get assigned types 
-        -- later (assignTypes in the frontend), there will be an added Unit Lit in empty function calls that need to be removed
-    {--let args' = case args of 
+    let args' = case args of 
                     [TCLang.Lit UnitLit] -> []
-                    _ -> map (convertArgument arch) args -}
-    -- in
+                    _ -> map (convertArgument arch) args
+    in
     wrapSubExpr $ Sub.Call
-                    ( unwrapSubStmt $ convertExpr arch $ asFunctionLiteral funRef (length args))
-                    (map (convertArgument arch) args)
+                    ( unwrapSubStmt $ convertExpr arch $ asFunctionLiteral funRef (length args')) args'
 
 
 convertArgument:: (Architecture arch, Lang arch ~ Language 'Python) =>

@@ -272,21 +272,21 @@ subExprToIR Sub.None = return $  LitE  UnitLit
 
 subExprToIR (Sub.Call (Sub.Pure bnd) args) = do
     args'<- mapM subArgToIR args
-    return $ AppE (VarE bnd defaultType) args'
+    let argTypes = listofPyType args
+    funLit <- toFunRefLit bnd (argTypes, defaultType)
+    return $ AppE funLit args'
 
 subExprToIR (Sub.Call (Sub.Dotted objBnd funBnd) args) = do
     args' <- mapM subArgToIR args
-    let receiverTy = defaultType
-        receiver = VarE objBnd receiverTy
+    let receiver = VarE objBnd defaultType
         argTypes = listofPyType args
-        -- Question: Can we know the return type?
-        method = LitE (FunRefLit (FunRef funBnd Nothing $ STFunType receiverTy argTypes defaultType))
+        method = LitE (FunRefLit (FunRef funBnd Nothing $ STFunType defaultType argTypes defaultType))
     return $ BindE receiver method `AppE` args'
 
 subExprToIR (Sub.Call (Sub.Direct lambdaExpr) args) = do
     args' <- mapM subArgToIR args
     fun <- subExprToIR lambdaExpr
-    return $ AppE fun args'
+    return $ (trace $ "Lambda: " <> show fun) AppE fun args'
 
 subExprToIR (Sub.CondExpr condE trueExpr falseExpr) = do
     cond <- subExprToIR condE
