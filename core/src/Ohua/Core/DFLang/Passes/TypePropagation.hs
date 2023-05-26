@@ -3,7 +3,7 @@ module Ohua.Core.DFLang.Passes.TypePropagation where
 
 import Data.HashMap.Lazy as HM hiding (map, foldl')
 import Ohua.Core.DFLang.Lang hiding (length)
-import qualified Ohua.Core.DFLang.Refs as Refs
+import qualified Ohua.Core.InternalFunctions as IFuns
 import Ohua.Core.Prelude
 import qualified Ohua.Types.Vector as OV
 
@@ -37,13 +37,13 @@ returnBinding = "finalReturnType"
 -- Ohua Inserted functions are:
 {-
   Note: The tuple (bool, nat is a control signal)
-  Refs.ctrl   -> Type should be: ((bool, nat), A) -> A
-  Refs.select -> Type should be; (bool, A, A) -> A
-  Refs.ifFun  -> Type should be: (A) -> ((bool, nat),(bool,nat))
-  Refs.collect-> Type should be (nat, A) -> [A]
-  Refs.seqFun -> Type should be ? => grep doesn't show me any place it's used in the code
+  IFuns.ctrl   -> Type should be: ((bool, nat), A) -> A
+  IFuns.select -> Type should be; (bool, A, A) -> A
+  IFuns.ifFun  -> Type should be: (A) -> ((bool, nat),(bool,nat))
+  IFuns.collect-> Type should be (nat, A) -> [A]
+  IFuns.seqFun -> Type should be ? => grep doesn't show me any place it's used in the code
               -> looks like: (A, nat) -> A ?
-  Refs.unitFun-> Type should be: (F, Unit) -> F(), 
+  IFuns.unitFun-> Type should be: (F, Unit) -> F(), 
               -> i.e. F is a stateles function that was called without arguments,
               -> I don't think we can learn from that since we don't know the return type of
               -> F() as we do not safe the return type of functions (for whatever reason)
@@ -51,11 +51,11 @@ returnBinding = "finalReturnType"
               -> this might be the case for e.g. unitFUn(id, lA), which actually occures in the
                respective stage of DFLang. However we'd neeed to identify by adding the F functions
               -> to scope as simple variables (which they actually are.)
-  Refs.runSTCLangSMap   -> Type should be : (nat, A) -> (A)
-  Refs.runSTCLangIf     ->  ??? from Alang.State it seems to take a cond (bool?) and two A (Somestate?) and returns a A (Somestate?)
+  IFuns.runSTCLangSMap   -> Type should be : (nat, A) -> (A)
+  IFuns.runSTCLangIf     ->  ??? from Alang.State it seems to take a cond (bool?) and two A (Somestate?) and returns a A (Somestate?)
                         -> Not sure, not sure if it arrives at DFLAng-Custom, not sure what all the "FIXME"s want to 
                         -> tell me about the reanson behind making any ccode depending on this implementation. :-(
-  Refs.id     -> Type should be:  A -> A 
+  IFuns.id     -> Type should be:  A -> A 
 
 -}
 --propagateTypes :: NormalizedDFExpr ty -> NormalizedDFExpr ty
@@ -88,7 +88,7 @@ typeBottomUp (Let (PureDFFun out@(Direct outBnd) f@(FunRef fun _fid fTy) inputs@
   -- In a bottom up pass, we've seen the function using the output already.
   -- So we can try to type the input, using the output. 
   -- Also we know the controle signal type
-  | fun == Refs.ctrl = do
+  | fun == IFuns.ctrl = do
             -- ctrl:: (bool, nat) -> A -> A
             -- traceM  $ "Typing controle function " <> show fun
 
@@ -115,7 +115,7 @@ typeBottomUp (Let (PureDFFun out@(Direct outBnd) f@(FunRef fun _fid fTy) inputs@
 
             return $ Let (PureDFFun out f (ctrlInput' :| [dataInput])) inCont
 
-  | fun == Refs.collect = do
+  | fun == IFuns.collect = do
             -- collect :: (nat, A) -> [A]
             -- FIXME: Current assumption -> A is always Unit, cause the combination of
             -- of collect and seq is merely to keep calculation going when no actual result is returned from the
@@ -132,7 +132,7 @@ typeBottomUp (Let (PureDFFun out@(Direct outBnd) f@(FunRef fun _fid fTy) inputs@
 
             return $ Let (PureDFFun out f (natVar :| [aVar])) inCont
 
-  | fun == Refs.runSTCLangSMap = do
+  | fun == IFuns.runSTCLangSMap = do
             -- traceM "Typing rustSTCLangSMap function"
             -- This node collects state mutations from a loop i.e. it might be the last point in code 
             -- where this state is used and hence we won't get type information 'bottom up' here. 
@@ -142,7 +142,7 @@ typeBottomUp (Let (PureDFFun out@(Direct outBnd) f@(FunRef fun _fid fTy) inputs@
             dataInp' <- maybeUpdate outBnd scndIn
             return $ Let (PureDFFun out f (ctrlVar' :| [dataInp'])) inCont
 
-  | fun == Refs.select = do
+  | fun == IFuns.select = do
             -- select :: bool -> A -> A -> A
             -- traceM $ "Typing select"
 
@@ -168,7 +168,7 @@ typeBottomUp (Let (PureDFFun out@(Direct outBnd) f@(FunRef fun _fid fTy) inputs@
             return$ Let (PureDFFun out (FunRef fun _fid (FunType (NE.toList realArgTypes) realOutTy )) typedIns') inCont
 
   -- ToDo: Check if this still exists
-  | fun == Refs.seqFun = do
+  | fun == IFuns.seqFun = do
             -- seq:: ([A], Unit) -> Unit 
             -- The Problem is, seq, doesn'T pass on the type information of A so we can't
             -- type it properly by it's input vs. output type as the other Ohua functions

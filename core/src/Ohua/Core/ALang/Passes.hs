@@ -37,7 +37,7 @@ import Ohua.Core.ALang.Passes.Smap
 import Ohua.Core.ALang.Passes.Unit
 import Ohua.Core.ALang.Passes.Literal
 import Ohua.Core.ALang.Passes.State
-import qualified Ohua.Core.ALang.Refs as Refs
+import qualified Ohua.Core.InternalFunctions as IFuns
 import Ohua.Core.Stage
 
 
@@ -198,7 +198,7 @@ ensureFinalLetInLambdas =
 ensureAtLeastOneCall :: (Monad m, MonadGenBnd m) => Expr ty -> m (Expr ty)
 ensureAtLeastOneCall e@(Var (TBind bnd ety)) = do
     newBnd <- generateBinding
-    pure $ Let (TBind newBnd ety) (pureFunction Refs.id Nothing (FunType [ety] ety )`Apply` e) $ Var (TBind newBnd ety)
+    pure $ Let (TBind newBnd ety) (pureFunction IFuns.id Nothing (FunType [ety] ety )`Apply` e) $ Var (TBind newBnd ety)
 ensureAtLeastOneCall e = cata f e
   where
     f (LambdaF tbnd body) =
@@ -207,7 +207,7 @@ ensureAtLeastOneCall e = cata f e
                 newBnd <- generateBinding
                 pure $
                     Lambda tbnd $
-                    Let (TBind newBnd vty) (pureFunction Refs.id Nothing (FunType [vty] vty ) `Apply` v) $
+                    Let (TBind newBnd vty) (pureFunction IFuns.id Nothing (FunType [vty] vty ) `Apply` v) $
                     Var (TBind newBnd vty)
             eInner -> pure $ Lambda tbnd eInner
     f eInner = embed <$> sequence eInner

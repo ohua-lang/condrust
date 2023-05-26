@@ -2,7 +2,7 @@ module Ohua.Core.DFLang.Passes.State where
 
 import Ohua.Core.Prelude
 import Ohua.Core.DFLang.Lang
-import Ohua.Core.DFLang.Refs as Refs
+import Ohua.Core.InternalFunctions as IFuns
 import Ohua.Core.Compile.Configuration
 
 -- | This optimization is optional. It needs to be enable by integrations that do __not__
@@ -19,7 +19,7 @@ intoFusable :: Monad m => NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
 intoFusable = mapFunsM (pure . f)
   where
     f (PureDFFun out r@(FunRef fun _ _) (_:| [sIn]))
-      | fun == Refs.runSTCLangSMap = PureDFFun out r (sIn :| [])
+      | fun == IFuns.runSTCLangSMap = PureDFFun out r (sIn :| [])
     f e = e
 
 load :: CustomPasses ty -> CustomPasses ty

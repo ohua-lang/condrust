@@ -21,7 +21,7 @@ import qualified Ohua.Core.ALang.Passes as APasses
 import qualified Ohua.Core.ALang.Passes.SSA as SSA
 import Ohua.Core.Feature.TailRec (loadTailRecPasses)
 import qualified Ohua.Core.ALang.Passes.Verify as AVerify
-import Ohua.Core.ALang.Refs as Refs
+import Ohua.Core.InternalFunctions as IFuns
 import Ohua.Core.Compile.Configuration
 import Ohua.Core.DFLang.PPrint ()
 import qualified Ohua.Core.DFLang.Passes as DFPasses
@@ -80,7 +80,7 @@ compile opts passes returnType expr = do
 
 
 hofNames :: HashSet QualifiedBinding
-hofNames = HS.fromList [Refs.smap, Refs.ifThenElse, Refs.seq, Refs.recur, y]
+hofNames = HS.fromList [IFuns.smap, IFuns.ifThenElse, IFuns.seq, IFuns.recur, y]
 
 -- FIXME I don't think this is needed anymore once issue #8 is resolved.
 -- | Verify that only higher order functions have lambdas as arguments

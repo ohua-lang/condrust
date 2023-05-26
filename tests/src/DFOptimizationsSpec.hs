@@ -10,9 +10,9 @@ import Ohua.Core.DFLang.PPrint
 import Ohua.Core.DFLang.Passes
 import Ohua.Core.Test (embedDFLang, showWithPretty)
 import Ohua.Core.Test.DFGraph
-import qualified Ohua.Core.DFLang.Refs as Refs
+import qualified Ohua.Core.InternalFunctions as IFuns
 
-optimizeCtrl = collapseNth (== nodeRef Refs.ctrl)
+optimizeCtrl = collapseNth (== nodeRef IFuns.ctrl)
 
 shouldOptimizeTo :: DFExpr -> DFExpr -> Expectation
 shouldOptimizeTo input expected = do

@@ -19,7 +19,7 @@ import Ohua.Types.Vector hiding (map, zip, zip3, unzip, unzip3, filter, toList)
 import Ohua.Core.ALang.Lang
 import Ohua.Core.ALang.Util
 import Ohua.Core.ALang.Passes.SSA
-import qualified Ohua.Core.ALang.Refs as Refs
+import qualified Ohua.Core.InternalFunctions as IFuns
 
 import Ohua.Core.ALang.PPrint ()
 
@@ -49,11 +49,11 @@ postControlPasses = transformCtxtExits -- . traceShow "transforming ctxt exists!
 
 
 runSTCLangSMapFun :: VarType ty -> Expr ty
-runSTCLangSMapFun stateTy = Lit $ FunRefLit $ FunRef Refs.runSTCLangSMap Nothing $ FunType [TypeNat, stateTy] stateTy -- size and the state, i.e., there is one per state
+runSTCLangSMapFun stateTy = Lit $ FunRefLit $ FunRef IFuns.runSTCLangSMap Nothing $ FunType [TypeNat, stateTy] stateTy -- size and the state, i.e., there is one per state
 
 -- Question: According to the code, this function is of type: bool -> stateVar -> stateVar -> stateVar. Is that what it's supposed to be?
 runSTCLangIfFun :: VarType ty -> Expr ty
-runSTCLangIfFun stateTy = Lit $ FunRefLit $ FunRef Refs.runSTCLangIf Nothing $ FunType [TypeBool, stateTy, stateTy] stateTy
+runSTCLangIfFun stateTy = Lit $ FunRefLit $ FunRef IFuns.runSTCLangIf Nothing $ FunType [TypeBool, stateTy, stateTy] stateTy
 
 -- invariant: this type of node has at least one var as input (the computation result)
 ctxtExit :: QualifiedBinding
@@ -170,7 +170,7 @@ transformControlStateThreads :: MonadGenBnd m => Expr ty -> m (Expr ty)
 transformControlStateThreads = transformM f
   where
     f (Let v (fun@(PureFunction op _) `Apply` trueBranch `Apply` falseBranch) cont)
-      | op == Refs.ifThenElse =
+      | op == IFuns.ifThenElse =
           let
             trueBranchStates = HS.fromList $ collectStates trueBranch
             falseBranchStates = HS.fromList $ collectStates falseBranch
@@ -181,7 +181,7 @@ transformControlStateThreads = transformM f
               HS.foldr
               (\missingState c ->
                  Let missingState
-                 (pureFunction Refs.id Nothing (FunType [TypeVar] TypeVar) 
+                 (pureFunction IFuns.id Nothing (FunType [TypeVar] TypeVar) 
                    `Apply` Var missingState)
                  c)
             trueBranch' = applyToBody (`addMissing` trueBranchStatesMissing) trueBranch
@@ -199,7 +199,7 @@ transformControlStateThreads = transformM f
               mkDestructured (v:allStates) ctxtOut
               cont
     f (Let v (fun@(PureFunction op _) `Apply` lam `Apply` ds) cont)
-      | op == Refs.smap =
+      | op == IFuns.smap =
           let (args, expr) = lambdaArgsAndBody lam
               states = filter (not . (`HS.member` HS.fromList args)) $ collectStates expr
           in do
@@ -269,7 +269,7 @@ transformCtxtExits = evictOrphanedDestructured . f
                    cont' = h' cont
                in descend h' cont'
              -- collect case
-             (fun@(FunRef op _ _), Nothing, [size, Var exitRes]) | op == Refs.collect && exitRes == compound ->
+             (fun@(FunRef op _ _), Nothing, [size, Var exitRes]) | op == IFuns.collect && exitRes == compound ->
                let (compOut':stateOuts') = findDestructured cont v
                    stateExits ct =
                      foldr
@@ -290,7 +290,7 @@ transformCtxtExits = evictOrphanedDestructured . f
           -> Expr ty
         h compound compOut stateOuts _compound' compOut' stateOuts'
             (Let v (fun@(PureFunction op _) `Apply` cond `Apply` Var trueBranch `Apply` _falseBranch) cont)
-            | op == Refs.select =
+            | op == IFuns.select =
                 let (tbCompOut, tbStateArgs, fbCompOut, fbStateArgs) =
                         if compound == trueBranch
                         then (compOut, stateOuts, compOut', stateOuts')

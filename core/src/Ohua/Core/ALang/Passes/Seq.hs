@@ -22,13 +22,13 @@ module Ohua.Core.ALang.Passes.Seq where
 import Ohua.Core.Prelude
 
 import Ohua.Core.ALang.Lang
--- import Ohua.Core.ALang.Passes.Control
-import qualified Ohua.Core.ALang.Refs as Refs (seqFun)
--- import Ohua.Core.ALang.Util (lambdaArgsAndBody)
+
+import qualified Ohua.Core.InternalFunctions as IFuns (seqFun)
+
 
 -- ToDo: Remove
 seqFunSf :: Expr ty
-seqFunSf = Lit $ FunRefLit $ FunRef Refs.seqFun Nothing $ FunType [TypeVar] TypeVar
+seqFunSf = Lit $ FunRefLit $ FunRef IFuns.seqFun Nothing $ FunType [TypeVar] TypeVar
 
 -- The below version of seq dates back to a time where did not have the concept of
 -- state threads. State threads sequence side-effects now. And the only means for

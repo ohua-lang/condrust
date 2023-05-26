@@ -21,7 +21,7 @@ import qualified Data.HashSet as HS
 import qualified Data.List.NonEmpty as NE
 import qualified Data.List.NonEmpty.Extra as NEE
 import Ohua.Core.ALang.Lang as ALang
-import Ohua.Core.ALang.Refs as ALangRefs (smapFun,ifFun)
+import Ohua.Core.InternalFunctions as IFuns (smapFun,ifFun)
 import Ohua.Core.ALang.Util
 import Ohua.Core.DFLang.Lang as DFLang hiding (length)
 import Ohua.Core.DFLang.Passes.DeadCodeElimination (eliminate)
@@ -77,7 +77,7 @@ removeNth expr = do
                (Maybe (DFApp a ty))
     toDFAppFun (PureFun tgt (FunRef "ohua.lang/nth" _ _) (DFEnvVar _ (NumericLit i) :| [_, DFVar srcATB ]) ) =
       modify (HM.insertWith (<>) (unwrapTB srcATB) ((i, unwrapVarTB tgt) :| [])) >> pure Nothing
-    toDFAppFun (PureFun out (FunRef fr _ _) ins) | fr == ALangRefs.ifFun = do
+    toDFAppFun (PureFun out (FunRef fr _ _) ins) | fr == IFuns.ifFun = do
       hm <- get
       let out' =
             case toDFOuts (unwrapVarTB out) DataBinding hm of
@@ -87,7 +87,7 @@ removeNth expr = do
                   (d :| []) -> d
                   _ -> error $ "Invariant broken: IfFun has wrong input:" <> show ins
       return $ Just $ IfFun out' dIn
-    toDFAppFun (PureFun out (FunRef fr _ _) ins) | fr == ALangRefs.smapFun = do
+    toDFAppFun (PureFun out (FunRef fr _ _) ins) | fr == IFuns.smapFun = do
       hm <- get
       let out' =
             case toDFOuts (unwrapVarTB out) DataBinding hm of

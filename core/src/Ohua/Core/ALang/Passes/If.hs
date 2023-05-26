@@ -107,22 +107,22 @@ import Ohua.Core.Prelude
 
 import Ohua.Core.ALang.Lang
 import Ohua.Core.ALang.Passes.Control (liftIntoCtrlCtxt)
-import qualified Ohua.Core.ALang.Refs as Refs (ifFun, ifThenElse, select)
+import qualified Ohua.Core.InternalFunctions as IFuns (ifFun, ifThenElse, select)
 import Ohua.Core.ALang.Util (mkDestructured)
 
 -- import Control.Category ((>>>))
 import qualified Data.Text as T
 
 selectSf :: VarType ty -> Expr ty
-selectSf vty = Lit $ FunRefLit $ FunRef Refs.select Nothing $ FunType [TypeBool, vty, vty] vty
+selectSf vty = Lit $ FunRefLit $ FunRef IFuns.select Nothing $ FunType [TypeBool, vty, vty] vty
 
 -- | The controle node that triggers either the then or the else branch, depending on the input bool
 ifFunSf :: Expr ty
-ifFunSf = Lit $ FunRefLit $ FunRef Refs.ifFun Nothing $ FunType [TypeBool] (TupleTy $ controlSignalType:|[controlSignalType])
+ifFunSf = Lit $ FunRefLit $ FunRef IFuns.ifFun Nothing $ FunType [TypeBool] (TupleTy $ controlSignalType:|[controlSignalType])
 
 -- | Just a literal representing an if-function i.e. \con t1 t2 : if cond then t1 else t2
 ifSf :: VarType ty -> Expr ty
-ifSf vty = Lit $ FunRefLit $ FunRef Refs.ifThenElse Nothing $ FunType [TypeBool, vty, vty] vty
+ifSf vty = Lit $ FunRefLit $ FunRef IFuns.ifThenElse Nothing $ FunType [TypeBool, vty, vty] vty
 
 
 -- This is a proposal for `ifRewrite` that uses plated to make sure the
@@ -134,7 +134,7 @@ ifSf vty = Lit $ FunRefLit $ FunRef Refs.ifThenElse Nothing $ FunType [TypeBool,
 ifRewrite :: (Monad m, MonadGenBnd m, MonadError Error m) => Expr ty -> m (Expr ty)
 ifRewrite = transformM $ \case
     Lit (FunRefLit (FunRef f _ _)) `Apply` cond `Apply` trueBranch `Apply` falseBranch
-        | f == Refs.ifThenElse -> do
+        | f == IFuns.ifThenElse -> do
             case (trueBranch,falseBranch) of
               (Lambda trueIn trueBody, Lambda falseIn falseBody) | isUnit trueIn && isUnit falseIn -> do
                 ctrlTrueBnd <- generateBindingWith "ctrlTrue"

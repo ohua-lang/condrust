@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-|
 Module      : $Header$
 Description : Implementation of ALang transformation for If.
@@ -27,7 +28,7 @@ module Ohua.Core.ALang.Passes.Smap where
 
 import Ohua.Core.ALang.Lang
 import Ohua.Core.ALang.Passes.Control
-import qualified Ohua.Core.ALang.Refs as Refs
+import qualified Ohua.Core.InternalFunctions  as IFuns
 import Ohua.Core.ALang.Util (lambdaArgsAndBody, mkDestructured, renameVar)
 import Ohua.Core.Prelude
 
@@ -37,29 +38,29 @@ import Ohua.Core.ALang.PPrint ()
 smapSfFun :: VarType ty -> VarType ty -> Expr ty
 -- Takes a collection and returns (contained Dt, control signal, Nat)
 -- I can get the data type from the input type of the function
-smapSfFun collTy elemTy = Lit $ FunRefLit $ FunRef Refs.smapFun Nothing $ FunType [collTy] (TupleTy (elemTy :| [controlSignalType, TypeNat]))
+smapSfFun collTy elemTy = Lit $ FunRefLit $ FunRef IFuns.smapFun Nothing $ FunType [collTy] (TupleTy (elemTy :| [controlSignalType, TypeNat]))
 
 collectSf :: VarType ty -> Expr ty
 -- Takes a nat and the return type t of the function and returns [t]
-collectSf outTy = Lit $ FunRefLit $ FunRef Refs.collect Nothing $ FunType [TypeNat, outTy] (TypeList outTy)
+collectSf outTy = Lit $ FunRefLit $ FunRef IFuns.collect Nothing $ FunType [TypeNat, outTy] (TypeList outTy)
 
 smapRewrite :: (Monad m, MonadGenBnd m) => Expr ty -> m (Expr ty)
 smapRewrite =
     rewriteM $ \case
         PureFunctionTy fnName _id fnTy `Apply` lamExpr `Apply` dataGen
-            | fnName == Refs.smap -> Just <$> do
+            | fnName == IFuns.smap -> Just <$> do
                 lamExpr' <- smapRewrite lamExpr
     -- post traversal optimization
                 ctrlVarBnd <- generateBindingWith "ctrl"
                 let ctrlVar = TBind ctrlVarBnd controlSignalType
-                let innerFunRet = (exprType lamExpr)
+                let innerFunRet = exprType lamExpr
                     -- ToDo: get input type from lambda term
                     innerFunInput = TypeVar
-                    collectionType = exprType dataGen 
+                    collectionType = exprType dataGen
                 lamExpr'' <- liftIntoCtrlCtxt ctrlVar lamExpr'
-                let ([inSt@(TBind _inBnd sTy)], expr) = case lambdaArgsAndBody lamExpr'' of 
+                let ([inSt@(TBind _inBnd sTy)], expr) = case lambdaArgsAndBody lamExpr'' of
                                         e@([_], _) -> e
-                                        e -> error $ "Pattern match failure. Got pattern: " <> quickRender e 
+                                        e -> error $ "Pattern match failure. Got pattern: " <> quickRender e
                 dBnd <- generateBindingWith "d"
                 let d = TBind dBnd sTy
                     expr' = renameVar expr (Var inSt, d)

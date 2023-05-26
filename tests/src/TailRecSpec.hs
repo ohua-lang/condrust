@@ -17,7 +17,7 @@ import Ohua.Core.Feature.TailRec.Passes.ALang
     , verifyTailRecursion
     , recurStartMarker
     )
-import qualified Ohua.Core.DFLang.Refs as Refs
+import qualified Ohua.Core.InternalFunctions as Refs
 import Ohua.Core.DFLang.Passes (lowerALang, collapseNth)
 import Ohua.Core.Feature.TailRec.Passes.DFLang (recurLowering)
 import Ohua.Core.DFLang.PPrint ()
@@ -53,11 +53,11 @@ recWithExprOnTerminalBranch
     --                     (Let "c"
     --                          (Apply
     --                               (Apply
-    --                                    (Apply (sf ALangRefs.ifThenElse) "x")
+    --                                    (Apply (sf IFuns.ifThenElse) "x")
     --                                    (Lambda
     --                                         "then"
     --                                         (Let "t"
-    --                                              (Apply (sf ALangRefs.id) "p")
+    --                                              (Apply (sf IFuns.id) "p")
     --                                              "t")))
     --                               (Lambda "else" (Let "r" ("a" `Apply` "p") "r")))
     --                          "c"))))
@@ -87,7 +87,7 @@ recWithVarOnlyOnTerminalBranch
     --                     (Let "c"
     --                          (Apply
     --                               (Apply
-    --                                    (Apply (sf ALangRefs.ifThenElse) "x")
+    --                                    (Apply (sf IFuns.ifThenElse) "x")
     --                                    (Lambda "then" "p"))
     --                               (Lambda "else" (Let "r" ("a" `Apply` "p") "r")))
     --                          "c"))))
@@ -117,7 +117,7 @@ recWithExprOnRecurBranch
     --                     (Let "c"
     --                          (Apply
     --                               (Apply
-    --                                    (Apply (sf ALangRefs.ifThenElse) "x")
+    --                                    (Apply (sf IFuns.ifThenElse) "x")
     --                                    (Lambda "then" "p"))
     --                               (Lambda "else" (Let "r" ("a" `Apply` "p") "r")))
     --                          "c"))))
@@ -147,7 +147,7 @@ recWithCallOnlyOnRecurBranch
     --                     (Let "c"
     --                          (Apply
     --                               (Apply
-    --                                    (Apply (sf ALangRefs.ifThenElse) "x")
+    --                                    (Apply (sf IFuns.ifThenElse) "x")
     --                                    (Lambda "then" "p"))
     --                               (Lambda "else" ("a" `Apply` "p")))
     --                          "c"))))
@@ -188,11 +188,11 @@ expectedRecWithExprOnTerminalBranch =
     --                     (Let "c"
     --                          (Apply
     --                               (Apply
-    --                                    (Apply (sf ALangRefs.ifThenElse) "x")
+    --                                    (Apply (sf IFuns.ifThenElse) "x")
     --                                    (Lambda
     --                                         "then"
     --                                         (Let "t"
-    --                                              (Apply (sf ALangRefs.id) "p")
+    --                                              (Apply (sf IFuns.id) "p")
     --                                              "t")))
     --                               (Lambda
     --                                    "else"
@@ -223,7 +223,7 @@ expectedRecWithVarOnlyOnTerminalBranch =
     --                     (Let "c"
     --                          (Apply
     --                               (Apply
-    --                                    (Apply (sf ALangRefs.ifThenElse) "x")
+    --                                    (Apply (sf IFuns.ifThenElse) "x")
     --                                    (Lambda "then" "p"))
     --                               (Lambda
     --                                    "else"
@@ -254,7 +254,7 @@ expectedRecWithExprOnRecurBranch =
     --                     (Let "c"
     --                          (Apply
     --                               (Apply
-    --                                    (Apply (sf ALangRefs.ifThenElse) "x")
+    --                                    (Apply (sf IFuns.ifThenElse) "x")
     --                                    (Lambda "then" "p"))
     --                               (Lambda
     --                                    "else"
@@ -284,7 +284,7 @@ expectedRecWithCallOnlyOnRecurBranch =
     --                     (Let "c"
     --                          (Apply
     --                               (Apply
-    --                                    (Apply (sf ALangRefs.ifThenElse) "x")
+    --                                    (Apply (sf IFuns.ifThenElse) "x")
     --                                    (Lambda "then" "p"))
     --                               (Lambda "else" ((sf recur) `Apply` "p")))
     --                          "c"))))
@@ -314,7 +314,7 @@ notTailRecursive1 =
     --                     (Let "c"
     --                          (Apply
     --                               (Apply
-    --                                    (Apply (sf ALangRefs.ifThenElse) "x")
+    --                                    (Apply (sf IFuns.ifThenElse) "x")
     --                                    (Lambda "then" "p"))
     --                               (Lambda
     --                                    "else"
@@ -347,7 +347,7 @@ notTailRecursive2 =
     --                     (Let "c"
     --                          (Apply
     --                               (Apply
-    --                                    (Apply (sf ALangRefs.ifThenElse) "x")
+    --                                    (Apply (sf IFuns.ifThenElse) "x")
     --                                    (Lambda "then" "p"))
     --                               (Lambda "else" ((sf recur) `Apply` "p")))
     --                          ("math/times10" `Apply` "c")))))
@@ -379,7 +379,7 @@ notTailRecursive3 =
     --                          (Let "c"
     --                               (Apply
     --                                    (Apply
-    --                                         (Apply (sf ALangRefs.ifThenElse) "x")
+    --                                         (Apply (sf IFuns.ifThenElse) "x")
     --                                         (Lambda "then" "p"))
     --                                    (Lambda "else" ((sf recur) `Apply` "p")))
     --                               "c")))
@@ -408,7 +408,7 @@ expectedHoferized =
     --               (Let "x"
     --                    ("math/lt" `Apply` "p" `Apply` 0)
     --                    (Let "c"
-    --                         (sf ALangRefs.ifThenElse `Apply` "x" `Apply`
+    --                         (sf IFuns.ifThenElse `Apply` "x" `Apply`
     --                          Lambda "then" "p" `Apply`
     --                          Lambda "else" (sf recur `Apply` "p"))
     --                         "c"))))
@@ -440,17 +440,17 @@ expectedRewritten =
     --                     (Let "x"
     --                          ("math/lt" `Apply` "p" `Apply` 0)
     --                          (Let "c"
-    --                               (sf ALangRefs.ifThenElse `Apply` "x" `Apply`
+    --                               (sf IFuns.ifThenElse `Apply` "x" `Apply`
     --                                Lambda
     --                                    "_0"
     --                                    (Let "d"
-    --                                         (sf ALangRefs.mkTuple `Apply`
+    --                                         (sf IFuns.mkTuple `Apply`
     --                                          Lit (NumericLit 1) `Apply`
-    --                                          (sf ALangRefs.id `Apply` "p") "d")) `Apply`
+    --                                          (sf IFuns.id `Apply` "p") "d")) `Apply`
     --                                Lambda
     --                                    "_1"
     --                                    (Let "b"
-    --                                         (sf ALangRefs.mkTuple `Apply`
+    --                                         (sf IFuns.mkTuple `Apply`
     --                                          Lit (NumericLit 0) `Apply`
     --                                          (sf array `Apply` "p"))
     --                                         "b")))

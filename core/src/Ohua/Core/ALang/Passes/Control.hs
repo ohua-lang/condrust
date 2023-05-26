@@ -156,7 +156,7 @@ module Ohua.Core.ALang.Passes.Control where
 
 import Control.Monad.Trans.Writer.Lazy
 import Ohua.Core.ALang.Lang
-import qualified Ohua.Core.ALang.Refs as Refs
+import qualified Ohua.Core.InternalFunctions as IFuns
 import Ohua.Core.ALang.Util
   ( evictOrphanedDestructured,
     findDestructured,
@@ -201,7 +201,7 @@ liftIntoCtrlCtxt ctrlIn e0 = do
           Let
             (TBind ctrlOut controlSignalType)
             ( fromListToApply
-                ( FunRef Refs.ctrl Nothing $
+                ( FunRef IFuns.ctrl Nothing $
                     FunType (controlSignalType: actualsTypes) retTy
                 )
                 $ toList actuals'
@@ -239,7 +239,7 @@ splitCtrls = transform go
     go l@(Let v e cont) =
       case fromApplyToList' e of
         (FunRef op i _, Nothing, ctrlSig : vars)
-          | op == Refs.ctrl ->
+          | op == IFuns.ctrl ->
             let outs = findDestructured cont v
              in foldr
                   ( \(bound@(TBind _n ty), varIn) c ->
@@ -292,7 +292,7 @@ uniqueCtrls = transformM go
     go :: MonadGenBnd m => Expr ty -> m (Expr ty)
     -- this pattern works because now every control has this form due to the above transformation (TODO reflect this in the type)
     go e@(Let v ctrl@((PureFunction op _ `Apply` _ctrlSig) `Apply` _ctrled) cont)
-      | op == Refs.ctrl =
+      | op == IFuns.ctrl =
         let usages =
               [ bnd | Var bnd <- universe cont, bnd == v
               ]

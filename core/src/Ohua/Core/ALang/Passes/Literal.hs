@@ -1,9 +1,10 @@
+{-# LANGUAGE LambdaCase #-}
 module Ohua.Core.ALang.Passes.Literal where
 
 import Ohua.Core.Prelude
 
 import Ohua.Core.ALang.Lang
-import Ohua.Core.ALang.Refs as R (id)
+import Ohua.Core.InternalFunctions as IFuns (id)
 
 {-|
 Performs the following transformation:
@@ -34,12 +35,12 @@ literalsToFunctions e =
                 StringLit _ -> mkFun v lit ie
                 BoolLit _ -> mkFun v lit ie
                 EnvRefLit _ _ -> mkFun v lit ie
-                FunRefLit (FunRef qb _ _) -> throwError $ "Compiler invariant broken. Trying to convert function literal to function: " <> show qb 
+                FunRefLit (FunRef qb _ _) -> throwError $ "Compiler invariant broken. Trying to convert function literal to function: " <> show qb
         other -> return other
-    where 
+    where
         mkFun v lit body = do
             let litType = getVarType lit
-            return $ 
+            return $
                 Let v
-                    ((Lit $ FunRefLit $ FunRef R.id Nothing (FunType [litType ] litType )) `Apply` (Lit lit))
+                    (Lit (FunRefLit $ FunRef IFuns.id Nothing (FunType [litType ] litType )) `Apply` Lit lit)
                     body

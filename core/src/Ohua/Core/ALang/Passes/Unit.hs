@@ -3,7 +3,7 @@ module Ohua.Core.ALang.Passes.Unit where
 import Ohua.Core.Prelude
 
 import Ohua.Core.ALang.Lang
-import Ohua.Core.ALang.Refs (unitFun)
+import Ohua.Core.InternalFunctions (unitFun)
 
 
 {-|

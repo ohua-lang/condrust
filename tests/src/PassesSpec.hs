@@ -32,12 +32,11 @@ import Test.QuickCheck.Property as P
 import Ohua.Core.ALang.Lang
 import Ohua.Core.ALang.Passes
 import Ohua.Core.ALang.Passes.SSA
-import qualified Ohua.Core.ALang.Refs as ALangRefs
+import qualified Ohua.Core.InternalFunctions as IFuns
 import Ohua.Core.Test
 import Ohua.Core.Types.Arbitrary ()
 
-smapName :: QualifiedBinding
-smapName = "ohua.lang/smap"
+
 
 -- newtype ApplyOnlyExpr = ApplyOnlyExpr { unApplyOnlyExpr :: Expression } deriving (Eq, Show)
 -- instance Arbitrary ApplyOnlyExpr where
@@ -114,7 +113,7 @@ doesn't_reject :: Expression -> Expectation
 doesn't_reject e = runPasses e `shouldSatisfyRet` isRight
 
 lambda_as_argument :: Expression
-lambda_as_argument = Apply (PureFunction smapName Nothing) (Lambda "a" "a")
+lambda_as_argument = Apply (PureFunction IFuns.smap Nothing) (Lambda "a" "a")
 
 bound_lambda_as_argument :: Expression
 bound_lambda_as_argument = Let "f" (Lambda "a" "a") (Apply "some/function" "f")

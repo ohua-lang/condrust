@@ -210,7 +210,7 @@ import Data.List.NonEmpty (fromList)
 import Ohua.Core.ALang.Lang
 import Ohua.Core.ALang.PPrint ()
 import Ohua.Core.ALang.Passes.Control (liftIntoCtrlCtxt)
-import qualified Ohua.Core.ALang.Refs as ALangRefs
+import qualified Ohua.Core.InternalFunctions as IFuns
 import Ohua.Core.ALang.Util
     ( fromApplyToList
     , fromListToApply
@@ -223,7 +223,7 @@ import Ohua.Core.ALang.Util
 -- Currently not exposed by the frontend but only as the only part of recursion
 -- at the backend.
 recur :: QualifiedBinding
-recur = ALangRefs.recur -- allows me to use it in binding position
+recur = IFuns.recur -- allows me to use it in binding position
 
 -- This is a compiler-internal higher-order function.
 recurHof :: QualifiedBinding
@@ -251,11 +251,8 @@ ySf :: Expr ty
 ySf = pureFunction y Nothing $ FunType [] TypeVar
 
 
-recurFun :: QualifiedBinding
-recurFun = ALangRefs.recurFunBnd
-
 recurFunPureFunction :: Expr ty
-recurFunPureFunction = pureFunction recurFun Nothing $ FunType [] TypeVar
+recurFunPureFunction = pureFunction IFuns.recurFun Nothing $ FunType [] TypeVar
 
 
 idPureFunction :: Expr ty
@@ -441,7 +438,7 @@ rewriteCallExpr e = do
     -- implementing this correctly however is going to require some effort, thus
     -- I think we should do so later.
     rewriteCond :: Expr ty -> Expr ty
-    rewriteCond fullExpr@(Apply (Apply (Apply (PureFunction f0 _) cond) (Lambda _ trueB)) (Lambda _ falseB)) | f0 == ALangRefs.ifThenElse =
+    rewriteCond fullExpr@(Apply (Apply (Apply (PureFunction f0 _) cond) (Lambda _ trueB)) (Lambda _ falseB)) | f0 == IFuns.ifThenElse =
         let trueB' = rewriteBranch trueB
             falseB' = rewriteBranch falseB
             (fixRef, recurVars) =

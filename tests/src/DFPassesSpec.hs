@@ -4,7 +4,7 @@ import Ohua.Core.Prelude
 import Ohua.Core.Test
 import Test.Hspec
 
-import qualified Ohua.Core.DFLang.Refs as Refs
+import qualified Ohua.Core.InternalFunctions as Refs
 import Ohua.Core.DFLang.Passes (collapseNth)
 import Ohua.Core.DFLang.Lang
 import Ohua.Core.DFLang.PPrint ()
@@ -13,7 +13,7 @@ import Ohua.Core.DFLang.PPrint ()
 collapseNthSpec :: Spec
 collapseNthSpec = describe "collapseNth" $ do
     it "for if" $ do
-        let trans = showWithPretty . collapseNth (== nodeRef Refs.ifFun)
+        let trans = showWithPretty . collapseNth (== nodeRef IFuns.ifFun)
         trans
             [embedDFLang|
                 let (a) = ohua.lang/ifFun<0>(cond) in
@@ -26,7 +26,7 @@ collapseNthSpec = describe "collapseNth" $ do
                 let (a0, a1) = dataflow ohua.lang/ifFun<0>(cond) in y
                         |]
     it "for smap" $ do
-        let trans = showWithPretty . collapseNth (== nodeRef Refs.smapFun)
+        let trans = showWithPretty . collapseNth (== nodeRef IFuns.smapFun)
         trans
             [embedDFLang|
                 let (a) = ohua.lang/smapFun<0>(coll) in

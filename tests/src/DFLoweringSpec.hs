@@ -14,12 +14,11 @@ import Test.Hspec
 
 import Ohua.Core.ALang.Lang
 import Ohua.Core.ALang.Passes
-import qualified Ohua.Core.ALang.Refs as ALangRefs
+import qualified Ohua.Core.InternalFunctions as IFuns
 import Ohua.Core.DFGraph
 import Ohua.Core.DFLang.Lang
 import Ohua.Core.DFLang.PPrint
 import Ohua.Core.DFLang.Passes
-import qualified Ohua.Core.DFLang.Refs as Refs
 import Ohua.Core.Test (embedALang, embedDFLang, showWithPretty)
 import Ohua.Core.Test.DFGraph
 

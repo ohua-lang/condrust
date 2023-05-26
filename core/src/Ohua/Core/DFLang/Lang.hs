@@ -5,7 +5,7 @@
 module Ohua.Core.DFLang.Lang where
 
 import qualified Data.List.NonEmpty as NE
-import Ohua.Core.ALang.Refs as ALangRefs (recurFun, smapFun, ifFun, collect, select, ctrl)
+import Ohua.Core.InternalFunctions as IFuns (recurFun, smapFun, ifFun, collect, select, ctrl)
 import Ohua.Core.Prelude hiding (length)
 import Ohua.Types.Vector as V hiding (map)
 import qualified Data.HashSet as HS
@@ -112,13 +112,13 @@ data DFApp (f :: FunANF) (ty :: Type) :: Type where
     -- TODO subset types would be great here to show that this out data can never be destructured.
     -- | ( data out, control out, size out for collect and stclangCollect)
     ( Maybe (OutData b ty)
-    , Maybe (OutData 'Data ty) 
     , Maybe (OutData 'Data ty)
-    ) -> 
+    , Maybe (OutData 'Data ty)
+    ) ->
     -- | data in
-    DFVar a ty -> 
+    DFVar a ty ->
     DFApp 'Fun ty -- FIXME would be this: DFApp 'BuiltIn ty (fix when all IRs are fixed and I do not need to convert a Fun into a BuiltIn)
-  
+
   IfFun
     :: (OutData 'Data ty, OutData 'Data ty )
     -> DFVar 'Data ty
@@ -127,25 +127,25 @@ data DFApp (f :: FunANF) (ty :: Type) :: Type where
   CollectFun
     -- collect :: nat ->  A -> [A]
     -- output is a list of lenght first input of elements, second input
-    :: (OutData 'Data ty) -> 
+    :: (OutData 'Data ty) ->
     -- | first input as a nat
-    DFVar 'Data ty -> 
+    DFVar 'Data ty ->
     -- | second input is an elemt, which is actually always a ()
-    DFVar 'Data ty -> 
-    DFApp 'Fun ty 
+    DFVar 'Data ty ->
+    DFApp 'Fun ty
 
-  CtrlFun 
+  CtrlFun
     -- ctrl:: (bool, nat) -> A -> A
     :: OutData a ty ->
     -- | the  controle signal (bool, nat)
     DFVar 'Data ty->
     -- | the data input
-    DFVar 'Data ty -> 
+    DFVar 'Data ty ->
     DFApp 'Fun ty
 
   SelectFun
     -- select :: bool -> A -> A -> A
-    :: OutData a ty-> 
+    :: OutData a ty->
     -- | the signal which one to use
     DFVar 'Data ty ->
     -- | the first input
@@ -153,7 +153,7 @@ data DFApp (f :: FunANF) (ty :: Type) :: Type where
     -- | the second input
     DFVar 'Data ty ->
     DFApp 'Fun ty
-    
+
 class Function (fun:: FunANF -> Type -> Type) where
   outBindings :: fun a ty -> [TypedBinding ty]
   inBindings :: fun a ty -> [TypedBinding ty]
@@ -199,9 +199,9 @@ outsDFApp (SMapFun (dOut, collectOut, sizeOut) _) =
   maybe [] (NE.toList . toOutBnds) collectOut ++
   maybe [] (NE.toList . toOutBnds) sizeOut
 outsDFApp (IfFun (oTrue, oFalse) _) = NE.toList $ toOutBnds oTrue <> toOutBnds oFalse
-outsDFApp (CollectFun out _size _lst ) =  (NE.toList . toOutBnds) out 
-outsDFApp (SelectFun out _ _ _ ) =  (NE.toList . toOutBnds) out 
-outsDFApp (CtrlFun out _sig _data) = (NE.toList . toOutBnds) out 
+outsDFApp (CollectFun out _size _lst ) =  (NE.toList . toOutBnds) out
+outsDFApp (SelectFun out _ _ _ ) =  (NE.toList . toOutBnds) out
+outsDFApp (CtrlFun out _sig _data) = (NE.toList . toOutBnds) out
 
 toOutBnds :: OutData bty ty -> NonEmpty (TypedBinding ty)
 toOutBnds (Destruct outs) = sconcat $ NE.map toOutBnds outs
@@ -216,7 +216,7 @@ insApp (StateFun _ _ (DFVar tbnd) i) = unwrapTB tbnd : extractBndsFromInputs (NE
 
 insDFApp :: DFApp fty ty -> [TypedBinding ty]
 insDFApp (PureDFFun _ _ i) = extractBndsFromInputs $ NE.toList i
-insDFApp (StateDFFun _ _ (DFVar atBnd) i) = (unwrapTB atBnd) : extractBndsFromInputs (NE.toList i)
+insDFApp (StateDFFun _ _ (DFVar atBnd) i) = unwrapTB atBnd : extractBndsFromInputs (NE.toList i)
 insDFApp (RecurFun _ _ _ initIns recurs cond result) =
   extractBndsFromInputs (V.toList initIns)
     <> extractBndsFromInputs (V.toList recurs)
@@ -224,7 +224,7 @@ insDFApp (RecurFun _ _ _ initIns recurs cond result) =
     <> extractBndsFromInputs [result]
 insDFApp (SMapFun _ dIn) = extractBndsFromInputs [dIn]
 insDFApp (IfFun _ dIn) = extractBndsFromInputs [dIn]
-insDFApp (CollectFun _ size lst ) = extractBndsFromInputs [size, lst]   
+insDFApp (CollectFun _ size lst ) = extractBndsFromInputs [size, lst]
 insDFApp (SelectFun _ sign fstIn scndIn ) =   extractBndsFromInputs [sign, fstIn, scndIn ]
 insDFApp (CtrlFun _ sig dataIn) = extractBndsFromInputs [sig, dataIn]
 
@@ -243,7 +243,7 @@ insAndTypesDFApp (RecurFun _ _ _ initIns recurs cond result) =
     <> extractBndsAndTypesFromInputs [result]
 insAndTypesDFApp (SMapFun _ dIn) = extractBndsAndTypesFromInputs [dIn]
 insAndTypesDFApp (IfFun _ dIn) = extractBndsAndTypesFromInputs [dIn]
-insAndTypesDFApp (CollectFun _ size lst ) = extractBndsAndTypesFromInputs [size, lst]   
+insAndTypesDFApp (CollectFun _ size lst ) = extractBndsAndTypesFromInputs [size, lst]
 insAndTypesDFApp (SelectFun _ sign fstIn scndIn ) =   extractBndsAndTypesFromInputs [sign, fstIn, scndIn ]
 insAndTypesDFApp (CtrlFun _ sig dataIn) = extractBndsAndTypesFromInputs [sig, dataIn]
 
@@ -372,12 +372,12 @@ instance Function DFApp where
     case f of
       (PureDFFun _ (FunRef fr _ _) _) -> fr
       (StateDFFun _ (FunRef fr _ _) _ _) -> fr
-      RecurFun {} -> ALangRefs.recurFun
-      SMapFun {} -> ALangRefs.smapFun
-      IfFun {} -> ALangRefs.ifFun
-      CollectFun {} -> ALangRefs.collect
-      SelectFun {} -> ALangRefs.select
-      CtrlFun {} -> ALangRefs.ctrl
+      RecurFun {} -> IFuns.recurFun
+      SMapFun {} -> IFuns.smapFun
+      IfFun {} -> IFuns.ifFun
+      CollectFun {} -> IFuns.collect
+      SelectFun {} -> IFuns.select
+      CtrlFun {} -> IFuns.ctrl
 
 transformExpr :: forall ty. (NormalizedDFExpr ty -> NormalizedDFExpr ty) -> NormalizedDFExpr ty -> NormalizedDFExpr ty
 transformExpr f = runIdentity . transformExprM go

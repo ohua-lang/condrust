@@ -7,7 +7,7 @@ import qualified Data.List.NonEmpty as NE
 import Data.List.NonEmpty.Extra ((|>))
 
 
-import qualified Ohua.Core.DFLang.Refs as DFLangRefs
+import qualified Ohua.Core.InternalFunctions as IFuns 
 import Ohua.Core.DFLang.Lang hiding (length)
 import Ohua.Core.Prelude hiding (Nat)
 import Ohua.Types.Vector
@@ -65,9 +65,9 @@ insertDispatch e = evalStateT (transformExprM go e) HM.empty
           (cont'', falseOut') <- dispatchOutput cont' falseOut
           return $ Let (IfFun (trueOut', falseOut') dIn) cont''
         (PureDFFun _ (FunRef f _ _) _)
-          | f == DFLangRefs.ctrl
-            || f == DFLangRefs.select
-            || f == DFLangRefs.collect
+          | f == IFuns.ctrl
+            || f == IFuns.select
+            || f == IFuns.collect
             -> collect app >> return l
         (PureDFFun o f i) -> do
           (cont', o') <- dispatchOutput cont o

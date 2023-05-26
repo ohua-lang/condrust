@@ -36,6 +36,10 @@ module Ohua.Core.ALang.Lang
   ( Expr(..)
   , AExpr
   , exprType
+  -- ** Builtin Function Literals
+  , ifBuiltin
+  , smapBuiltin
+  , seqBuiltin
   -- ** Convenience patterns
   , pattern PureFunction, pattern PureFunctionTy, pattern PureFunctionF
   , pattern StatefulFunction, pattern StatefulFunctionTy, pattern StatefulFunctionF
@@ -50,6 +54,7 @@ module Ohua.Core.ALang.Lang
 
 import Ohua.Prelude
 
+import qualified Ohua.Core.InternalFunctions as IFuns
 import Data.Functor.Foldable.TH (makeBaseFunctor)
 import Control.Lens.Plated
 
@@ -95,13 +100,39 @@ instance Hashable (TypedBinding ty)
 instance Ord (TypedBinding ty) where
     (TBind b1 _ty1) <= (TBind b2 _ty2) = b1 <= b2
 
--------------------- Recursion schemes support --------------------
+-------------------- Convenience functions ------------------------------
+
+pureFunction :: QualifiedBinding -> Maybe FnId -> FunType ty -> Expr ty
+pureFunction bnd ident ty = Lit (FunRefLit (FunRef bnd ident ty))
+
+mkFunLit :: QualifiedBinding -> FunType ty -> Expr ty
+mkFunLit qBnd = pureFunction qBnd Nothing
+
+
+-- Specific Functions, that should become part of the language ---------
+
+
+ifBuiltin :: VarType ty -> Expr ty
+ifBuiltin vTy = mkFunLit IFuns.ifThenElse (FunType [TypeBool ,vTy ,vTy ] vTy)
+
+seqBuiltin :: VarType ty ->  Expr ty
+-- Operator to sequence statements igrnoring the result of the first one
+-- ToDo: check if we still need that anywhere
+seqBuiltin scndTy =  mkFunLit IFuns.seq (FunType [TypeVar, scndTy] scndTy)
+
+
+smapBuiltin :: Expr ty
+-- HO for-loop: function -> collection to apply function to -> typeOfCollection ( return Type function)
+smapBuiltin = mkFunLit IFuns.smap (FunType [TypeVar, TypeVar] TypeVar )
+
+
+-------------------- Recursion schemes support -------------------------
 
 makeBaseFunctor ''Expr
 
 instance Container (ExprF ty a)
 
--------------------- Convenience patterns --------------------
+-------------------- Convenience patterns ------------------------------
 
 pattern PureFunction :: QualifiedBinding -> Maybe FnId -> Expr ty
 pattern PureFunction bnd ident <- Lit (FunRefLit (FunRef bnd ident _))
@@ -120,12 +151,6 @@ pattern StatefulFunctionTy bnd ident ty expr <- BindState expr (Lit (FunRefLit (
 
 pattern StatefulFunctionF :: QualifiedBinding -> Maybe FnId -> Expr ty -> ExprF ty (Expr ty)
 pattern StatefulFunctionF bnd ident expr <- BindStateF expr (Lit (FunRefLit (FunRef bnd ident _)))
-
-
--------------------- Convenience functions --------------------
-
-pureFunction :: QualifiedBinding -> Maybe FnId -> FunType ty -> Expr ty
-pureFunction bnd ident ty = Lit (FunRefLit (FunRef bnd ident ty))
 
 
 -------------------- Additional type class instances --------------------
@@ -186,3 +211,5 @@ lrPostwalkExprM f e =
 -- | Same as 'lrPostwalkExprM' but does not carry a monad.
 lrPostwalkExpr :: (Expr ty -> Expr ty) -> Expr ty -> Expr ty
 lrPostwalkExpr f = runIdentity . lrPostwalkExprM (return . f)
+
+

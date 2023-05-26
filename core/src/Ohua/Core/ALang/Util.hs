@@ -16,7 +16,7 @@ module Ohua.Core.ALang.Util where
 import Ohua.Core.Prelude
 
 import Ohua.Core.ALang.Lang
-import qualified Ohua.Core.ALang.Refs as Refs (nth)
+import qualified Ohua.Core.InternalFunctions as IFuns (nth)
 
 import Control.Comonad
 import qualified Control.Lens as Lens (para)
@@ -50,7 +50,7 @@ destructure source bnds =
     mkNthExpr idx source0 =
         -- Q: Whats the type supposed to be
         -- Answer: The third input type is the type of source0 and the return type is the idx'th element of the type os source0 which is hopefully a tuple type
-        pureFunction Refs.nth Nothing (FunType [TypeNat, TypeNat, TypeVar] TypeVar) `Apply` (Lit $ NumericLit idx) `Apply`
+        pureFunction IFuns.nth Nothing (FunType [TypeNat, TypeNat, TypeVar] TypeVar) `Apply` (Lit $ NumericLit idx) `Apply`
         (Lit $ NumericLit $ toInteger $ length bnds) `Apply`
         source0
 
