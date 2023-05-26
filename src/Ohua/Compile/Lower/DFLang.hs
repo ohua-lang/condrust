@@ -5,7 +5,7 @@ import qualified Ohua.Types.Vector as V
 
 
 import Ohua.Core.DFLang.Lang as DFLang
-import Ohua.Core.DFLang.Refs as Refs
+import Ohua.Core.InternalFunctions as IFuns 
 import Ohua.Backend.Lang as BLang
 import Ohua.Backend.Types
 import qualified Ohua.Backend.Operators as Ops
@@ -201,7 +201,7 @@ generateNodeCode e@(PureDFFun out (FunRef funName _fID _fType) inp) | funName ==
         EndlessLoop $
             Ops.select condIn trueIn falseIn out'
 
-generateNodeCode e@(PureDFFun out (FunRef funName _fID _fType) inp) | funName == Refs.runSTCLangSMap = do
+generateNodeCode e@(PureDFFun out (FunRef funName _fID _fType) inp) | funName == IFuns.runSTCLangSMap = do
 --    (sizeIn, stateIn) <-
     out' <-
         case out of
@@ -256,7 +256,7 @@ generateNodeCode e@(PureDFFun out (FunRef funName _fID _fType) inp) | funName ==
                 Ops.mkLittedCtrl (asRecv ctrlATBnd) lit out' -- FIXME loosing the semantic type here!
         _ -> invariantBroken $ "Control arguments don't match:\n" <> show e
 
-generateNodeCode e@(PureDFFun out (FunRef funName _fID _fType) inp) | funName == Refs.seqFun = do
+generateNodeCode e@(PureDFFun out (FunRef funName _fID _fType) inp) | funName == IFuns.seqFun = do
   out' <- case out of
            Direct x -> return $ SChan $ unwrapABnd x
            _ -> invariantBroken $ "Seq must only have one output:\n" <> show e
@@ -270,9 +270,9 @@ generateNodeCode e@(PureDFFun out (FunRef funName _fID _fType) inp) | funName ==
     _ -> invariantBroken $
             "Seq must have two inputs where the second is a literal:\n" <> show e
 
-generateNodeCode e@(PureDFFun out (FunRef funName _fID _fType) inp) | funName == Refs.unitFun = do
+generateNodeCode e@(PureDFFun out (FunRef funName _fID _fType) inp) | funName == IFuns.unitFun = do
   case inp of
-   DFEnvVar _t (FunRefLit f@(FunRef p _ _)) :| [v] | p == Refs.id ->
+   DFEnvVar _t (FunRefLit f@(FunRef p _ _)) :| [v] | p == IFuns.id ->
      generateNodeCode $ PureDFFun out f (v:|[])
 
    (DFEnvVar _t (FunRefLit pr@(FunRef n i ty)) :| [v]) -> -- FIXME this feels like a bug to me. why do we take this detour via unitFun???
@@ -284,7 +284,7 @@ generateNodeCode e@(PureDFFun out (FunRef funName _fID _fType) inp) | funName ==
      
    _ -> invariantBroken $ "unknown function as first argument or wrong number of arguments (expected 2) to unitFun:\n" <> show e
 
-generateNodeCode e@(PureDFFun out (FunRef funName _fID _fType) (inp:|[])) | funName == Refs.id = do
+generateNodeCode e@(PureDFFun out (FunRef funName _fID _fType) (inp:|[])) | funName == IFuns.id = do
   out' <- pureOut funName out
   case inp of
     DFEnvVar _t l ->
@@ -296,7 +296,7 @@ generateNodeCode e@(PureDFFun out (FunRef funName _fID _fType) (inp:|[])) | funN
       Fusion.Fun $
       Ops.IdFusable (Ops.Arg $ asRecv atbnd) out'
 
-generateNodeCode e@(PureDFFun out fn@(FunRef funName _funID funTy) inp) | funName == Refs.tupleFun = do
+generateNodeCode e@(PureDFFun out fn@(FunRef funName _funID funTy) inp) | funName == IFuns.tupleFun = do
   let args = toList $ map generateReceive inp
   out' <- pureOut fn out
   return $ Fusion.Fun $ Ops.PureFusable args (Ops.Tup funTy) out'

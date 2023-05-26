@@ -13,8 +13,7 @@ import Ohua.Frontend.Lang as FR
 import Ohua.Frontend.PPrint ()
 import Ohua.Core.ALang.Lang hiding (Expr, ExprF)
 import qualified Ohua.Core.ALang.Lang as ALang
-import qualified Ohua.Core.ALang.Refs as ARefs
-import Ohua.Core.ParseTools.Refs (ifBuiltin, mkTuple, smapBuiltin, seqBuiltin)
+import qualified Ohua.Core.InternalFunctions as IFuns
 import qualified Data.List.NonEmpty as NE
 
 
@@ -154,7 +153,7 @@ whileToRecursion = return
 
 -- ToDo: Replace by Alang definition
 nthFun :: FR.Expr ty
-nthFun = LitE $ FunRefLit $ FunRef ARefs.nth Nothing $ FunType [TypeVar,TypeVar,TypeVar] TypeVar
+nthFun = LitE $ FunRefLit $ FunRef IFuns.nth Nothing $ FunType [TypeVar,TypeVar,TypeVar] TypeVar
 
 unstructure :: (Binding, VarType ty) -> NonEmpty (FR.Pat ty) -> FR.Expr ty -> FR.Expr ty
 unstructure (valBnd, valTy) pats = go (toInteger $ length pats) (NE.toList pats)
@@ -191,16 +190,16 @@ trans =
                     show p
         IfEF cont then_ else_ ->
             -- ToDo: Replace ifBuildtIn by Alang definition
-            ifBuiltin 
+            ALang.ifBuiltin 
                 (ALang.exprType  then_)
                 `Apply` cont  
                     `Apply` Lambda (TBind "_" TypeUnit) then_ 
                     `Apply` Lambda (TBind "_" TypeUnit) else_
-        MapEF function coll -> smapBuiltin `Apply` function `Apply` coll
+        MapEF function coll -> ALang.smapBuiltin `Apply` function `Apply` coll
         BindEF ref e -> BindState ref e
         StmtEF e1 cont -> Let (TBind "_" TypeUnit) e1 cont
-        SeqEF source target -> seqBuiltin `Apply` source `Apply` target
-        TupEF fty parts -> foldl Apply (pureFunction mkTuple Nothing fty) parts
+        SeqEF source target -> ALang.seqBuiltin (ALang.exprType target) `Apply` source `Apply` target
+        TupEF fty parts -> foldl Apply (pureFunction IFuns.mkTuple Nothing fty) parts
         WhileEF cond _body ->  error "While loop has not been replaced. Please file a bug"
   where
     patToTBind =

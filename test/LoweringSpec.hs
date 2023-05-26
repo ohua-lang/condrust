@@ -20,7 +20,7 @@ import Ohua.Frontend.Lang
 import Ohua.Compile.Lower.FrLang
 import Ohua.Core.ALang.Lang
 import Ohua.Core.Types 
-import qualified Ohua.Core.ALang.Refs as ALangRefs
+import qualified Ohua.Core.InternalFunctions as IFuns
 -- import Ohua.Core.ALang.PPrint (Pretty(pretty))
 import qualified Data.HashSet as HS
 import Data.List.NonEmpty (fromList)
@@ -30,7 +30,7 @@ spec =
     describe "removing destructuring" $ do
         let mkNth0 objBnd i total =
                 -- ToDO: replace with nthFunType :: [Ty] -> Ty -> Funtype/Funref
-                pureFunction ALangRefs.nth Nothing (FunType [TypeVar,TypeVar,TypeVar] TypeVar) `Apply` Lit (NumericLit i) `Apply`
+                pureFunction IFuns.nth Nothing (FunType [TypeVar,TypeVar,TypeVar] TypeVar) `Apply` Lit (NumericLit i) `Apply`
                 Lit (NumericLit total) `Apply`
                 Var objBnd
             runRemDestr =
