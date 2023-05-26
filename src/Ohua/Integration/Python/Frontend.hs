@@ -205,7 +205,10 @@ subSuiteToIR (Sub.PySuite stmts) =
                 _ -> do
                         pat' <- subTargetToIR target
                         expr' <- subExprToIR expr
-                        return $ LetE pat' expr'
+                        let pat'' =  case (expr', pat')  of
+                                    (LamE tars expr, VarP bnd ty) -> VarP bnd (TypeFunction (FunType (listofPyType tars) defaultType))
+                                    _ -> pat'
+                        return $ LetE pat'' expr'
 
         stmtToIR stmt = StmtE <$> subStmtToIR stmt
         lastStmtToIR :: (ConvertM m) => Sub.Stmt -> m (FrLang.Expr PythonVarType)
