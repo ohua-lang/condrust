@@ -93,6 +93,7 @@ instance Hashable (VarType ty) where
     hashWithSalt s (TypeList ts) = s
     hashWithSalt s (Type _) = s
     hashWithSalt s (TupleTy _) = s
+    hashWithSalt s (TypeFunction fty) = hashWithSalt s fty
 
 deriving instance Show (FunType ty)
 deriving instance Eq (FunType ty)
