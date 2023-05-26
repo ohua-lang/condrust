@@ -34,25 +34,28 @@ import Ohua.Core.Prelude
 import Ohua.Core.ALang.PPrint ()
 
 
-smapSfFun :: Expr ty
--- ToDo: 
+smapSfFun :: VarType ty -> VarType ty -> Expr ty
 -- Takes a collection and returns (contained Dt, control signal, Nat)
 -- I can get the data type from the input type of the function
-smapSfFun = Lit $ FunRefLit $ FunRef Refs.smapFun Nothing $ FunType [TypeVar] TypeVar
+smapSfFun collTy elemTy = Lit $ FunRefLit $ FunRef Refs.smapFun Nothing $ FunType [collTy] (TupleTy (elemTy :| [controlSignalType, TypeNat]))
 
-collectSf :: Expr ty
--- ToDo: Takes a nat and the return type t of the function and returns [t]
-collectSf = Lit $ FunRefLit $ FunRef Refs.collect Nothing $ FunType [TypeVar, TypeVar] TypeVar
+collectSf :: VarType ty -> Expr ty
+-- Takes a nat and the return type t of the function and returns [t]
+collectSf outTy = Lit $ FunRefLit $ FunRef Refs.collect Nothing $ FunType [TypeNat, outTy] (TypeList outTy)
 
 smapRewrite :: (Monad m, MonadGenBnd m) => Expr ty -> m (Expr ty)
 smapRewrite =
     rewriteM $ \case
-        PureFunction op _ `Apply` lamExpr `Apply` dataGen
-            | op == Refs.smap -> Just <$> do
+        PureFunctionTy fnName _id fnTy `Apply` lamExpr `Apply` dataGen
+            | fnName == Refs.smap -> Just <$> do
                 lamExpr' <- smapRewrite lamExpr
     -- post traversal optimization
                 ctrlVarBnd <- generateBindingWith "ctrl"
                 let ctrlVar = TBind ctrlVarBnd controlSignalType
+                let innerFunRet = (exprType lamExpr)
+                    -- ToDo: get input type from lambda term
+                    innerFunInput = TypeVar
+                    collectionType = exprType dataGen 
                 lamExpr'' <- liftIntoCtrlCtxt ctrlVar lamExpr'
                 let ([inSt@(TBind _inBnd sTy)], expr) = case lambdaArgsAndBody lamExpr'' of 
                                         e@([_], _) -> e
@@ -72,18 +75,16 @@ smapRewrite =
                 ctrlsB <- generateBindingWith "ctrls"
                 let ctrls = TBind ctrlsB (TupleTy $ controlSignalType:|[controlSignalType])
                 resultB <- generateBindingWith "result"
-                -- FIXME: We should know this better
-                let result = TBind resultB TypeVar
+                let result = TBind resultB innerFunRet
                 resultListB <- generateBindingWith "resultList"
-                -- FIXME_ We should know this better
                 let resultList = TBind resultListB TypeVar
 
                 return $
-                    Let ctrls (Apply smapSfFun dataGen) $
+                    Let ctrls (Apply (smapSfFun collectionType innerFunInput) dataGen) $
                     mkDestructured [d, ctrlVar, size] ctrls $
                     Let result expr' $
                     Let
                         resultList
-                        (Apply (Apply collectSf $ Var size) $ Var result) $
+                        (Apply (Apply (collectSf innerFunRet) $ Var size) $ Var result) $
                     Var resultList
         _ -> pure Nothing

@@ -47,14 +47,13 @@ preControlPasses =
 postControlPasses :: Expr ty -> Expr ty
 postControlPasses = transformCtxtExits -- . traceShow "transforming ctxt exists!" -- TODO assert here that no more ctxt exits remain in the code
 
--- ToDo: Inputs are state + ctrl or nat and the output is the state
-runSTCLangSMapFun :: Expr ty
-runSTCLangSMapFun = Lit $ FunRefLit $ FunRef Refs.runSTCLangSMap Nothing $ FunType [TypeVar, TypeVar] TypeVar -- size and the state, i.e., there is one per state
 
--- FIXME this functions can not be untyped anymore!
--- ToDo: This is supposed to support state threading in branches and currently not used
-runSTCLangIfFun :: Expr ty
-runSTCLangIfFun = Lit $ FunRefLit $ FunRef Refs.runSTCLangIf Nothing $ FunType [] TypeVar
+runSTCLangSMapFun :: VarType ty -> Expr ty
+runSTCLangSMapFun stateTy = Lit $ FunRefLit $ FunRef Refs.runSTCLangSMap Nothing $ FunType [TypeNat, stateTy] stateTy -- size and the state, i.e., there is one per state
+
+-- Question: According to the code, this function is of type: bool -> stateVar -> stateVar -> stateVar. Is that what it's supposed to be?
+runSTCLangIfFun :: VarType ty -> Expr ty
+runSTCLangIfFun stateTy = Lit $ FunRefLit $ FunRef Refs.runSTCLangIf Nothing $ FunType [TypeBool, stateTy, stateTy] stateTy
 
 -- invariant: this type of node has at least one var as input (the computation result)
 ctxtExit :: QualifiedBinding
@@ -275,11 +274,11 @@ transformCtxtExits = evictOrphanedDestructured . f
                    stateExits ct =
                      foldr
                        (\(s',s) c ->
-                          Let s' (runSTCLangSMapFun `Apply` size `Apply` s) c)
+                          Let s' (runSTCLangSMapFun (exprType s) `Apply` size `Apply` s) c)
                        ct
                        $ zip stateOuts' stateArgs
                in
-                 Let compOut' ((Lit $ FunRefLit fun) `Apply` size `Apply` compOut) $
+                 Let compOut' (Lit (FunRefLit fun) `Apply` size `Apply` compOut) $
                  stateExits
                  cont
              _ -> descend (g compound compOut stateArgs) l
@@ -300,7 +299,7 @@ transformCtxtExits = evictOrphanedDestructured . f
                     stateExits ct =
                         foldr
                             (\(s', (ts,fs)) c ->
-                                Let s' (runSTCLangIfFun `Apply` cond `Apply` ts `Apply` fs) c)
+                                Let s' (runSTCLangIfFun (exprType ts)`Apply` cond `Apply` ts `Apply` fs) c)
                             ct $
                             zip stateOuts'' $
                             zip tbStateArgs fbStateArgs

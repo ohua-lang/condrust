@@ -29,17 +29,17 @@ literalsToFunctions e =
     flip transformM e $ \case
         Let v u@(Lit lit) ie ->
             case lit of
-                UnitLit      -> mkFun v u ie
-                NumericLit _ -> mkFun v u ie
-                StringLit _ -> mkFun v u ie
-                BoolLit _ -> mkFun v u ie
-                EnvRefLit _ _ -> mkFun v u ie
+                UnitLit      -> mkFun v lit ie
+                NumericLit _ -> mkFun v lit ie
+                StringLit _ -> mkFun v lit ie
+                BoolLit _ -> mkFun v lit ie
+                EnvRefLit _ _ -> mkFun v lit ie
                 FunRefLit (FunRef qb _ _) -> throwError $ "Compiler invariant broken. Trying to convert function literal to function: " <> show qb 
         other -> return other
     where 
-        mkFun v lit body = return $ 
-            Let
-                v
-                -- ToDo: Thats just an id function on the literal i.e. a -> a
-                ((Lit $ FunRefLit $ FunRef R.id Nothing (FunType [TypeVar] TypeVar)) `Apply` lit)
-                body
+        mkFun v lit body = do
+            let litType = getVarType lit
+            return $ 
+                Let v
+                    ((Lit $ FunRefLit $ FunRef R.id Nothing (FunType [litType ] litType )) `Apply` (Lit lit))
+                    body
