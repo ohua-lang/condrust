@@ -14,12 +14,11 @@ import qualified Data.Text.Prettyprint.Doc as PP
 import qualified Ohua.Backend.Lang as B
 import Ohua.Backend.Types as BT (FullTask(..), Architecture, Lang, Type)
 import Ohua.Core.ALang.Lang as AL
-import Ohua.Core.ALang.Refs as ALRefs
+import Ohua.Core.InternalFunctions as IFuns 
 import Ohua.Core.ALang.Util (destructure, findFreeBindings, findFreeVariables, lambdaArgsAndBody, substitute)
 import Ohua.Core.Compile.Configuration
 import Ohua.Core.DFLang.Lang as DFL hiding (length, substitute)
 import qualified Ohua.Core.DFLang.Lang as DFL (length)
-import qualified Ohua.Core.DFLang.Refs as DFRef
 import Ohua.Core.Feature.TailRec.Passes.ALang as TR (y)
 import Ohua.Core.Prelude hiding (concat, rewrite)
 
@@ -179,7 +178,7 @@ liftPureFunctions liftCollectTy = rewriteSMap
       case app of
         -- loop body has ended
         (PureDFFun _ (FunRef fn _ _) (_ :| [DFVar atb@(DataBinding (TBind result rty))]))
-          | fn == DFRef.collect ->
+          | fn == IFuns.collect ->
             pure (DFL.Var atb, app, cont)
             -- I don't know if this should happen and if we should learn anything from the parameter being a state here but
             -- I'll have the case in case we need it
@@ -417,7 +416,7 @@ amorphous numRetries = transformM go
                                                                  (AL.Let _ (Apply (PureFunction idF Nothing) (AL.Var s)) _)
                                                                )
                                                            ) <-
-                                                           universe cond, ifTE == ALRefs.ifThenElse && idF == ALRefs.id
+                                                           universe cond, ifTE == IFuns.ifThenElse && idF == IFuns.id
       ]
 
     findInParameters stateResult recCallArgs ctxt =
@@ -444,7 +443,7 @@ amorphous numRetries = transformM go
             [ recursion
               | (AL.Let _ cond (AL.Var _)) <- universe body,
                 (Apply (Apply (PureFunction ifTE Nothing) t) recursion) <- universe cond,
-                ifTE == ALRefs.ifThenElse
+                ifTE == IFuns.ifThenElse
             ]
       in case calls of
             [AL.Lambda _ (AL.Let _ recCall _)] -> return $ gatherArgs recCall
@@ -480,7 +479,7 @@ amorphous numRetries = transformM go
     findLoops body =
       [ (smapBody, inp, cont)
         | (AL.Let _ (Apply (Apply (PureFunction smapF Nothing) smapBody) (AL.Var inp)) cont) <- universe body,
-          smapF == ALRefs.smap
+          smapF == IFuns.smap
       ]
 
     rewriteAfterLoop
@@ -495,7 +494,7 @@ amorphous numRetries = transformM go
           cont
         )
         -- Question: What types are those varaibles supposed to have?
-        | smapF == ALRefs.smap && loopIn == loopInp' = do
+        | smapF == IFuns.smap && loopIn == loopInp' = do
           taken <- flip TBind TypeVar <$> generateBindingWith "n_taken"
           takenInp <- flip TBind liTy <$> generateBindingWith (loopInBnd <> "_n")
           rest <- flip TBind TypeVar <$> generateBindingWith "rest"
@@ -528,7 +527,7 @@ amorphous numRetries = transformM go
                  (AL.Var loopInp'))
           cont
         )
-        | smapF == ALRefs.smap && loopIn == loopInp' = do
+        | smapF == IFuns.smap && loopIn == loopInp' = do
           -- Question: What are the types of varaibles supposed to be?
           taken <- flip TBind TypeNat <$> generateBindingWith "n_taken"
           takenInp <- flip TBind liTy <$> generateBindingWith (loopInBnd <> "_n")
