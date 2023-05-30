@@ -91,7 +91,7 @@ whileToRecursion = return
             loopName <- generateLoopName body
             let (branchingFunction, stateVars) = generateIfSplit loopName cond body
             -- ToDO: Use actual looptype depending on if we state-thread or not
-            let loopType = TypeVar
+            let loopType = 'TypeVar'
             let whileLoopFunction = -- (trace $ "WHILE TRANSFORM: "<> show stateVars) 
                                      LamE (map (uncurry VarP) stateVars) $ StmtE body branchingFunction 
             return $ LetE (VarP loopName loopType) whileLoopFunction branchingFunction
@@ -195,10 +195,14 @@ trans =
                 `Apply` cont  
                     `Apply` Lambda (TBind "_" TypeUnit) then_ 
                     `Apply` Lambda (TBind "_" TypeUnit) else_
-        MapEF function coll -> ALang.smapBuiltin `Apply` function `Apply` coll
+        -- ToDo: This is a problem ... we'd need an infromation here that is not entailed in the expression itself, 
+        --       namely the return type because Map:: (a->b) -> f a -> f b, however a, b and f are host types so we can not construct f b ourselfs
+        --       we can only draw this type from the target the result is assigned to.
+        -- ToDo: We also need the function type of function here, i.e. not the exprType because that would only be the return type
+        MapEF function coll -> (ALang.smapBuiltin TypeVar (ALang.exprType coll) TypeVar)`Apply` function `Apply` coll
         BindEF ref e -> BindState ref e
         StmtEF e1 cont -> Let (TBind "_" TypeUnit) e1 cont
-        SeqEF source target -> ALang.seqBuiltin (ALang.exprType target) `Apply` source `Apply` target
+        SeqEF source target -> ALang.seqBuiltin (ALang.exprType source) (ALang.exprType target) `Apply` source `Apply` target
         TupEF fty parts -> foldl Apply (pureFunction IFuns.mkTuple Nothing fty) parts
         WhileEF cond _body ->  error "While loop has not been replaced. Please file a bug"
   where

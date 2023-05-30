@@ -37,8 +37,7 @@ generateNodesCode = go
             return (task:tasks,resRecv)
         go (DFLang.Var atBnd) = 
           let (TBind bnd ty) = unwrapTB atBnd
-          -- Question: Done?
-          in return ([], SRecv ty $ SChan bnd) -- FIXME needs a concrete type!
+          in return ([], SRecv ty $ SChan bnd) 
 
 generateFunctionCode :: forall ty a m. ErrAndLogM m => DFApp a ty -> LoweringM m (FusableExpr ty)
 generateFunctionCode = \case
@@ -280,7 +279,7 @@ generateNodeCode e@(PureDFFun out (FunRef funName _fID _fType) inp) | funName ==
      -- so we can either repace both by one of theme here to catch only one case in 'generateFunctionCode', or catch both patterns later 
      -- I prefer the second option, since I Don't know if there's any other way a UnitLit can sneak in as an argument and it is always wrong to
       -- kepp them
-     generateFunctionCode $ trace ("generating function code for " <> show n <>" with argument" <>  show v)  PureDFFun out pr (v:|[])
+     generateFunctionCode $ PureDFFun out pr (v:|[])
      
    _ -> invariantBroken $ "unknown function as first argument or wrong number of arguments (expected 2) to unitFun:\n" <> show e
 
