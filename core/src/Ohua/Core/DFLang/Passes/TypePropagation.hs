@@ -75,13 +75,8 @@ typeBottomUp ::
   NormalizedDFExpr ty ->
   State (BindingContext ty) (NormalizedDFExpr ty)
 -- (Sebastian to himself): Implement these damn types already!!!
--- REMINDER: 
-  -- fTy : contains VarType = TypeVar | Type ty | TupleTy (NonEmpty (VarType ty)) if function is typed
-  -- vars: are data DFVar = 
-    --                DFEnvVar :: VarType ty -> Lit ty -> DFVar 'Data ty
-    --                DFVar :: VarType ty -> ABinding a -> DFVar a ty
 
-typeBottomUp (Let (PureDFFun out@(Direct outBnd) f@(FunRef fun _fid fTy) inputs@(DFVar fstatb@(DataBinding (TBind fstBnd _fstTy))  :| scndIn: _)) inCont)
+typeBottomUp (Let (PureDFFun out@(Direct outBnd) f@(FunRef fun _fid fTy) inputs@(DFVar fstatb@(DataBinding (TBind fstBnd fstTy))  :| scndIn: _)) inCont)
   -- In this case, the function is an Ohua control node. Those nodes allways take two inputs
   -- an nat (0 or 1) and a variable and outputs the variable based on the signal.
 
@@ -148,10 +143,10 @@ typeBottomUp (Let (PureDFFun out@(Direct outBnd) f@(FunRef fun _fid fTy) inputs@
 
             knownVars <- get
             let realOutTy = case out of
-                    Direct something -> case HM.lookup (unwrapABnd something) knownVars of
+                    Direct atBnd -> case HM.lookup (unwrapABnd atBnd) knownVars of
                       Just (Exists (DFVar atBnd)) -> asType . unwrapTB $ atBnd
                       Just (Exists (DFEnvVar ty' _)) -> ty'
-                      Nothing -> TypeVar
+                      Nothing -> unwrapVarType scndIn
                     _ -> unhandledCaseError
 
             let realArgTypes = TypeBool:| [realOutTy, realOutTy]
@@ -192,7 +187,7 @@ typeBottomUp (Let (PureDFFun out@(Direct outBnd) f@(FunRef fun _fid fTy) inputs@
                               (DFEnvVar _ lit, ty') -> DFEnvVar ty' lit
                           ) $ NE.zip inputs (argTy:|argTys)
                     _ -> inputs
-          -- Then we add all the variables and their newly assigned types (which may still be TypeVar) to the context
+          -- Then we add all the variables and their newly assigned types (which may still be 'TypeVar') to the context
           -- As we go bottom up, those variables will be the output of some function in outer scope, so we can type these
           -- fuctions output then.
             mapM_ (\case
@@ -209,7 +204,7 @@ typeBottomUp _fo@(Let (PureDFFun out f@(FunRef _fun _fId (FunType (iTy: iTys) re
                               (DFVar atBnd, ty') -> DFVar $ replaceType atBnd ty'
                               (DFEnvVar _ lit, ty') -> DFEnvVar ty' lit
                           ) $ NE.zip vars (iTy :| iTys)
-    -- Then we add all the variables and their newly assigned types (which may still be TypeVar) to the context
+    -- Then we add all the variables and their newly assigned types (which may still be 'TypeVar') to the context
     -- As we go bottom up, those variables will be the output of some function in outer scope, so we can type these
     -- fuctions output then.
     mapM_ (\case
@@ -231,7 +226,7 @@ typeBottomUp smf@(Let (SMapFun out@(_fst,_scnd,_trd) iterableVar ) inCont) = do
   -- input, the 'iterable something' we iterate over is fused into the smap node.
   -- SO it's never send and we don't need a typed channel for it
   -- (Sebastian) Sadly this is not always so and hence we need this type.
-    let iterableVarTy = TypeList TypeVar
+    let iterableVarTy = TypeList TypeUnit
     iterableVar' <- case iterableVar of
                       DFVar atBnd -> do
                         let v = DFVar $ replaceType atBnd iterableVarTy
@@ -285,7 +280,7 @@ typeBottomUp e'@(Let (StateDFFun _oBnds _stFun _stateIn _dataIn) _inCont)  = do
 -- Recursion
 typeBottomUp (Let (RecurFun finalOut recCtrl argOuts initIns recIns cond result) inCont) = do
   knownVars <- get
-  -- using initins doesn't work (for now, because the literals are also TypeVar)
+  -- using initins doesn't work (for now, because the literals are also 'TypeVar')
   -- let (initIns', recIns') = OV.unzip $ OV.map updateVars $ OV.zip initIns recIns
   newInits <- mapM maybeUpdateByOutData (OV.zip argOuts initIns)
   newRets <- mapM maybeUpdateByOutData (OV.zip argOuts recIns)
@@ -406,7 +401,7 @@ maybeUpdate reference var = do
   -- But why does it create an all new variable with the type found in the context?
   -- Doesn't the function say that it only wants to update the context?
   -- No it doesn't. The scenario here is, that we found a typed reference and maybe want to update a variable. This variable might be allready in 
-  -- in the context with a TypeVar type. So we want to a) update the context and b) update the variable
+  -- in the context with a 'TypeVar' type. So we want to a) update the context and b) update the variable
 
   let newVar = case var of
           (DFVar atBnd) -> case HM.lookup (unwrapABnd reference) knownVars of
@@ -433,7 +428,7 @@ updateContext atBnd newType  = do
 
 
 
--- | Picks a Argtype from two available ones, choosing any type over TypeVar or the second one.
+-- | Picks a Argtype from two available ones, choosing any type over 'TypeVar' or the second one.
 -- Problem is, we will assign type twice, when we type recursive functions. In that case we hit the 
 -- variable representing the recurFun first, wich is not the actual return value of the algorithm. 
 -- Hence we need to override the firsr assignment and it's more intuitive to express this by choosing the first type

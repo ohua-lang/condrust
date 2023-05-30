@@ -145,7 +145,7 @@ ifRewrite = transformM $ \case
                 resultBnd <- generateBindingWith "result"
                 let (typeTrue, typeFalse) = (exprType trueBody, exprType falseBody)
                 assertE (typeTrue == typeFalse) $
-                        " Error: Types of branching experssion do not match. Cannot decide the type of" <> 
+                        " Error: Types of branching expression do not match. Cannot decide the type of" <> 
                         " controle nodes collecting from branchtypes "<> show typeTrue <> " and " <> show typeFalse
                 let ctrlTrue = (TBind ctrlTrueBnd controlSignalType)
                     ctrlFalse= (TBind ctrlFalseBnd controlSignalType)

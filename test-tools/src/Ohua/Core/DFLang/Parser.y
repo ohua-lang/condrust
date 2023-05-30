@@ -27,6 +27,7 @@ import Data.Data
 
 }
 
+-- ToDo: This won't work any more since we eliminated 'Untyped' functions and 'TypeVar' aspossible varaible type
 
 %name parseExpRaw Exp
 %tokentype { Lexeme }
@@ -99,7 +100,7 @@ LetExpr : let Pat '=' FnRef opt(StateArg) tuple(DFVar) in
         let fun = $4 in
         let state = $5 in
         let inp = case $6 of
-                    [] -> DFEnvVar TypeVar UnitLit :| []
+                    [] -> DFEnvVar TypeUnit UnitLit :| []
                     (a:r) -> a :| r
         in case state of
             Just s -> Let $ StateFun outs fun (DFVar TypeVar s) inp

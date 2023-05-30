@@ -45,12 +45,10 @@ substitute !var val =
 destructure :: Expr ty -> [TypedBinding ty] -> Expr ty -> Expr ty
 destructure source bnds =
     foldl (.) id $
-    map (\(idx, bnd0) -> Let bnd0 $ mkNthExpr idx source) (zip [0 ..] bnds)
+    map (\(idx, tbnd) -> Let tbnd $ mkNthExpr idx source (asType tbnd)) (zip [0 ..] bnds)
   where
-    mkNthExpr idx source0 =
-        -- Q: Whats the type supposed to be
-        -- Answer: The third input type is the type of source0 and the return type is the idx'th element of the type os source0 which is hopefully a tuple type
-        pureFunction IFuns.nth Nothing (FunType [TypeNat, TypeNat, TypeVar] TypeVar) `Apply` (Lit $ NumericLit idx) `Apply`
+    mkNthExpr idx source0 bTy =
+        pureFunction IFuns.nth Nothing (FunType [TypeNat, TypeNat, bTy] bTy) `Apply` (Lit $ NumericLit idx) `Apply`
         (Lit $ NumericLit $ toInteger $ length bnds) `Apply`
         source0
 

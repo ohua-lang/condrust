@@ -231,7 +231,7 @@ recurHof = "ohua.lang/recur_hof"
 
 -- Question: What'r those types supposed to be? Should this rater be functions of VarTypes?
 recurSf :: Expr ty
-recurSf = pureFunction recur Nothing $ FunType [] TypeVar
+recurSf  = pureFunction recur Nothing $ FunType [] TypeVar
 
 recurHofSf :: Expr ty
 recurHofSf = pureFunction recurHof Nothing $ FunType [] TypeVar
@@ -255,8 +255,6 @@ recurFunPureFunction :: Expr ty
 recurFunPureFunction = pureFunction IFuns.recurFun Nothing $ FunType [] TypeVar
 
 
-idPureFunction :: Expr ty
-idPureFunction = pureFunction "ohua.lang/id" Nothing (FunType [TypeVar] TypeVar)
 
 -- Phase 1:
 findTailRecs ::
@@ -391,10 +389,12 @@ isCall _ _ = False
 rewriteCallExpr :: forall m ty.
        (MonadGenBnd m) => Expr ty -> m (Expr ty)
 rewriteCallExpr e = do
-    let (lam@(Lambda _ _):callArgs) = snd $ fromApplyToList e
+    -- callArgs are the values, the recursive algorithm is called with, e.g. 2 in rec(2)
+    let (lam@(Lambda _ _): callArgs) = snd $ fromApplyToList e
     recurCtrlBnd <- generateBindingWith "ctrl"
     let recurCtrl = (TBind recurCtrlBnd controlSignalType)
     lam' <- liftIntoCtrlCtxt recurCtrl lam
+    -- recurVars are the arguments of the recursive function, e.g. x in fn rec(x:int, y:int)
     let (recurVars, expr) = lambdaArgsAndBody lam'
 
     let expr' = rewriteLastCond expr
@@ -410,15 +410,18 @@ rewriteCallExpr e = do
   --             let r = recurFun c result y1 ... yn in
   --               r
   -- this breaks haddock |]
-  -- Reminder: I assume from the name that this is supposed to be 
-    ctrlsBnd <- generateBindingWith "ctrls"
-    let ctrls = TBind ctrlsBnd (TupleTy $ controlSignalType :| [controlSignalType])
-        argTypes = case callArgs of
-            [] -> error "I don't know whats wrong but args must not be empty here"
-            _args ->  genFunType callArgs
-    return $
-        Let ctrls (fromListToApply (FunRef recurStartMarker Nothing $ argTypes) callArgs) $
-        mkDestructured (recurCtrl : recurVars) ctrls expr'
+
+  -- Question: Correct?
+    inputsBnd <- generateBindingWith "rec_inputs"
+    let inputsType = (TupleTy $ controlSignalType :| map asType recurVars)
+        inputs = TBind inputsBnd inputsType
+        funTy = case callArgs of
+            -- Question is this a problem/error? Why? 
+            [] -> error "It seems you called a recursion with no arguments"
+            _args -> (trace $ "Got "<> show callArgs <> " callArgs here and recurVars are\n " <> show recurVars)  genFunType callArgs inputsType
+    return $ 
+        Let inputs (fromListToApply (FunRef recurStartMarker Nothing $ funTy) callArgs) $
+        mkDestructured (recurCtrl : recurVars) inputs expr'
   where
     rewriteLastCond :: Expr ty -> Expr ty
     rewriteLastCond (Let v ex o@(Var b))
@@ -427,7 +430,7 @@ rewriteCallExpr e = do
     rewriteLastCond (Let v ex ie) = Let v ex $ rewriteLastCond ie
 
     -- Question: What's the return type supposed to be?
-    genFunType callArgs =  FunType (map exprType callArgs) TypeVar
+    genFunType callArgs retTy =  FunType (map exprType callArgs) retTy
 
     -- This whole rewriteCond and rewriteBranch algorithm is not correct. That
     -- is to say it only works in the specific case where a single `if` is the
@@ -447,7 +450,8 @@ rewriteCallExpr e = do
                     (Right bnds, Left f) -> (f, bnds)
                     _ -> error "invariant broken"
             callArgs = cond : fixRef : recurVars
-         in fromListToApply (FunRef recurEndMarker Nothing $ genFunType callArgs) callArgs
+            finalExpr = fromListToApply (FunRef recurEndMarker Nothing $ genFunType callArgs TypeVar) callArgs
+        in (trace $ "Result of rewriteCond" <> quickRender finalExpr) finalExpr
             
     rewriteCond _ =
         error

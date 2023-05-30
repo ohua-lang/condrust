@@ -111,19 +111,22 @@ mkFunLit qBnd = pureFunction qBnd Nothing
 
 -- Specific Functions, that should become part of the language ---------
 
+idBuiltin :: VarType ty -> Expr ty
+idBuiltin vTy = pureFunction IFuns.id Nothing (FunType [vTy] vTy)
+
 
 ifBuiltin :: VarType ty -> Expr ty
 ifBuiltin vTy = mkFunLit IFuns.ifThenElse (FunType [TypeBool ,vTy ,vTy ] vTy)
 
-seqBuiltin :: VarType ty ->  Expr ty
+seqBuiltin :: VarType ty ->  VarType ty ->  Expr ty
 -- Operator to sequence statements igrnoring the result of the first one
 -- ToDo: check if we still need that anywhere
-seqBuiltin scndTy =  mkFunLit IFuns.seq (FunType [TypeVar, scndTy] scndTy)
+seqBuiltin fstTy scndTy =  mkFunLit IFuns.seq (FunType [fstTy, scndTy] scndTy)
 
 
-smapBuiltin :: Expr ty
+smapBuiltin :: VarType ty ->  VarType ty -> VarType ty -> Expr ty
 -- HO for-loop: function -> collection to apply function to -> typeOfCollection ( return Type function)
-smapBuiltin = mkFunLit IFuns.smap (FunType [TypeVar, TypeVar] TypeVar )
+smapBuiltin fnTy collTy resTy = mkFunLit IFuns.smap (FunType [fnTy, collTy] resTy )
 
 
 -------------------- Recursion schemes support -------------------------

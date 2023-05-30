@@ -32,7 +32,6 @@ import Ohua.Core.ALang.Lang
 import Ohua.Core.ALang.PPrint
 import Ohua.Core.ALang.Passes.Control (fusionPasses)
 import Ohua.Core.ALang.Passes.If
-import Ohua.Core.ALang.Passes.Seq
 import Ohua.Core.ALang.Passes.Smap
 import Ohua.Core.ALang.Passes.Unit
 import Ohua.Core.ALang.Passes.Literal
@@ -58,10 +57,7 @@ runCorePasses expr = do
     ifE <- ifRewrite smapE
     stage conditionalsTransformationALang ifE
 
-    seqE <- seqRewrite ifE
-    stage seqTransformationALang seqE
-
-    normalizedE <- normalize seqE
+    normalizedE <- normalize ifE
     stage normalizeAfterCorePasses normalizedE
 
     let stateThreadsE' = postControlPasses normalizedE
@@ -179,15 +175,20 @@ ensureFinalLet' =
             | isVarOrLambdaF any0 -> embed <$> traverse snd any0 -- Don't rebind a lambda or var. Continue or terminate
             | otherwise -> do -- Rebind anything else
                 newBnd <- generateBinding
-                -- Questio: What happens here and whats the type of newBnd supposed to be?
-                -- Answer: The type of newBnd should be the type ("return type") of any0
-                pure $ Let (TBind newBnd TypeVar) (embed $ fmap fst any0) (Var (TBind newBnd TypeVar))
+                let expr' = embed $ fmap fst any0
+                let newTy = exprType expr'  -- pure exprType const <$> fmap fst any0
+                -- Question: How to get the return type of any0 or rather how to get an Expr ty of whatever we handle here?
+                -- Question: While we're at it... I admitt I'm not an expert in Haskell but this constant use of rather complex language features
+                --           seriously hinders my progress here in situation where I semantically know what I want to do. Is there a 
+                --           sensible reason for this construct or is it just flexing ?!
+                pure $ Let (TBind newBnd newTy) (embed $ fmap fst any0) (Var (TBind newBnd newTy))
   where
     isVarOrLambdaF =
         \case
             VarF _ -> True
             LambdaF {} -> True
             _ -> False
+    
 
 ensureFinalLetInLambdas :: MonadOhua m => Expr ty -> m (Expr ty)
 ensureFinalLetInLambdas =
@@ -296,7 +297,7 @@ removeCurrying e = fst <$> evalRWST (para inlinePartials e) mempty ()
         Apply <$>
             maybe
                 (failWith $ "No suitable value found for binding " <> show tbnd <> 
-                    " in expression:\n" <> quickRender e)
+                    "\n   in expression:\n" <> show  e)
                 pure
                 val <*>
             arg

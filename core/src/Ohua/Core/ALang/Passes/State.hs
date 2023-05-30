@@ -51,7 +51,7 @@ postControlPasses = transformCtxtExits -- . traceShow "transforming ctxt exists!
 runSTCLangSMapFun :: VarType ty -> Expr ty
 runSTCLangSMapFun stateTy = Lit $ FunRefLit $ FunRef IFuns.runSTCLangSMap Nothing $ FunType [TypeNat, stateTy] stateTy -- size and the state, i.e., there is one per state
 
--- Question: According to the code, this function is of type: bool -> stateVar -> stateVar -> stateVar. Is that what it's supposed to be?
+
 runSTCLangIfFun :: VarType ty -> Expr ty
 runSTCLangIfFun stateTy = Lit $ FunRefLit $ FunRef IFuns.runSTCLangIf Nothing $ FunType [TypeBool, stateTy, stateTy] stateTy
 
@@ -60,9 +60,9 @@ ctxtExit :: QualifiedBinding
 ctxtExit = "ohua.lang/ctxtExit"
 
 
--- Question: Where is it used and what's the type supposed to be?
-ctxtExitFunRef :: SNat ('Succ n) -> Expr ty
-ctxtExitFunRef num = Lit $ FunRefLit $ FunRef ctxtExit Nothing $ FunType (toList $ replicateNE num TypeVar) TypeVar
+-- Question: What's the type supposed to be?
+ctxtExitFunRef :: SNat ('Succ n) -> VarType ty -> VarType ty -> Expr ty
+ctxtExitFunRef num replTy retTy = Lit $ FunRefLit $ FunRef ctxtExit Nothing $ FunType (toList $ replicateNE num replTy) retTy
 
 -- | Transforms every stateful function into a fundamental state thread.
 --   Corrects the reference to the state for the rest of the computation.
@@ -96,16 +96,15 @@ transformFundamentalStateThreads = transformM f
     stBndForStatefulFun (e1 `Apply` _)            = stBndForStatefulFun e1
     stBndForStatefulFun _                         = return Nothing
 
-    g r app cont (TBind stateIn sty, stateOut) = do
-      -- Question: What's the 'x' type supposed to be? And why do the functions have such helpful and self-explaining names
+    g result app cont (TBind stateIn sty, stateOut) = do
       xBnd <- generateBinding
-      let x = TBind xBnd TypeVar
+      let x = TBind xBnd (TupleTy (sty:|[ asType result]))
       return $
         Let x app $
-        destructure (Var x) [stateOut,r] $
+        destructure (Var x) [stateOut, result] $
         substitute stateIn (Var stateOut) cont
 
--- TODO do not introduce orphaned state, i.e., state that is never used again.
+-- ToDo: do not introduce orphaned state, i.e., state that is never used again.
 --      check before that which of the state is actually used after the control context it is used in.
 
 -- | Adds a ctxtExit function that collects all states and the result of the context and passes it to the 'collect'/'select' function.
@@ -181,7 +180,7 @@ transformControlStateThreads = transformM f
               HS.foldr
               (\missingState c ->
                  Let missingState
-                 (pureFunction IFuns.id Nothing (FunType [TypeVar] TypeVar) 
+                 (pureFunction IFuns.id Nothing (FunType [asType missingState] (asType missingState)) 
                    `Apply` Var missingState)
                  c)
             trueBranch' = applyToBody (`addMissing` trueBranchStatesMissing) trueBranch
@@ -325,5 +324,5 @@ mkST states = \case
         return $
             -- Question: What's this type supposed to be?
             Let (TBind allOut TypeVar)
-                (mkApply (withSuccSing (Succ $ nlength states) ctxtExitFunRef) $ e : states)
+                (mkApply (withSuccSing (Succ $ nlength states) ctxtExitFunRef TypeVar TypeVar) $ e : states)
                 (Var (TBind allOut TypeVar))
