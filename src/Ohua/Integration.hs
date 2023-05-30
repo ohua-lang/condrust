@@ -51,7 +51,7 @@ type Compiler m a = (forall lang arch.
 data Integration =
     forall (lang::Lang) (arch::Arch).
     FullIntegration lang arch =>
-    I (Language lang) 
+    Integration (Language lang) 
         (Architectures arch) 
         (Maybe (CConfig.CustomPasses (B.Type (Language lang))))
 
@@ -62,7 +62,7 @@ class Apply integration where
         -> m a
 
 instance Apply Integration where
-    apply (I lang arch customCorePasses) comp = comp customCorePasses lang arch
+    apply (Integration lang arch customCorePasses) comp = comp customCorePasses lang arch
 
 runIntegration :: ErrAndLogM m
                 => Text
@@ -72,9 +72,9 @@ runIntegration :: ErrAndLogM m
 runIntegration ext (Config arch options) comp = do
   integration <- case ext of
     ".rs" -> case arch of
-               SharedMemory -> return $ I SRust (SSharedMemory options) $ Just $ RustPasses.passes options liftCollectType
-               M3 -> return $ I SRust (SM3 options) Nothing
+               SharedMemory -> return $ Integration SRust (SSharedMemory options) $ Just $ RustPasses.passes options liftCollectType
+               M3 -> return $ Integration SRust (SM3 options) Nothing
     ".py" -> case arch of
-               MultiProcessing-> return $ I SPython (SMultiProc options) $ Just $ PyPasses.passes options id
+               MultiProcessing-> return $ Integration SPython (SMultiProc options) $ Just $ PyPasses.passes options id
     _ -> throwError $ "No language integration defined for files with extension '" <> ext <> "'"
   apply integration comp
