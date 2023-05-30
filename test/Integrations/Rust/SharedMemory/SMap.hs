@@ -465,7 +465,7 @@ fn test() -> i32 {
               let sig = ctrlFalse_0_rx.recv()?;
               let count = sig.1;
               for _ in 0 .. count {
-                let c_0_0 = otherfun(lit_unit_0_1);
+                let c_0_0 = otherfun();
                 c_0_0_tx.send(c_0_0)?;
                 ()
               };
@@ -495,7 +495,7 @@ fn test() -> i32 {
               let sig = ctrlTrue_0_rx.recv()?;
               let count = sig.1;
               for _ in 0 .. count {
-                let b_0_0 = somefun(lit_unit_0_0);
+                let b_0_0 = somefun();
                 b_0_0_tx.send(b_0_0)?;
                 ()
               };
@@ -519,7 +519,7 @@ fn test() -> i32 {
           let sig = ctrl_0_1_rx.recv()?;
           let count = sig.1;
           for _ in 0 .. count {
-            let res = random_bool(());
+            let res = random_bool();
             ok_0_0_0_0_tx.send(res)?;
             ok_0_0_0_1_tx.send(res)?;
             ()

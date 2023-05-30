@@ -13,7 +13,7 @@ spec =
         -- This currently errors because we have to implement extracting the type
         -- of bound values i.e. let x = somefun(), from the return type of somefun 
         it "Type from imported function" $
-            compileCodeWithDebug  [sourceFile|
+            compileCode  [sourceFile|
                 use crate::funs::hello_world;
 
                 fn test() -> String {

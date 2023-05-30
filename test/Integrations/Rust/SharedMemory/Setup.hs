@@ -254,6 +254,10 @@ funs = "\
 \    23\
 \ }\
 \ \
+\ pub fn from_int(i:i32) -> String {\
+\    String::new(\"Actually I ignore the input\")\
+\ }\
+\ \
 \ "
 
 benchs :: Text

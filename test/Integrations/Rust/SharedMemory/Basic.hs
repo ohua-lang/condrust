@@ -10,7 +10,7 @@ spec :: Spec
 spec =
     describe "Basics" $ do
         it "a function" $
-            (showCode "Compiled: " =<< compileCodeWithDebug  [sourceFile|
+            (showCode "Compiled: " =<< compileCode  [sourceFile|
                 use funs::hello_world;
 
                 fn test() -> String {
@@ -22,12 +22,12 @@ spec =
                 compiled `shouldBe` expected)
 
         it "simple composition" $
-            (showCode "Compiled: " =<< compileCodeWithDebug  [sourceFile|
+            (showCode "Compiled: " =<< compileCode  [sourceFile|
                 use crate::funs::*;
 
                 fn test() -> String {
                     let x: i32 = f();
-                    g(x)
+                    from_int(x)
                 }
                 |]) >>=
             (\compiled -> do
@@ -272,7 +272,7 @@ simple_composition = [sourceFile|
                             .push(Box::new(move || -> _ {
                             loop {
                                 let var_0 = x_0_0_0_rx.recv()?;
-                                let a_0_0 = g(var_0);
+                                let a_0_0 = from_int(var_0);
                                 a_0_0_tx.send(a_0_0)?;
                                 ()
                             }

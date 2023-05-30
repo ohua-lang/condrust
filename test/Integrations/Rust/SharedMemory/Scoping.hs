@@ -72,7 +72,7 @@ spec =
 
                 fn test() -> i32 {
                     let x:i32 = f(global);
-                    let y:String = g(x);
+                    let y:String = h2(x);
                     h(y)
                 }
             |]) >>=
@@ -290,7 +290,7 @@ fn test() -> i32 {
           let sig = ctrl_0_1_rx.recv()?;
           let count = sig.1;
           for _ in 0 .. count {
-            let x_1_0_0 = g(());
+            let x_1_0_0 = g();
             x_1_0_0_tx.send(x_1_0_0)?;
             ()
           };
@@ -433,7 +433,7 @@ fn test() -> i32 {
     .push(Box::new(move || -> _ {
       loop {
         let var_0 = x_0_0_0_rx.recv()?;
-        let y_0_0_0 = g(var_0);
+        let y_0_0_0 = h2(var_0);
         y_0_0_0_tx.send(y_0_0_0)?;
         ()
       }
