@@ -65,7 +65,7 @@ exprType (AppE fun args) = exprType fun
 -- we do not handle any subtitution here and just take the return type of the term
 exprType (LamE _p term) = exprType term
 exprType (IfE c t1 t2) = exprType t1 -- we could also use t2 as they should be equal
-exprType (WhileE c body) = TypeUnit -- This will change dwnstream
+exprType (WhileE c body) = TypeUnit -- This will change downstream
 -- Question: How can we know this one ? 
 -- The return of a map (t1->t2) (c t1) should be (c t2) but we cannot recombine host types 
 exprType (MapE fun container) = TypeVar 
@@ -79,6 +79,15 @@ exprType (TupE f (e:es)) = TupleTy (exprType e :| map exprType es)
 -- ToDo: This is wrong in every case where Unit != None
 exprType (TupE f []) = TypeUnit 
 
+-- ToDo: This is actually very _unelegant_ but in some instances we need the function type from
+--       Lambda Expression, while in others we only care about the type the term will evaluate to. 
+--       I'm currently not sure, what the best way to handle this would be?!
+-- ToDo: currently not used -> remove when typing is done i.e. it wont be needed
+funType:: Expr ty -> Maybe (FunType ty) 
+funType (VarE _b (TypeFunction fTy)) = Just fTy
+funType (LitE  (FunRefLit fRef)) = Just $ getRefType fRef 
+funType (LamE p term) = Nothing
+funtype other = Nothing
 
 patterns :: Traversal' (Expr ty) (Pat ty)
 patterns f =
@@ -106,16 +115,22 @@ instance Plated (Expr ty) where
             AppE e es -> AppE <$> f e <*> traverse f es
             other -> gplate f other
 
-instance IsString (Expr ty) where
-    fromString = (\bnd -> VarE bnd TypeVar). fromString
-
 instance IsList (Expr ty) where
     type Item (Expr ty) = Expr ty
-    fromList [] = TupE (FunType [] TypeVar ) []
-    fromList a@(_:xs) = TupE (FunType (TypeVar : (map (const TypeVar) xs)) TypeVar) a
+    fromList [] = TupE (FunType [] TypeUnit) []
+    fromList (e:exprs) = 
+        let t = exprType e
+            tys = map exprType exprs
+        in TupE (FunType (t: tys) (TupleTy (t:|tys))) exprs
+
+
+-- ToDo: These are currently used in the Lowering tests but actually without a default type (i.e. after
+--       removing 'TypeVar') it doen't make to much sense any more to turn strings into pattern or vars
+instance IsString (Expr ty) where
+    fromString = (\bnd -> VarE bnd TypeNat). fromString
 
 instance IsString (Pat ty) where
-    fromString = (\bnd -> VarP bnd TypeVar). fromString
+    fromString = (\bnd -> VarP bnd TypeNat). fromString
 
 instance IsList (Pat ty) where
     type Item (Pat ty) = (Pat ty)
