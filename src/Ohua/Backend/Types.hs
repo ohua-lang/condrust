@@ -55,7 +55,7 @@ createFullTask taskExpr =
 taskExpression :: FullTask ty expr -> expr
 taskExpression (FullTask _ _ e) = e
 
-class Integration lang where
+class (Show (Type lang)) => Integration lang where
     type HostModule lang :: *
     type Type lang :: *
     type AlgoSrc lang :: *
