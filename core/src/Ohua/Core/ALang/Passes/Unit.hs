@@ -26,11 +26,13 @@ host language, these functions do not take an argument.)
 mkUnitFunctionsExplicit :: Expr ty -> Expr ty
 mkUnitFunctionsExplicit e =
     flip transform e $ \case
-        Let v (Apply (Lit (FunRefLit fun@FunRef{})) u@(Lit UnitLit)) ie ->
+        Let v (Apply (Lit (FunRefLit fun@(FunRef _bnd _id fTy))) u@(Lit UnitLit)) ie ->
             Let
                 v
                 -- Question: Whats the type supposed to be? Shouldn't is take a function and a unit and return something?
-                ((Lit $ FunRefLit $ FunRef unitFun Nothing $ FunType [TypeVar, TypeUnit] TypeVar) `Apply`
+                -- ToDo: When I use TypeFunction fTy instead of 'TypeVar' compilation gets stuck somewhere i.e. loops without output
+                   -- -> Find out where and why and whyt to do?!
+                ((Lit $ FunRefLit $ FunRef unitFun Nothing $ FunType [TypeVar,  TypeUnit] (TypeVar) ) `Apply`
                  (Lit $ FunRefLit fun) `Apply`
                  u)
                 ie
