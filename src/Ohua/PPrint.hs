@@ -48,14 +48,17 @@ prettyLit =
         NumericLit n -> pretty n
         UnitLit -> "()"
         EnvRefLit he ty -> "$" <> pretty he <> "::" <> pretty ty
-        BoolLit b -> pretty b
+        BoolLit b -> pretty b 
         StringLit str -> pretty str
 
 prettyFunType :: FunType ty -> Doc ann
 prettyFunType = 
     \case
         FunType [] retTy -> "()"
-        FunType args retTy -> hsep $ punctuate comma $ toList $ map pretty args
+        FunType argsTys retTy -> 
+            let pArgs = hsep (punctuate comma $ toList $ map pretty argsTys)
+                pRet = pretty retTy
+            in parens pArgs <> " -> " <> pRet
         STFunType stateTY [] retTy -> hsep $ punctuate comma [pretty stateTY  <> "()"]
         STFunType stateTY args retTy -> prettyFunType $ FunType (stateTY : args) retTy 
 
