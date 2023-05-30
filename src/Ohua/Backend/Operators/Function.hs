@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveGeneric, DeriveAnyClass, ScopedTypeVariables #-}
+{-# LANGUAGE LambdaCase #-}
 module Ohua.Backend.Operators.Function where
 
 import Ohua.Prelude hiding (First, Second)
@@ -150,7 +151,7 @@ genFun' ct = \case
         in flip letReceives [varAndReceive]
            $ callWithResult (NE.toList o) (Var v) ct
     where
-        getCallArgs p (FunType [] TypeVar) _ = []
+        getCallArgs p (FunType [] _ ) _ = []
         getCallArgs p (STFunType _ [] _retTy) _ = []
         getCallArgs p _ vrs =
           map (\(_,v,_) -> p v) $
