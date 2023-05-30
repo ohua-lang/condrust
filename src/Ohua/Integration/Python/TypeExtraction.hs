@@ -12,7 +12,7 @@ import qualified Data.HashMap.Lazy as HM
 import Data.List.NonEmpty
 
 
-data PythonVarType = PythonObject
+data PythonVarType = PythonObject deriving Show
 type PythonTypeAnno  = PythonVarType  
 type FunTypes = HM.HashMap QualifiedBinding (FunType PythonTypeAnno)
 
