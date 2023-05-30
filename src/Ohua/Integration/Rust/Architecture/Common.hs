@@ -59,7 +59,6 @@ toRustTy :: VarType TE.RustTypeAnno -> Rust.Ty ()
 -- ToDo: We have a distinction between 'single' types and tuples but beyond that do not care
 -- if it's a Path expression a Self or whatever. Currently we don't allow fancy return types so
 -- maybe that's Ok but I have to evaluate later!!
-toRustTy TypeVar = Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "_" Nothing ()] ()) ()
 toRustTy (Type (TE.Self ty _ _ )) = ty
 toRustTy (Type (TE.Normal ty)) = ty
 toRustTy (TupleTy types) = Rust.TupTy (toList $ map toRustTy types) ()
