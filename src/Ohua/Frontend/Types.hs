@@ -9,7 +9,7 @@ import qualified Data.HashMap.Lazy as HM
 --       both functions in the interface become unnecessary/obsolete.
 -- ToDo: Might work if we use associated data types 'data HostModule lang' instead of 'type HostModule lang'. See example below 
 
-class Integration lang where
+class (Show (Type lang)) => Integration lang where
     type HostModule lang :: *
     type Type lang :: *
     type AlgoSrc lang :: *
