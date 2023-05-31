@@ -35,7 +35,7 @@ runCorePasses = removeNth
 finalPasses :: (MonadOhua m) =>  NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
 finalPasses = insertDispatch >=> eliminate
 
-typePropagation :: (MonadOhua m) => ty -> NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
+typePropagation :: (MonadOhua m) => HostType ty -> NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
 typePropagation retTy = pure . propagateTypesWithRetTy retTy
 
 -- I really should not have to do this in the first place.

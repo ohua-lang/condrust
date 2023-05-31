@@ -63,7 +63,7 @@ returnBinding = "finalReturnType"
 
 
 
-propagateTypesWithRetTy :: ty -> NormalizedDFExpr ty -> NormalizedDFExpr ty
+propagateTypesWithRetTy :: HostType ty -> NormalizedDFExpr ty -> NormalizedDFExpr ty
 propagateTypesWithRetTy retType expr  =
   let returnTB = TBind returnBinding (Type retType)
       context = HM.insert returnBinding (Exists $ DFVar (DataBinding returnTB)) HM.empty
