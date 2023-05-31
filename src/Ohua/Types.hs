@@ -5,6 +5,7 @@ module Ohua.Types
     , asBnd, asType
     , NSRef(..)
     , QualifiedBinding(..)
+    , HostType(..)
     , VarType(..)
     , controlSignalType
     , FunType(..)

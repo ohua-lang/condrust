@@ -59,6 +59,7 @@ dependencies:
 - safe-exceptions
 - template-haskell
 - th-lift-instances
+- th-lift
 - text
 - unordered-containers
 - fast-logger

@@ -1,26 +1,66 @@
-{-# LANGUAGE TemplateHaskell, GeneralizedNewtypeDeriving, DeriveLift, MultiWayIf #-}
+{-# LANGUAGE 
+    TemplateHaskell
+    , GeneralizedNewtypeDeriving
+    , DeriveLift
+    , MultiWayIf
+    , ConstraintKinds
+    , QuantifiedConstraints
+    , UndecidableInstances  #-}
+
 module Ohua.Types.Reference where
 
 import Universum
 
-import Control.Lens.Plated
+import GHC.Generics
 import Control.Lens.TH
-import Control.Monad.Error.Class (MonadError, throwError)
-import qualified Data.Text as T
-import GHC.Exts (IsList(..))
+import Control.Lens.Plated
 import Instances.TH.Lift ()
+import GHC.Exts (IsList(..))
+import qualified Data.Text as T
+import Control.Monad.Error.Class (MonadError, throwError)
 import Language.Haskell.TH.Syntax as TH (Lift(..))
-import Ohua.LensClasses
+import Language.Haskell.TH.Lift (makeLift)
 
 import System.FilePath.Posix (addExtension)
 import System.FilePath as Path (joinPath)
+
+
 import Ohua.Util
+import Ohua.LensClasses
 import Ohua.Types.Error
 import Ohua.Types.Make
 import Ohua.Types.Classes
 import Ohua.Types.Unit (Unit)
 
 import qualified Text.Show
+
+
+data HostType ty where
+    HostType:: (Show ty) =>  ty -> HostType ty
+
+instance Lift (HostType ty) where
+  lift (HostType ty) = [|hosttype _ |] 
+
+
+------------------------------------------------------------------------------------
+--  Generics implementation for GADTS taken from the example described at 
+--  https://ryanglscott.github.io/2018/02/11/how-to-derive-generic-for-some-gadts/
+------------------------------------------------------------------------------------
+data ECC :: Constraint -> (Type -> Type) -> Type -> Type where
+  ECC :: c => { unECC :: f a } -> ECC c f a
+
+instance (c => Show (f a)) => Show (ECC c f a) where
+  show (ECC x) = show x
+
+
+instance Generic (HostType ty) where
+  type Rep (HostType ty) = (ECC (Show ty) (Rec0 ty))
+
+  from (HostType x) = ECC (K1 x)
+
+  to (ECC (K1 x)) = HostType x
+
+
 
 
 -- | Internal type representations. While Type and TupleTy capture types from the
@@ -34,7 +74,7 @@ data VarType ty
     | TypeUnit 
     | TypeString 
     | TypeList (VarType ty) 
-    | Type ty 
+    | Type (HostType ty) 
     | TupleTy (NonEmpty (VarType ty)) 
     -- REMINDER: Can't derive Lift for Unit, therefor not for FunType and therefor I can't have FunType here for now
     --           Find a way to fix this
