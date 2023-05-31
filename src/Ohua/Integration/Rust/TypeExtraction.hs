@@ -15,8 +15,8 @@ import Data.List.NonEmpty hiding (map)
 
 
 data RustVarType = Self (Ty ()) (Maybe (Lifetime ())) Mutability | Normal (Ty ()) deriving (Show, Eq)
-type RustTypeAnno = RustVarType
-type FunTypes = HM.HashMap QualifiedBinding (FunType RustTypeAnno)
+type RustHostType = HostType RustVarType
+type FunTypes = HM.HashMap QualifiedBinding (FunType RustHostType)
 
 rustUnitReturn :: Ty ()
 rustUnitReturn = Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "()" Nothing ()] ()) ()
@@ -29,6 +29,11 @@ rustI32 = PathTy Nothing (Path False [PathSegment "i32" Nothing ()] ()) ()
 
 rustInfer :: Ty ()
 rustInfer = Infer ()
+
+asHostNormal:: Ty a -> RustVarType
+asHostNormal ty = Type $ HostType $ Normal (deSpan ty)
+
+asHostSelf:: Ty a -> Rust
 
 -- REMINDER: Commented out because we don't scan the imported libraries for type extraction any more
 
@@ -82,8 +87,8 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
         getTypes (FnDecl args retType _ _) =  (map toVarType args, fromMaybeRet retType)
 
         fromMaybeRet:: Maybe (Ty a) -> VarType RustVarType
-        fromMaybeRet (Just retTy) = Type $ Normal $ deSpan retTy
-        fromMaybeRet Nothing = Type $ Normal rustUnitReturn
+        fromMaybeRet (Just retTy) = asHostNormal retTy
+        fromMaybeRet Nothing = asHostNormal rustUnitReturn
 
         extractFunType :: (ErrAndLogM m, Show a) =>
             (Arg a -> [VarType RustVarType] -> VarType RustVarType -> m (FunType RustVarType)) ->
@@ -102,7 +107,7 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
         convertImplArg _ a = return $ toVarType a
 
         toVarType :: Show a => Arg a -> VarType RustVarType
-        toVarType (Arg _ _ typ _) = Type $ Normal (deSpan typ)
+        toVarType (Arg _ _ typ _) = asHostNormal typ
         toVarType a = error $ "Please report: The impossible happened at argument: " <> show a
 
         extractFromImplItem :: (ErrAndLogM m, Show a) => Ty a -> ImplItem a -> m (Maybe (QualifiedBinding, FunType RustVarType))

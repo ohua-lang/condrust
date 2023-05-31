@@ -13,8 +13,8 @@ import Data.List.NonEmpty
 
 
 data PythonVarType = PythonObject deriving Show
-type PythonTypeAnno  = PythonVarType  
-type FunTypes = HM.HashMap QualifiedBinding (FunType PythonTypeAnno)
+type PythonHostType = HostType PythonVarType
+type FunTypes = HM.HashMap QualifiedBinding (FunType PythonHostType)
 
 
 -- We currently do none of this scope type extracction but 
