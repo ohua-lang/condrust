@@ -56,7 +56,7 @@ convertReceive suffix (SRecv argType (SChan channel)) =
               (Type (TE.Normal ty)) -> noSpan <$ ty
               internalType -> case convertToRustType internalType of 
                   Just (Sub.RustType ty) -> ty
-                  Nothing -> error $ "We currently do not handle receive channels of type" <> show argType
+                  Nothing -> error $ "Couldn't handle type " <> show argType <> " for channel " <> show channel
       rcv =
         Sub.MethodCall
           (Sub.Var $ channel <> suffix)
@@ -71,14 +71,6 @@ instance Architecture (Architectures 'M3) where
 
   convertChannel    SM3{} = convertChan Sub.Immutable
   convertRetChannel SM3{} = convertChan Sub.Mutable
-
-  -- QUESTION: This 'invariant' is probably imposed by M3 requiring 'turbo fish'
-  -- typing for the recv. calls i.e. a_0_0_rx.recv_msg::<String,>().unwrap() so if any return
-    -- type is unknown to Ohua, this will blow up
-    -- &&convertRecv SM3{} (SRecv TypeVar (SChan channel)) = (trace $ show channel) error "Invariant broken!"
-  -- ISSUE: To make progress, I'll insert a paceholder type annotation. The real type needs to be derived earlier!!
-  convertRecv SM3{} (SRecv TypeVar (SChan channel)) =
-      error $ "A TypeVar was introduced for channel" <>  show channel <> ". This is a compiler error, please report (fix if you are me :-))"
 
   convertRecv    SM3{} r = Sub.Try $ convertReceive "_child_rx" r
   convertRetRecv SM3{} r =
