@@ -4,6 +4,7 @@ module Ohua.Frontend.Lang
     ( Pat(..)
     , Expr(..)
     , exprType
+    , patType
     , PatF(..)
     , ExprF(..)
     , patterns
@@ -24,6 +25,13 @@ data Pat ty
     | WildP (VarType ty)
     deriving (Show, Eq, Generic)
 
+patType:: Pat ty -> VarType ty
+patType = \case 
+    VarP _ ty -> ty
+    TupP ps -> TupleTy (map patType ps)
+    WildP ty -> ty 
+
+
 data Expr ty
     -- REMINDER: We need to wrap the host type in an VarType here, because
     -- the compiler will introdude variables typed as internal bool/unit/int 
@@ -41,8 +49,9 @@ data Expr ty
           (Expr ty)
           (Expr ty)
     | WhileE (Expr ty) (Expr ty)
-    | MapE (Expr ty)
-           (Expr ty)
+    | MapE (Expr ty) -- ^ Map expression that 'maps' its first argument to its second :: map f xs.
+           (Expr ty) 
+
     | BindE (Expr ty)
             (Expr ty) -- ^ @BindE state function@ binds @state@ to be operated on by @function@
     | StmtE (Expr ty)
@@ -68,7 +77,7 @@ exprType (IfE c t1 t2) = exprType t1 -- we could also use t2 as they should be e
 exprType (WhileE c body) = TypeUnit -- This will change downstream
 -- Question: How can we know this one ? 
 -- The return of a map (t1->t2) (c t1) should be (c t2) but we cannot recombine host types 
-exprType (MapE fun container) = TypeVar 
+exprType (MapE fun container) = TypeList TypeUnit
 -- The (explicit) return type of a function, bound to a state is still the return type of the function
 exprType (BindE _s f) = exprType f
 -- Question: Correct?
@@ -79,15 +88,6 @@ exprType (TupE f (e:es)) = TupleTy (exprType e :| map exprType es)
 -- ToDo: This is wrong in every case where Unit != None
 exprType (TupE f []) = TypeUnit 
 
--- ToDo: This is actually very _unelegant_ but in some instances we need the function type from
---       Lambda Expression, while in others we only care about the type the term will evaluate to. 
---       I'm currently not sure, what the best way to handle this would be?!
--- ToDo: currently not used -> remove when typing is done i.e. it wont be needed
-funType:: Expr ty -> Maybe (FunType ty) 
-funType (VarE _b (TypeFunction fTy)) = Just fTy
-funType (LitE  (FunRefLit fRef)) = Just $ getRefType fRef 
-funType (LamE p term) = Nothing
-funtype other = Nothing
 
 patterns :: Traversal' (Expr ty) (Pat ty)
 patterns f =
