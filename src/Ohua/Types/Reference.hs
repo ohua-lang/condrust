@@ -62,10 +62,9 @@ instance EqNoType (VarType ty) where
     Type _ ~= Type _ = True -- skipping to type info here!
     (TupleTy ts) ~= (TupleTy ts') = ts == ts' -- tuns into ~=, see instance below
     (TypeList inner1) ~= (TypeList inner2) = inner1 == inner2
-    -- Question: Should Function types be comparable?
-    
+    (TypeFunction fty1) ~= (TypeFunction fty2) = fty1 == fty2
     _ ~= _ = False
-
+    
 instance Eq (VarType ty) where
     (==) = (~=)
 
@@ -113,6 +112,14 @@ newtype Binding =
 -- | A typed Binding 
 data TypedBinding ty = TBind Binding (VarType ty) deriving (Show, Generic)
 
+instance Hashable (TypedBinding ty) where 
+    hashWithSalt s (TBind b ty) = hashWithSalt s b 
+
+instance Ord (TypedBinding ty) where
+    (TBind b1 _ty1) <= (TBind b2 _ty2) = b1 <= b2
+
+-- FIXME: This is just a hack until we get everything typed correctly
+-- currently 'reduceLambdas' in ALang Passes will loop forever if types dont match
 -- As long as we can not make sure, that every binding and usage side is correctly typed, tranformations, in particular the ones that determine if something is used
 -- should only check if something with the same name, not necesarily the same type annotation is used.
 instance Eq (TypedBinding ty) where
