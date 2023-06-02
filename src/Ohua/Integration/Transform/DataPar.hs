@@ -207,7 +207,7 @@ rewrite liftCollectTy (SMap smapF body collectF) = do
     findOutTy :: DFApp 'Fun ty -> NormalizedDFExpr ty -> OhuaM (VarType ty)
     findOutTy fun cont = 
         case DFL.outsDFApp fun of
-            -- make this a mathc on ty being TypeVar which should error or any type which is the type we want
+            -- make this a mathc on ty being 'TypeVar' which should error or any type which is the type we want
             [TBind bnd ty] -> case findOutTy' bnd cont of
                         [] -> invariantBroken $ "found unused output:" <> show bnd <> " for function: " <> show fun
                         (t:_) -> return t
@@ -400,8 +400,9 @@ amorphous numRetries = transformM go
                                              True -> transformM (rewriteAfterLoop loopInp wlRec) lam'
                                              -- concat to the creator of the new worklist
                                              False -> do
-                                               -- Question: What's the type of reest supposed to be?
-                                               rest <- flip TBind TypeVar <$> generateBindingWith "rest"
+                        
+                                               -- rest hat den seoben type wie loopinp
+                                               rest <- flip TBind (asType loopInp) <$> generateBindingWith "rest"
                                                lam'' <- transformM (takeNRewrite loopInp rest) lam'
                                                transformM (concatRewrite wlRec rest) lam''
                                    foldM amorph lam loops'
@@ -493,13 +494,13 @@ amorphous numRetries = transformM go
                  (AL.Var loopInp'))
           cont
         )
-        -- Question: What types are those varaibles supposed to have?
+        -- We cut the 'n' next elements from the container, so inner and container types remain the same
         | smapF == IFuns.smap && loopIn == loopInp' = do
-          taken <- flip TBind TypeVar <$> generateBindingWith "n_taken"
+          taken <- flip TBind TypeNat <$> generateBindingWith "n_taken"
           takenInp <- flip TBind liTy <$> generateBindingWith (loopInBnd <> "_n")
-          rest <- flip TBind TypeVar <$> generateBindingWith "rest"
-          nResults <- DataBinding . flip TBind TypeVar <$> generateBindingWith "n_results"
-          pendingWork <- flip TBind TypeVar <$> generateBindingWith wl'
+          rest <- flip TBind liTy <$> generateBindingWith "rest"
+          nResults <- DataBinding . flip TBind liTy <$> generateBindingWith "n_results"
+          pendingWork <- flip TBind liTy <$> generateBindingWith wl'
           return $
             AL.Let
               taken
@@ -528,10 +529,9 @@ amorphous numRetries = transformM go
           cont
         )
         | smapF == IFuns.smap && loopIn == loopInp' = do
-          -- Question: What are the types of varaibles supposed to be?
           taken <- flip TBind TypeNat <$> generateBindingWith "n_taken"
           takenInp <- flip TBind liTy <$> generateBindingWith (loopInBnd <> "_n")
-          nResults <- flip TBind TypeVar <$> generateBindingWith "n_results"
+          nResults <- flip TBind liTy <$> generateBindingWith "n_results"
           return $
             AL.Let
               taken
@@ -550,15 +550,15 @@ amorphous numRetries = transformM go
           cont)
       | wl' == v
       = do
-          cont' <- concatRewriteOn v {- inpTy --} rest cont
+          cont' <- concatRewriteOn v rest cont
           return $ AL.Let v f cont'
     concatRewrite _ _ e = pure e
 
-    concatRewriteOn worked@(TBind workedB workedTy) {- inpTy -} rest cont = do
+    concatRewriteOn worked@(TBind workedB workedTy) rest cont = do
       pendingWork <- flip TBind workedTy <$> generateBindingWith workedB
       return $
         AL.Let pendingWork
-        (Apply (Apply (concatLit {- inpTy -} TypeVar) $ AL.Var worked) $ AL.Var rest)
+        (Apply (Apply (concatLit workedTy ) $ AL.Var worked) $ AL.Var rest)
         (substitute workedB (AL.Var pendingWork) cont)
 
 fst3   (a,_,_) = a
@@ -569,8 +569,7 @@ typeAmorphous :: NormalizedDFExpr ty -> OhuaM (NormalizedDFExpr ty)
 typeAmorphous = return . mapFuns go
     where
         go (PureDFFun outs (FunRef f id (FunType (a:b:c) retTy) ) ins) | f == concat =
-            -- Question: What do we do here and what's the types supposed to be?
-            PureDFFun outs (FunRef f id (FunType (TypeList TypeVar : TypeList TypeVar: c ) retTy)) ins
+            PureDFFun outs (FunRef f id (FunType (TypeList a : TypeList b : c ) retTy)) ins
         go (PureDFFun outs (FunRef f id (FunType (a : b) retTy ) ) ins) | f == takeN =
-            PureDFFun outs (FunRef f id (FunType (TypeList TypeVar : b) retTy) ) ins
+            PureDFFun outs (FunRef f id (FunType (TypeList a : b) retTy) ) ins
         go a = a
