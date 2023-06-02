@@ -29,8 +29,6 @@ import Ohua.Integration.Rust.Util
 import Ohua.Prelude hiding (getVarType)
 import qualified Control.Applicative as Hm
 
--- ToDo: Replace TypeVar by rustInfer. We want to eliminate TypeVar from the internal VarType yet need a way to represent unknown types
---       because typing for the Rust Input will happen in three steps and there will be intermediately unknown types 
 
 class ConvertExpr a where
   convertExpr :: SubC.ConvertM m => a -> m (FrLang.Expr RustVarType)
@@ -159,7 +157,7 @@ instance Integration (Language 'Rust) where
 
       fromGlobals:: SubC.ConvertM m => m [FrLang.Pat RustVarType]
       fromGlobals = do
-        ctxt <- get 
+        ctxt <- get
         return $ map (\(bnd, (Sub.RustType ty)) -> VarP bnd (Type $ TE.Normal ty)) (HM.toList ctxt)
 
 
@@ -244,7 +242,7 @@ instance Integration (Language 'Rust) where
       -- ToDo: For now we'll just not fail here, becasue type extraction should only be the first option, annotation of wars is comes afterwards in the check and should be the point where it fails-
       assignTypes typez = \case
         f@(LitE (FunRefLit (FunRef qb i ft))) | fullyTyped ft -> return f
-        f@(LitE (FunRefLit (FunRef qb i _))) ->
+        f@(LitE (FunRefLit (FunRef qb i ft))) -> 
           case HM.lookup qb typez of
             Just typ ->
               -- do
@@ -253,9 +251,9 @@ instance Integration (Language 'Rust) where
             Nothing -> return f -- throwError $ "I was unable to determine the types for the call to '" <> show qb <> "'. Please provide type annotations."
         e -> return e
 
-      fullyTyped (FunType args retTy) = all (\case TypeVar -> False; _ -> True) (retTy: args)
-      fullyTyped (STFunType sTy argTys retTy) = all (\case TypeVar -> False; _ -> True) (sTy: retTy: argTys)
-      fullyTyped _ = False
+      -- Question: Can we have functions as arguments? 
+      fullyTyped (FunType args retTy) = all (\case Type Unknown -> False; TypeFunction fty -> fullyTyped fty; _ -> True) (retTy: args)
+      fullyTyped (STFunType sTy argTys retTy) = all (\case Type Unknown -> False; TypeFunction fty -> fullyTyped fty; _ -> True) (sTy: retTy: argTys)
 
       fullyResolvedImports = resolvedImports fullyResolved
       aliasImports = resolvedImports aliases
@@ -317,20 +315,20 @@ instance ConvertExpr Sub.Expr where
         -- traceM $ "Context at parsing function " <> show ref <> ": \n" <> show ctxt <> "\n"
         -- ToDo: When we thread return type annotations to type functions OR use the extracted function type we need ot distinguish two cases
         --       1. we had no annotation 
-        --          -> we set the currentReturn in the context to TypeVar 
+        --          -> we set the currentReturn in the context to 'TypeVar' 
         --          -> we try to retrieve arg types (which we will have from the context anyways as we're going top down) and the return type for the function
-        --          -> in here we do nothing i.e. just produce a function with return type TypeVar, because we want to give a useful error message
-        --          however, when we're back at the statement context and the currentType in the context is still TypeVar, we error and indicate that the currently 
+        --          -> in here we do nothing i.e. just produce a function with return type 'TypeVar', because we want to give a useful error message
+        --          however, when we're back at the statement context and the currentType in the context is still 'TypeVar', we error and indicate that the currently 
         --          assigned variable needs to be annotated
         ty <- argTypesFromContext args
-        retTy <- return TypeVar -- get this from context later
+        retTy <- return $ Type TE.Unknown -- get this from context later
         return $ LitE (FunRefLit (FunRef ref Nothing $ FunType ty retTy))
       -- Currently we don't extract function types correctyl so we still need to type them the good old way
       VarE bnd _ty -> do
         let qBnd = toQualBinding bnd
         -- traceM $ "Parsing function " <> show bnd <> " In Context : \n" <> show ctxt <> "\n"
         ty <- argTypesFromContext args
-        retTy <- return TypeVar
+        retTy <- return $ Type TE.Unknown
         return $ LitE (FunRefLit (FunRef qBnd Nothing $ FunType ty retTy))
       _ -> return fun'
     args' <- mapM convertExpr args
@@ -341,7 +339,7 @@ instance ConvertExpr Sub.Expr where
     receiver' <- convertExpr receiver
     argTys <- argTypesFromContext args
     receiverTy <- getVarType receiver
-    retTy <- return TypeVar
+    retTy <- return $ Type TE.Unknown
     -- traceM $ "Context at parsing function " <> show method <> ": \n" <> show ctxt <> "\n"
     let method' = LitE (FunRefLit (FunRef method Nothing $ STFunType receiverTy argTys retTy))
     args' <- mapM convertExpr args
@@ -452,7 +450,7 @@ instance ConvertExpr Sub.Expr where
     --        we need to know the current return type 
     -- Check where CallRefs are produced and how we can constrain there occurence.
     ctxt <- get
-    return $ LitE $ FunRefLit $ FunRef ref Nothing $ FunType [TypeVar] TypeVar
+    return $ LitE $ FunRefLit $ FunRef ref Nothing $ FunType [Type TE.Unknown] (Type TE.Unknown)
   convertExpr (Sub.Var bnd (Just (Sub.RustType ty))) = return $ VarE bnd (Type $ TE.Normal ty)
   convertExpr (Sub.Var bnd Nothing) = do
     -- traceM $ "Parsing var " <> show bnd
@@ -462,7 +460,7 @@ instance ConvertExpr Sub.Expr where
       -- We also get here when we convert function names, for which we currently have no proper typing in place so
       -- for now I'll insert a placeholder type, that is replaces as we return from here to typing the Call expression
       -- ToDo: Fix type when we have proper function type extraction again
-      Nothing -> {-(trace $ "Trying to type Variable " <> show bnd )-} return $ VarE bnd TypeVar -- error $ "No type info found for " <> show bnd
+      Nothing -> {-(trace $ "Trying to type Variable " <> show bnd )-} return $ VarE bnd (Type TE.Unknown) -- error $ "No type info found for " <> show bnd
 
 instance ConvertExpr Sub.Block where
   convertExpr (Sub.RustBlock Sub.Normal stmts) =
@@ -510,7 +508,7 @@ fromIdent :: Sub.IdentPat -> Binding
 fromIdent (Sub.IdentPat _mode bnd) =  bnd
 
 instance ConvertPat Sub.Pat where
-  convertPat Sub.WildP   = return $ VarP (fromString "_") TypeVar
+  convertPat Sub.WildP   = return $ VarP (fromString "_") (Type $ TE.Normal rustInfer)
   convertPat (Sub.IdentP ip) = convertPat ip
   -- It is possible to bind: let () = e1; in Rust, iff e1 evaluates to ()
   -- The pattern in this case would be TupP [], because language-rust has no Unit pattern
@@ -534,7 +532,7 @@ instance ConvertPat Sub.IdentPat where
     let ty = HM.lookup bnd ctxt
     case ty of
       Just (Sub.RustType rustType) -> return $ VarP bnd (Type $ TE.Normal rustType)
-      Nothing -> (trace $ "No type info found for pattern " <> show bnd) return $ VarP bnd TypeVar
+      Nothing -> (trace $ "No type info found for pattern " <> show bnd) return $ VarP bnd (Type TE.Unknown)
 
 instance ConvertPat Sub.Arg where
   convertPat (Sub.Arg pat ty) = do
@@ -549,11 +547,11 @@ binOpInfo:: Sub.BinOp -> (Binding, VarType RustVarType)
 -- ToDo: It seems infering the type of binary ops should be easy given the input. However
 --       we might need to incorparate Rusts coercion rules if the two arguments differ in type
   -- Check if that applicable and if it would be a problem after all since when somethigncan be coerced for this binary op, it can also be coerced downstream probably, if we just take one of the types.
-binOpInfo Sub.Add =  ("+", TypeVar)
-binOpInfo Sub.Sub =  ("-", TypeVar)
-binOpInfo Sub.Mul =  ("*", TypeVar)
-binOpInfo Sub.Div =  ("/", TypeVar)
-binOpInfo Sub.Lt =  ("<", Type $ TE.Normal rustBool)
+binOpInfo Sub.Add =  ("+", Type TE.Unknown)
+binOpInfo Sub.Sub =  ("-", Type TE.Unknown)
+binOpInfo Sub.Mul =  ("*", Type TE.Unknown)
+binOpInfo Sub.Div =  ("/", Type TE.Unknown)
+binOpInfo Sub.Lt =  ("<", Type TE.Unknown)
 binOpInfo Sub.Lte =  ("<=", Type $ TE.Normal rustBool)
 binOpInfo Sub.Gte =  (">=", Type $ TE.Normal rustBool)
 binOpInfo Sub.Gt =  (">", Type $ TE.Normal rustBool)
@@ -561,10 +559,10 @@ binOpInfo Sub.EqOp =  ("==", Type $ TE.Normal rustBool)
 binOpInfo Sub.OrOp =  ("||", Type $ TE.Normal rustBool)
 
 unOpInfo::Sub.UnOp -> (Binding, VarType RustVarType)
-unOpInfo Sub.Deref =  ("*", TypeVar)
+unOpInfo Sub.Deref =  ("*",  Type TE.Unknown)
 -- ToDo: negation is a trait and returns whatever the input type implemented it to return i.e. not necessarily of the same type
-unOpInfo Sub.Not =  ("!", TypeVar)
-unOpInfo Sub.Neg =  ("-", TypeVar)
+unOpInfo Sub.Not =  ("!",  Type TE.Unknown)
+unOpInfo Sub.Neg =  ("-",  Type TE.Unknown)
 
 asFunRef :: Monad m => Binding -> [VarType RustVarType] -> VarType RustVarType -> m (FrLang.Expr RustVarType)
 asFunRef op tys retTy = return $
