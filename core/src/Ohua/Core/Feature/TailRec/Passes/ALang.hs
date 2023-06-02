@@ -229,13 +229,10 @@ recur = IFuns.recur -- allows me to use it in binding position
 recurHof :: QualifiedBinding
 recurHof = "ohua.lang/recur_hof"
 
--- Question: What'r those types supposed to be? Should this rater be functions of VarTypes?
-recurSf :: Expr ty
-recurSf  = pureFunction recur Nothing $ FunType [] TypeVar
-
-recurHofSf :: Expr ty
-recurHofSf = pureFunction recurHof Nothing $ FunType [] TypeVar
-
+-- Wraps a function a and "returns" it's evaluation type so it's type should be
+-- exprType a -> exprType a
+recurSf :: VarType ty -> Expr ty
+recurSf ty = pureFunction recur Nothing $ FunType [ty] ty
 
 recurStartMarker :: QualifiedBinding
 recurStartMarker = "ohua.lang.marker/recur_start"
@@ -247,12 +244,13 @@ recurEndMarker = "ohua.lang.marker/recur_end"
 y :: QualifiedBinding
 y = "ohua.lang/Y"
 
-ySf :: Expr ty
-ySf = pureFunction y Nothing $ FunType [] TypeVar
+-- Just as recurSF this is a marker for a an execution contex -> its type is ty-> ty
+ySf :: VarType ty -> Expr ty
+ySf ty = pureFunction y Nothing $ FunType [ty] ty
 
-
-recurFunPureFunction :: Expr ty
-recurFunPureFunction = pureFunction IFuns.recurFun Nothing $ FunType [] TypeVar
+-- see above 
+recurFunPureFunction :: VarType ty -> Expr ty
+recurFunPureFunction ty = pureFunction IFuns.recurFun Nothing $ FunType [ty] ty
 
 
 
@@ -282,22 +280,23 @@ findRecCall (Let bound expr inExpr) algosInScope
         then do
             let (TBind bnd ty) = bound
             bnd' <- generateBindingWith bnd
-            return (iFound, Let (TBind bnd' ty) e $ Let bound (Apply ySf (Var (TBind bnd' ty))) iExpr)
-        else return (HS.union found iFound, Let bound e iExpr)
+            return (iFound, Let (TBind bnd' ty) e $ Let bound (Apply (ySf ty)  (Var (TBind bnd' ty))) iExpr)
+        else  
+            return (HS.union found iFound , Let bound e iExpr)
 -- findRecCall (Let bound expr inExpr) algosInScope = do
 --     (iFound, iExpr) <- findRecCall inExpr algosInScope
 --     return (iFound, Let bound expr iExpr)
 findRecCall (Apply (Var tbnd) a) algosInScope
     | HS.member tbnd algosInScope
      -- no recursion here because if the expression is correct then these can be only nested APPLY statements
-     = do
+     =  do
         _enabledTR <- ask
         unlessM ask $
             throwErrorDebugS
                 "Detected recursion although tail recursion support is not enabled!"
-        return (HS.insert tbnd HS.empty, Apply recurSf a)
+        return (HS.insert tbnd HS.empty, Apply (recurSf $ exprType a) a)
             -- else error $ "Detected recursion (" ++ (show binding) ++ ") although tail recursion support is not enabled!"
-findRecCall (Apply a b) algosInScope = do
+findRecCall e@(Apply a b) algosInScope =  do
     (aFound, aExpr) <- findRecCall a algosInScope
     (bFound, bExpr) <- findRecCall b algosInScope
     return (HS.union aFound bFound, Apply aExpr bExpr)
@@ -429,7 +428,7 @@ rewriteCallExpr e = do
         | otherwise = error "Value returned from recursive function was not last value bound, this is not tail recursive!"
     rewriteLastCond (Let v ex ie) = Let v ex $ rewriteLastCond ie
 
-    -- Question: What's the return type supposed to be?
+
     genFunType callArgs retTy =  FunType (map exprType callArgs) retTy
 
     -- This whole rewriteCond and rewriteBranch algorithm is not correct. That
@@ -450,8 +449,9 @@ rewriteCallExpr e = do
                     (Right bnds, Left f) -> (f, bnds)
                     _ -> error "invariant broken"
             callArgs = cond : fixRef : recurVars
-            finalExpr = fromListToApply (FunRef recurEndMarker Nothing $ genFunType callArgs TypeVar) callArgs
-        in (trace $ "Result of rewriteCond" <> quickRender finalExpr) finalExpr
+            returnTy = TupleTy $ exprType cond :| (exprType fixRef : (map exprType recurVars))
+            finalExpr = fromListToApply (FunRef recurEndMarker Nothing $ genFunType callArgs returnTy) callArgs
+        in finalExpr
             
     rewriteCond _ =
         error
