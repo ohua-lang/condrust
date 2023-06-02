@@ -24,12 +24,11 @@ import qualified Text.Show
 
 
 -- | Internal type representations. While Type and TupleTy capture types from the
---   host language, 'TypeVar', TypeNat and TypeBool are used internaly to construct nodes
---   They must be mapped to the according types of the host language in the backend or, in 
---   in case of 'TypeVar' need to be eliminated for Backends requiring typed channels.
+--   host language, the literal types TypeNat and TypeBool etc. are used internaly to construct nodes
+--   They must be mapped to the according types of the host language in the backend.
+
 data VarType ty 
-    = TypeVar 
-    | TypeNat 
+    = TypeNat 
     | TypeBool 
     | TypeUnit 
     | TypeString 
@@ -54,7 +53,6 @@ controlSignalType :: VarType ty
 controlSignalType = TupleTy $ TypeBool:| [TypeNat]
 
 instance EqNoType (VarType ty) where
-    TypeVar ~= TypeVar = True
     TypeNat ~= TypeNat = True
     TypeBool ~= TypeBool = True
     TypeUnit ~= TypeUnit = True
@@ -69,7 +67,6 @@ instance Eq (VarType ty) where
     (==) = (~=)
 
 instance ShowNoType (VarType ty) where
-    showNoType TypeVar = "TypeVar"
     showNoType TypeNat = "Internal nat"
     showNoType TypeBool = "Internal bool"
     showNoType TypeUnit = "Internal Unit"
@@ -85,7 +82,6 @@ instance Show (VarType ty) where
     show = T.unpack . showNoType
 
 instance Hashable (VarType ty) where
-    hashWithSalt s TypeVar = s
     hashWithSalt s TypeNat = s
     hashWithSalt s TypeBool = s
     hashWithSalt s TypeUnit = s
