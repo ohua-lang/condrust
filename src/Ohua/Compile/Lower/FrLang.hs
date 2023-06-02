@@ -116,7 +116,7 @@ whileToRecursion = return
                     recCall = 
                         -- ToDo: Fix typing, loops have either a function type if we thread states, or type () -> () if we just
                         --       enclose the environment implicitely  
-                        let loopTy = TypeVar
+                        let loopTy = 'TypeVar'
                             loopName = "loop_function"
                         in 
                             LetE (VarP loopName loopTy) returnTuple $
@@ -152,8 +152,8 @@ whileToRecursion = return
 
 
 -- ToDo: Replace by Alang definition
-nthFun :: FR.Expr ty
-nthFun = LitE $ FunRefLit $ FunRef IFuns.nth Nothing $ FunType [TypeVar,TypeVar,TypeVar] TypeVar
+nthFun :: VarType ty -> VarType ty -> FR.Expr ty
+nthFun collTy elemTy = LitE $ FunRefLit $ FunRef IFuns.nth Nothing $ FunType [TypeNat, TypeNat, collTy] elemTy
 
 unstructure :: (Binding, VarType ty) -> NonEmpty (FR.Pat ty) -> FR.Expr ty -> FR.Expr ty
 unstructure (valBnd, valTy) pats = go (toInteger $ length pats) (NE.toList pats)
@@ -164,7 +164,7 @@ unstructure (valBnd, valTy) pats = go (toInteger $ length pats) (NE.toList pats)
             (\(idx, pat) ->
                  LetE pat $
                  AppE
-                     nthFun
+                     (nthFun valTy (FR.patType pat))
                      [ LitE (NumericLit idx)
                      , LitE (NumericLit numPats)
                      , VarE valBnd valTy
@@ -189,20 +189,17 @@ trans =
                     "Invariant broken: Found multi apply or destructure lambda: " <>
                     show p
         IfEF cont then_ else_ ->
-            -- ToDo: Replace ifBuildtIn by Alang definition
             ALang.ifBuiltin 
                 (ALang.exprType  then_)
                 `Apply` cont  
                     `Apply` Lambda (TBind "_" TypeUnit) then_ 
                     `Apply` Lambda (TBind "_" TypeUnit) else_
-        -- ToDo: This is a problem ... we'd need an infromation here that is not entailed in the expression itself, 
-        --       namely the return type because Map:: (a->b) -> f a -> f b, however a, b and f are host types so we can not construct f b ourselfs
-        --       we can only draw this type from the target the result is assigned to.
-        -- ToDo: We also need the function type of function here, i.e. not the exprType because that would only be the return type
-        MapEF function coll -> (ALang.smapBuiltin TypeVar (ALang.exprType coll) TypeVar)`Apply` function `Apply` coll
+        MapEF function coll -> case ALang.funType function of 
+            Just fTy -> (ALang.smapBuiltin (TypeFunction fTy) (ALang.exprType coll) (TypeList TypeUnit)) `Apply` function `Apply` coll
+            Nothing -> error $ "Function type is not available for expression:\n "<> show function <> "\n Please report this error." 
         BindEF ref e -> BindState ref e
         StmtEF e1 cont -> Let (TBind "_" TypeUnit) e1 cont
-        SeqEF source target -> ALang.seqBuiltin (ALang.exprType source) (ALang.exprType target) `Apply` source `Apply` target
+        SeqEF source target -> (trace $ "Seq Transforming" <> show source) ALang.seqBuiltin (ALang.exprType source) (ALang.exprType target) `Apply` source `Apply` target
         TupEF fty parts -> foldl Apply (pureFunction IFuns.mkTuple Nothing fty) parts
         WhileEF cond _body ->  error "While loop has not been replaced. Please file a bug"
   where
