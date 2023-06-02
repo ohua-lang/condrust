@@ -27,11 +27,9 @@ import Data.List.NonEmpty (fromList)
 
 spec :: Spec
 spec =
-    -- ToDo: Fix types in tests
     describe "removing destructuring" $ do
         let mkNth0 objBnd i total =
-                -- ToDO: replace with nthFunType :: [Ty] -> Ty -> Funtype/Funref
-                pureFunction IFuns.nth Nothing (FunType [TypeNat,TypeNat,TypeNat] TypeNat) `Apply` Lit (NumericLit i) `Apply`
+                pureFunction IFuns.nth Nothing (FunType [TypeNat,TypeNat, asType objBnd] TypeNat) `Apply` Lit (NumericLit i) `Apply`
                 Lit (NumericLit total) `Apply`
                 Var objBnd
             runRemDestr =

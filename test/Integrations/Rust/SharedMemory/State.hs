@@ -30,7 +30,7 @@ spec =
         (showCode "Compiled: " =<< compileCode  [sourceFile|
           use crate::funs::*;
 
-          fn test(i: i32) -> String {
+          fn test(i: i32) -> i32 {
             let state: State  = State::new_state(i);
             state.modify(5);
             let r1:i32 = state.gs1(6);
@@ -78,7 +78,7 @@ spec =
                 -- FIXME the state handling is still not ok!
                 -- even though the output of the stateful call is not used anywhere,
                 -- it needs to be the result of the loop!
-                expected <- showCode "Expected:" deep_state_simple
+                expected <- showCode "Expected:" deepStateSimple
                 compiled `shouldBe` expected)
 
         it "single io" $
@@ -146,7 +146,7 @@ spec =
             (showCode "Compiled: " =<< compileCode  [sourceFile|
                  use crate::funs::*;
 
-                 fn test(i:i32) -> WierdType {
+                 fn test(i:i32) -> i32 {
                     let s: State = State::new_state();
                     s.gs(5)
                 }
@@ -229,7 +229,7 @@ thread :: SourceFile Span
 thread = [sourceFile|
 use crate::funs::*;
 
-fn test(i: i32) -> String {
+fn test(i: i32) -> i32 {
   #[derive(Debug)]
   enum RunError {
     SendFailed,
@@ -245,7 +245,7 @@ fn test(i: i32) -> String {
       RunError::RecvFailed
     }
   }
-  let (r1_0_0_0_tx, r1_0_0_0_rx) = std::sync::mpsc::channel::<  String,>();
+  let (r1_0_0_0_tx, r1_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (state_0_0_2_tx, state_0_0_2_rx) = std::sync::mpsc::channel::<  State,>();
   let (state_0_0_1_0_tx, state_0_0_1_0_rx) = std::sync::mpsc::channel::<  State,>();
   let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
@@ -289,8 +289,8 @@ fn test(i: i32) -> String {
   }
 }|]
 
-deep_state_simple :: SourceFile Span
-deep_state_simple = [sourceFile|
+deepStateSimple :: SourceFile Span
+deepStateSimple = [sourceFile|
 use crate::funs::*;
 
 fn test(i: i32) -> () {
@@ -935,7 +935,7 @@ fn test(i: i32) -> State {
 minimal = [sourceFile|
 use crate::funs::*;
 
-fn test(i: i32) -> WierdType {
+fn test(i: i32) -> i32 {
   #[derive(Debug)]
   enum RunError {
     SendFailed,
@@ -951,7 +951,7 @@ fn test(i: i32) -> WierdType {
       RunError::RecvFailed
     }
   }
-  let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel::<  WierdType,>();
+  let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (s_0_0_1_tx, s_0_0_1_rx) = std::sync::mpsc::channel::<  State,>();
   let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
     Vec::new();

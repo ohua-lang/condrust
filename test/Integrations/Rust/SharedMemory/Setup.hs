@@ -237,6 +237,9 @@ funs = "\
 \     s.len()\ 
 \ }\ 
 \ \
+\ pub fn int_and_string(i:i32, s:String) -> i32 {\ 
+\     i+j\ 
+\ }\ 
 \ pub fn f_s(state:State, i:i32) -> i32 {\ 
 \     println!(\"State: {:?}, i: {:?}\", state.val, i);\ 
 \     state.val - i\ 

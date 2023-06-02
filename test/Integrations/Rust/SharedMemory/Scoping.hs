@@ -70,10 +70,10 @@ spec =
                 use crate::funs::*;
                 const global:i32 = 9;
 
-                fn test() -> i32 {
+                fn test() -> usize {
                     let x:i32 = f(global);
-                    let y:String = h2(x);
-                    h(y)
+                    let y:String = from_int(x);
+                    take_string(y)
                 }
             |]) >>=
             (\compiled -> do
@@ -143,10 +143,10 @@ spec =
                 fn test() -> i32 {
                     let x:i32 = some_int(); 
                     let y:String = {
-                        let x:String = fun_call();
+                        let x:String = from_int(42);
                         x
                     };
-                    h4(x,y)
+                    int_and_string(x,y)
                 }
             |]) >>=
             (\compiled -> do
@@ -399,7 +399,7 @@ use crate::funs::*;
 
 const global: i32 = 9;
 
-fn test() -> i32 {
+fn test() -> usize {
   #[derive(Debug)]
   enum RunError {
     SendFailed,
@@ -415,16 +415,16 @@ fn test() -> i32 {
       RunError::RecvFailed
     }
   }
-  let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel::<  usize,>();
   let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
-  let (y_0_0_0_tx, y_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (y_0_0_0_tx, y_0_0_0_rx) = std::sync::mpsc::channel::<  String,>();
   let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
     Vec::new();
   tasks
     .push(Box::new(move || -> _ {
       loop {
         let var_0 = y_0_0_0_rx.recv()?;
-        let a_0_0 = h(var_0);
+        let a_0_0 = take_string(var_0);
         a_0_0_tx.send(a_0_0)?;
         ()
       }
@@ -433,7 +433,7 @@ fn test() -> i32 {
     .push(Box::new(move || -> _ {
       loop {
         let var_0 = x_0_0_0_rx.recv()?;
-        let y_0_0_0 = h2(var_0);
+        let y_0_0_0 = from_int(var_0);
         y_0_0_0_tx.send(y_0_0_0)?;
         ()
       }
@@ -696,7 +696,7 @@ fn test() -> i32 {
     }
   }
   let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
-  let (x_1_0_0_tx, x_1_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (x_1_0_0_tx, x_1_0_0_rx) = std::sync::mpsc::channel::<  String,>();
   let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
     Vec::new();
@@ -705,14 +705,14 @@ fn test() -> i32 {
       loop {
         let var_0 = x_0_0_0_rx.recv()?;
         let var_1 = x_1_0_0_rx.recv()?;
-        let a_0_0 = h4(var_0, var_1);
+        let a_0_0 = int_and_string(var_0, var_1);
         a_0_0_tx.send(a_0_0)?;
         ()
       }
     }));
   tasks
     .push(Box::new(move || -> _ {
-      let x_1_0_0 = fun_call();
+      let x_1_0_0 = from_int(42);
       x_1_0_0_tx.send(x_1_0_0)?;
       Ok(())
     }));
