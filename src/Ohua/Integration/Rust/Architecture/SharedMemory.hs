@@ -38,7 +38,7 @@ instance Architecture (Architectures 'SharedMemory) where
           case convertToRustType argTy of
             Just rustType -> Just $
                 Sub.AngleBracketed [ Sub.TypeArg rustType ]
-            Nothing -> error $ "Couldn't type channel properly: " <> show bnd
+            Nothing -> error $ "Couldn't type channel properly: Binding" <> show bnd <> "had type "<> show argTy
      in Sub.Local
           ( Sub.TupP
               [ Sub.IdentPat Sub.Immutable $ bnd <> "_tx",
@@ -176,9 +176,7 @@ instance Architecture (Architectures 'SharedMemory) where
       createProgram (Program chans expr tasks) = error $ "Compilations resulted in a result expression: " <> show expr <> "This is probably a bug, please report."
 
 convertToRustType :: VarType TE.RustTypeAnno -> Maybe Sub.RustType 
-convertToRustType = \case 
-          TypeVar -> Nothing
-          otherType -> Just $ Sub.RustType $ toRustTy otherType
+convertToRustType rTy =  Sub.RustType <$> toRustTy rTy
 
 
 -- | Surrounds the final non-semicolon terminated statement in a Rust operator with a `Ok(...)` when the operator is *not* containing a loop.

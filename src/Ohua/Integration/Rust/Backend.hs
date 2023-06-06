@@ -107,10 +107,7 @@ instance Integration (Language 'Rust) where
   convertExpr arch (TCLang.Tuple itms) =
       let conv =  convertExpr arch . either TCLang.Var TCLang.Lit
       in  Sub.Tuple $ toList (map conv itms)
-{-
-  convertExpr arch (TCLang.First bnd) = Sub.TupleField (convertExpr arch $ Var bnd) Zero
-  convertExpr arch (TCLang.Second bnd) = Sub.TupleField (convertExpr arch $ Var bnd) $ Succ Zero
--}
+      
   convertExpr arch (TCLang.Indexing bnd num) = Sub.TupleField (convertExpr arch $ Var bnd) $ intToNat num
 
   convertExpr arch (TCLang.Increment bnd) =

@@ -55,15 +55,25 @@ renderStr =
     . pretty'
 
 
-toRustTy :: VarType TE.RustTypeAnno -> Rust.Ty ()
--- ToDo: We have a distinction between 'single' types and tuples but beyond that do not care
--- if it's a Path expression a Self or whatever. Currently we don't allow fancy return types so
--- maybe that's Ok but I have to evaluate later!!
-toRustTy (Type (TE.Self ty _ _ )) = ty
-toRustTy (Type (TE.Normal ty)) = ty
-toRustTy (TupleTy types) = Rust.TupTy (toList $ map toRustTy types) ()
-toRustTy TypeNat = Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "usize" Nothing ()] ()) ()
-toRustTy TypeBool = Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "bool" Nothing ()] ()) ()
-toRustTy TypeUnit = Rust.TupTy [] ()
-toRustTy (TypeList itemType) =  PathTy Nothing (Path False [PathSegment "Vec" (Just (AngleBracketed [TypeArg (toRustTy itemType)] [] ())) ()] ()) ()
-  
+toRustTy :: VarType TE.RustTypeAnno -> Maybe (Rust.Ty ())
+toRustTy ty = case ty of
+    TypeUnit -> Just $ Rust.TupTy [] ()
+    TypeNat -> Just $  Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "usize" Nothing ()] ()) ()
+    TypeBool ->  Just $ Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "bool" Nothing ()] ()) ()
+    
+    (Type (TE.Self ty _ _ )) ->  Just $ ty
+    (Type (TE.Normal ty)) -> Just $  ty
+    (Type (TE.Unknown)) -> trace "Type Unknown mad it through the compiler" Just $  Rust.Infer ()
+    
+    (TupleTy types) ->  do 
+      let check = any (== Type TE.Unknown) types
+      traceM $ "Is there an UnKnown in the types?:  " <> show check 
+      types' <- mapM toRustTy types
+      return $ Rust.TupTy (toList types') ()
+    
+    (TypeList itemType) ->  do 
+      traceM $ "Got a List type"
+      itemTy <- toRustTy itemType
+      traceM $ "Item type is" <> show itemTy
+      return $ PathTy Nothing (Path False [PathSegment "Vec" (Just (AngleBracketed [TypeArg itemTy] [] ())) ()] ()) ()
+    TypeFunction (fty) -> trace ("There was a function type ") Nothing

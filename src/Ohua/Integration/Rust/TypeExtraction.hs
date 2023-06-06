@@ -14,7 +14,15 @@ import qualified Data.HashMap.Lazy as HM
 import Data.List.NonEmpty hiding (map)
 
 
-data RustVarType = Self (Ty ()) (Maybe (Lifetime ())) Mutability | Normal (Ty ()) deriving (Show, Eq)
+-- We currently have the problem, that during lowering the rust code it is ok for some things to be not properly typed i.e.
+-- we first translate the algo, extracting the type info from annotations, next we extracttype info from imported functions and last we
+-- (will) try to merge those infos to find out if there's anything elft untyped. 
+-- We used to represent unknown types by 'TypeVar'. However we don't want things INSIDE the compiler to be of unknown type so we need to move this 
+-- representation of 'unknown type' into the realm of the rust representation (it's really just Rust because in Python we don't have that problem)
+-- The most accurate solution would be to have two Rust type representations one including 'untyped' and on without that we would pass further down the compiler to
+-- really rule out untyped stuff in the compiler. But this would require refactoring the definitions (types) of Integration, passes and what not. So to 
+-- keep it simple for know and first finish the task of eliminating 'TypeVar', we'll include an 'untyped' in the Rust type representation. 
+data RustVarType = Self (Ty ()) (Maybe (Lifetime ())) Mutability | Normal (Ty ()) | Unknown deriving (Show, Eq)
 type RustHostType = HostType RustVarType
 type FunTypes = HM.HashMap QualifiedBinding (FunType RustHostType)
 
