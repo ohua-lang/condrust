@@ -56,13 +56,12 @@ pipeline CustomPasses {..} returnType e = do
     stage initialDflang dfE
     -- Ohua.Core.DFLang.Verify.verify dfE
     whenDebug $ DFPasses.checkSSA dfE
-    coreDfE <- DFPasses.typePropagation returnType =<< DFPasses.runCorePasses dfE
+    coreDfE <- DFPasses.runCorePasses dfE
     stage coreDflang coreDfE
     dfAfterCustom <- passAfterDFLowering coreDfE
     stage customDflang dfAfterCustom
     whenDebug $ DFPasses.checkSSA dfAfterCustom
-    dfFinal <- DFPasses.typePropagation returnType =<< 
-               DFPasses.finalPasses dfAfterCustom
+    dfFinal <- DFPasses.finalPasses dfAfterCustom
     stage finalDflang dfFinal
     whenDebug $ DFPasses.checkSSA dfFinal
     pure dfFinal

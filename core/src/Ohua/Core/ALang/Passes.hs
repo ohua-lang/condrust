@@ -75,7 +75,7 @@ inlineLambdaRefs = flip runReaderT mempty . para go
   where
     go (LetF b (Lambda _ _, l) (_, body)) =
         l >>= \l' -> local (HM.insert b l') body
-    go (VarF bnd) = asks (fromMaybe (Var bnd) . HM.lookup bnd)
+    go (VarF tbnd) = asks (fromMaybe (Var tbnd) . HM.lookup tbnd)
     go e = embed <$> traverse snd e
 
 -- | Reduce lambdas by simulating application
@@ -176,11 +176,7 @@ ensureFinalLet' =
             | otherwise -> do -- Rebind anything else
                 newBnd <- generateBinding
                 let expr' = embed $ fmap fst any0
-                let newTy = exprType expr'  -- pure exprType const <$> fmap fst any0
-                -- Question: How to get the return type of any0 or rather how to get an Expr ty of whatever we handle here?
-                -- Question: While we're at it... I admitt I'm not an expert in Haskell but this constant use of rather complex language features
-                --           seriously hinders my progress here in situation where I semantically know what I want to do. Is there a 
-                --           sensible reason for this construct or is it just flexing ?!
+                let newTy = exprType expr'  
                 pure $ Let (TBind newBnd newTy) (embed $ fmap fst any0) (Var (TBind newBnd newTy))
   where
     isVarOrLambdaF =
@@ -426,14 +422,4 @@ normalize e =
         if res == expr
             then return res
             else reduceLambdas res
--- letLift (Let assign1 (Let assign2 expr2 expr3) expr4) = letLift $ Let assign2 expr2 $ Let assign1 expr3 expr4
--- letLift (Let assign v@(Var _) expr) = Let assign v $ letLift expr
--- letLift (Let assign val expr) =
---     case letLift val of
---         v'@(Let _ _ _) -> letLift $ Let assign v' expr
---         _ -> Let assign v' $ letLift expr
--- letLift e@(Var _) = e
--- letLift (Apply v@(Var _) argument) = Apply v (letLift argument)
--- letLift (Apply (Let assign expr function) argument) = letLift $ Let assign expr $ Apply function argument
--- letLift (Apply function argument) =
---     case letLift argument of
+            

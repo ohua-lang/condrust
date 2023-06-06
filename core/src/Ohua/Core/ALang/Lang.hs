@@ -36,6 +36,7 @@ module Ohua.Core.ALang.Lang
   ( Expr(..)
   , AExpr
   , exprType
+  , funType
   -- ** Builtin Function Literals
   , ifBuiltin
   , smapBuiltin
@@ -95,10 +96,20 @@ exprType e = case e of
     BindState _objE methodcallE -> exprType methodcallE
 
 
-instance Hashable (TypedBinding ty)
+-- ToDo: This is actually very _unelegant_ but in some instances we need the function type from
+--       Lambda Expression, while in others we only care about the type the term will evaluate to. 
+--       I'm currently not sure, what the best way to handle this would be?!
 
-instance Ord (TypedBinding ty) where
-    (TBind b1 _ty1) <= (TBind b2 _ty2) = b1 <= b2
+funType:: Expr ty -> Maybe (FunType ty) 
+funType e = case e of 
+        (Var (TBind _bnd (TypeFunction fTy)))   -> Just fTy
+        (Lit (FunRefLit fRef))                  -> Just $ getRefType fRef 
+        (Lambda tBnd term)                      -> Just $ FunType [asType tBnd] (exprType term)
+        -- Question: What's the type of BindState at this point?
+        other                                   -> Nothing
+
+
+
 
 -------------------- Convenience functions ------------------------------
 

@@ -26,7 +26,6 @@ import Ohua.Core.ALang.Util
 import Ohua.Core.DFLang.Lang as DFLang hiding (length)
 import Ohua.Core.DFLang.Passes.DeadCodeElimination (eliminate)
 import Ohua.Core.DFLang.Passes.DispatchInsertion (insertDispatch)
-import Ohua.Core.DFLang.Passes.TypePropagation (propagateTypesWithRetTy)
 import Ohua.Core.Prelude
 
 runCorePasses :: (MonadOhua m) => NormalizedExpr ty -> m (NormalizedDFExpr ty)
@@ -35,8 +34,6 @@ runCorePasses = removeNth
 finalPasses :: (MonadOhua m) =>  NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
 finalPasses = insertDispatch >=> eliminate
 
-typePropagation :: (MonadOhua m) => HostType ty -> NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
-typePropagation retTy = pure . propagateTypesWithRetTy retTy
 
 -- I really should not have to do this in the first place.
 -- All transformations that need an Nth node because they introduce functions whose output
@@ -295,7 +292,7 @@ handleApplyExpr (Apply fn a) = go (a :| []) fn
                       else length types
 
     zip' :: [VarType ty] -> NonEmpty b -> NonEmpty (VarType ty, b)
-    zip' [] bs = NE.zip (TypeVar :| []) bs -- FIXME this seems wrong to me. it should be a unitVal. It points to a problem that we we still have with Unit. We do not distinguish between a unit type and a unit value. and I'm not even sure that there should be such a thing as a unit value unless the controls need it.
+    zip' [] bs = NE.zip (TypeUnit :| []) bs
     zip' (a:as) bs = NE.zip (a:|as) bs
 handleApplyExpr g = failWith $ "Expected apply but got: " <> show g
 
@@ -305,15 +302,14 @@ handleApplyExpr g = failWith $ "Expected apply but got: " <> show g
 -- in a DFVar otherwise throws appropriate errors.
 -- ToDo: This should go away because a) We carry the types of vars (and literals?!) from the frontend and b) at this point there shouldn't be syntax errors any more
 expectVar :: (HasCallStack, MonadError Error m) => VarType ty -> ALang.Expr ty -> m (DFVar 'Data ty)
-expectVar ty (ALang.Var tBnd) = pure $ DFVar $ DataBinding tBnd
+expectVar _ (ALang.Var tBnd) = pure $ DFVar $ DataBinding tBnd
 -- TODO currently only allowed for the unitFn function
 -- expectVar r@PureFunction {} =
 --     throwError $
 --     "Function references are not yet supported as arguments: " <>
 --     show (pretty r)
---FIXME: Use actual type as soon as we introduced correct typing for literals
-expectVar ty (Lit l) = pure $ DFEnvVar TypeVar l
-expectVar ty a =
+expectVar _ (Lit l) = pure $ DFEnvVar (getVarType l) l
+expectVar _ a =
   throwErrorS $ "Argument must be local binding or literal, was " <> show a
 
 -- | This is again something that should have been there right at the very beginning.

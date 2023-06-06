@@ -24,9 +24,11 @@ import qualified Ohua.Core.InternalFunctions as IFuns
 import Ohua.Core.ALang.PPrint ()
 
 import qualified Data.HashSet as HS
+import qualified Data.List.NonEmpty as NE
 
 import Control.Lens.Combinators (over)
 import Control.Lens.Plated (plate)
+
 
 
 -- TODO recursion support is still pending here!
@@ -59,10 +61,9 @@ runSTCLangIfFun stateTy = Lit $ FunRefLit $ FunRef IFuns.runSTCLangIf Nothing $ 
 ctxtExit :: QualifiedBinding
 ctxtExit = "ohua.lang/ctxtExit"
 
-
--- Question: What's the type supposed to be?
-ctxtExitFunRef :: SNat ('Succ n) -> VarType ty -> VarType ty -> Expr ty
-ctxtExitFunRef num replTy retTy = Lit $ FunRefLit $ FunRef ctxtExit Nothing $ FunType (toList $ replicateNE num replTy) retTy
+-- To type-encode the assumption of at least one input a Nonempty is sufficient. We don't need a 'Nat for this.
+ctxtExitFunRef :: NE.NonEmpty (VarType ty)  -> VarType ty -> Expr ty
+ctxtExitFunRef  inputTys retTy = Lit $ FunRefLit $ FunRef ctxtExit Nothing $ FunType (NE.toList inputTys) retTy
 
 -- | Transforms every stateful function into a fundamental state thread.
 --   Corrects the reference to the state for the rest of the computation.
@@ -180,19 +181,19 @@ transformControlStateThreads = transformM f
               HS.foldr
               (\missingState c ->
                  Let missingState
-                 (pureFunction IFuns.id Nothing (FunType [asType missingState] (asType missingState)) 
+                 (pureFunction IFuns.id Nothing (FunType [asType missingState] (asType missingState))
                    `Apply` Var missingState)
                  c)
             trueBranch' = applyToBody (`addMissing` trueBranchStatesMissing) trueBranch
             falseBranch' = applyToBody (`addMissing` falseBranchStatesMissing) falseBranch
-
             allStates = HS.toList $ HS.union trueBranchStates falseBranchStates
+            stateThreadingReTy = TupleTy (exprType trueBranch :| map asType allStates)
           in do
             trueBranch'' <- mkST (map Var allStates) trueBranch'
             falseBranch'' <- mkST (map Var allStates) falseBranch'
-            -- Question: What's the 'ctxt_out' type supposed to be?
+            --- ToDo: See description above, ctxt_out is (result, state')
             ctxtOutBnd <- generateBindingWith "ctxt_out"
-            let ctxtOut = TBind ctxtOutBnd TypeVar
+            let ctxtOut = TBind ctxtOutBnd stateThreadingReTy 
             return $
               Let ctxtOut (fun `Apply` trueBranch'' `Apply` falseBranch'') $
               mkDestructured (v:allStates) ctxtOut
@@ -203,9 +204,10 @@ transformControlStateThreads = transformM f
               states = filter (not . (`HS.member` HS.fromList args)) $ collectStates expr
           in do
             expr' <- mkST (map Var states) expr
-            -- Question: What's the 'ctxt_out' type supposed to be?
+            -- ToDo: See description above, ctxt_out is (result, state')
             ctxtOutBnd <- generateBindingWith "ctxt_out"
-            let ctxtOut = TBind ctxtOutBnd TypeVar
+            let resAndStatesTys = exprType lam :| map asType states
+                ctxtOut = TBind ctxtOutBnd (TupleTy resAndStatesTys)
                 lam' = mkLambda args expr'
             return $
               Let ctxtOut (fun `Apply` lam' `Apply` ds) $
@@ -321,8 +323,10 @@ mkST states = \case
     Let v e res -> Let v e <$> mkST states res
     e -> do
         allOut <- generateBindingWith "all_out"
+        let types =  exprType e :| map exprType states
         return $
-            -- Question: What's this type supposed to be?
-            Let (TBind allOut TypeVar)
-                (mkApply (withSuccSing (Succ $ nlength states) ctxtExitFunRef TypeVar TypeVar) $ e : states)
-                (Var (TBind allOut TypeVar))
+            -- allOut contains the result an ALL states from the inner scope
+            -- ctxtExitFun is a function that collects the result and all states and returns the tuple for 'allOut'
+            Let (TBind allOut (TupleTy types))
+                (mkApply (ctxtExitFunRef types (TupleTy types)) $ e : states)
+                (Var (TBind allOut (TupleTy types)))
