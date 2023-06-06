@@ -64,12 +64,11 @@ instance Generic (HostType ty) where
 
 
 -- | Internal type representations. While Type and TupleTy capture types from the
---   host language, 'TypeVar', TypeNat and TypeBool are used internaly to construct nodes
---   They must be mapped to the according types of the host language in the backend or, in 
---   in case of 'TypeVar' need to be eliminated for Backends requiring typed channels.
+--   host language, the literal types TypeNat and TypeBool etc. are used internaly to construct nodes
+--   They must be mapped to the according types of the host language in the backend.
+
 data VarType ty 
-    = TypeVar 
-    | TypeNat 
+    = TypeNat 
     | TypeBool 
     | TypeUnit 
     | TypeString 
@@ -94,7 +93,6 @@ controlSignalType :: VarType ty
 controlSignalType = TupleTy $ TypeBool:| [TypeNat]
 
 instance EqNoType (VarType ty) where
-    TypeVar ~= TypeVar = True
     TypeNat ~= TypeNat = True
     TypeBool ~= TypeBool = True
     TypeUnit ~= TypeUnit = True
@@ -102,22 +100,20 @@ instance EqNoType (VarType ty) where
     Type _ ~= Type _ = True -- skipping to type info here!
     (TupleTy ts) ~= (TupleTy ts') = ts == ts' -- tuns into ~=, see instance below
     (TypeList inner1) ~= (TypeList inner2) = inner1 == inner2
-    -- Question: Should Function types be comparable?
-    
+    (TypeFunction fty1) ~= (TypeFunction fty2) = fty1 == fty2
     _ ~= _ = False
-
+    
 instance Eq (VarType ty) where
     (==) = (~=)
 
 instance ShowNoType (VarType ty) where
-    showNoType TypeVar = "TypeVar"
-    showNoType TypeNat = "Internal nat"
-    showNoType TypeBool = "Internal bool"
-    showNoType TypeUnit = "Internal Unit"
+    showNoType TypeNat = "INat"
+    showNoType TypeBool = "IBool"
+    showNoType TypeUnit = "IUnit"
     -- Is it internal though?
-    showNoType TypeString = "Internal String"
-    showNoType (TypeList ts) = "Internal List [" <> showNoType ts <> "]"
-    showNoType (Type _) = "HostType _"
+    showNoType TypeString = "IString"
+    showNoType (TypeList ts) = "IList [" <> showNoType ts <> "]"
+    showNoType (Type _) = "Type _"
     showNoType (TupleTy ts) = "(" <>  foldl (\b a -> show a <> ", " <> b) ")" ts
     showNoType (TypeFunction fTy) = "Fun::" <> show fTy  
 
@@ -126,7 +122,6 @@ instance Show (VarType ty) where
     show = T.unpack . showNoType
 
 instance Hashable (VarType ty) where
-    hashWithSalt s TypeVar = s
     hashWithSalt s TypeNat = s
     hashWithSalt s TypeBool = s
     hashWithSalt s TypeUnit = s
@@ -134,7 +129,7 @@ instance Hashable (VarType ty) where
     hashWithSalt s (TypeList ts) = s
     hashWithSalt s (Type _) = s
     hashWithSalt s (TupleTy _) = s
-    hashWithSalt s (TypeFunction fty) = hashWithSalt s fty
+    hashWithSalt s (TypeFunction fty) = s
 
 deriving instance Show (FunType ty)
 deriving instance Eq (FunType ty)
@@ -153,6 +148,14 @@ newtype Binding =
 -- | A typed Binding 
 data TypedBinding ty = TBind Binding (VarType ty) deriving (Show, Generic)
 
+instance Hashable (TypedBinding ty) where 
+    hashWithSalt s (TBind b ty) = hashWithSalt s b 
+
+instance Ord (TypedBinding ty) where
+    (TBind b1 _ty1) <= (TBind b2 _ty2) = b1 <= b2
+
+-- FIXME: This is just a hack until we get everything typed correctly
+-- currently 'reduceLambdas' in ALang Passes will loop forever if types dont match
 -- As long as we can not make sure, that every binding and usage side is correctly typed, tranformations, in particular the ones that determine if something is used
 -- should only check if something with the same name, not necesarily the same type annotation is used.
 instance Eq (TypedBinding ty) where
