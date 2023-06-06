@@ -2,33 +2,43 @@
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE LambdaCase #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Use lambda-case" #-}
 
 
 module Ohua.Integration.Rust.Frontend where
 
-import qualified Data.HashMap.Lazy as HM
--- import qualified Data.HashSet as HS
-import qualified Data.List.NonEmpty as NE
--- import Ohua.Frontend.Convert
-
 import Data.Text.Lazy.IO as T
+import qualified Data.HashMap.Lazy as HM
+import qualified Data.List.NonEmpty as NE
+
 import Language.Rust.Data.Ident
 import Language.Rust.Parser (Span)
 import Language.Rust.Syntax as Rust hiding (Rust)
+
+
+import Ohua.Prelude hiding (getVarType)
+import Ohua.Frontend.Types
+import Ohua.Frontend.PPrint ()
 import Ohua.Frontend.Lang as FrLang
     ( Expr(..),
-      Pat(TupP, VarP, WildP) )
-import Ohua.Frontend.PPrint ()
-import Ohua.Frontend.Types
+      Pat(TupP, VarP, WildP),
+      exprType )
+
 import Ohua.Integration.Lang
-import qualified Ohua.Integration.Rust.Frontend.Convert as SubC
-import qualified Ohua.Integration.Rust.Frontend.Subset as Sub
-import Ohua.Integration.Rust.TypeExtraction as TE
-import Ohua.Integration.Rust.Types
 import Ohua.Integration.Rust.Util
-import Ohua.Prelude hiding (getVarType)
+import Ohua.Integration.Rust.Types
+import Ohua.Integration.Rust.TypeExtraction as TE
+import qualified Ohua.Integration.Rust.Frontend.Subset as Sub
+import qualified Ohua.Integration.Rust.Frontend.Convert as SubC
+
+
+
+
 import qualified Control.Applicative as Hm
 
+type VarTypeContext = HM.HashMap Binding (VarType RustVarType)
+type TypeContextM m = (Monad m, MonadState VarTypeContext m)
 
 class ConvertExpr a where
   convertExpr :: SubC.ConvertM m => a -> m (FrLang.Expr RustVarType)
@@ -50,7 +60,6 @@ instance Integration (Language 'Rust) where
   loadNs _ srcFile = do
     mod <- liftIO $ loadRustFile srcFile
     ns <- extractNs mod
-    -- REMINDER Replace empty placeholder by extracted module
     return (Module srcFile mod, ns, Module "placeholderlib.rs" placeholderModule)
     where
       extractNs ::
@@ -157,8 +166,7 @@ instance Integration (Language 'Rust) where
 
       fromGlobals:: SubC.ConvertM m => m [FrLang.Pat RustVarType]
       fromGlobals = do
-        ctxt <- get
-        return $ map (\(bnd, (Sub.RustType ty)) -> VarP bnd (Type $ TE.Normal ty)) (HM.toList ctxt)
+        map (\(bnd, Sub.RustType ty) -> VarP bnd (Type $ TE.Normal ty)) . HM.toList <$> get
 
 
   loadTypes ::
@@ -174,15 +182,24 @@ instance Integration (Language 'Rust) where
     -- traceShowM $ "files and paths: " <> show filesAndPaths
     -- For functions from the compiled module (not imported), set the file path to the current file
     let filesAndPaths' = map (first convertOwn) filesAndPaths
+    --  traceShowM $ "After convertOwn : " <> show filesAndPaths
     -- Go through all namespace references, parse the files and return all function types defined in there
-    typez <- fnTypesFromFiles $ concatMap fst filesAndPaths'
-    -- traceShowM $ "loaded types: " <> show types
+    functionTypes <- fnTypesFromFiles $ concatMap fst filesAndPaths'
+    -- traceShowM $ "Loaded function types: " <> show functionTypes
     -- For each function reference check the extracted function type, if function is not found or defined multiple
     -- times this will fail
-    types' <- HM.fromList . catMaybes <$> mapM (verifyAndRegister typez) filesAndPaths'
-    -- traceShowM $ "extracted types: " <> show types'
+    usedFunctionTypes <- HM.fromList . catMaybes <$> mapM (verifyAndRegister functionTypes) filesAndPaths'
+    -- traceShowM $ "extracted types: " <> show usedFunctionTypes
     -- Replace type annotations of function literals with extracted types
-    updateExprs ohuaNs (transformM (assignTypes types'))
+    updateExprs ohuaNs (transformM (assignTypes usedFunctionTypes))
+    -- Types might now come form either annotations
+    -- or the function types we just extracted, so we didn't error if something remains of type 'Unknown'.
+    -- The types from annotations have allready been passed top-down through the code when we lowered it to a FrLang expression.
+    -- Now the function literals have been typed (as far as possible).
+    -- So now we go bootom-up and try to type annotate untyped varaibles by first trying to type the arguments of each function call using 
+    -- information from the funciton literals and second try to type those arguments where they are assigned (i.e. further up in the code)
+    -- using the type info gathered from their usage. 
+    updateExprsWithReturn ohuaNs finalTyping
 
     where
       funsForAlgo :: ErrAndLogM m => Algo (FrLang.Expr RustVarType) (Item Span) RustVarType -> m [([NSRef], QualifiedBinding)]
@@ -191,6 +208,92 @@ instance Integration (Language 'Rust) where
         -- ToDo: Show types of functions here. They should allready be correct after transformmation to IR
         mapM lookupFunTypes [f | LitE (FunRefLit (FunRef f _ _)) <- universe code]
 
+      
+      convertOwn :: [NSRef] -> [NSRef]
+      convertOwn [] = [filePathToNsRef ownFile]
+      convertOwn n = n
+
+      -- | Extract a HashMap of {name: function type} from the given file reference
+      fnTypesFromFiles :: ErrAndLogM m => [NSRef] -> m FunTypes
+      fnTypesFromFiles nsRefs = HM.unions <$> mapM (extractFromFile . toFilePath . (,".rs")) nsRefs
+
+
+      verifyAndRegister :: ErrAndLogM m => FunTypes -> ([NSRef], QualifiedBinding) -> m (Maybe (QualifiedBinding, FunType RustVarType))
+      verifyAndRegister typez ([candidate], qp@(QualifiedBinding _ nam)) =
+        case HM.lookup (QualifiedBinding candidate nam) typez of
+          Just t -> trace ("Verified type of " <> show nam <> " is fully typed AND has known return type? "<> show (fullyTyped t) <> show ((getReturnType t) /= (Type TE.Unknown))) return $ Just (qp, t)
+          Nothing -> do
+            -- $ (logWarn) $ "Function `" <> show (unwrap nam) <> "` not found in module `" <> show candidate <> "`."
+            return Nothing
+      verifyAndRegister typez (globs', qp@(QualifiedBinding _ nam)) =
+        case mapMaybe ((`HM.lookup` typez) . (`QualifiedBinding` nam)) globs' of
+          [] -> do
+            -- $ (logWarn) $ "Function `" <> show (unwrap nam) <> "` not found in modules `" <> show globs' <> "`. "
+            return Nothing
+          [t] -> return $ Just (qp, t)
+          _ -> throwError $ "Multiple definitions of function `" <> show (unwrap nam) <> "` in modules " <> show globs' <> " detected!\nPlease verify again that your code compiles properly by running `rustc`. If the problem persists then please file a bug. (See issue sertel/ohua-frontend#1)"
+
+      assignTypes :: ErrAndLogM m => FunTypes -> FrLang.Expr RustVarType -> m (FrLang.Expr RustVarType)
+      assignTypes typez = \case
+        f@(LitE (FunRefLit (FunRef qb i ft))) | fullyTyped ft -> trace ("fully typed function" <> show qb ) return f
+        f@(LitE (FunRefLit (FunRef qb i ft))) ->
+          case HM.lookup qb typez of
+            Just typ ->
+              do
+                traceShowM $ "\n Typing Fun: " <> show qb
+                if fullyTyped typ
+                   then traceM $ "Function is 'fully typed' but is the return type unknown? " <> show (getReturnType typ == Type TE.Unknown)
+                   else traceM $ "Function contains unknown type"
+                return $ LitE $ FunRefLit $ FunRef qb i typ
+            Nothing -> return f -- throwError $ "I was unable to determine the types for the call to '" <> show qb <> "'. Please provide type annotations."
+        e -> return e
+
+      -- | We go through expressions bottom-up and collect types of variables. Bottom-up implies, that we encounter the usage of a variable, bevor it's assignment. 
+      --   Therefor we can use function argument types, extracted in the step before to annotate the argument variables at their usage site and via the context also in
+      --   the expression in wich they are bound. There can be variables e.g. the return variable of a function, that are not used as an argument. We can type them also, 
+      --   by tracing the current 'innermost' return type. 
+      -- ToDo: Monadify
+      finalTyping :: ErrAndLogM m => RustVarType -> FrLang.Expr RustVarType -> m (FrLang.Expr RustVarType)
+      finalTyping currentRetTy expr = 
+            evalStateT (transformM (finalTyping' currentRetTy) expr) HM.empty
+            -- State s m a -> s -> m a 
+
+      finalTyping' :: (ErrAndLogM m, TypeContextM m) => RustVarType -> FrLang.Expr RustVarType -> m (FrLang.Expr RustVarType)
+      finalTyping' algoRetTy = \case 
+            LetE pat e1 e2 -> return $ LetE pat e1 e2 -- ToDo: process the expression, assign the pattern the return type of the expression
+            AppE fun args -> return $  AppE fun args -- ToDo: Check if args are typed. 
+                                           --       If not, try to type them using the inputType of the 'fun' expression. This can be done by mapping finalTyping over input types and arguments, such that for each 
+                                           --       argument the expected input type is the current return type. If this fails -> fail, otherwise currentRetType = exprType fun
+            LamE pats body -> return $  LamE pats body -- ToDo: The pats are used in the body, so proceed with the body filling the context and (if necessary) update pats typing or fail if that doesn't work, New currentRetType = exprType body
+            IfE cond eTrue eFalse -> return $  IfE cond eTrue eFalse -- ToDo: 1. proceed with cond, return Type should be Rusts bool, 2. proceed with eTrue, 3. proceed with eFalse 4. assert equal branch return types 5. currentRetType = exprType eTrue
+            WhileE e1 e2 -> return $  WhileE e1 e2 -- Nothing to do, we currently don't use it 
+            MapE fun generator -> return $  MapE fun generator-- ToDo: MapE maps a function to a generator, so 1. proceed with the generator 
+                                             --       2. the return type of the generator is the input type of the function. This way we can type the patterns bound in for loops, even if they are not used in the loop 
+            BindE state method -> return $  BindE state method -- ToDo: 1. This is a usage of the state so check if it is typed 
+                                                     --          (problem with states is, that while they are arguments to methods, they apears only with Self type so we can currently only type them upon assigment. 
+                                                     --          We might do better in the TypeExtraction on impl itemy by carrying the type for which a method is implemented through)
+                                                     --       2. Process the method (it's an AppE expression) 
+                                                     --       3. currentRetType = exprType method
+            StmtE e1 e2  -> return $  StmtE e1 e2 -- ToDo: This just 'does' e1 ignores the return value and procceds with e2. Hence things from e1 might be used in e2 so 
+                                        --       1. proceed with e2
+                                        --       2. proceed with e1
+                                        --       3. currentRetTy = exprype e2
+            SeqE e1 e2 -> return $ SeqE e1 e2 -- ToDo: Process e2 than process e1
+            TupE funTy args -> return $ TupE funTy args -- ToDo: We use this to represent a tuple in rust and generate the funTy from the args i.e. the funTy won't help us typing the args. 
+                                               --       Also, this whole expression is the usage of a tuple, not its assignment, so the current return type should be a tuple and we should be able to use it to type the args.
+                                               --       1. proceed trying to type the args if their not typed -> fail if that fails
+                                               --  
+            l@(LitE lit) -> do
+              traceM $ "Working on: " <> show l
+              case FrLang.exprType l of
+                Type x ->  case x of 
+                    TE.Unknown -> return $ LitE lit --throwError $ "Couldn't type literal " <> show lit <> "Found type"<> show x <>". Please help me out by providing annotations or report error"
+                    _ -> return $ LitE lit  
+                _ -> return $ LitE lit     
+            VarE bnd ty -> do 
+              return $ VarE bnd (Type algoRetTy)  -- That should be the return variable of the algo because we treat all other variables in the context of their expression (binding/or usage)
+
+                     
       lookupFunTypes :: ErrAndLogM m => QualifiedBinding -> m ([NSRef], QualifiedBinding)
       lookupFunTypes q@(QualifiedBinding (NSRef []) nam) =
         return $ (,q) $ maybe globs (: []) $ HM.lookup nam fullyResolvedImports
@@ -211,49 +314,10 @@ instance Integration (Language 'Rust) where
                       <> "'\n Please move it into this module if you happen to import this via a mod.rs file."
                 xs -> return (xs, q)
 
-      convertOwn :: [NSRef] -> [NSRef]
-      convertOwn [] = [filePathToNsRef ownFile]
-      convertOwn n = n
-
-      -- | Extract a HashMap of {name: function type} from the given file reference
-      fnTypesFromFiles :: ErrAndLogM m => [NSRef] -> m FunTypes
-      fnTypesFromFiles nsRefs = HM.unions <$> mapM (extractFromFile . toFilePath . (,".rs")) nsRefs
-
-      verifyAndRegister :: ErrAndLogM m => FunTypes -> ([NSRef], QualifiedBinding) -> m (Maybe (QualifiedBinding, FunType RustVarType))
-      verifyAndRegister typez ([candidate], qp@(QualifiedBinding _ nam)) =
-        case HM.lookup (QualifiedBinding candidate nam) typez of
-          Just t -> return $ Just (qp, t)
-          Nothing -> do
-            -- $ (logWarn) $ "Function `" <> show (unwrap nam) <> "` not found in module `" <> show candidate <> "`."
-            return Nothing
-      verifyAndRegister typez (globs', qp@(QualifiedBinding _ nam)) =
-        case mapMaybe ((`HM.lookup` typez) . (`QualifiedBinding` nam)) globs' of
-          [] -> do
-            -- $ (logWarn) $ "Function `" <> show (unwrap nam) <> "` not found in modules `" <> show globs' <> "`. "
-            return Nothing
-          [t] -> return $ Just (qp, t)
-          _ -> throwError $ "Multiple definitions of function `" <> show (unwrap nam) <> "` in modules " <> show globs' <> " detected!\nPlease verify again that your code compiles properly by running `rustc`. If the problem persists then please file a bug. (See issue sertel/ohua-frontend#1)"
-
-      assignTypes :: ErrAndLogM m => FunTypes -> FrLang.Expr RustVarType -> m (FrLang.Expr RustVarType)
-      -- FIXME It is nice to write it like this, really, but this has to check whether the function used in the code has (at the very least)
-      --       the same number of arguments as it is applied to. If this does not match then clearly we need to error here!
-      -- NO. We don't. Writing correct Rust code is the developers responsibility. We only need to extract types to
-      -- implement correct transformations
-      -- ToDo: For now we'll just not fail here, becasue type extraction should only be the first option, annotation of wars is comes afterwards in the check and should be the point where it fails-
-      assignTypes typez = \case
-        f@(LitE (FunRefLit (FunRef qb i ft))) | fullyTyped ft -> return f
-        f@(LitE (FunRefLit (FunRef qb i ft))) -> 
-          case HM.lookup qb typez of
-            Just typ ->
-              -- do
-              --     traceShowM $ "Fun: " <> show qb <> " Type: " <> show typ
-              return $ LitE $ FunRefLit $ FunRef qb i typ
-            Nothing -> return f -- throwError $ "I was unable to determine the types for the call to '" <> show qb <> "'. Please provide type annotations."
-        e -> return e
 
       -- Question: Can we have functions as arguments? 
-      fullyTyped (FunType args retTy) = all (\case Type Unknown -> False; TypeFunction fty -> fullyTyped fty; _ -> True) (retTy: args)
-      fullyTyped (STFunType sTy argTys retTy) = all (\case Type Unknown -> False; TypeFunction fty -> fullyTyped fty; _ -> True) (sTy: retTy: argTys)
+      fullyTyped (FunType args retTy) = all (\case  Type TE.Unknown -> False; TypeFunction fty -> fullyTyped fty; Type x -> trace ("Rust Type" <> show x) True) (retTy: args)
+      fullyTyped (STFunType sTy argTys retTy) = all (\case Type TE.Unknown -> False; TypeFunction fty -> fullyTyped fty; _ -> True) (sTy: retTy: argTys)
 
       fullyResolvedImports = resolvedImports fullyResolved
       aliasImports = resolvedImports aliases
@@ -273,6 +337,8 @@ instance Integration (Language 'Rust) where
       globs :: [NSRef]
       globs = mapMaybe (\case (Glob n) -> Just n; _ -> Nothing) (ohuaNs ^. imports)
 
+      
+
 
 argTypesFromContext :: SubC.ConvertM m => [Sub.Expr] -> m [VarType RustVarType]
 argTypesFromContext args =
@@ -280,8 +346,7 @@ argTypesFromContext args =
     [] -> return []
     (x : xs) -> mapM getVarType (x : xs)
 
--- If we don't want additional typing via extraction from scope we need this to succeed 
--- i.e. no 'TypeVar' results here
+
 getVarType :: SubC.ConvertM m => Sub.Expr -> m (VarType RustVarType)
 getVarType (Sub.Var bnd (Just ty)) = error $ "We try to get the type for variable that already is typed." <>
                                           "This is an error, because we should only try to type varaible usage which cannot be annotated in Rust"

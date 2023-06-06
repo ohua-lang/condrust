@@ -10,9 +10,9 @@ import Ohua.Prelude
 
 import qualified Data.HashMap.Lazy as HM
 
-type Context = HM.HashMap Binding Sub.RustType
+type RustContext = HM.HashMap Binding Sub.RustType
 
-type ConvertM m = (Monad m, MonadState Context m)
+type ConvertM m = (Monad m, MonadState RustContext m)
 
 convertExpr :: ConvertM m => Rust.Expr Span -> m Sub.Expr
 convertExpr e@Box {} = error $ "Currently, we do not support the construction of boxed values. Please do so in a function." <> show e

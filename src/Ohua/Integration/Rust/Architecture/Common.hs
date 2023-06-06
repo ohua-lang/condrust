@@ -56,22 +56,24 @@ renderStr =
 
 
 toRustTy :: VarType TE.RustTypeAnno -> Maybe (Rust.Ty ())
--- ToDo: We have a distinction between 'single' types and tuples but beyond that do not care
--- if it's a Path expression a Self or whatever. Currently we don't allow fancy return types so
--- maybe that's Ok but I have to evaluate later!!
 toRustTy ty = case ty of
+    TypeUnit -> Just $ Rust.TupTy [] ()
+    TypeNat -> Just $  Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "usize" Nothing ()] ()) ()
+    TypeBool ->  Just $ Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "bool" Nothing ()] ()) ()
+    
     (Type (TE.Self ty _ _ )) ->  Just $ ty
     (Type (TE.Normal ty)) -> Just $  ty
-    (Type (TE.Unknown)) -> trace "Type Unknown mad it through the compiler" Nothing
+    (Type (TE.Unknown)) -> trace "Type Unknown mad it through the compiler" Just $  Rust.Infer ()
+    
     (TupleTy types) ->  do 
+      let check = any (== Type TE.Unknown) types
+      traceM $ "Is there an UnKnown in the types?:  " <> show check 
       types' <- mapM toRustTy types
       return $ Rust.TupTy (toList types') ()
-
-    TypeNat -> Just $  Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "usize" Nothing ()] ()) ()
-
-    TypeBool ->  Just $ Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "bool" Nothing ()] ()) ()
-    TypeUnit -> Just $ Rust.TupTy [] ()
+    
     (TypeList itemType) ->  do 
+      traceM $ "Got a List type"
       itemTy <- toRustTy itemType
+      traceM $ "Item type is" <> show itemTy
       return $ PathTy Nothing (Path False [PathSegment "Vec" (Just (AngleBracketed [TypeArg itemTy] [] ())) ()] ()) ()
-    TypeFunction (fty) -> trace (show $ pretty fty ) Nothing
+    TypeFunction (fty) -> trace ("There was a function type ") Nothing
