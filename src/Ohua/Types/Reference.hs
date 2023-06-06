@@ -67,13 +67,13 @@ instance Eq (VarType ty) where
     (==) = (~=)
 
 instance ShowNoType (VarType ty) where
-    showNoType TypeNat = "Internal nat"
-    showNoType TypeBool = "Internal bool"
-    showNoType TypeUnit = "Internal Unit"
+    showNoType TypeNat = "INat"
+    showNoType TypeBool = "IBool"
+    showNoType TypeUnit = "IUnit"
     -- Is it internal though?
-    showNoType TypeString = "Internal String"
-    showNoType (TypeList ts) = "Internal List [" <> showNoType ts <> "]"
-    showNoType (Type _) = "HostType _"
+    showNoType TypeString = "IString"
+    showNoType (TypeList ts) = "IList [" <> showNoType ts <> "]"
+    showNoType (Type _) = "Type _"
     showNoType (TupleTy ts) = "(" <>  foldl (\b a -> show a <> ", " <> b) ")" ts
     showNoType (TypeFunction fTy) = "Fun::" <> show fTy  
 
