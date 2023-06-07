@@ -41,8 +41,8 @@ import qualified Data.Text as T
 
 -- QUESTION :  Am I getting this right? 
 resolveNS :: forall ty m anno.(MonadError Error m)
-          => (Namespace (Expr ty) anno (HostType ty), NamespaceRegistry ty)
-          -> m (Namespace (Expr ty) anno (HostType ty))
+          => (Namespace (Expr ty)  anno, NamespaceRegistry ty)
+          -> m (Namespace (Expr ty)  anno)
 resolveNS (ns, registry) =
     return $ over algos (map (\algo -> over algoCode (work $ view algoName algo) algo)) ns
     where
