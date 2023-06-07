@@ -34,8 +34,8 @@ forceLog :: (MonadLogger m, NFData a) => Text -> a -> m ()
 forceLog msg a = a `deepseq` logDebugN msg
 
 -- | The canonical order of transformations and lowerings performed in a full compilation.
-pipeline :: CustomPasses ty -> HostType ty -> ALang.Expr ty -> OhuaM (NormalizedDFExpr ty)
-pipeline CustomPasses {..} returnType e = do
+pipeline :: CustomPasses ty -> ALang.Expr ty -> OhuaM (NormalizedDFExpr ty)
+pipeline CustomPasses {..}  e = do
     stage resolvedAlang e
     ssaE <- SSA.performSSA e
     stage ssaAlang ssaE
@@ -67,14 +67,14 @@ pipeline CustomPasses {..} returnType e = do
     pure dfFinal
 
 -- | Run the pipeline in an arbitrary monad that supports error reporting.
-compile :: ErrAndLogM m => Options -> CustomPasses ty -> HostType ty -> ALang.Expr ty-> m (NormalizedDFExpr ty)
-compile opts passes returnType expr = do
+compile :: ErrAndLogM m => Options -> CustomPasses ty -> ALang.Expr ty-> m (NormalizedDFExpr ty)
+compile opts passes expr = do
     logFn <- askLoggerIO
     let passes' =
             flip loadTailRecPasses passes $
             view transformRecursiveFunctions opts
     either throwError pure =<<
-        liftIO (runLoggingT (runFromExprAndType opts (pipeline passes') expr returnType) logFn)
+        liftIO (runLoggingT (runFromExpr opts (pipeline passes') expr ) logFn)
 
 
 
