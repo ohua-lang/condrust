@@ -23,7 +23,7 @@ backend ::
         , anno ~ AlgoSrc lang
         )
         => FilePath
-        -> Namespace (TCProgram (Channel ty) (Com 'Recv ty) (FusableExpr ty)) anno (HostType ty)
+        -> Namespace (TCProgram (Channel ty) (Com 'Recv ty) (FusableExpr ty)) anno
         -> HostModule lang
         -> arch
         -- REMINDER: Replace type of placeholder when needed

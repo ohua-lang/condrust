@@ -15,8 +15,8 @@ transformTaskExprs
      , Transform arch
      )
   => HostModule lang -> arch
-  -> Namespace (Program (Channel ty) (Com 'Recv ty) (TaskExpr ty) ty) anno (HostType ty)
-  -> Namespace (Program (Channel ty) (Com 'Recv ty) (TaskExpr ty) ty) anno (HostType ty)
+  -> Namespace (Program (Channel ty) (Com 'Recv ty) (TaskExpr ty) ty) anno 
+  -> Namespace (Program (Channel ty) (Com 'Recv ty) (TaskExpr ty) ty) anno 
 transformTaskExprs lang arch = updateTaskExprs (transformTaskExpr lang arch)
 
 transformTasks
@@ -28,6 +28,6 @@ transformTasks
      , Transform arch
      )
   => HostModule lang -> arch
-  -> Namespace (Program (Channel ty) (Com 'Recv ty) (Task lang) ty) anno (HostType ty)
-  -> Namespace (Program (Channel ty) (Com 'Recv ty) (Task lang) ty) anno (HostType ty)
+  -> Namespace (Program (Channel ty) (Com 'Recv ty) (Task lang) ty) anno 
+  -> Namespace (Program (Channel ty) (Com 'Recv ty) (Task lang) ty) anno 
 transformTasks lang arch = updateTasks (transformTask lang arch)

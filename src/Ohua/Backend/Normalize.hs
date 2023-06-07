@@ -6,8 +6,8 @@ import Ohua.Backend.Types
 import Ohua.Prelude hiding (First, Second)
 
 normalize ::
-  Namespace (Program chan recv (TaskExpr ty) ty) anno (HostType ty)->
-  Namespace (Program chan recv (TaskExpr ty) ty) anno (HostType ty)
+  Namespace (Program chan recv (TaskExpr ty) ty) anno ->
+  Namespace (Program chan recv (TaskExpr ty) ty) anno 
 normalize = updateTaskExprs' normalizeTaskExpr
 
 normalizeTaskExpr :: TaskExpr ty -> TaskExpr ty

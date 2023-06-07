@@ -43,8 +43,8 @@ type FusableExpr ty = Fusable ty (VarCtrl ty) (LitCtrl ty)
 
 -- TODO add config flag to make fusion optional
 
-fuse :: ErrAndLogM m => Namespace (TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (VarCtrl ty) (LitCtrl ty))) anno (HostType ty)
-             -> m (Namespace (TCProgram (Channel ty) (Com 'Recv ty) (TaskExpr ty)) anno (HostType ty)) 
+fuse :: ErrAndLogM m => Namespace (TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (VarCtrl ty) (LitCtrl ty))) anno 
+             -> m (Namespace (TCProgram (Channel ty) (Com 'Recv ty) (TaskExpr ty)) anno ) 
 fuse ns =
     return $ ns & algos %~ map (\algo -> algo & algoCode %~ go)
     where
