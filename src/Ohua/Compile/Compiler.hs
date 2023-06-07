@@ -63,7 +63,7 @@ compilation inFile compScope coreOpts outDir optimizations integration arch = do
     ((ctxt, extracted_algos), enc_module) <- Fr.frontend integration compScope inFile
     -- middle end: 
     extracted_algos_as_ALang <- updateExprs extracted_algos toAlang
-    extracted_algos_as_DFLang <- updateExprsWithReturn extracted_algos_as_ALang core
+    extracted_algos_as_DFLang <- updateExprs extracted_algos_as_ALang core
     extracted_algos_final <- updateExprs extracted_algos_as_DFLang toTCLang
     -- backend
     B.backend outDir extracted_algos_final ctxt arch enc_module
