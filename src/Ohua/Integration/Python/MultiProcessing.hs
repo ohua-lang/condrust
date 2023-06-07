@@ -103,11 +103,11 @@ instance Architecture (Architectures 'MultiProcessing) where
          as 'algo_parallel' and b) contains all original function calls with function bodies replaced by a 
          call to the respective parallel module         
     -}
-    serialize SMultiProc{} srcModule placeholder ns  = return $ callerModule:| ([lib_from_frontend] ++ algoModules)
+    serialize SMultiProc{} srcModule placeholder ns  = return $ callerModule:| (lib_from_frontend : algoModules)
         where
 
             convertedAlgoInfos =
-                map (\(Algo name expr srcFun _ty) ->
+                map (\(Algo name expr srcFun) ->
                         (bndToStr name, subToPython expr, Py.fun_args srcFun)) $ ns ^. algos
 
             algoNames = map (^. algoName) $ ns^.algos
@@ -233,7 +233,7 @@ buildMain taskNames chnlsPerTask (Program chnls resExpr tasks) params =  Py.Fun 
         where
             taskList = Py.List (map (toPyVar . mkIdent) taskNames) noSpan
             initTasksStmt = Py.Assign [(toPyVar .mkIdent) "tasks"] taskList noSpan
-            chnlsList = Py.List (map (`Py.List` noSpan) chnlsPerTask) noSpan 
+            chnlsList = Py.List (map (`Py.List` noSpan) chnlsPerTask) noSpan
             initChnlsList = Py.Assign [(toPyVar .mkIdent) "channels"] chnlsList noSpan
             assignRes = Py.Assign [toPyVar . mkIdent $ "result"] resExpr noSpan
             mainBasic = [

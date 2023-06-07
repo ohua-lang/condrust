@@ -55,7 +55,7 @@ instance Integration (Language 'Rust) where
     ErrAndLogM m =>
     Language 'Rust ->
     FilePath ->
-    m (Module, Namespace (FrLang.Expr RustVarType) (Item Span) (HostType RustVarType), Module)
+    m (Module, Namespace (FrLang.Expr RustVarType) (Item Span), Module)
 
   loadNs _ srcFile = do
     mod <- liftIO $ loadRustFile srcFile
@@ -65,7 +65,7 @@ instance Integration (Language 'Rust) where
       extractNs ::
         ErrAndLogM m =>
         SourceFile Span ->
-        m (Namespace (FrLang.Expr RustVarType) (Item Span) (HostTypr RustVarType))
+        m (Namespace (FrLang.Expr RustVarType) (Item Span))
 
       extractNs input = do
         globalDefs <- collectGlobals input
@@ -97,7 +97,7 @@ instance Integration (Language 'Rust) where
                 <$> mapM
                   ( \case
                       f@(Fn _ _ ident decl _ _ block _) ->
-                        Just . (\e -> Algo (toBinding ident) e f (HostType $ getReturn decl)) <$> evalStateT (extractAlgo decl block) globs
+                        Just . (\e -> Algo (toBinding ident) e f) <$> evalStateT (extractAlgo decl block) globs
                       _ -> return Nothing
                   )
                   items
@@ -131,6 +131,8 @@ instance Integration (Language 'Rust) where
         Block Span ->
         m (FrLang.Expr RustVarType)
       extractAlgo (FnDecl args _ _ _) block = do
+        -- ToDo: You know the retun type of the algo here -> make sure to assign it to the return expression correctly, because we do not thread 
+        --       it through the compiler for type propagation any more
         -- globally defined values are (implicit) arguments to each function
         -- we get them from the context BEFORE parsing the algo and make them explicit argumets here. 
         -- BUT we need to treat them differently in non-shared-memory backends. This can be acchieved by also 
@@ -173,8 +175,8 @@ instance Integration (Language 'Rust) where
     ErrAndLogM m =>
     Language 'Rust ->
     Module ->
-    Namespace (FrLang.Expr RustVarType) (Item Span) (HostType RustVarType) ->
-    m (Namespace (FrLang.Expr RustVarType) (Item Span) (HostType RustVarType))
+    Namespace (FrLang.Expr RustVarType) (Item Span) ->
+    m (Namespace (FrLang.Expr RustVarType) (Item Span))
 
   loadTypes _ (Module ownFile _) ohuaNs = do
     -- Extract namespace reference (filepath) and Qualified name for all functions called in each algo
@@ -199,11 +201,11 @@ instance Integration (Language 'Rust) where
     -- So now we go bootom-up and try to type annotate untyped varaibles by first trying to type the arguments of each function call using 
     -- information from the funciton literals and second try to type those arguments where they are assigned (i.e. further up in the code)
     -- using the type info gathered from their usage. 
-    updateExprsWithReturn ohuaNs finalTyping
+    updateExprs ohuaNs finalTyping
 
     where
-      funsForAlgo :: ErrAndLogM m => Algo (FrLang.Expr RustVarType) (Item Span) (HostType RustVarType) -> m [([NSRef], QualifiedBinding)]
-      funsForAlgo (Algo _name code _inputCode _retTy) = do
+      funsForAlgo :: ErrAndLogM m => Algo (FrLang.Expr RustVarType) (Item Span) -> m [([NSRef], QualifiedBinding)]
+      funsForAlgo (Algo _name code _inputCode ) = do
         -- traceShowM $ "algo: " <> show _name <> "\n code: \n" <> quickRender code
         -- ToDo: Show types of functions here. They should allready be correct after transformmation to IR
         mapM lookupFunTypes [f | LitE (FunRefLit (FunRef f _ _)) <- universe code]
@@ -253,15 +255,15 @@ instance Integration (Language 'Rust) where
       --   the expression in wich they are bound. There can be variables e.g. the return variable of a function, that are not used as an argument. We can type them also, 
       --   by tracing the current 'innermost' return type. 
       -- ToDo: Monadify
-      finalTyping :: ErrAndLogM m => RustVarType -> FrLang.Expr RustVarType -> m (FrLang.Expr RustVarType)
-      finalTyping currentRetTy expr =
-            evalStateT (transformM (finalTyping' currentRetTy) expr) HM.empty
+      finalTyping :: ErrAndLogM m => FrLang.Expr RustVarType -> m (FrLang.Expr RustVarType)
+      finalTyping expr =
+            evalStateT (transformM finalTyping'  expr) HM.empty
             -- State s m a -> s -> m a 
 
-      finalTyping' :: (ErrAndLogM m, TypeContextM m) => RustVarType -> FrLang.Expr RustVarType -> m (FrLang.Expr RustVarType)
+      finalTyping' :: (ErrAndLogM m, TypeContextM m) => FrLang.Expr RustVarType -> m (FrLang.Expr RustVarType)
       -- we're gonna start with LamE args body, which is the algo itself, and decent into body until we hit VarE, LitE or maybe TupE which is the return expression, before commin
       -- al the way up again filling the context with types from variable usages
-      finalTyping' algoRetTy = \case
+      finalTyping' = \case
             LetE pat e1 e2 -> return $ LetE pat e1 e2 -- ToDo: process the expression, assign the pattern the return type of the expression
             AppE fun args -> return $  AppE fun args -- ToDo: Check if args are typed. 
                                            --       If not, try to type them using the inputType of the 'fun' expression. This can be done by mapping finalTyping over input types and arguments, such that for each 
@@ -293,7 +295,7 @@ instance Integration (Language 'Rust) where
                     _ -> return $ LitE lit
                 _ -> return $ LitE lit
             VarE bnd ty -> do
-              return $ VarE bnd (Type $ HostType algoRetTy)  -- That should be the return variable of the algo because we treat all other variables in the context of their expression (binding/or usage)
+              return $ VarE bnd ty -- That should be the return variable of the algo because we treat all other variables in the context of their expression (binding/or usage)
 
 
       lookupFunTypes :: ErrAndLogM m => QualifiedBinding -> m ([NSRef], QualifiedBinding)

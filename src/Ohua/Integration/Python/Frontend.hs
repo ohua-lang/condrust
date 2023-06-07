@@ -33,7 +33,7 @@ type Context = HM.HashMap Binding Sub.PythonType
 type ConvertM m = (Monad m, MonadState Context m)
 
 
-type PythonNamespace = Namespace (FrLang.Expr PythonVarType) (Py.Statement SrcSpan) (HostType PythonVarType)
+type PythonNamespace = Namespace (FrLang.Expr PythonVarType) (Py.Statement SrcSpan)
 
 defaultType:: VarType PythonVarType
 defaultType = Type $ HostType PythonObject
@@ -83,8 +83,7 @@ instance Integration (Language 'Python) where
                                             Algo 
                                                 (toBinding$ Py.fun_name fun)
                                                 e
-                                                fun
-                                                defaultType) <$> extractAlgo fun globals 
+                                                fun) <$> extractAlgo fun globals 
                                     _ -> return Nothing)
                                 statements
                     return $ Namespace (filePathToNsRef srcFile) imports globals algos
