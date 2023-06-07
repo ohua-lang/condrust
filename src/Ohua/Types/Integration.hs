@@ -38,11 +38,10 @@ newtype Global = Global Binding deriving (Show, Eq)
 -- to match on to extract the type and b) we'd carry lots of stuff through the compile steps when all we need is one type.
 
 declareLenses[d|
-     data Algo expr inpt retTy = Algo 
+     data Algo expr inpt = Algo 
           { algoName :: Binding
           , algoCode :: expr
           , algoInputCode :: inpt
-          , algoReturnTy :: retTy
           } deriving (Show, Eq)
     |]
 
@@ -52,18 +51,18 @@ declareLenses[d|
 --   of the algorithm and (maybe not perfectly named though) the `algoInputCode` carrying the original code of 
 --   each compiled function.
 declareLenses[d|
-     data Namespace expr inpt retTy = Namespace 
+     data Namespace expr inpt = Namespace 
           { nsName :: NSRef
           , imports :: [Import]
           , globals :: [Global]
-          , algos :: [Algo expr inpt retTy]
+          , algos :: [Algo expr inpt]
           } deriving (Show, Eq)
     |]
 
-updateExprs :: Monad m => Namespace expr1 inpt retTy -> (expr1 -> m expr2) -> m (Namespace expr2 inpt retTy)
+updateExprs :: Monad m => Namespace expr1 inpt -> (expr1 -> m expr2) -> m (Namespace expr2 inpt)
 updateExprs namespace f = updateExprs' namespace $ \_ e -> f e
 
-updateExprs' :: Monad m => Namespace expr1 inpt retTy -> (Binding -> expr1 -> m expr2) -> m (Namespace expr2 inpt retTy)
+updateExprs' :: Monad m => Namespace expr1 inpt -> (Binding -> expr1 -> m expr2) -> m (Namespace expr2 inpt)
 updateExprs' namespace f = do
      algos' <- 
           forM (namespace^.algos) $ \algo -> do
@@ -72,14 +71,3 @@ updateExprs' namespace f = do
      return $ over algos (const algos') namespace
 
 
-
-updateExprsWithReturn :: Monad m => Namespace expr1 inpt retTy -> (retTy -> expr1 -> m expr2) -> m (Namespace expr2 inpt retTy)
-updateExprsWithReturn namespace f = updateExprsWithReturn' namespace $ const f
-
-updateExprsWithReturn' :: Monad m => Namespace expr1 inpt retTy -> (Binding -> retTy -> expr1 -> m expr2) -> m (Namespace expr2 inpt retTy)
-updateExprsWithReturn' namespace f = do
-     algos' <-
-          forM (namespace^.algos) $ \algo -> do
-               algoCodeAndReturn' <- f (algo^.algoName) (algo^.algoReturnTy) (algo^.algoCode)
-               return $ over algoCode (const algoCodeAndReturn') algo
-     return $ over algos (const algos') namespace
