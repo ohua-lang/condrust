@@ -28,7 +28,7 @@ import qualified Data.HashMap.Strict as HM
 --   a lazy hashmap, this should only load the algo once actually needed.
 loadDeps :: forall m lang.
     (ErrAndLogM m, Integration lang) 
-    => lang -> CompilationScope -> Namespace (Expr (Type lang)) (AlgoSrc lang) (Type lang) -> m (NamespaceRegistry (Type lang))
+    => lang -> CompilationScope -> Namespace (Expr (Type lang)) (AlgoSrc lang) (HostType (Type lang)) -> m (NamespaceRegistry (Type lang))
 loadDeps lang scope (Namespace _name imps globs algs) = do
     let currentNs = Namespace (makeThrow []) imps globs algs
     let registry' = registerAlgos HM.empty currentNs
@@ -56,7 +56,7 @@ loadDeps lang scope (Namespace _name imps globs algs) = do
 loadAlgosAndImports :: forall m lang.
     (ErrAndLogM m, Integration lang) 
     => lang -> CompilationScope -> FilePath 
-    -> m (HostModule lang, Namespace (Expr (Type lang)) (AlgoSrc lang) (Type lang), NamespaceRegistry (Type lang), HostModule lang)
+    -> m (HostModule lang, Namespace (Expr (Type lang)) (AlgoSrc lang) (HostType (Type lang)), NamespaceRegistry (Type lang), HostModule lang)
 loadAlgosAndImports  lang scope inFile = do
     -- logDebugN $ "Loading module: " <> show inFile <> "..."
     (ctxt, ns, placeholder) <- loadNs lang inFile

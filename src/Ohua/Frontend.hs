@@ -20,7 +20,7 @@ frontend :: forall m lang. (ErrAndLogM m, Integration lang)
          => lang
          -> CompilationScope
          -> FilePath
-         -> m ((HostModule lang, Namespace (FrLang.Expr (Type lang)) (AlgoSrc lang) (Type lang)), HostModule lang)
+         -> m ((HostModule lang, Namespace (FrLang.Expr (Type lang)) (AlgoSrc lang) (HostType (Type lang))), HostModule lang)
 frontend lang compScope inFile = do
         (langNs, ns, reg, placeholder) <- loadAlgosAndImports lang compScope inFile
         -- some transformation steps on the algorithm expressions 

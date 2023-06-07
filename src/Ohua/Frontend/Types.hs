@@ -17,12 +17,12 @@ class (Show (Type lang)) => Integration lang where
     loadNs :: ErrAndLogM m
            => lang
            -> FilePath
-           -> m (HostModule lang, Namespace (Expr (Type lang)) (AlgoSrc lang) (Type lang), HostModule lang)
+           -> m (HostModule lang, Namespace (Expr (Type lang)) (AlgoSrc lang) (HostType (Type lang)), HostModule lang)
 
     loadTypes :: ErrAndLogM m
               => lang -> HostModule lang
-              ->    Namespace (Expr (Type lang)) (AlgoSrc lang) (Type lang)
-              -> m (Namespace (Expr (Type lang)) (AlgoSrc lang) (Type lang))
+              ->    Namespace (Expr (Type lang)) (AlgoSrc lang) (HostType (Type lang))
+              -> m (Namespace (Expr (Type lang)) (AlgoSrc lang) (HostType (Type lang)))
 
 type LanguageFileSuffix = Text
 type CompilationScope = HM.HashMap NSRef LanguageFileSuffix
