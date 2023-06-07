@@ -38,6 +38,9 @@ import qualified Text.Show
 data HostType ty where
     HostType:: (Show ty) =>  ty -> HostType ty
 
+instance Show (HostType ty) where
+    show (HostType ty) = show ty
+
 instance Lift (HostType ty) where
   lift (HostType ty) = [|hosttype _ |] 
 
@@ -113,7 +116,7 @@ instance ShowNoType (VarType ty) where
     -- Is it internal though?
     showNoType TypeString = "IString"
     showNoType (TypeList ts) = "IList [" <> showNoType ts <> "]"
-    showNoType (Type _) = "Type _"
+    showNoType (Type (HostType ty)) = "Type " <> show ty
     showNoType (TupleTy ts) = "(" <>  foldl (\b a -> show a <> ", " <> b) ")" ts
     showNoType (TypeFunction fTy) = "Fun::" <> show fTy  
 
