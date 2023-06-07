@@ -74,8 +74,8 @@ class (Show (Type lang)) => Integration lang where
       , ty ~ Type lang)
       => HostModule lang
       -> arch
-      -> Namespace (Program (Channel ty) (Com 'Recv ty) (TaskExpr ty) ty) (AlgoSrc lang) ty
-      -> m (Namespace (Program (Channel ty) (Com 'Recv ty) (Task lang) ty) (AlgoSrc lang) ty) 
+      -> Namespace (Program (Channel ty) (Com 'Recv ty) (TaskExpr ty) ty) (AlgoSrc lang) (HostType ty)
+      -> m (Namespace (Program (Channel ty) (Com 'Recv ty) (Task lang) ty) (AlgoSrc lang) (HostType ty)) 
 
 class Architecture arch where
     type Lang arch :: *
@@ -106,8 +106,8 @@ class Architecture arch where
         , ErrAndLogM m)
         => arch
         -> HostModule lang
-        -> Namespace (Program (Chan arch) expr (Task lang) ty) (AlgoSrc lang) ty
-        -> m (Namespace (Program (Chan arch) expr (ATask arch) ty) (AlgoSrc lang) ty)
+        -> Namespace (Program (Chan arch) expr (Task lang) ty) (AlgoSrc lang) (HostType ty)
+        -> m (Namespace (Program (Chan arch) expr (ATask arch) ty) (AlgoSrc lang) (HostType ty))
 
     serialize ::
         ( ErrAndLogM m
@@ -118,8 +118,8 @@ class Architecture arch where
         )
         => arch
         -> HostModule lang -- ^ the original module  
-        -> HostModule lang -- ° a helper module encapsulating code we could not copile
-        -> Namespace (Program (Chan arch) expr (ATask arch) ty) (AlgoSrc lang) ty
+        -> HostModule lang -- ^ a helper module encapsulating code we could not copile
+        -> Namespace (Program (Chan arch) expr (ATask arch) ty) (AlgoSrc lang) (HostType ty)
         -> m (NonEmpty (FilePath, L.ByteString))
 
 
@@ -145,8 +145,8 @@ class (Architecture arch) => Transform arch where
   transformTask _ _ = id
 
 updateTaskExprs' :: (expr1 -> expr2)
-                 -> Namespace (Program chan recv expr1 ty) anno ty
-                 -> Namespace (Program chan recv expr2 ty) anno ty
+                 -> Namespace (Program chan recv expr1 ty) anno (HostType ty)
+                 -> Namespace (Program chan recv expr2 ty) anno (HostType ty)
 updateTaskExprs' f ns =
   ns & algos %~ map (\algo -> algo & algoCode %~ go)
   where
@@ -155,8 +155,8 @@ updateTaskExprs' f ns =
 
 updateTaskExprs 
   :: (FullTask ty expr -> expr)
-  -> Namespace (Program (Channel ty) (Com 'Recv ty) expr ty) anno ty
-  -> Namespace (Program (Channel ty) (Com 'Recv ty) expr ty) anno ty
+  -> Namespace (Program (Channel ty) (Com 'Recv ty) expr ty) anno (HostType ty)
+  -> Namespace (Program (Channel ty) (Com 'Recv ty) expr ty) anno (HostType ty)
 updateTaskExprs f ns =
   ns & algos %~ map (\algo -> algo & algoCode %~ go)
   where
@@ -167,8 +167,8 @@ updateTaskExprs f ns =
         Program chans resultChan tasks'
 
 updateTasks :: (expr1 -> expr2)
-            -> Namespace (Program chan recv expr1 ty) anno ty
-            -> Namespace (Program chan recv expr2 ty) anno ty
+            -> Namespace (Program chan recv expr1 ty) anno (HostType ty)
+            -> Namespace (Program chan recv expr2 ty) anno (HostType ty)
 updateTasks f ns =
   ns & algos %~ map (\algo -> algo & algoCode %~ go)
   where
