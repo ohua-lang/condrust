@@ -11,7 +11,7 @@ import Ohua.Backend.Types as B
 import Ohua.Integration.Lang hiding (Lang)
 import Ohua.Integration.Rust.Backend.Convert (prependToBlock)
 import qualified Ohua.Integration.Rust.Backend.Subset as Sub
-import Ohua.Integration.Rust.TypeExtraction as TE (RustVarType (Normal), RustTypeAnno)
+import Ohua.Integration.Rust.TypeExtraction as TE (RustVarType (Normal))
 import Ohua.Integration.Rust.Types
 import Ohua.Integration.Rust.Util
 import Ohua.Prelude
@@ -20,7 +20,7 @@ import Ohua.Types.Vector (Nat (..), intToNat)
 convertIntoBlock ::
   (Architecture arch, Lang arch ~ Language 'Rust) =>
   arch ->
-  TaskExpr RustTypeAnno ->
+  TaskExpr RustVarType ->
   Sub.Block
 convertIntoBlock arch expr =
   let expr' = convertExpr arch expr
@@ -30,7 +30,7 @@ convertIntoBlock arch expr =
 
 instance Integration (Language 'Rust) where
   type HostModule (Language 'Rust) = Module
-  type Type (Language 'Rust) = RustTypeAnno
+  type Type (Language 'Rust) = RustVarType
   type AlgoSrc (Language 'Rust) = Item Span
 
   type Expr (Language 'Rust) = Sub.Expr
@@ -47,7 +47,7 @@ instance Integration (Language 'Rust) where
           $ map (convertIntoBlock arch . convertEnvs <$>) tasks
 
 
-      convertEnvs :: TCLang.TaskExpr RustTypeAnno -> TCLang.TaskExpr RustTypeAnno
+      convertEnvs :: TCLang.TaskExpr RustVarType -> TCLang.TaskExpr RustVarType
       convertEnvs = cata $ \case
         LitF (EnvRefLit arg _ty) -> Var arg
         e -> embed e
@@ -140,7 +140,7 @@ convertFunCall ::
   (Architecture arch, Lang arch ~ Language 'Rust, ty ~ B.Type (Lang arch)) =>
   arch ->
   QualifiedBinding ->
-  [TCLang.TaskExpr RustTypeAnno] ->
+  [TCLang.TaskExpr RustVarType] ->
   Sub.Expr
 convertFunCall arch f args =
   case (binOp f, args) of

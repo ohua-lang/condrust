@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 module Ohua.Integration.Rust.Architecture.Common where
 
 import qualified Data.ByteString.Lazy.Char8 as L
@@ -18,8 +19,8 @@ import Language.Rust.Data.Ident
 serialize ::
   ErrAndLogM m =>
   Module ->
-  Namespace (Program chan expr stmts TE.RustTypeAnno) anno  TE.RustTypeAnno ->
-  (Program chan expr stmts TE.RustTypeAnno -> Block ()) ->
+  Namespace (Program chan expr stmts TE.RustVarType) anno  (HostType TE.RustVarType) ->
+  (Program chan expr stmts TE.RustVarType -> Block ()) ->
   Module ->
   m (NonEmpty (FilePath, L.ByteString))
 -- REMINDER: Replace Placeholder. Output new library file
@@ -55,18 +56,18 @@ renderStr =
     . pretty'
 
 
-toRustTy :: VarType TE.RustTypeAnno -> Maybe (Rust.Ty ())
+toRustTy :: VarType TE.RustVarType -> Maybe (Rust.Ty ())
 toRustTy ty = case ty of
     TypeUnit -> Just $ Rust.TupTy [] ()
     TypeNat -> Just $  Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "usize" Nothing ()] ()) ()
     TypeBool ->  Just $ Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "bool" Nothing ()] ()) ()
     
-    (Type (TE.Self ty _ _ )) ->  Just $ ty
-    (Type (TE.Normal ty)) -> Just $  ty
-    (Type (TE.Unknown)) -> trace "Type Unknown mad it through the compiler" Just $  Rust.Infer ()
+    (Type (HostType (TE.Self ty _ _ ))) ->  Just $ ty
+    (Type (HostType (TE.Normal ty))) -> Just $  ty
+    (Type (HostType (TE.Unknown))) -> trace "Type Unknown mad it through the compiler" Just $  Rust.Infer ()
     
     (TupleTy types) ->  do 
-      let check = any (== Type TE.Unknown) types
+      let check = any (== Type (HostType TE.Unknown)) types
       traceM $ "Is there an UnKnown in the types?:  " <> show check 
       types' <- mapM toRustTy types
       return $ Rust.TupTy (toList types') ()

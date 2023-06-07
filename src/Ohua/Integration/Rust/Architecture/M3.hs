@@ -33,7 +33,7 @@ import Ohua.Integration.Rust.Backend.Passes (propagateMut)
 import Data.Text (unpack, unlines)
 import Ohua.Integration.Rust.Architecture.SharedMemory (convertToRustType)
 
-convertChan :: Sub.BindingMode -> Channel TE.RustTypeAnno -> Rust.Stmt ()
+convertChan :: Sub.BindingMode -> Channel TE.RustVarType -> Rust.Stmt ()
 convertChan rxMutability (SRecv _ty (SChan bnd)) =
     let channel = noSpan <$ [expr| channel() |]
      in Rust.Local
@@ -51,9 +51,9 @@ convertChan rxMutability (SRecv _ty (SChan bnd)) =
 convertReceive :: Binding -> Com 'Recv TE.RustVarType -> Sub.Expr
 convertReceive suffix (SRecv argType (SChan channel)) =
   let ty' = case argType of
-              (Type (TE.Self ty _ _mut)) -> noSpan <$ ty
+              (Type (HostType( TE.Self ty _ _mut))) -> noSpan <$ ty
               -- error "Not yet implemented: Recv of reference type"
-              (Type (TE.Normal ty)) -> noSpan <$ ty
+              (Type (HostType(TE.Normal ty))) -> noSpan <$ ty
               internalType -> case convertToRustType internalType of 
                   Just (Sub.RustType ty) -> ty
                   Nothing -> error $ "Couldn't handle type " <> show argType <> " for channel " <> show channel

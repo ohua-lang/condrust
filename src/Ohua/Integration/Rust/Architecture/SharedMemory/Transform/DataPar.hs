@@ -15,7 +15,7 @@ import Ohua.Prelude hiding (concat)
 
 runtime = "rt"
 
-liftCollectType :: RT.RustTypeAnno -> RT.RustTypeAnno
+liftCollectType :: RT.RustVarType -> RT.RustVarType
 liftCollectType (RT.Normal t) =
     RT.Normal
     $ convertTyRef

@@ -21,13 +21,15 @@ import Data.Functor.Foldable (cata, embed)
 
 import Data.Maybe
 
+defaultType:: VarType PythonVarType
+defaultType = Type $ HostType PythonObject
 
 {-| Convert a task to a function block of the
     subset Language.
 -}
 -- Todo: Check if Let is really something different
 convertToSuite::(Architecture arch, Lang arch ~ Language 'Python)
-    => arch -> TaskExpr PythonTypeAnno -> Sub.Suite
+    => arch -> TaskExpr PythonVarType  -> Sub.Suite
 convertToSuite arch (TCLang.Let varName valExpr inExpr) =
     convertExpr arch (TCLang.Assign varName valExpr) : convertToSuite arch inExpr
 convertToSuite arch (TCLang.Stmt stmt otherStmts) =
@@ -54,16 +56,16 @@ instance Integration (Language 'Python) where
             convertTasks (Py.Fun _id _params _opt_anno _body _anno) (Program chans (SRecv argType channel) tasks) =
                 Program
                     chans
-                    (SRecv (Type PythonObject) channel)
+                    (SRecv (defaultType) channel)
                     $ map (convertToSuite arch . convertEnvs <$>) tasks
             convertTasks statement _ = error $ "Trying to convert something, that is not a function but "<> show statement
 
-            convertEnvs :: TCLang.TaskExpr PythonTypeAnno -> TCLang.TaskExpr PythonTypeAnno
+            convertEnvs :: TCLang.TaskExpr PythonVarType  -> TCLang.TaskExpr PythonVarType 
             convertEnvs = cata $ \case
                 LitF (EnvRefLit arg _ty) -> Var arg 
                 e -> embed e
 
-            argToVar :: Py.Parameter a -> TCLang.TaskExpr PythonTypeAnno
+            argToVar :: Py.Parameter a -> TCLang.TaskExpr PythonVarType 
             argToVar param = Var $ toBinding $ Py.param_name param
 
     convertExpr _ (TCLang.Var bnd) = wrapSubExpr $ Sub.Var bnd
@@ -197,7 +199,7 @@ transformToSubscript arch _ = error "Try to transform a function other than __ge
 
 
 convertFunCall ::(Architecture arch, Lang arch ~ Language 'Python) =>
-        arch -> QualifiedBinding -> [TCLang.TaskExpr PythonTypeAnno] -> Sub.Stmt
+        arch -> QualifiedBinding -> [TCLang.TaskExpr PythonVarType ] -> Sub.Stmt
 convertFunCall arch op [arg1, arg2] | isJust $ binOp op =
     wrapSubExpr $ Sub.BinaryOp (fromJust $ binOp op) firstArg secondArg
     where
@@ -271,7 +273,7 @@ convertFunCall arch funRef args =
 
 
 convertArgument:: (Architecture arch, Lang arch ~ Language 'Python) =>
-    arch -> TaskExpr PythonTypeAnno -> Sub.Argument
+    arch -> TaskExpr PythonVarType  -> Sub.Argument
 -- TODO: If I could translate args and kwargs at the frontend I'd maybe just prepend their names with '*'/'**'
 -- > Check if translating this back just using normal args yields same behaviour
 -- > Currently original type annotation and default are lost in translation (no pun intended) anyways, otherwise 
@@ -281,7 +283,7 @@ convertArgument:: (Architecture arch, Lang arch ~ Language 'Python) =>
 convertArgument arch arg = Sub.Arg ( unwrapSubStmt (convertExpr arch arg))
 
 convertDictItem:: (Architecture arch, Lang arch ~ Language 'Python) =>
-    arch -> TaskExpr PythonTypeAnno -> (Sub.Expr, Sub.Expr)
+    arch -> TaskExpr PythonVarType  -> (Sub.Expr, Sub.Expr)
 convertDictItem arch item = 
     let item' = unwrapSubStmt $ convertExpr arch item 
     in 
@@ -296,7 +298,7 @@ dotConcat (NSRef refs) bind =
     in fromString concatName
 
 
-asFunctionLiteral qBinding numArgs = TCLang.Lit $ FunRefLit $ FunRef qBinding Nothing $ FunType (replicate numArgs (Type PythonObject)) (Type PythonObject)
+asFunctionLiteral qBinding numArgs = TCLang.Lit $ FunRefLit $ FunRef qBinding Nothing $ FunType (replicate numArgs (defaultType)) (defaultType)
 
 
 hasAttrArgs :: Binding -> [Sub.Argument]

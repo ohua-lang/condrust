@@ -218,7 +218,7 @@ rewrite liftCollectTy (SMap smapF body collectF) = do
                               , (TBind b ty) <- insAndTypesDFApp app
                               , b == bnd] 
 
-    liftOutTy (Type t) = Type $ liftCollectTy t
+    liftOutTy (Type (HostType t)) = Type $ HostType $ liftCollectTy t
     liftOutTy t = t
 
 appendExpr ::

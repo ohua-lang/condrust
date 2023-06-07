@@ -33,14 +33,14 @@ type Context = HM.HashMap Binding Sub.PythonType
 type ConvertM m = (Monad m, MonadState Context m)
 
 
-type PythonNamespace = Namespace (FrLang.Expr PythonVarType) (Py.Statement SrcSpan) PythonHostType
+type PythonNamespace = Namespace (FrLang.Expr PythonVarType) (Py.Statement SrcSpan) (HostType PythonVarType)
 
 defaultType:: VarType PythonVarType
-defaultType = Type $ HosType PythonObject
+defaultType = Type $ HostType PythonObject
 
 instance Integration (Language 'Python) where
     type HostModule (Language 'Python) = Module
-    type Type (Language 'Python) =  PythonHostType
+    type Type (Language 'Python) =  PythonVarType
     type AlgoSrc (Language 'Python) = Py.Statement SrcSpan
 
     {- | Loading a namespace means extracting 
@@ -84,7 +84,7 @@ instance Integration (Language 'Python) where
                                                 (toBinding$ Py.fun_name fun)
                                                 e
                                                 fun
-                                                PythonObject) <$> extractAlgo fun globals 
+                                                defaultType) <$> extractAlgo fun globals 
                                     _ -> return Nothing)
                                 statements
                     return $ Namespace (filePathToNsRef srcFile) imports globals algos
@@ -317,23 +317,23 @@ subExprToIR (Sub.Lambda params expr) = do
 
 subExprToIR (Sub.Tuple exprs) = do
     exprs' <- mapM subExprToIR exprs
-    tupleCall <- toFunRefLit SF.tupleConstructor (map (const $ defaulType) exprs, defaulType)
+    tupleCall <- toFunRefLit SF.tupleConstructor (map (const $ defaultType) exprs, defaultType)
     return $ AppE tupleCall exprs'
 
 subExprToIR (Sub.List exprs) = do
     exprs' <- mapM subExprToIR exprs
-    listCall <- toFunRefLit SF.listConstructor (map (const $ defaulType)  exprs, defaulType)
+    listCall <- toFunRefLit SF.listConstructor (map (const $ defaultType)  exprs, defaultType)
     return $ AppE listCall exprs'
 
 -- | Mapping d = {1:2, 3:4} to d = dict(((1,2), (3,4)))
 subExprToIR (Sub.Dict mappings) = do
     exprs' <- mapM (\(k,v) -> subExprToIR $ Sub.Tuple [k,v]) mappings
-    dictCall <- toFunRefLit SF.dictConstructor (map (const $ defaulType) mappings , defaulType)
+    dictCall <- toFunRefLit SF.dictConstructor (map (const $ defaultType) mappings , defaultType)
     return $ AppE dictCall exprs'
 
 subExprToIR (Sub.Set  exprs) = do
     exprs' <- mapM subExprToIR exprs
-    setCall <- toFunRefLit SF.setConstructor (map (const $ defaulType) exprs, defaulType)
+    setCall <- toFunRefLit SF.setConstructor (map (const $ defaultType) exprs, defaultType)
     return $ AppE setCall exprs'
 
 subExprToIR subExpr@(Sub.Subscript bnd expr) = do
@@ -412,9 +412,9 @@ toFunRefLit funBind (argTys, retTy) = return $
                         FunRef (QualifiedBinding (makeThrow []) funBind) Nothing $ FunType argTys retTy
 
 simpleBinarySignature :: ([VarType PythonVarType], VarType PythonVarType)
-simpleBinarySignature = ([defaulType, defaulType], defaulType)
+simpleBinarySignature = ([defaultType, defaultType], defaultType)
 
 simpleUnarySignature :: ([VarType PythonVarType], VarType PythonVarType)
-simpleUnarySignature = ([defaulType], defaulType)
+simpleUnarySignature = ([defaultType], defaultType)
 
 toBindings = map toBinding

@@ -24,7 +24,7 @@ import Data.List.NonEmpty hiding (map)
 -- keep it simple for know and first finish the task of eliminating 'TypeVar', we'll include an 'untyped' in the Rust type representation. 
 data RustVarType = Self (Ty ()) (Maybe (Lifetime ())) Mutability | Normal (Ty ()) | Unknown deriving (Show, Eq)
 type RustHostType = HostType RustVarType
-type FunTypes = HM.HashMap QualifiedBinding (FunType RustHostType)
+type FunTypes = HM.HashMap QualifiedBinding (FunType RustVarType)
 
 rustUnitReturn :: Ty ()
 rustUnitReturn = Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "()" Nothing ()] ()) ()
@@ -38,10 +38,15 @@ rustI32 = PathTy Nothing (Path False [PathSegment "i32" Nothing ()] ()) ()
 rustInfer :: Ty ()
 rustInfer = Infer ()
 
-asHostNormal:: Ty a -> RustVarType
+asHostNormal:: Ty a -> VarType RustVarType
 asHostNormal ty = Type $ HostType $ Normal (deSpan ty)
 
-asHostSelf:: Ty a -> Rust
+asHostSelf:: Ty a -> (Maybe (Lifetime a)) -> Mutability-> VarType RustVarType
+asHostSelf ty lt mut = Type $ HostType $ Self (deSpan ty) (map deSpan lt) mut
+
+asHostUnknown:: VarType RustVarType
+asHostUnknown = Type $ HostType Unknown
+
 
 -- REMINDER: Commented out because we don't scan the imported libraries for type extraction any more
 
@@ -109,9 +114,9 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
                 (fstArg: args) -> f fstArg  (map toVarType args) (fromMaybeRet retType)
 
         convertImplArg :: (ErrAndLogM m, Show a) => Ty a -> Arg a -> m (VarType RustVarType)
-        convertImplArg selfType (SelfValue _ mut _) = return $ Type $ Self (void selfType) Nothing mut
-        convertImplArg selfType (SelfRegion _ lifeTime mut _) = return $ Type $ Self (void selfType) (void <$>lifeTime) mut
-        convertImplArg selfType (SelfExplicit _ _ty mut _) = return $ Type $ Self (void selfType) Nothing mut
+        convertImplArg selfType (SelfValue _ mut _) = return $ asHostSelf selfType Nothing mut
+        convertImplArg selfType (SelfRegion _ lifeTime mut _) = return $ asHostSelf selfType lifeTime mut -- Type $ Self (void selfType) (void <$>lifeTime) mut
+        convertImplArg selfType (SelfExplicit _ _ty mut _) = return $ asHostSelf selfType Nothing mut
         convertImplArg _ a = return $ toVarType a
 
         toVarType :: Show a => Arg a -> VarType RustVarType
@@ -133,7 +138,7 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
         extractFirstArg :: Ty a -> Arg a -> [VarType RustVarType] -> VarType RustVarType -> m (FunType RustVarType)
         extractFirstArg selfType fstArg args retTy =
             let funType x0 = case x0 of
-                            (Type Self{}) -> STFunType x0  args retTy
+                            (Type (HostType Self{})) -> STFunType x0 args retTy
                             _ -> FunType (x0 : args) retTy
             in funType <$> convertImplArg selfType fstArg 
 
