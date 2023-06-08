@@ -133,8 +133,6 @@ instance Integration (Language 'Rust) where
         m (FrLang.Expr RustVarType)
       extractAlgo (FnDecl args _ True _) block = error "We do not support compilation of variadic functions for the moment"
       extractAlgo (FnDecl args mReturnTy _ _) block = do
-        -- ToDo: You know the retun type of the algo here -> make sure to assign it to the return expression correctly, because we do not thread 
-        --       it through the compiler for type propagation any more
         -- globally defined values are (implicit) arguments to each function
         -- we get them from the context BEFORE parsing the algo and make them explicit argumets here. 
         -- BUT we need to treat them differently in non-shared-memory backends. This can be acchieved by also 
@@ -212,7 +210,7 @@ instance Integration (Language 'Rust) where
     usedFunctionTypes <- HM.fromList . catMaybes <$> mapM (verifyAndRegister functionTypes) filesAndPaths'
     -- traceShowM $ "extracted types: " <> show usedFunctionTypes
     -- Replace type annotations of function literals with extracted types
-    updateExprs ohuaNs (transformM (assignTypes usedFunctionTypes))
+    ohuaNsTypedFuns  <- updateExprs ohuaNs (transformM (assignTypes usedFunctionTypes))
     -- Types might now come form either annotations
     -- or the function types we just extracted, so we didn't error if something remains of type 'Unknown'.
     -- The types from annotations have allready been passed top-down through the code when we lowered it to a FrLang expression.
@@ -220,7 +218,7 @@ instance Integration (Language 'Rust) where
     -- So now we go bootom-up and try to type annotate untyped varaibles by first trying to type the arguments of each function call using 
     -- information from the funciton literals and second try to type those arguments where they are assigned (i.e. further up in the code)
     -- using the type info gathered from their usage. 
-    updateExprs ohuaNs finalTyping
+    updateExprs ohuaNsTypedFuns finalTyping
 
     where
       funsForAlgo :: ErrAndLogM m => Algo (FrLang.Expr RustVarType) (Item Span) -> m [([NSRef], QualifiedBinding)]
@@ -242,7 +240,7 @@ instance Integration (Language 'Rust) where
       verifyAndRegister :: ErrAndLogM m => FunTypes -> ([NSRef], QualifiedBinding) -> m (Maybe (QualifiedBinding, FunType RustVarType))
       verifyAndRegister typez ([candidate], qp@(QualifiedBinding _ nam)) =
         case HM.lookup (QualifiedBinding candidate nam) typez of
-          Just t -> trace ("Verified type of " <> show nam <> " is fully typed AND has known return type? "<> show (fullyTyped t) <> show (getReturnType t /= Type (HostType TE.Unknown))) return $ Just (qp, t)
+          Just t -> trace ("Verified type of " <> show nam <> " is "<> show t <> "\nI considere it fully typed: "<> show (fullyTyped t)) return $ Just (qp, t)
           Nothing -> do
             -- $ (logWarn) $ "Function `" <> show (unwrap nam) <> "` not found in module `" <> show candidate <> "`."
             return Nothing
@@ -256,17 +254,14 @@ instance Integration (Language 'Rust) where
 
       assignTypes :: ErrAndLogM m => FunTypes -> FrLang.Expr RustVarType -> m (FrLang.Expr RustVarType)
       assignTypes typez = \case
-        f@(LitE (FunRefLit (FunRef qb i ft))) | fullyTyped ft -> trace ("fully typed function" <> show qb ) return f
+        f@(LitE (FunRefLit (FunRef qb i ft))) | fullyTyped ft -> trace ("fully typed function: " <> show qb <> " Type is: " <> show ft) return f
         f@(LitE (FunRefLit (FunRef qb i ft))) ->
           case HM.lookup qb typez of
             Just typ ->
               do
-                traceShowM $ "\n Typing Fun: " <> show qb
-                if fullyTyped typ
-                   then traceM $ "Function is 'fully typed' but is the return type unknown? " <> show (getReturnType typ == asHostUnknown)
-                   else traceM $ "Function contains unknown type"
+                traceShowM $ "Typing Function : " <> show qb <> " with type " <> show typ
                 return $ LitE $ FunRefLit $ FunRef qb i typ
-            Nothing -> return f -- throwError $ "I was unable to determine the types for the call to '" <> show qb <> "'. Please provide type annotations."
+            Nothing -> trace ("No lib function found for: " <> show qb) return f -- throwError $ "I was unable to determine the types for the call to '" <> show qb <> "'. Please provide type annotations."
         e -> return e
 
       -- | We go through expressions bottom-up and collect types of variables. Bottom-up implies, that we encounter the usage of a variable, bevor it's assignment. 
@@ -282,7 +277,9 @@ instance Integration (Language 'Rust) where
       finalTyping' :: (ErrAndLogM m, TypeContextM m) => FrLang.Expr RustVarType -> m (FrLang.Expr RustVarType)
       -- we're gonna start with LamE args body, which is the algo itself, and decent into body until we hit VarE, LitE or maybe TupE which is the return expression, before commin
       -- al the way up again filling the context with types from variable usages
-      finalTyping' = \case
+      finalTyping' = do 
+         traceM "Final Typing:"
+         \case
             LetE pat e1 e2 -> return $ LetE pat e1 e2 -- ToDo: process the expression, assign the pattern the return type of the expression
             AppE fun args -> return $  AppE fun args -- ToDo: Check if args are typed. 
                                            --       If not, try to type them using the inputType of the 'fun' expression. This can be done by mapping finalTyping over input types and arguments, such that for each 
@@ -340,8 +337,8 @@ instance Integration (Language 'Rust) where
 
       -- Question: Can we have functions as arguments? 
       fullyTyped :: FunType RustVarType -> Bool
-      fullyTyped (FunType args retTy) = all (\case  asHostUnknown -> False; TypeFunction fty -> fullyTyped fty; Type x -> trace ("Rust Type" <> show x) True) (retTy: args)
-      fullyTyped (STFunType sTy argTys retTy) = all (\case asHostUnknown -> False; TypeFunction fty -> fullyTyped fty; _ -> True) (sTy: retTy: argTys)
+      fullyTyped (FunType args retTy) = all (\case  (Type (HostType TE.Unknown)) -> False; TypeFunction fty -> fullyTyped fty; _ -> True) (retTy: args)
+      fullyTyped (STFunType sTy argTys retTy) = all (\case (Type (HostType TE.Unknown)) -> False; TypeFunction fty -> fullyTyped fty; _ -> True) (sTy: retTy: argTys)
 
       fullyResolvedImports = resolvedImports fullyResolved
       aliasImports = resolvedImports aliases
