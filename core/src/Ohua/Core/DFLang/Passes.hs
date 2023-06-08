@@ -308,7 +308,7 @@ expectVar _ (ALang.Var tBnd) = pure $ DFVar $ DataBinding tBnd
 --     throwError $
 --     "Function references are not yet supported as arguments: " <>
 --     show (pretty r)
-expectVar _ (Lit l) = pure $ DFEnvVar (getVarType l) l
+expectVar _ (Lit l) = pure $ DFEnvVar (getLitType l) l
 expectVar _ a =
   throwErrorS $ "Argument must be local binding or literal, was " <> show a
 

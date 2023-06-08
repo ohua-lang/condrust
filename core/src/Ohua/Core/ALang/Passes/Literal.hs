@@ -39,7 +39,7 @@ literalsToFunctions e =
         other -> return other
     where
         mkFun v lit body = do
-            let litType = getVarType lit
+            let litType = getLitType lit
             return $
                 Let v
                     (Lit (FunRefLit $ FunRef IFuns.id Nothing (FunType [litType ] litType )) `Apply` Lit lit)

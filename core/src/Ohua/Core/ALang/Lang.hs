@@ -81,7 +81,7 @@ exprType e = case e of
         TypeFunction funTy -> getReturnType funTy
         ty -> ty
     -- We aim for "return types" here so if the literal is a function, this will evaluate to the functions return type
-    Lit lit -> getVarType lit
+    Lit lit -> getLitType lit
     -- Let should be typed by e2, because this is what it resturns
     Let _bnd _e1 e2 -> exprType e2
     -- Apply (\x:T1. term:T2) (t:T1), should obviously be typed as T2
