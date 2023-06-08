@@ -36,13 +36,13 @@ import qualified Text.Show
 
 
 data HostType ty where
-    HostType:: (Show ty) =>  ty -> HostType ty
+    HostType:: (Show ty, Eq ty) =>  ty -> HostType ty
 
 instance Show (HostType ty) where
     show (HostType ty) = show ty
 
 instance Lift (HostType ty) where
-  lift (HostType ty) = [|hosttype _ |] 
+  lift (HostType ty) = [|hosttype _ |]
 
 
 ------------------------------------------------------------------------------------
@@ -55,12 +55,13 @@ data ECC :: Constraint -> (Type -> Type) -> Type -> Type where
 instance (c => Show (f a)) => Show (ECC c f a) where
   show (ECC x) = show x
 
+instance (c, Eq (f x)) => Eq (ECC c f x) where
+  ECC x == ECC y = x == y
 
 instance Generic (HostType ty) where
-  type Rep (HostType ty) = (ECC (Show ty) (Rec0 ty))
+  type Rep (HostType ty) = (ECC (Show ty, Eq ty) (Rec0 ty))
 
   from (HostType x) = ECC (K1 x)
-
   to (ECC (K1 x)) = HostType x
 
 
@@ -70,14 +71,14 @@ instance Generic (HostType ty) where
 --   host language, the literal types TypeNat and TypeBool etc. are used internaly to construct nodes
 --   They must be mapped to the according types of the host language in the backend.
 
-data VarType ty 
-    = TypeNat 
-    | TypeBool 
-    | TypeUnit 
-    | TypeString 
-    | TypeList (VarType ty) 
-    | Type (HostType ty) 
-    | TupleTy (NonEmpty (VarType ty)) 
+data VarType ty
+    = TypeNat
+    | TypeBool
+    | TypeUnit
+    | TypeString
+    | TypeList (VarType ty)
+    | Type (HostType ty)
+    | TupleTy (NonEmpty (VarType ty))
     -- REMINDER: Can't derive Lift for Unit, therefor not for FunType and therefor I can't have FunType here for now
     --           Find a way to fix this
     | TypeFunction (FunType ty) -- This is mainly used for inlined algos
@@ -100,12 +101,12 @@ instance EqNoType (VarType ty) where
     TypeBool ~= TypeBool = True
     TypeUnit ~= TypeUnit = True
     TypeString ~= TypeString = True
-    Type _ ~= Type _ = True -- skipping to type info here!
-    (TupleTy ts) ~= (TupleTy ts') = ts == ts' -- tuns into ~=, see instance below
+    Type (HostType ty1) ~= Type (HostType ty2) = ty1 == ty2
+    (TupleTy ts) ~= (TupleTy ts') = ts == ts' -- turns into ~=, see instance below
     (TypeList inner1) ~= (TypeList inner2) = inner1 == inner2
     (TypeFunction fty1) ~= (TypeFunction fty2) = fty1 == fty2
     _ ~= _ = False
-    
+
 instance Eq (VarType ty) where
     (==) = (~=)
 
@@ -118,7 +119,7 @@ instance ShowNoType (VarType ty) where
     showNoType (TypeList ts) = "IList [" <> showNoType ts <> "]"
     showNoType (Type (HostType ty)) = "Type " <> show ty
     showNoType (TupleTy ts) = "(" <>  foldl (\b a -> show a <> ", " <> b) ")" ts
-    showNoType (TypeFunction fTy) = "Fun::" <> show fTy  
+    showNoType (TypeFunction fTy) = "Fun::" <> show fTy
 
 
 instance Show (VarType ty) where
@@ -151,8 +152,8 @@ newtype Binding =
 -- | A typed Binding 
 data TypedBinding ty = TBind Binding (VarType ty) deriving (Show, Generic)
 
-instance Hashable (TypedBinding ty) where 
-    hashWithSalt s (TBind b ty) = hashWithSalt s b 
+instance Hashable (TypedBinding ty) where
+    hashWithSalt s (TBind b ty) = hashWithSalt s b
 
 instance Ord (TypedBinding ty) where
     (TBind b1 _ty1) <= (TBind b2 _ty2) = b1 <= b2
@@ -165,10 +166,10 @@ instance Eq (TypedBinding ty) where
     (TBind b1 _ty1) == (TBind b2 _ty2) = b1 == b2
 
 asBnd :: TypedBinding ty -> Binding
-asBnd (TBind bnd _ty) = bnd 
+asBnd (TBind bnd _ty) = bnd
 
 asType :: TypedBinding ty -> VarType ty
-asType (TBind _bnd ty) = ty 
+asType (TBind _bnd ty) = ty
 
 -- | Hierarchical reference to a namespace
 newtype NSRef =
@@ -201,6 +202,10 @@ newtype FnId =
 getReturnType:: FunType ty -> VarType ty
 getReturnType (FunType _ins out) = out
 getReturnType (STFunType _s _ins out) = out
+
+setReturnType :: VarType ty -> FunType ty -> FunType ty
+setReturnType ty (FunType ins out) = FunType ins ty
+setReturnType ty (STFunType s ins out) = STFunType s ins ty
 
 data FunRef ty where
     FunRef :: QualifiedBinding -> Maybe FnId -> FunType ty -> FunRef ty
@@ -308,7 +313,7 @@ symbolFromString s
 
 
 nsToFilePath :: NSRef -> FilePath
-nsToFilePath = joinPath . map (T.unpack . unwrap) . unwrap 
+nsToFilePath = joinPath . map (T.unpack . unwrap) . unwrap
 
 toFilePath :: (NSRef, Text) -> FilePath
 toFilePath (nsRef, suffix) = addExtension (nsToFilePath nsRef) $ T.unpack suffix

@@ -18,10 +18,10 @@ data Lit ty
 
 instance Hashable (Lit ty)
 
-getVarType :: Lit ty -> VarType ty
-getVarType (NumericLit _) = TypeNat
-getVarType (BoolLit _)    = TypeBool
-getVarType UnitLit        = TypeUnit
-getVarType (StringLit _)  = TypeString
-getVarType (EnvRefLit _b vTy)  = vTy
-getVarType (FunRefLit fRef)  = getRefReturnType fRef
+getLitType :: Lit ty -> VarType ty
+getLitType (NumericLit _) = TypeNat
+getLitType (BoolLit _)    = TypeBool
+getLitType UnitLit        = TypeUnit
+getLitType (StringLit _)  = TypeString
+getLitType (EnvRefLit _b vTy)  = vTy
+getLitType (FunRefLit fRef)  = getRefReturnType fRef

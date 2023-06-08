@@ -10,13 +10,14 @@ module Ohua.Types
     , controlSignalType
     , FunType(..)
     , getReturnType
+    , setReturnType
     , toFilePath
     , symbolFromString
     , FunRef(..)
     , getRefType
     , getRefReturnType
     , Lit(..)
-    , getVarType
+    , getLitType
     , Unit(..)
     , module Ohua.Types.Computation
     , module Ohua.Types.Classes
