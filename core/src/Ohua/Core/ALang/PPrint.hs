@@ -91,4 +91,4 @@ instance Pretty SomeBinding where
     pretty (Unqual b) = pretty b
 
 instance Pretty (TypedBinding ty) where
-    pretty (TBind bnd _ty) = pretty bnd
+    pretty (TBind bnd ty) = pretty bnd <> "::" <> show ty
