@@ -23,7 +23,8 @@ import Ohua.Frontend.PPrint ()
 import Ohua.Frontend.Lang as FrLang
     ( Expr(..),
       Pat(TupP, VarP, WildP),
-      exprType )
+      exprType,
+      applyToFinal)
 
 import Ohua.Integration.Lang
 import Ohua.Integration.Rust.Util
@@ -130,7 +131,8 @@ instance Integration (Language 'Rust) where
         FnDecl Span ->
         Block Span ->
         m (FrLang.Expr RustVarType)
-      extractAlgo (FnDecl args _ _ _) block = do
+      extractAlgo (FnDecl args _ True _) block = error "We do not support compilation of variadic functions for the moment"
+      extractAlgo (FnDecl args mReturnTy _ _) block = do
         -- ToDo: You know the retun type of the algo here -> make sure to assign it to the return expression correctly, because we do not thread 
         --       it through the compiler for type propagation any more
         -- globally defined values are (implicit) arguments to each function
@@ -144,7 +146,8 @@ instance Integration (Language 'Rust) where
         args' <- mapM (convertPat <=< SubC.convertArg) args
         -- Convert the function block
         block' <- convertIntoFrExpr block
-        return $ LamE (implGlobalArgs ++ args') block'
+        let block'' = typeReturnExpr mReturnTy block'
+        return $ LamE (implGlobalArgs ++ args') block''
 
       convertIntoFrExpr :: SubC.ConvertM m => Block Span -> m (FrLang.Expr RustVarType)
       convertIntoFrExpr rustBlock = do
@@ -170,6 +173,22 @@ instance Integration (Language 'Rust) where
       fromGlobals = do
         map (\(bnd, Sub.RustType ty) -> VarP bnd (asHostNormal ty)) . HM.toList <$> get
 
+      typeReturnExpr :: Maybe (Ty a) -> FrLang.Expr RustVarType -> FrLang.Expr RustVarType
+      typeReturnExpr mReturnTy block =
+         let varType = asVarType mReturnTy
+         in FrLang.applyToFinal (replaceType varType) block
+         where asVarType Nothing = TypeUnit
+               asVarType (Just ty) = asHostNormal ty
+
+               replaceType :: VarType RustVarType -> FrLang.Expr RustVarType -> FrLang.Expr RustVarType
+               replaceType vt e = case e of
+                  VarE bnd _ty -> VarE bnd vt
+                  LitE (EnvRefLit b _ty) -> LitE (EnvRefLit b vt)
+                  LitE (FunRefLit (FunRef q i fty)) -> LitE (FunRefLit (FunRef q i  (setReturnType vt fty)))
+                  lit@(LitE l) -> if getLitType l == vt
+                                    then error $ "Return type of function " <> show vt <> " doesn't match type "<> show (getLitType l) <> " of returned literal"
+                                    else lit
+                  -- ToDo: We can also get TupE here, which needs to be handled
 
   loadTypes ::
     ErrAndLogM m =>
