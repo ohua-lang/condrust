@@ -24,6 +24,7 @@ import Ohua.Frontend.Lang as FrLang
     ( Expr(..),
       Pat(TupP, VarP, WildP),
       exprType,
+      patType,
       applyToFinal)
 
 import Ohua.Integration.Lang
@@ -37,9 +38,13 @@ import qualified Ohua.Integration.Rust.Frontend.Convert as SubC
 
 
 import qualified Control.Applicative as Hm
+import GHC.Exts (the)
 
 type VarTypeContext = HM.HashMap Binding (VarType RustVarType)
 type TypeContextM m = (Monad m, MonadState VarTypeContext m)
+
+currentReturnBnd::Binding
+currentReturnBnd = "InternalCurrentReturn"
 
 class ConvertExpr a where
   convertExpr :: SubC.ConvertM m => a -> m (FrLang.Expr RustVarType)
@@ -271,20 +276,30 @@ instance Integration (Language 'Rust) where
       -- ToDo: Monadify
       finalTyping :: ErrAndLogM m => FrLang.Expr RustVarType -> m (FrLang.Expr RustVarType)
       finalTyping expr =
-            evalStateT (transformM finalTyping'  expr) HM.empty
+            evalStateT (traversal expr) HM.empty
             -- State s m a -> s -> m a 
 
-      finalTyping' :: (ErrAndLogM m, TypeContextM m) => FrLang.Expr RustVarType -> m (FrLang.Expr RustVarType)
-      -- we're gonna start with LamE args body, which is the algo itself, and decent into body until we hit VarE, LitE or maybe TupE which is the return expression, before commin
-      -- al the way up again filling the context with types from variable usages
-      finalTyping' = do 
-         traceM "Final Typing:"
+      traversal :: (ErrAndLogM m, TypeContextM m) =>  FrLang.Expr RustVarType -> m (FrLang.Expr RustVarType)
+      traversal =
          \case
-            LetE pat e1 e2 -> return $ LetE pat e1 e2 -- ToDo: process the expression, assign the pattern the return type of the expression
-            AppE fun args -> return $  AppE fun args -- ToDo: Check if args are typed. 
+            LetE pat e1 e2 -> do 
+              -- During conversion , when a binding was annotated we inserted it's name and type to the context and propagated it to it's usage site.But it was not used to annotate
+              -- the return type of functions .. However we need this return type for cases where the return is a function call. So we need to insert the pattern type as current_return to the
+              -- context before we try to type e1. On the other hand, if the binding site was not annotated, we require e1 to be fully typed to type the pat with e1's return type
+              traceM $ "Working on let " <> show pat
+              e2' <- traversal e2
+              ctxt <- get
+              modify (HM.insert currentReturnBnd (FrLang.patType pat))
+              e1' <- traversal e1
+              return $ LetE pat e1 e2
+            AppE fun args -> do 
+              traceM $ "Working on app " <> show fun
+              return $  AppE fun args -- ToDo: Check if args are typed. 
                                            --       If not, try to type them using the inputType of the 'fun' expression. This can be done by mapping finalTyping over input types and arguments, such that for each 
                                            --       argument the expected input type is the current return type. If this fails -> fail, otherwise currentRetType = exprType fun
-            LamE pats body -> return $  LamE pats body -- ToDo: The pats are used in the body, so proceed with the body filling the context and (if necessary) update pats typing or fail if that doesn't work, New currentRetType = exprType body
+            LamE pats body -> do
+              traceM $ "Working on lambda" <> show pats
+              return $  LamE pats body -- ToDo: The pats are used in the body, so proceed with the body filling the context and (if necessary) update pats typing or fail if that doesn't work, New currentRetType = exprType body
             IfE cond eTrue eFalse -> return $  IfE cond eTrue eFalse -- ToDo: 1. proceed with cond, return Type should be Rusts bool, 2. proceed with eTrue, 3. proceed with eFalse 4. assert equal branch return types 5. currentRetType = exprType eTrue
             WhileE e1 e2 -> return $  WhileE e1 e2 -- Nothing to do, we currently don't use it 
             MapE fun generator -> return $  MapE fun generator-- ToDo: MapE maps a function to a generator, so 1. proceed with the generator 
@@ -304,14 +319,16 @@ instance Integration (Language 'Rust) where
                                                --       1. proceed trying to type the args if their not typed -> fail if that fails
                                                --  
             l@(LitE lit) -> do
-              traceM $ "Working on: " <> show l
+              traceM $ "Working on Literal: " <> show l
               case FrLang.exprType l of
                 Type x ->  case x of
                     HostType TE.Unknown -> return $ LitE lit --throwError $ "Couldn't type literal " <> show lit <> "Found type"<> show x <>". Please help me out by providing annotations or report error"
                     _ -> return $ LitE lit
                 _ -> return $ LitE lit
-            VarE bnd ty -> do
+            e@(VarE bnd ty) -> do
+              traceM $ "Working on Var: " <> show e  
               return $ VarE bnd ty -- That should be the return variable of the algo because we treat all other variables in the context of their expression (binding/or usage)
+
 
 
       lookupFunTypes :: ErrAndLogM m => QualifiedBinding -> m ([NSRef], QualifiedBinding)
@@ -570,8 +587,6 @@ instance ConvertExpr Sub.Block where
           -- ToDo: We should move this to Rust -> Sub Conversion and set it automatically if the RHS is a literal
           (Sub.IdentP (Sub.IdentPat _mode bnd), Just ty') -> modify (HM.insert bnd ty')
           (Sub.TupP idents, Just (Sub.RustType (TupTy tys _))) -> do
-            -- QUESTION: Non-matching lengths of both tuples i.e. variables and types are Rust syntay errors and
-            --           as such actually not our business. Should we check anyway?
             let asSubRustType = map Sub.RustType tys
                 asBindings = map fromIdent idents
                 keysAndValues = zip asBindings asSubRustType
