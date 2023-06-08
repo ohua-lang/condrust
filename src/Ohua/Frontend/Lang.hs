@@ -8,6 +8,7 @@ module Ohua.Frontend.Lang
     , PatF(..)
     , ExprF(..)
     , patterns
+    , applyToFinal
     ) where
 
 import Ohua.Prelude
@@ -67,7 +68,7 @@ exprType:: Expr ty -> VarType ty
 exprType (VarE _b ty) = ty
 -- We aim for "return types" here so if the literal is a function, 
 -- this will evaluate to the functions return type
-exprType (LitE  lit) = getVarType lit
+exprType (LitE  lit) = getLitType lit
 exprType (LetE _p _e cont) = exprType cont
 exprType (AppE fun args) = exprType fun
 -- Type of an abstraction (\x:T1. term:T2) as generics are a 'problem' of the host language
@@ -87,6 +88,25 @@ exprType (SeqE e1 e2) = exprType e2
 exprType (TupE f (e:es)) = TupleTy (exprType e :| map exprType es) 
 -- ToDo: This is wrong in every case where Unit != None
 exprType (TupE f []) = TypeUnit 
+
+-- If expressions have two possible exits
+-- Question how to make this more elegant. It's not a normal traversal as we don't want to recurse
+-- into every nested expression?
+applyToFinal :: (Expr ty -> Expr ty) -> Expr ty -> Expr ty
+applyToFinal fun =  \case
+    e@VarE{} -> fun e
+    e@LitE{} -> fun e
+    e@TupE{} -> fun e
+    LetE p e1 e2 -> LetE p e1  $ applyToFinal fun e2
+    AppE f args -> AppE (applyToFinal fun f) args
+    LamE p e -> LamE p $ applyToFinal fun e
+    IfE b e1 e2 -> IfE b (applyToFinal fun e1)  (applyToFinal fun e2)
+    WhileE e1 e2 -> WhileE e1 $ applyToFinal fun e2
+    MapE e1 e2 -> MapE (applyToFinal fun e1) e2 -- we map a finction to a container so the final return is the return of the function
+    BindE e1 e2 -> BindE e1 $ applyToFinal fun e2
+    StmtE e1 e2 -> StmtE e1 $ applyToFinal fun e2
+    SeqE e1 e2 -> SeqE e1 $ applyToFinal fun e2
+     
 
 
 patterns :: Traversal' (Expr ty) (Pat ty)
