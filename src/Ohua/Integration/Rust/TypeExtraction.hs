@@ -47,6 +47,9 @@ asHostSelf ty lt mut = Type $ HostType $ Self (deSpan ty) (map deSpan lt) mut
 asHostUnknown:: VarType RustVarType
 asHostUnknown = Type $ HostType Unknown
 
+isUnknown :: VarType RustVarType -> Bool
+isUnknown ty = ty == (Type (HostType Unknown))
+
 
 -- REMINDER: Commented out because we don't scan the imported libraries for type extraction any more
 

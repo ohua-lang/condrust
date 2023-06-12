@@ -25,6 +25,8 @@ import Ohua.Frontend.Lang as FrLang
       Pat(TupP, VarP, WildP),
       exprType,
       patType,
+      patBnd,
+      setPatType,
       applyToFinal)
 
 import Ohua.Integration.Lang
@@ -179,7 +181,9 @@ instance Integration (Language 'Rust) where
       typeReturnExpr :: Maybe (Ty a) -> FrLang.Expr RustVarType -> FrLang.Expr RustVarType
       typeReturnExpr mReturnTy block =
          let varType = asVarType mReturnTy
-         in FrLang.applyToFinal (replaceType varType) block
+             retyped = FrLang.applyToFinal (replaceType varType) block
+         in retyped
+
          where asVarType Nothing = TypeUnit
                asVarType (Just ty) = asHostNormal ty
 
@@ -282,17 +286,44 @@ instance Integration (Language 'Rust) where
       traversal :: (ErrAndLogM m, TypeContextM m) =>  FrLang.Expr RustVarType -> m (FrLang.Expr RustVarType)
       traversal =
          \case
-            LetE pat e1 e2 -> do 
-              -- During conversion , when a binding was annotated we inserted it's name and type to the context and propagated it to it's usage site.But it was not used to annotate
-              -- the return type of functions .. However we need this return type for cases where the return is a function call. So we need to insert the pattern type as current_return to the
-              -- context before we try to type e1. On the other hand, if the binding site was not annotated, we require e1 to be fully typed to type the pat with e1's return type
-              traceM $ "Working on let " <> show pat
-              e2' <- traversal e2
-              ctxt <- get
-              modify (HM.insert currentReturnBnd (FrLang.patType pat))
-              e1' <- traversal e1
-              return $ LetE pat e1 e2
-            AppE fun args -> do 
+            l@(LetE pat e1 e2) -> do
+              traceM $ "Working on let: " <> show l
+              let realType = realPatType pat
+              case realType of
+                Just ty -> do
+                      -- If pat was annotated, (potential) usages of pat and the corresponding function type arguments are annotated. 
+                      -- The return type of e1 might not be annotated, this includes the return type of branches
+                      -- > In this case make pat the current return type, proceed with e1 and afterwards with e2
+                      ctxt <- get
+                      modify (HM.insert currentReturnBnd (FrLang.patType pat))
+                      e1' <- traversal e1
+                      -- remove the current return again
+                      put ctxt
+                      e2' <- traversal e2
+                      return $ LetE pat e1' e2'
+                Nothing -> do
+                  -- If pat was not annotated, we might get it's type from 
+                  --  a)  the return type of e1 or
+                  --  b)  usages in e2 (when we concluded argument types from function annotation) written to the context
+                  -- For any let x = something in cont we want to fail if we don't have a return type for something
+                  -- so in this case we need to first do e2 and check if pat was used i.e. we can draw the type from the context
+                  -- set pats type as the current return type if it is known now
+                  -- then process e1 and fail if we neither have a return type annotated nor a real Type as currentReturn
+                  -- if we didn't fail, e1 was return type annotated and we can update pats type
+                      traceM $ "Pattern is untyped" <> show pat
+                      e2' <- traversal e2
+                      ctxt <- get
+                      traceM $ "Processed continuation. Context is " <> show ctxt
+                      let pat' = tryUpdate ctxt pat
+                      modify (HM.insert currentReturnBnd (FrLang.patType pat'))
+                      e1' <- traversal e1
+                      put ctxt -- remove the currentReturn again 
+                      -- The last step failed, if pat was Unknown AND e1 had no return type so we might need to update pat's type now
+                      -- as we allready typed e2 and as the outer expression doesn't know pat, we do not need to add it to the context
+                      let pat'' = tryUpdate ctxt pat
+                      return $ LetE pat'' e1' e2'
+
+            AppE fun args -> do
               traceM $ "Working on app " <> show fun
               return $  AppE fun args -- ToDo: Check if args are typed. 
                                            --       If not, try to type them using the inputType of the 'fun' expression. This can be done by mapping finalTyping over input types and arguments, such that for each 
@@ -326,9 +357,43 @@ instance Integration (Language 'Rust) where
                     _ -> return $ LitE lit
                 _ -> return $ LitE lit
             e@(VarE bnd ty) -> do
-              traceM $ "Working on Var: " <> show e  
-              return $ VarE bnd ty -- That should be the return variable of the algo because we treat all other variables in the context of their expression (binding/or usage)
+              -- Either current return or the variable must be typed if so -> take type, otherwise -> fail 
+              traceM $ "Working on Var: " <> show e
+              ctxt <- get
+              if isUnknown ty
+                then
+                  case HM.lookup currentReturnBnd ctxt of
+                    Nothing -> throwError $ "Couldn't type " <> show bnd
+                    Just ty' | isUnknown ty' ->  throwError $ "Couldn't type " <> show bnd
+                    Just ty' -> return $ VarE bnd ty' -- That should be the return variable of the algo because we treat all other variables in the context of their expression (binding/or usage)
+                else
+                  do
+                    traceM $ "Type is known, will insert binding to context"
+                    modify (HM.insert bnd ty)
+                    modify (HM.insert currentReturnBnd ty)
+                    return e
 
+      tryUpdate::  VarTypeContext -> FrLang.Pat RustVarType -> FrLang.Pat RustVarType
+      -- We want to update the pattern bound on a LHS of a Let expression
+      -- The two possible sources of type information are a) usage sites, in which case the name of the binding should be in the context 
+      -- and b) the return type of the RHS in which case the currentReturn type should be avaiblable and not of type Unknown 
+      tryUpdate ctxt = \case
+        (FrLang.VarP bnd (Type (HostType Unknown))) -> do
+            let mReturnType = HM.lookup currentReturnBnd ctxt
+                mUsedType = HM.lookup bnd ctxt
+            case (mReturnType, mUsedType) of
+              (Just rty, _ ) | not (isUnknown rty) -> VarP bnd rty
+              (_ , Just uty) | not (isUnknown uty) -> VarP bnd uty
+              _  -> error $ "Couldn't type binding " <> show bnd
+        tp@(FrLang.TupP pats) | (isNothing (realPatType tp)) -> do
+                let mReturnType = HM.lookup currentReturnBnd ctxt -- Current return type could be a tuple type
+                    mUsedTypes = mapM (>>= (`HM.lookup` ctxt)) (FrLang.patBnd tp)
+                case (mReturnType, mUsedTypes) of
+                  (Just rty, _ ) | not (isUnknown rty) -> error "We haven't implemented destruction of Rust tuple types as function return types. Please remind us to fix this." --return (VarP bnd rty)
+                  (_, Just (t:ts)) -> setPatType (TupleTy (t:|ts)) tp
+                  _  -> error $ "Couldn't type tuple binding " <> show tp
+        vTyped@FrLang.VarP{} -> vTyped
+        wp@FrLang.WildP{} -> wp  -- There's no value in typing a wild pattern becaus ewe type right to left here and wp's aren't used downstream
 
 
       lookupFunTypes :: ErrAndLogM m => QualifiedBinding -> m ([NSRef], QualifiedBinding)
@@ -393,7 +458,7 @@ getVarType (Sub.Var bnd Nothing) = do
   let argtype = HM.lookup bnd ctxt
   case argtype of
     Just (Sub.RustType rustType) -> return $ asHostNormal rustType
-    Nothing -> error $ "Error: No type info found for " <> show bnd
+    Nothing -> return $ asHostUnknown-- error $ "Error: No type info found for " <> show bnd
 -- FIXME: Actually literal should just carry through the value and the type of the literal
 getVarType (Sub.Lit lit) = case lit of
   Sub.Bool b -> return $ asHostNormal rustBool
@@ -591,7 +656,7 @@ instance ConvertExpr Sub.Block where
                 asBindings = map fromIdent idents
                 keysAndValues = zip asBindings asSubRustType
             modify (\context-> foldl (\c (a,b) ->  HM.insert a b c) context keysAndValues)
-          _ -> error $ "Please type annotate targets of the assignment: " <> show s <> "\n"
+          untypedpattern -> return () --ToDo: Should we warn here? logWarnN $ "Targets of the assignment: " <> show s <> " are not annotated\n"
         pat' <- convertPat pat
         e' <- convertExpr e
         return $ LetE pat' e'
@@ -677,3 +742,13 @@ toQualBinding = QualifiedBinding (makeThrow [])
 instance ConvertExpr Sub.Lit where
   convertExpr (Sub.Int i) = return $ LitE $ NumericLit i
   convertExpr (Sub.Bool b) = return $ LitE $ BoolLit b
+
+
+realPatType:: FrLang.Pat RustVarType -> Maybe (VarType RustVarType)
+realPatType = \case
+      FrLang.VarP _bnd  ty -> if isUnknown ty then Nothing else Just ty
+      FrLang.WildP ty -> if isUnknown ty then Nothing else Just ty
+      tp@(FrLang.TupP pats) ->
+            let TupleTy tys = FrLang.patType tp
+            in if any TE.isUnknown tys then Nothing else Just (TupleTy tys)
+
