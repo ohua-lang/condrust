@@ -5,6 +5,8 @@ module Ohua.Frontend.Lang
     , Expr(..)
     , exprType
     , patType
+    , patBnd
+    , setPatType
     , PatF(..)
     , ExprF(..)
     , patterns
@@ -13,9 +15,11 @@ module Ohua.Frontend.Lang
 
 import Ohua.Prelude
 
+
 import Control.Lens (Traversal')
 import Control.Lens.Plated (Plated, gplate, plate)
 import Data.Functor.Foldable.TH (makeBaseFunctor)
+import qualified Data.List.NonEmpty as NE
 import GHC.Exts
 
 data Pat ty
@@ -32,6 +36,19 @@ patType = \case
     TupP ps -> TupleTy (map patType ps)
     WildP ty -> ty 
 
+
+patBnd:: Pat ty -> [Maybe Binding]
+patBnd = \case 
+    VarP bnd ty -> Just bnd : []
+    TupP ps -> concatMap patBnd ps
+    WildP ty -> Nothing: []
+
+setPatType :: VarType ty -> Pat ty -> Pat ty
+setPatType nty = \case
+    VarP bnd ty -> VarP bnd nty
+    TupP ps -> case nty of
+        TupleTy tys -> TupP $ NE.map (uncurry setPatType) (NE.zip tys ps) 
+    WildP ty -> WildP nty
 
 data Expr ty
     -- REMINDER: We need to wrap the host type in an VarType here, because
@@ -102,7 +119,7 @@ applyToFinal fun =  \case
     LamE p e -> LamE p $ applyToFinal fun e
     IfE b e1 e2 -> IfE b (applyToFinal fun e1)  (applyToFinal fun e2)
     WhileE e1 e2 -> WhileE e1 $ applyToFinal fun e2
-    MapE e1 e2 -> MapE (applyToFinal fun e1) e2 -- we map a finction to a container so the final return is the return of the function
+    MapE e1 e2 -> MapE (applyToFinal fun e1) e2 -- we map a function to a container so the final return is the return of the function
     BindE e1 e2 -> BindE e1 $ applyToFinal fun e2
     StmtE e1 e2 -> StmtE e1 $ applyToFinal fun e2
     SeqE e1 e2 -> SeqE e1 $ applyToFinal fun e2
