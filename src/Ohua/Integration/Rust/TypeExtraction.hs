@@ -10,7 +10,10 @@ import Ohua.Types.Unit (Unit)
 import Language.Rust.Syntax as Rust hiding (Normal, Type)
 import Language.Rust.Data.Ident (Ident)
 import Language.Rust.Parser (Span)
+import Language.Rust.Pretty as RustP
+
 import qualified Data.HashMap.Lazy as HM
+import qualified Data.Text.Prettyprint.Doc as Doc (Pretty(..))
 import Data.List.NonEmpty hiding (map)
 
 
@@ -25,6 +28,12 @@ import Data.List.NonEmpty hiding (map)
 data RustVarType = Self (Ty ()) (Maybe (Lifetime ())) Mutability | Normal (Ty ()) | Unknown deriving (Show, Eq)
 type RustHostType = HostType RustVarType
 type FunTypes = HM.HashMap QualifiedBinding (FunType RustVarType)
+
+
+instance Doc.Pretty RustVarType where
+    pretty (Self ty lT  mut) = RustP.pretty' ty
+    pretty (Normal ty) = RustP.pretty' ty
+    pretty Unknown = "Unknown" 
 
 rustUnitReturn :: Ty ()
 rustUnitReturn = Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "()" Nothing ()] ()) ()
@@ -44,8 +53,8 @@ asHostNormal ty = Type $ HostType $ Normal (deSpan ty)
 asHostSelf:: Ty a -> (Maybe (Lifetime a)) -> Mutability-> VarType RustVarType
 asHostSelf ty lt mut = Type $ HostType $ Self (deSpan ty) (map deSpan lt) mut
 
-asHostUnknown:: VarType RustVarType
-asHostUnknown = Type $ HostType Unknown
+typeUnknown:: VarType RustVarType
+typeUnknown = Type $ HostType Unknown
 
 isUnknown :: VarType RustVarType -> Bool
 isUnknown ty = ty == (Type (HostType Unknown))
