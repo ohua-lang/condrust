@@ -1,12 +1,16 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Ohua.Frontend.Lang
     ( Pat(..)
     , Expr(..)
     , exprType
+    , funType
     , patType
     , patBnd
+    , patTyBnds
     , setPatType
+    , setExprFunType
     , PatF(..)
     , ExprF(..)
     , patterns
@@ -31,23 +35,29 @@ data Pat ty
     deriving (Show, Eq, Generic)
 
 patType:: Pat ty -> VarType ty
-patType = \case 
+patType = \case
     VarP _ ty -> ty
     TupP ps -> TupleTy (map patType ps)
-    WildP ty -> ty 
-
+    WildP ty -> ty
 
 patBnd:: Pat ty -> [Maybe Binding]
-patBnd = \case 
+patBnd = \case
     VarP bnd ty -> Just bnd : []
     TupP ps -> concatMap patBnd ps
     WildP ty -> Nothing: []
+
+-- | Helper function to update the binding context from typed patterns
+patTyBnds :: Pat ty -> [(Binding, VarType ty)]
+patTyBnds = \case
+    VarP bnd ty -> [(bnd, ty)]
+    TupP ps -> concatMap patTyBnds ps
+    WildP ty -> []
 
 setPatType :: VarType ty -> Pat ty -> Pat ty
 setPatType nty = \case
     VarP bnd ty -> VarP bnd nty
     TupP ps -> case nty of
-        TupleTy tys -> TupP $ NE.map (uncurry setPatType) (NE.zip tys ps) 
+        TupleTy tys -> TupP $ NE.map (uncurry setPatType) (NE.zip tys ps)
     WildP ty -> WildP nty
 
 data Expr ty
@@ -68,7 +78,7 @@ data Expr ty
           (Expr ty)
     | WhileE (Expr ty) (Expr ty)
     | MapE (Expr ty) -- ^ Map expression that 'maps' its first argument to its second :: map f xs.
-           (Expr ty) 
+           (Expr ty)
 
     | BindE (Expr ty)
             (Expr ty) -- ^ @BindE state function@ binds @state@ to be operated on by @function@
@@ -99,12 +109,22 @@ exprType (MapE fun container) = TypeList TypeUnit
 -- The (explicit) return type of a function, bound to a state is still the return type of the function
 exprType (BindE _s f) = exprType f
 -- Question: Correct?
-exprType StmtE{} = TypeUnit  
+exprType StmtE{} = TypeUnit
 -- This just makes shure e1 is evaluated although its result is ignored
 exprType (SeqE e1 e2) = exprType e2
-exprType (TupE f (e:es)) = TupleTy (exprType e :| map exprType es) 
+exprType (TupE f (e:es)) = TupleTy (exprType e :| map exprType es)
 -- ToDo: This is wrong in every case where Unit != None
-exprType (TupE f []) = TypeUnit 
+exprType (TupE f []) = TypeUnit
+
+
+funType :: Expr ty -> Maybe (FunType ty)
+funType e = case e of
+        (VarE _bnd (TypeFunction fTy))   -> Just fTy
+        (LitE (FunRefLit fRef))          -> Just $ getRefType fRef
+        (LamE pats body)                 -> Just $ FunType (map patType pats) (exprType body)
+        -- Question: What's the type of BindState at this point?
+        other                            -> Nothing
+
 
 -- If expressions have two possible exits
 -- Question how to make this more elegant. It's not a normal traversal as we don't want to recurse
@@ -123,7 +143,18 @@ applyToFinal fun =  \case
     BindE e1 e2 -> BindE e1 $ applyToFinal fun e2
     StmtE e1 e2 -> StmtE e1 $ applyToFinal fun e2
     SeqE e1 e2 -> SeqE e1 $ applyToFinal fun e2
-     
+
+-- | Takes an expression, a list of types as argument types and a type as return type 
+--   and sets type annotytions of the expression accoringly if it is a function. Otherwise the expression is left unchanged. 
+setExprFunType :: Expr ty -> [VarType ty] -> VarType ty -> Expr ty
+setExprFunType e argTys retTy = case e of
+        (VarE bnd (TypeFunction funTy))       -> VarE bnd (TypeFunction (setFunType argTys retTy funTy))
+        (LitE (FunRefLit (FunRef q i funTy))) -> LitE (FunRefLit (FunRef q i (setFunType argTys retTy funTy)))
+        -- ToDo: Actually I'd have to ensure, that the return type of body is retTy here
+        (LamE pats body)                      -> LamE (zipWith setPatType argTys pats) body
+        (TupE fty exprs)                      -> TupE (setFunType argTys retTy fty) exprs
+        -- Question: What's the type of BindState at this point?
+        other                                 -> other
 
 
 patterns :: Traversal' (Expr ty) (Pat ty)
@@ -155,7 +186,7 @@ instance Plated (Expr ty) where
 instance IsList (Expr ty) where
     type Item (Expr ty) = Expr ty
     fromList [] = TupE (FunType [] TypeUnit) []
-    fromList (e:exprs) = 
+    fromList (e:exprs) =
         let t = exprType e
             tys = map exprType exprs
         in TupE (FunType (t: tys) (TupleTy (t:|tys))) exprs
