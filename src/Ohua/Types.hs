@@ -11,6 +11,8 @@ module Ohua.Types
     , FunType(..)
     , getReturnType
     , setReturnType
+    , setFunType
+    , pureArgTypes
     , toFilePath
     , symbolFromString
     , FunRef(..)
