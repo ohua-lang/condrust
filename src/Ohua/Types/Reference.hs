@@ -15,6 +15,7 @@ import GHC.Generics
 import Control.Lens.TH
 import Control.Lens.Plated
 import Instances.TH.Lift ()
+import Data.Text.Prettyprint.Doc (Pretty(..))
 import GHC.Exts (IsList(..))
 import qualified Data.Text as T
 import Control.Monad.Error.Class (MonadError, throwError)
@@ -36,7 +37,7 @@ import qualified Text.Show
 
 
 data HostType ty where
-    HostType:: (Show ty, Eq ty) =>  ty -> HostType ty
+    HostType::(Pretty ty, Show ty, Eq ty) =>  ty -> HostType ty
 
 instance Show (HostType ty) where
     show (HostType ty) = show ty
@@ -44,6 +45,8 @@ instance Show (HostType ty) where
 instance Lift (HostType ty) where
   lift (HostType ty) = [|hosttype _ |]
 
+instance Pretty (HostType ty) where
+    pretty (HostType ty) = pretty ty
 
 ------------------------------------------------------------------------------------
 --  Generics implementation for GADTS taken from the example described at 
@@ -55,11 +58,14 @@ data ECC :: Constraint -> (Type -> Type) -> Type -> Type where
 instance (c => Show (f a)) => Show (ECC c f a) where
   show (ECC x) = show x
 
+instance (c => Pretty (f a)) => Pretty (ECC c f a) where
+  pretty (ECC x) = pretty x
+
 instance (c, Eq (f x)) => Eq (ECC c f x) where
   ECC x == ECC y = x == y
 
 instance Generic (HostType ty) where
-  type Rep (HostType ty) = (ECC (Show ty, Eq ty) (Rec0 ty))
+  type Rep (HostType ty) = (ECC (Pretty ty, Show ty, Eq ty) (Rec0 ty))
 
   from (HostType x) = ECC (K1 x)
   to (ECC (K1 x)) = HostType x
@@ -117,7 +123,7 @@ instance ShowNoType (VarType ty) where
     -- Is it internal though?
     showNoType TypeString = "IString"
     showNoType (TypeList ts) = "IList [" <> showNoType ts <> "]"
-    showNoType (Type (HostType ty)) = "Type " <> show ty
+    showNoType (Type (HostType ty)) = "Type " <> show (pretty ty)
     showNoType (TupleTy ts) = "(" <>  foldl (\b a -> show a <> ", " <> b) ")" ts
     showNoType (TypeFunction fTy) = "Fun::" <> show fTy
 
@@ -203,9 +209,22 @@ getReturnType:: FunType ty -> VarType ty
 getReturnType (FunType _ins out) = out
 getReturnType (STFunType _s _ins out) = out
 
+pureArgTypes :: FunType ty -> [VarType ty]
+pureArgTypes (FunType ins _out) = ins
+pureArgTypes (STFunType s ins _out) = ins
+
+stateArgTypes :: FunType ty -> Maybe (VarType ty)
+stateArgTypes (FunType _ins _out) = Nothing
+stateArgTypes (STFunType s _ins _out) = Just s
+
 setReturnType :: VarType ty -> FunType ty -> FunType ty
 setReturnType ty (FunType ins out) = FunType ins ty
 setReturnType ty (STFunType s ins out) = STFunType s ins ty
+
+setFunType :: [VarType ty] -> VarType ty -> FunType ty -> FunType ty
+setFunType intys outty (FunType _i _out) = FunType intys outty
+setFunType intys outty (STFunType s _ins _out) = STFunType s intys outty 
+
 
 data FunRef ty where
     FunRef :: QualifiedBinding -> Maybe FnId -> FunType ty -> FunRef ty
