@@ -86,8 +86,7 @@ data Expr ty
             (Expr ty) -- ^ An expression with the return value ignored
     | SeqE (Expr ty)
            (Expr ty)
-    -- ToDo: make it NonEmpty (see type porblem below)
-    | TupE (FunType ty) [Expr ty] -- ^ create a tuple value that can be destructured
+    | TupE [Expr ty] -- ^ create a tuple value that can be destructured
     deriving (Show, Generic)
 
 
@@ -112,9 +111,9 @@ exprType (BindE _s f) = exprType f
 exprType StmtE{} = TypeUnit
 -- This just makes shure e1 is evaluated although its result is ignored
 exprType (SeqE e1 e2) = exprType e2
-exprType (TupE f (e:es)) = TupleTy (exprType e :| map exprType es)
+exprType (TupE (e:es)) = TupleTy (exprType e :| map exprType es)
 -- ToDo: This is wrong in every case where Unit != None
-exprType (TupE f []) = TypeUnit
+exprType (TupE []) = TypeUnit
 
 
 funType :: Expr ty -> Maybe (FunType ty)
@@ -153,7 +152,7 @@ setExprFunType e argTys retTy = case e of
         (LitE (FunRefLit (FunRef q i funTy))) -> LitE (FunRefLit (FunRef q i (setFunType argTys retTy funTy)))
         -- ToDo: Actually I'd have to ensure, that the return type of body is retTy here
         (LamE pats body)                      -> LamE (zipWith setPatType argTys pats) body
-        (TupE fty exprs)                      -> TupE (setFunType argTys retTy fty) exprs
+        -- (TupE exprs)                          -> TupE exprs
         -- Question: What's the type of BindState at this point?
         other                                 -> other
 
@@ -180,17 +179,13 @@ makeBaseFunctor ''Expr
 instance Plated (Expr ty) where
     plate f =
         \case
-            TupE ty es -> TupE ty <$> traverse f es
+            TupE es -> TupE <$> traverse f es
             AppE e es -> AppE <$> f e <*> traverse f es
             other -> gplate f other
 
 instance IsList (Expr ty) where
     type Item (Expr ty) = Expr ty
-    fromList [] = TupE (FunType [] TypeUnit) []
-    fromList (e:exprs) =
-        let t = exprType e
-            tys = map exprType exprs
-        in TupE (FunType (t: tys) (TupleTy (t:|tys))) exprs
+    fromList  = TupE 
 
 
 -- ToDo: These are currently used in the Lowering tests but actually without a default type (i.e. after
