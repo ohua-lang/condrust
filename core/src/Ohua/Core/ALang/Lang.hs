@@ -105,6 +105,7 @@ funType e = case e of
         (Var (TBind _bnd (TypeFunction fTy)))   -> Just fTy
         (Lit (FunRefLit fRef))                  -> Just $ getRefType fRef 
         (Lambda tBnd term)                      -> Just $ FunType [asType tBnd] (exprType term)
+        (BindState _state method)               -> funType method
         -- Question: What's the type of BindState at this point?
         other                                   -> Nothing
 
