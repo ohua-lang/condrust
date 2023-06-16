@@ -2,9 +2,6 @@
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE LambdaCase #-}
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-{-# HLINT ignore "Use lambda-case" #-}
-
 
 module Ohua.Integration.Rust.Frontend where
 
@@ -23,30 +20,17 @@ import Ohua.Frontend.PPrint ()
 import Ohua.Frontend.Lang as FrLang
     ( Expr(..),
       Pat(TupP, VarP, WildP),
-      exprType,
-      patType,
-      patBnd,
-      setPatType,
       applyToFinal)
 
 import Ohua.Integration.Lang
 import Ohua.Integration.Rust.Util
-import Ohua.Integration.Rust.Types
-import Ohua.Integration.Rust.TypeExtraction as TE
+import Ohua.Integration.Rust.TypeHandling as TH 
+import Ohua.Integration.Rust.TypeSystem as TS
 import qualified Ohua.Integration.Rust.Frontend.Subset as Sub
 import qualified Ohua.Integration.Rust.Frontend.Convert as SubC
 
 
 
-
-import qualified Control.Applicative as Hm
-import GHC.Exts (the)
-
-type VarTypeContext = HM.HashMap Binding (VarType RustVarType)
-type TypeContextM m = (Monad m, MonadState VarTypeContext m)
-
-currentReturnBnd::Binding
-currentReturnBnd = "InternalCurrentReturn"
 
 class ConvertExpr a where
   convertExpr :: SubC.ConvertM m => a -> m (FrLang.Expr RustVarType)
@@ -171,8 +155,8 @@ instance Integration (Language 'Rust) where
       -- Currently we only care for pure functions as algos and do nto support tuple
       -- returns (or any sort of elaborate types in the composition). If this changes, we need to 
       -- make the return type more specific
-      getReturn (FnDecl _ (Just ty) _ _ ) = TE.Normal $ deSpan ty
-      getReturn (FnDecl _ Nothing _ _ ) = TE.Normal TE.rustUnitReturn
+      getReturn (FnDecl _ (Just ty) _ _ ) = TH.Normal $ deSpan ty
+      getReturn (FnDecl _ Nothing _ _ ) = TH.Normal TH.rustUnitReturn
 
       fromGlobals:: SubC.ConvertM m => m [FrLang.Pat RustVarType]
       fromGlobals = do
@@ -187,15 +171,6 @@ instance Integration (Language 'Rust) where
          where asVarType Nothing = TypeUnit
                asVarType (Just ty) = asHostNormal ty
 
-               replaceType :: VarType RustVarType -> FrLang.Expr RustVarType -> FrLang.Expr RustVarType
-               replaceType vt e = case e of
-                  VarE bnd _ty -> VarE bnd vt
-                  LitE (EnvRefLit b _ty) -> LitE (EnvRefLit b vt)
-                  LitE (FunRefLit (FunRef q i fty)) -> LitE (FunRefLit (FunRef q i  (setReturnType vt fty)))
-                  lit@(LitE l) -> if getLitType l == vt
-                                    then error $ "Return type of function " <> show vt <> " doesn't match type "<> show (getLitType l) <> " of returned literal"
-                                    else lit
-                  -- ToDo: We can also get TupE here, which needs to be handled
 
   loadTypes ::
     ErrAndLogM m =>
@@ -227,7 +202,7 @@ instance Integration (Language 'Rust) where
     -- So now we go bootom-up and try to type annotate untyped varaibles by first trying to type the arguments of each function call using 
     -- information from the funciton literals and second try to type those arguments where they are assigned (i.e. further up in the code)
     -- using the type info gathered from their usage. 
-    updateExprs ohuaNsTypedFuns finalTyping
+    updateExprs ohuaNsTypedFuns TS.finalTyping
 
     where
       funsForAlgo :: ErrAndLogM m => Algo (FrLang.Expr RustVarType) (Item Span) -> m [([NSRef], QualifiedBinding)]
@@ -249,7 +224,7 @@ instance Integration (Language 'Rust) where
       verifyAndRegister :: ErrAndLogM m => FunTypes -> ([NSRef], QualifiedBinding) -> m (Maybe (QualifiedBinding, FunType RustVarType))
       verifyAndRegister typez ([candidate], qp@(QualifiedBinding _ nam)) =
         case HM.lookup (QualifiedBinding candidate nam) typez of
-          Just t -> trace ("Verified type of " <> show nam <> " is "<> show t <> "\nI considere it fully typed: "<> show (fullyTyped t)) return $ Just (qp, t)
+          Just t -> return $ Just (qp, t)
           Nothing -> do
             -- $ (logWarn) $ "Function `" <> show (unwrap nam) <> "` not found in module `" <> show candidate <> "`."
             return Nothing
@@ -263,139 +238,14 @@ instance Integration (Language 'Rust) where
 
       assignTypes :: ErrAndLogM m => FunTypes -> FrLang.Expr RustVarType -> m (FrLang.Expr RustVarType)
       assignTypes typez = \case
-        f@(LitE (FunRefLit (FunRef qb i ft))) | fullyTyped ft -> trace ("fully typed function: " <> show qb <> " Type is: " <> show ft) return f
+        f@(LitE (FunRefLit (FunRef qb i ft))) | fullyTyped ft -> return f
         f@(LitE (FunRefLit (FunRef qb i ft))) ->
           case HM.lookup qb typez of
-            Just typ ->
-              do
-                traceShowM $ "Typing Function : " <> show qb <> " with type " <> show typ
-                return $ LitE $ FunRefLit $ FunRef qb i typ
+            Just typ -> return $ LitE $ FunRefLit $ FunRef qb i typ
             Nothing -> trace ("No lib function found for: " <> show qb) return f -- throwError $ "I was unable to determine the types for the call to '" <> show qb <> "'. Please provide type annotations."
         e -> return e
 
-      -- | We go through expressions bottom-up and collect types of variables. Bottom-up implies, that we encounter the usage of a variable, bevor it's assignment. 
-      --   Therefor we can use function argument types, extracted in the step before to annotate the argument variables at their usage site and via the context also in
-      --   the expression in wich they are bound. There can be variables e.g. the return variable of a function, that are not used as an argument. We can type them also, 
-      --   by tracing the current 'innermost' return type. 
-      -- ToDo: Monadify
-      finalTyping :: ErrAndLogM m => FrLang.Expr RustVarType -> m (FrLang.Expr RustVarType)
-      finalTyping expr =
-            evalStateT (traversal expr) HM.empty
-            -- State s m a -> s -> m a 
-
-      traversal :: (ErrAndLogM m, TypeContextM m) =>  FrLang.Expr RustVarType -> m (FrLang.Expr RustVarType)
-      traversal =
-         \case
-            l@(LetE pat e1 e2) -> do
-              traceM $ "Working on let: " <> show l
-              let realType = realPatType pat
-              case realType of
-                Just ty -> do
-                      -- If pat was annotated, (potential) usages of pat and the corresponding function type arguments are annotated. 
-                      -- The return type of e1 might not be annotated, this includes the return type of branches
-                      -- > In this case make pat the current return type, proceed with e1 and afterwards with e2
-                      ctxt <- get
-                      modify (HM.insert currentReturnBnd (FrLang.patType pat))
-                      e1' <- traversal e1
-                      -- remove the current return again
-                      put ctxt
-                      e2' <- traversal e2
-                      return $ LetE pat e1' e2'
-                Nothing -> do
-                  -- If pat was not annotated, we might get it's type from 
-                  --  a)  the return type of e1 or
-                  --  b)  usages in e2 (when we concluded argument types from function annotation) written to the context
-                  -- For any let x = something in cont we want to fail if we don't have a return type for something
-                  -- so in this case we need to first do e2 and check if pat was used i.e. we can draw the type from the context
-                  -- set pats type as the current return type if it is known now
-                  -- then process e1 and fail if we neither have a return type annotated nor a real Type as currentReturn
-                  -- if we didn't fail, e1 was return type annotated and we can update pats type
-                      traceM $ "Pattern is untyped" <> show pat
-                      e2' <- traversal e2
-                      ctxt <- get
-                      traceM $ "Processed continuation. Context is " <> show ctxt
-                      let pat' = tryUpdate ctxt pat
-                      modify (HM.insert currentReturnBnd (FrLang.patType pat'))
-                      e1' <- traversal e1
-                      put ctxt -- remove the currentReturn again 
-                      -- The last step failed, if pat was Unknown AND e1 had no return type so we might need to update pat's type now
-                      -- as we allready typed e2 and as the outer expression doesn't know pat, we do not need to add it to the context
-                      let pat'' = tryUpdate ctxt pat
-                      return $ LetE pat'' e1' e2'
-
-            AppE fun args -> do
-              traceM $ "Working on app " <> show fun
-              return $  AppE fun args -- ToDo: Check if args are typed. 
-                                           --       If not, try to type them using the inputType of the 'fun' expression. This can be done by mapping finalTyping over input types and arguments, such that for each 
-                                           --       argument the expected input type is the current return type. If this fails -> fail, otherwise currentRetType = exprType fun
-            LamE pats body -> do
-              traceM $ "Working on lambda" <> show pats
-              return $  LamE pats body -- ToDo: The pats are used in the body, so proceed with the body filling the context and (if necessary) update pats typing or fail if that doesn't work, New currentRetType = exprType body
-            IfE cond eTrue eFalse -> return $  IfE cond eTrue eFalse -- ToDo: 1. proceed with cond, return Type should be Rusts bool, 2. proceed with eTrue, 3. proceed with eFalse 4. assert equal branch return types 5. currentRetType = exprType eTrue
-            WhileE e1 e2 -> return $  WhileE e1 e2 -- Nothing to do, we currently don't use it 
-            MapE fun generator -> return $  MapE fun generator-- ToDo: MapE maps a function to a generator, so 1. proceed with the generator 
-                                             --       2. the return type of the generator is the input type of the function. This way we can type the patterns bound in for loops, even if they are not used in the loop 
-            BindE state method -> return $  BindE state method -- ToDo: 1. This is a usage of the state so check if it is typed 
-                                                     --          (problem with states is, that while they are arguments to methods, they apears only with Self type so we can currently only type them upon assigment. 
-                                                     --          We might do better in the TypeExtraction on impl itemy by carrying the type for which a method is implemented through)
-                                                     --       2. Process the method (it's an AppE expression) 
-                                                     --       3. currentRetType = exprType method
-            StmtE e1 e2  -> return $  StmtE e1 e2 -- ToDo: This just 'does' e1 ignores the return value and procceds with e2. Hence things from e1 might be used in e2 so 
-                                        --       1. proceed with e2
-                                        --       2. proceed with e1
-                                        --       3. currentRetTy = exprype e2
-            SeqE e1 e2 -> return $ SeqE e1 e2 -- ToDo: Process e2 than process e1
-            TupE funTy args -> return $ TupE funTy args -- ToDo: We use this to represent a tuple in rust and generate the funTy from the args i.e. the funTy won't help us typing the args. 
-                                               --       Also, this whole expression is the usage of a tuple, not its assignment, so the current return type should be a tuple and we should be able to use it to type the args.
-                                               --       1. proceed trying to type the args if their not typed -> fail if that fails
-                                               --  
-            l@(LitE lit) -> do
-              traceM $ "Working on Literal: " <> show l
-              case FrLang.exprType l of
-                Type x ->  case x of
-                    HostType TE.Unknown -> return $ LitE lit --throwError $ "Couldn't type literal " <> show lit <> "Found type"<> show x <>". Please help me out by providing annotations or report error"
-                    _ -> return $ LitE lit
-                _ -> return $ LitE lit
-            e@(VarE bnd ty) -> do
-              -- Either current return or the variable must be typed if so -> take type, otherwise -> fail 
-              traceM $ "Working on Var: " <> show e
-              ctxt <- get
-              if isUnknown ty
-                then
-                  case HM.lookup currentReturnBnd ctxt of
-                    Nothing -> throwError $ "Couldn't type " <> show bnd
-                    Just ty' | isUnknown ty' ->  throwError $ "Couldn't type " <> show bnd
-                    Just ty' -> return $ VarE bnd ty' -- That should be the return variable of the algo because we treat all other variables in the context of their expression (binding/or usage)
-                else
-                  do
-                    traceM $ "Type is known, will insert binding to context"
-                    modify (HM.insert bnd ty)
-                    modify (HM.insert currentReturnBnd ty)
-                    return e
-
-      tryUpdate::  VarTypeContext -> FrLang.Pat RustVarType -> FrLang.Pat RustVarType
-      -- We want to update the pattern bound on a LHS of a Let expression
-      -- The two possible sources of type information are a) usage sites, in which case the name of the binding should be in the context 
-      -- and b) the return type of the RHS in which case the currentReturn type should be avaiblable and not of type Unknown 
-      tryUpdate ctxt = \case
-        (FrLang.VarP bnd (Type (HostType Unknown))) -> do
-            let mReturnType = HM.lookup currentReturnBnd ctxt
-                mUsedType = HM.lookup bnd ctxt
-            case (mReturnType, mUsedType) of
-              (Just rty, _ ) | not (isUnknown rty) -> VarP bnd rty
-              (_ , Just uty) | not (isUnknown uty) -> VarP bnd uty
-              _  -> error $ "Couldn't type binding " <> show bnd
-        tp@(FrLang.TupP pats) | (isNothing (realPatType tp)) -> do
-                let mReturnType = HM.lookup currentReturnBnd ctxt -- Current return type could be a tuple type
-                    mUsedTypes = mapM (>>= (`HM.lookup` ctxt)) (FrLang.patBnd tp)
-                case (mReturnType, mUsedTypes) of
-                  (Just rty, _ ) | not (isUnknown rty) -> error "We haven't implemented destruction of Rust tuple types as function return types. Please remind us to fix this." --return (VarP bnd rty)
-                  (_, Just (t:ts)) -> setPatType (TupleTy (t:|ts)) tp
-                  _  -> error $ "Couldn't type tuple binding " <> show tp
-        vTyped@FrLang.VarP{} -> vTyped
-        wp@FrLang.WildP{} -> wp  -- There's no value in typing a wild pattern becaus ewe type right to left here and wp's aren't used downstream
-
-
+      
       lookupFunTypes :: ErrAndLogM m => QualifiedBinding -> m ([NSRef], QualifiedBinding)
       lookupFunTypes q@(QualifiedBinding (NSRef []) nam) =
         return $ (,q) $ maybe globs (: []) $ HM.lookup nam fullyResolvedImports
@@ -416,11 +266,6 @@ instance Integration (Language 'Rust) where
                       <> "'\n Please move it into this module if you happen to import this via a mod.rs file."
                 xs -> return (xs, q)
 
-
-      -- Question: Can we have functions as arguments? 
-      fullyTyped :: FunType RustVarType -> Bool
-      fullyTyped (FunType args retTy) = all (\case  (Type (HostType TE.Unknown)) -> False; TypeFunction fty -> fullyTyped fty; _ -> True) (retTy: args)
-      fullyTyped (STFunType sTy argTys retTy) = all (\case (Type (HostType TE.Unknown)) -> False; TypeFunction fty -> fullyTyped fty; _ -> True) (sTy: retTy: argTys)
 
       fullyResolvedImports = resolvedImports fullyResolved
       aliasImports = resolvedImports aliases
@@ -458,7 +303,7 @@ getVarType (Sub.Var bnd Nothing) = do
   let argtype = HM.lookup bnd ctxt
   case argtype of
     Just (Sub.RustType rustType) -> return $ asHostNormal rustType
-    Nothing -> return $ asHostUnknown-- error $ "Error: No type info found for " <> show bnd
+    Nothing -> return typeUnknown-- error $ "Error: No type info found for " <> show bnd
 -- FIXME: Actually literal should just carry through the value and the type of the literal
 getVarType (Sub.Lit lit) = case lit of
   Sub.Bool b -> return $ asHostNormal rustBool
@@ -481,23 +326,14 @@ instance ConvertExpr Sub.Expr where
     fun'' <- case fun' of
       LitE (FunRefLit (FunRef ref _ _)) -> do
         -- traceM $ "Context at parsing function " <> show ref <> ": \n" <> show ctxt <> "\n"
-        -- ToDo: When we thread return type annotations to type functions OR use the extracted function type we need ot distinguish two cases
-        --       1. we had no annotation 
-        --          -> we set the currentReturn in the context to 'TypeVar' 
-        --          -> we try to retrieve arg types (which we will have from the context anyways as we're going top down) and the return type for the function
-        --          -> in here we do nothing i.e. just produce a function with return type 'TypeVar', because we want to give a useful error message
-        --          however, when we're back at the statement context and the currentType in the context is still 'TypeVar', we error and indicate that the currently 
-        --          assigned variable needs to be annotated
         ty <- argTypesFromContext args
-        retTy <- return $ asHostUnknown -- get this from context later
-        return $ LitE (FunRefLit (FunRef ref Nothing $ FunType ty retTy))
-      -- Currently we don't extract function types correctyl so we still need to type them the good old way
+        return $ LitE (FunRefLit (FunRef ref Nothing $ FunType ty typeUnknown))
+      -- Currently we don't extract function types correctly so we still need to type them the good old way
       VarE bnd _ty -> do
         let qBnd = toQualBinding bnd
         -- traceM $ "Parsing function " <> show bnd <> " In Context : \n" <> show ctxt <> "\n"
         ty <- argTypesFromContext args
-        retTy <- return $ asHostUnknown
-        return $ LitE (FunRefLit (FunRef qBnd Nothing $ FunType ty retTy))
+        return $ LitE (FunRefLit (FunRef qBnd Nothing $ FunType ty typeUnknown))
       _ -> return fun'
     args' <- mapM convertExpr args
     return $ fun'' `AppE` args'
@@ -507,15 +343,14 @@ instance ConvertExpr Sub.Expr where
     receiver' <- convertExpr receiver
     argTys <- argTypesFromContext args
     receiverTy <- getVarType receiver
-    retTy <- return $ asHostUnknown
     -- traceM $ "Context at parsing function " <> show method <> ": \n" <> show ctxt <> "\n"
-    let method' = LitE (FunRefLit (FunRef method Nothing $ STFunType receiverTy argTys retTy))
+    let method' = LitE (FunRefLit (FunRef method Nothing $ STFunType receiverTy argTys typeUnknown))
     args' <- mapM convertExpr args
     return $ BindE receiver' method' `AppE` args'
   convertExpr (Sub.Tuple vars) = do
     vars' <- mapM convertExpr vars
     argTys <- argTypesFromContext vars
-    -- A tuple constructor is a function that takes agrs and return a tuple of them
+    -- A tuple constructor is a function that takes args and return a tuple of them
     let funTy = case argTys of
             [] -> FunType [] TypeUnit
             (t: ts) -> FunType argTys (TupleTy (t:| ts))
@@ -618,7 +453,7 @@ instance ConvertExpr Sub.Expr where
     --        we need to know the current return type 
     -- Check where CallRefs are produced and how we can constrain there occurence.
     ctxt <- get
-    return $ LitE $ FunRefLit $ FunRef ref Nothing $ FunType [asHostUnknown] (asHostUnknown)
+    return $ LitE $ FunRefLit $ FunRef ref Nothing $ FunType [typeUnknown] typeUnknown
   convertExpr (Sub.Var bnd (Just (Sub.RustType ty))) = return $ VarE bnd (asHostNormal ty)
   convertExpr (Sub.Var bnd Nothing) = do
     -- traceM $ "Parsing var " <> show bnd
@@ -628,7 +463,7 @@ instance ConvertExpr Sub.Expr where
       -- We also get here when we convert function names, for which we currently have no proper typing in place so
       -- for now I'll insert a placeholder type, that is replaces as we return from here to typing the Call expression
       -- ToDo: Fix type when we have proper function type extraction again
-      Nothing -> {-(trace $ "Trying to type Variable " <> show bnd )-} return $ VarE bnd (asHostUnknown) -- error $ "No type info found for " <> show bnd
+      Nothing -> {-(trace $ "Trying to type Variable " <> show bnd )-} return $ VarE bnd typeUnknown -- error $ "No type info found for " <> show bnd
 
 instance ConvertExpr Sub.Block where
   convertExpr (Sub.RustBlock Sub.Normal stmts) =
@@ -698,7 +533,7 @@ instance ConvertPat Sub.IdentPat where
     let ty = HM.lookup bnd ctxt
     case ty of
       Just (Sub.RustType rustType) -> return $ VarP bnd (asHostNormal rustType)
-      Nothing -> (trace $ "No type info found for pattern " <> show bnd) return $ VarP bnd (asHostUnknown)
+      Nothing -> (trace $ "No type info found for pattern " <> show bnd) return $ VarP bnd (typeUnknown)
 
 instance ConvertPat Sub.Arg where
   convertPat (Sub.Arg pat ty) = do
@@ -713,11 +548,11 @@ binOpInfo:: Sub.BinOp -> (Binding, VarType RustVarType)
 -- ToDo: It seems infering the type of binary ops should be easy given the input. However
 --       we might need to incorparate Rusts coercion rules if the two arguments differ in type
   -- Check if that applicable and if it would be a problem after all since when somethigncan be coerced for this binary op, it can also be coerced downstream probably, if we just take one of the types.
-binOpInfo Sub.Add =  ("+", asHostUnknown)
-binOpInfo Sub.Sub =  ("-", asHostUnknown)
-binOpInfo Sub.Mul =  ("*", asHostUnknown)
-binOpInfo Sub.Div =  ("/", asHostUnknown)
-binOpInfo Sub.Lt =  ("<", asHostUnknown)
+binOpInfo Sub.Add =  ("+", typeUnknown)
+binOpInfo Sub.Sub =  ("-", typeUnknown)
+binOpInfo Sub.Mul =  ("*", typeUnknown)
+binOpInfo Sub.Div =  ("/", typeUnknown)
+binOpInfo Sub.Lt =  ("<", typeUnknown)
 binOpInfo Sub.Lte =  ("<=", asHostNormal rustBool)
 binOpInfo Sub.Gte =  (">=", asHostNormal rustBool)
 binOpInfo Sub.Gt =  (">", asHostNormal rustBool)
@@ -725,10 +560,10 @@ binOpInfo Sub.EqOp =  ("==", asHostNormal rustBool)
 binOpInfo Sub.OrOp =  ("||", asHostNormal rustBool)
 
 unOpInfo::Sub.UnOp -> (Binding, VarType RustVarType)
-unOpInfo Sub.Deref =  ("*",  asHostUnknown)
+unOpInfo Sub.Deref =  ("*",  typeUnknown)
 -- ToDo: negation is a trait and returns whatever the input type implemented it to return i.e. not necessarily of the same type
-unOpInfo Sub.Not =  ("!",  asHostUnknown)
-unOpInfo Sub.Neg =  ("-",  asHostUnknown)
+unOpInfo Sub.Not =  ("!",  typeUnknown)
+unOpInfo Sub.Neg =  ("-",  typeUnknown)
 
 asFunRef :: Monad m => Binding -> [VarType RustVarType] -> VarType RustVarType -> m (FrLang.Expr RustVarType)
 asFunRef op tys retTy = return $
@@ -742,13 +577,3 @@ toQualBinding = QualifiedBinding (makeThrow [])
 instance ConvertExpr Sub.Lit where
   convertExpr (Sub.Int i) = return $ LitE $ NumericLit i
   convertExpr (Sub.Bool b) = return $ LitE $ BoolLit b
-
-
-realPatType:: FrLang.Pat RustVarType -> Maybe (VarType RustVarType)
-realPatType = \case
-      FrLang.VarP _bnd  ty -> if isUnknown ty then Nothing else Just ty
-      FrLang.WildP ty -> if isUnknown ty then Nothing else Just ty
-      tp@(FrLang.TupP pats) ->
-            let TupleTy tys = FrLang.patType tp
-            in if any TE.isUnknown tys then Nothing else Just (TupleTy tys)
-
