@@ -11,8 +11,7 @@ import Ohua.Backend.Types as B
 import Ohua.Integration.Lang hiding (Lang)
 import Ohua.Integration.Rust.Backend.Convert (prependToBlock)
 import qualified Ohua.Integration.Rust.Backend.Subset as Sub
-import Ohua.Integration.Rust.TypeExtraction as TE (RustVarType (Normal))
-import Ohua.Integration.Rust.Types
+import Ohua.Integration.Rust.TypeHandling as TH (Module(..), RustVarType (Normal))
 import Ohua.Integration.Rust.Util
 import Ohua.Prelude
 import Ohua.Types.Vector (Nat (..), intToNat)

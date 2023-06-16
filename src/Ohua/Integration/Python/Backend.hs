@@ -6,9 +6,9 @@ import Ohua.Backend.Types as B
 
 import Ohua.Integration.Lang hiding (Lang)
 
-import Ohua.Integration.Python.Types
+
 import Ohua.Integration.Python.Util
-import Ohua.Integration.Python.TypeExtraction 
+import Ohua.Integration.Python.TypeHandling 
 import qualified Ohua.Integration.Python.Backend.Subset as Sub
 import qualified Ohua.Integration.Python.SpecialFunctions as SF
 

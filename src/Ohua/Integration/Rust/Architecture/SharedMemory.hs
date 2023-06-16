@@ -22,9 +22,8 @@ import Ohua.Integration.Rust.Backend.Convert
     convertGenericArgs
   )
 import qualified Ohua.Integration.Rust.Backend.Subset as Sub
-import qualified Ohua.Integration.Rust.TypeExtraction as TE
+import qualified Ohua.Integration.Rust.TypeHandling as TH
 import Ohua.Integration.Rust.Architecture.SharedMemory.Transform.DataPar (getInitializers)
-import Ohua.Integration.Rust.Types as RT
 import Ohua.Prelude
 
 instance Architecture (Architectures 'SharedMemory) where
@@ -74,7 +73,7 @@ instance Architecture (Architectures 'SharedMemory) where
                     (Sub.CallRef (mkFunRefUnqual "send") Nothing)
                     [bnd]
 
-  build arch@SSharedMemory{} (Module _ (Rust.SourceFile _ _ _items)) ns =
+  build arch@SSharedMemory{} (TH.Module _ (Rust.SourceFile _ _ _items)) ns =
     return $ ns & algos %~ map (\algo -> algo & algoCode %~ createTasksAndChannels)
     where
       createTasksAndChannels (Program chans retChan tasks) =
@@ -175,7 +174,7 @@ instance Architecture (Architectures 'SharedMemory) where
          in Rust.Block (program ++ [Rust.NoSemi resultHandling noSpan]) Rust.Normal noSpan
       createProgram (Program chans expr tasks) = error $ "Compilations resulted in a result expression: " <> show expr <> "This is probably a bug, please report."
 
-convertToRustType :: VarType TE.RustVarType -> Maybe Sub.RustType 
+convertToRustType :: VarType TH.RustVarType -> Maybe Sub.RustType 
 convertToRustType rTy =  Sub.RustType <$> toRustTy rTy
 
 

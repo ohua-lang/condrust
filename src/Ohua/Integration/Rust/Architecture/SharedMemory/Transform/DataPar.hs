@@ -3,7 +3,7 @@
 module Ohua.Integration.Rust.Architecture.SharedMemory.Transform.DataPar where
 
 --import Ohua.Integration.Rust.Architecture.SharedMemory ()
-import qualified Ohua.Integration.Rust.TypeExtraction as RT
+import qualified Ohua.Integration.Rust.TypeHandling as RT
 import Ohua.Integration.Architecture
 import Ohua.Integration.Rust.Backend
 import Ohua.Integration.Rust.Backend.Subset

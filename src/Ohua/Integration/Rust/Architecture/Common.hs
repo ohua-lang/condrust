@@ -9,8 +9,7 @@ import Data.Text.Lazy (unpack)
 import Language.Rust.Pretty (pretty', Resolve, Pretty)
 import Language.Rust.Syntax as Rust hiding (Rust)
 import Ohua.Backend.Types
-import qualified Ohua.Integration.Rust.TypeExtraction  as TE
-import Ohua.Integration.Rust.Types
+import qualified Ohua.Integration.Rust.TypeHandling  as TH
 import Ohua.Integration.Rust.Util
 import Ohua.Prelude
 import System.FilePath (takeFileName)
@@ -18,17 +17,17 @@ import Language.Rust.Data.Ident
 
 serialize ::
   ErrAndLogM m =>
-  Module ->
-  Namespace (Program chan expr stmts TE.RustVarType) anno ->
-  (Program chan expr stmts TE.RustVarType -> Block ()) ->
-  Module ->
+  TH.Module ->
+  Namespace (Program chan expr stmts TH.RustVarType) anno ->
+  (Program chan expr stmts TH.RustVarType -> Block ()) ->
+  TH.Module ->
   m (NonEmpty (FilePath, L.ByteString))
 -- REMINDER: Replace Placeholder. Output new library file
-serialize (Module path (SourceFile modName atts items)) ns createProgram placeholder =
+serialize (TH.Module path (SourceFile modName atts items)) ns createProgram placeholder =
   let algos' = HM.fromList $ map (\(Algo name expr _ ) -> (name, expr)) $ ns ^. algos
       src = SourceFile modName atts $ map (replaceAlgo algos') items
       path' = takeFileName path -- TODO verify this!
-      (Module libname lib) = placeholder 
+      (TH.Module libname lib) = placeholder 
    in return $ (path', render src) :| [(libname, render lib)]
   where
     -- FIXME now we can just insert instead of replacing them!
@@ -56,18 +55,18 @@ renderStr =
     . pretty'
 
 
-toRustTy :: VarType TE.RustVarType -> Maybe (Rust.Ty ())
+toRustTy :: VarType TH.RustVarType -> Maybe (Rust.Ty ())
 toRustTy ty = case ty of
     TypeUnit -> Just $ Rust.TupTy [] ()
     TypeNat -> Just $  Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "usize" Nothing ()] ()) ()
     TypeBool ->  Just $ Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "bool" Nothing ()] ()) ()
     
-    (Type (HostType (TE.Self ty _ _ ))) ->  Just $ ty
-    (Type (HostType (TE.Normal ty))) -> Just $  ty
-    (Type (HostType (TE.Unknown))) -> trace "Type Unknown mad it through the compiler" Just $  Rust.Infer ()
+    (Type (HostType (TH.Self ty _ _ ))) ->  Just $ ty
+    (Type (HostType (TH.Normal ty))) -> Just $  ty
+    (Type (HostType (TH.Unknown))) -> trace "Type Unknown mad it through the compiler" Just $  Rust.Infer ()
     
     (TupleTy types) ->  do 
-      let check = any (== Type (HostType TE.Unknown)) types
+      let check = any (== Type (HostType TH.Unknown)) types
       traceM $ "Is there an UnKnown in the types?:  " <> show check 
       types' <- mapM toRustTy types
       return $ Rust.TupTy (toList types') ()

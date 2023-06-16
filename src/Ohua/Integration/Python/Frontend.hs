@@ -15,8 +15,7 @@ import Ohua.Frontend.Lang as FrLang
 import Ohua.Integration.Lang
 
 import Ohua.Integration.Python.Util
-import Ohua.Integration.Python.Types
-import Ohua.Integration.Python.TypeExtraction
+import Ohua.Integration.Python.TypeHandling
 import Ohua.Integration.Python.Frontend.Convert (suiteToSub, paramToSub)
 import qualified Ohua.Integration.Python.Frontend.Subset as Sub
 import qualified Ohua.Integration.Python.SpecialFunctions as SF

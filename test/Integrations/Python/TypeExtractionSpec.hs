@@ -1,5 +1,5 @@
 {-# LANGUAGE QuasiQuotes #-}
-module Integrations.Python.TypeExtractionSpec
+module Integrations.Python.TypeHandlingSpec
     ( spec
     ) where
 
@@ -12,7 +12,7 @@ import qualified Language.Python.Common.AST as Py
 
 import qualified Data.HashMap.Lazy as HM
 
-import Ohua.Integration.Python.TypeExtraction
+import Ohua.Integration.Python.TypeHandling
 
 {-- TODO:   1. Where to put the Quasiquoter to avoid redundancy?
             2. Write testcase python to check type extraction from functions

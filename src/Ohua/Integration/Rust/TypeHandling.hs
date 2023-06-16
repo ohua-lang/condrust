@@ -1,5 +1,7 @@
+{-# LANGUAGE ConstraintKinds #-}
+
 {-# LANGUAGE ScopedTypeVariables #-}
-module Ohua.Integration.Rust.TypeExtraction where
+module Ohua.Integration.Rust.TypeHandling where
 
 import Ohua.Prelude
 
@@ -17,6 +19,9 @@ import qualified Data.Text.Prettyprint.Doc as Doc (Pretty(..))
 import Data.List.NonEmpty hiding (map)
 
 
+data Module = Module FilePath (SourceFile Span)
+
+
 -- We currently have the problem, that during lowering the rust code it is ok for some things to be not properly typed i.e.
 -- we first translate the algo, extracting the type info from annotations, next we extracttype info from imported functions and last we
 -- (will) try to merge those infos to find out if there's anything elft untyped. 
@@ -28,6 +33,12 @@ import Data.List.NonEmpty hiding (map)
 data RustVarType = Self (Ty ()) (Maybe (Lifetime ())) Mutability | Normal (Ty ()) | Unknown deriving (Show, Eq)
 type RustHostType = HostType RustVarType
 type FunTypes = HM.HashMap QualifiedBinding (FunType RustVarType)
+
+
+type VarTypeContext = HM.HashMap Binding (VarType RustVarType)
+type TypeContextM m = (Monad m, MonadState VarTypeContext m)
+
+
 
 
 instance Doc.Pretty RustVarType where
@@ -154,3 +165,10 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
                             _ -> FunType (x0 : args) retTy
             in funType <$> convertImplArg selfType fstArg 
 
+
+maxType :: VarType RustVarType -> VarType RustVarType -> VarType RustVarType
+maxType (Type (HostType Unknown)) (Type (HostType Unknown)) = (Type (HostType Unknown))
+maxType (Type (HostType Unknown)) t2 = t2
+maxType t1 (Type (HostType Unknown)) = t1
+maxType t1 t2 | t1 == t2 = t1
+maxType t1 t2 = error $ "Typing error. Comparing types " <> show t1 <> " and " <> show t2

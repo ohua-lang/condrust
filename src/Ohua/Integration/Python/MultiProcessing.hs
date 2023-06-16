@@ -12,8 +12,7 @@ import Ohua.Integration.Python.Backend
 import Ohua.Integration.Python.Backend.Subset as Sub
 import Ohua.Integration.Python.Backend.Convert
 import Ohua.Integration.Python.Util
-import Ohua.Integration.Python.Types
-import Ohua.Integration.Python.TypeExtraction
+import Ohua.Integration.Python.TypeHandling
 
 
 import qualified Language.Python.Common.AST as Py

@@ -26,14 +26,13 @@ import Ohua.Integration.Rust.Backend.Convert
     prependToBlock,
   )
 import qualified Ohua.Integration.Rust.Backend.Subset as Sub
-import qualified Ohua.Integration.Rust.TypeExtraction as TE
-import qualified Ohua.Integration.Rust.Types as RT
+import qualified Ohua.Integration.Rust.TypeHandling as TH
 import Ohua.Prelude
 import Ohua.Integration.Rust.Backend.Passes (propagateMut)
 import Data.Text (unpack, unlines)
 import Ohua.Integration.Rust.Architecture.SharedMemory (convertToRustType)
 
-convertChan :: Sub.BindingMode -> Channel TE.RustVarType -> Rust.Stmt ()
+convertChan :: Sub.BindingMode -> Channel TH.RustVarType -> Rust.Stmt ()
 convertChan rxMutability (SRecv _ty (SChan bnd)) =
     let channel = noSpan <$ [expr| channel() |]
      in Rust.Local
@@ -48,12 +47,12 @@ convertChan rxMutability (SRecv _ty (SChan bnd)) =
           []
           noSpan
 
-convertReceive :: Binding -> Com 'Recv TE.RustVarType -> Sub.Expr
+convertReceive :: Binding -> Com 'Recv TH.RustVarType -> Sub.Expr
 convertReceive suffix (SRecv argType (SChan channel)) =
   let ty' = case argType of
-              (Type (HostType( TE.Self ty _ _mut))) -> noSpan <$ ty
+              (Type (HostType( TH.Self ty _ _mut))) -> noSpan <$ ty
               -- error "Not yet implemented: Recv of reference type"
-              (Type (HostType(TE.Normal ty))) -> noSpan <$ ty
+              (Type (HostType(TH.Normal ty))) -> noSpan <$ ty
               internalType -> case convertToRustType internalType of 
                   Just (Sub.RustType ty) -> ty
                   Nothing -> error $ "Couldn't handle type " <> show argType <> " for channel " <> show channel
@@ -99,7 +98,7 @@ instance Architecture (Architectures 'M3) where
         Sub.Try
               (Sub.MethodCall (Sub.Var $ channel <> "_child_tx") (Sub.CallRef (asQualBind "send") Nothing) [item])
 
-  build SM3{} (RT.Module _ (Rust.SourceFile _ _ _items)) ns =
+  build SM3{} (TH.Module _ (Rust.SourceFile _ _ _items)) ns =
     return $ ns & algos %~ map (\algo -> algo & algoCode %~ createTasksAndRetChan)
     where
       createTasksAndRetChan (Program chans retChan tasks) =

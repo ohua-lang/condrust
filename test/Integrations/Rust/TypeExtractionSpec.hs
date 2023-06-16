@@ -1,5 +1,5 @@
 {-# LANGUAGE QuasiQuotes #-}
-module Integrations.Rust.TypeExtractionSpec
+module Integrations.Rust.TypeHandlingSpec
     ( spec
     ) where
 
@@ -13,7 +13,7 @@ import Language.Rust.Parser (Span)
 
 import qualified Data.HashMap.Lazy as HM
 
-import Ohua.Integration.Rust.TypeExtraction
+import Ohua.Integration.Rust.TypeHandling
 
 
 -- extractTypes :: Show a => SourceFile a -> IO (HM.HashMap QualifiedBinding (FunType (RustVarType)))

@@ -1,11 +1,13 @@
 {-# LANGUAGE ScopedTypeVariables #-}
-module Ohua.Integration.Python.TypeExtraction where
+module Ohua.Integration.Python.TypeHandling where
 
 import Ohua.Prelude
 import Ohua.Integration.Python.Util
 
 import Language.Python.Common.AST 
 import Language.Python.Common.SrcLocation
+import qualified Language.Python.Common as Py
+
 
 
 import qualified Data.HashMap.Lazy as HM
@@ -19,3 +21,5 @@ instance Pretty PythonVarType where
     pretty PythonObject = "obj"
 
 type FunTypes = HM.HashMap QualifiedBinding (FunType PythonVarType)
+
+data Module = Module FilePath (Py.Module Py.SrcSpan)
