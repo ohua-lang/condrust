@@ -147,17 +147,17 @@ typeSystem = \case
         return $ SeqE e1 cont
 
 
-    (TupE fty exprs) -> do
+    (TupE exprs) -> do
 
     {-
         As we now annotate the variables, there's no good reason any more to carry an extra function type for the tuple function but anyways
 
                       Gamma |- e1:T1  Gamma |- e2:T2 ... Gamma |- en: Tn
     ======================================================================================
-      Gamma |- TupE fty [e1, e2 ... , en] : [T1, T2, ... , Tn] -> TupleTy [T1, T2, .. , Tn] 
+      Gamma |- TupE [e1, e2 ... , en] : [T1, T2, ... , Tn] -> TupleTy [T1, T2, .. , Tn] 
 
     -}
-        return $ TupE fty exprs
+        return $ TupE exprs
 
 
     (VarE bnd ty) -> do
@@ -366,12 +366,12 @@ propagateFunAnnotations =
         modify (HM.insert currentReturnBnd (exprType e2'))
         return $ SeqE e1' e2'
 
-    TupE funTy args -> do
+    TupE args -> do
         -- That's the usage of args, not their assignment so we do not need to reset the outer context after processing them 
         args' <- mapM propagateFunAnnotations args
         let argTys@(t:tys) = map exprType args'
         modify (HM.insert currentReturnBnd (TupleTy (t:| tys)))
-        return $ TupE (FunType argTys (TupleTy (t:| tys))) args
+        return $ TupE args
 
     l@(LitE lit) -> do
         traceM $ "\n Working on Literal: " <> show l

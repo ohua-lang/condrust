@@ -350,11 +350,7 @@ instance ConvertExpr Sub.Expr where
   convertExpr (Sub.Tuple vars) = do
     vars' <- mapM convertExpr vars
     argTys <- argTypesFromContext vars
-    -- A tuple constructor is a function that takes args and return a tuple of them
-    let funTy = case argTys of
-            [] -> FunType [] TypeUnit
-            (t: ts) -> FunType argTys (TupleTy (t:| ts))
-    return $ TupE funTy vars'
+    return $ TupE vars'
   convertExpr (Sub.Binary op left right) = do
     left' <- convertExpr left
     right' <- convertExpr right
