@@ -122,6 +122,7 @@ funType e = case e of
         (VarE _bnd (TypeFunction fTy))   -> Just fTy
         (LitE (FunRefLit fRef))          -> Just $ getRefType fRef
         (LamE pats body)                 -> Just $ FunType (map patType pats) (exprType body)
+        (BindE _state method)            -> funType method
         -- Question: What's the type of BindState at this point?
         other                            -> Nothing
 
