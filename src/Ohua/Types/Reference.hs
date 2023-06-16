@@ -123,7 +123,7 @@ instance ShowNoType (VarType ty) where
     -- Is it internal though?
     showNoType TypeString = "IString"
     showNoType (TypeList ts) = "IList [" <> showNoType ts <> "]"
-    showNoType (Type (HostType ty)) = "Type " <> show (pretty ty)
+    showNoType (Type (HostType ty)) = show (pretty ty)
     showNoType (TupleTy ts) = "(" <>  foldl (\b a -> show a <> ", " <> b) ")" ts
     showNoType (TypeFunction fTy) = "Fun::" <> show fTy
 
