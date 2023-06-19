@@ -196,5 +196,15 @@ fusedFunReceives (PureFusable vars _ _)   = extractAll vars
 fusedFunReceives (STFusable r vars _ _ _) = extractAll $ r:vars
 fusedFunReceives (IdFusable r _) = extractAll [r]
 
-fuseFuns :: FusableFunction ty -> FusableFunction ty -> FusableFunction ty
-fuseFuns = error "Unimplemented function called. Please report"
+fuseFuns :: FusableFunction ty -> FusableFunction ty -> FusedFun ty
+fuseFuns fun1 fun2 =
+  case (fun1, fun2) of
+    -- | Fusion for state initializers
+    ( PureFusable initReceives fInit usOuts@(SendResult usOut@(SChan stateCh) :| []),
+      STFusable stateRecv@(SRecv _ dsStateIn) argReceives fState outs stateOut ) |
+      usOut == dsStateIn
+      ->
+      FusedFun
+      (PureFusable initReceives fInit (DropResult :| [] ))
+      (genFused $ STFusable (Converted $ Var stateCh) argReceives fState outs stateOut)
+    _ -> error "Unimplemented function called. Please report"
