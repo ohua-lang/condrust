@@ -29,9 +29,10 @@ import Ohua.Integration.Rust.TypeHandling
 --   by tracing the current 'innermost' return type. 
 -- ToDo: Monadify
 finalTyping :: ErrAndLogM m => FrLang.Expr RustVarType -> m (FrLang.Expr RustVarType)
-finalTyping expr = do
-    expr' <- evalStateT (propagateFunAnnotations expr) HM.empty
-    evalStateT (propagateVarAnnotations expr') HM.empty
+finalTyping expr = -- do
+    -- expr' <- evalStateT (propagateFunAnnotations expr) HM.empty
+    -- evalStateT (propagateVarAnnotations expr') HM.empty
+    evalStateT (typeSystem expr) HM.empty
 
 
 typeSystem:: (ErrAndLogM m, TypeContextM m) =>  FrLang.Expr RustVarType -> m (FrLang.Expr RustVarType)
@@ -55,12 +56,14 @@ typeSystem = \case
                             Nothing -> throwError $ "Binding " <> show bnd <> " illegally removed from context. That's a bug."
                             Just ty | isUnknown ty -> throwError $ "Type for binding " <> show bnd <> " could not be inferred. Please provide annotation."
                             Just ty -> return ty
+        
+        let e1'' = FrLang.applyToFinal (replaceType ty_final) e1'
 
-        -- assignReturnType e1' ty_final
+        -- That happened during processing e2
         -- updateVarType e2' (bnd, ty_final)
 
         put outer_context
-        return $ LetE (VarP bnd ty') e1' e2'
+        return $ LetE (VarP bnd ty_final) e1'' e2'
 
 
     (AppE f@(LitE (FunRefLit l)) args) -> do
@@ -160,14 +163,14 @@ typeSystem = \case
         return $ TupE exprs
 
 
-    (VarE bnd ty) -> do
-
+    v@(VarE bnd ty) -> do
     {-
         x:T in Gamma
     =======================
         Gamma |– x: T
     -}
         ctxt <- get
+        traceM $ "Typing " <> show v
         -- Normally VarE is not annotated, because it's the usage of a variable
         ty' <- case HM.lookup bnd ctxt of
                             Nothing -> throwError $ "Binding " <> show bnd <> " illegally removed from context. That's a bug."
@@ -188,6 +191,9 @@ typeSystem = \case
         l : T
     -}
         return $ LitE l
+    e -> do 
+        traceM $ "Didn't match pattern " <> show e
+        return e
 
 
 
@@ -436,6 +442,7 @@ realPatType = \case
       tp@(FrLang.TupP pats) ->
             let TupleTy tys = FrLang.patType tp
             in if any isUnknown tys then Nothing else Just (TupleTy tys)
+
 
 replaceType :: VarType RustVarType -> FrLang.Expr RustVarType -> FrLang.Expr RustVarType
 replaceType vt e = case e of
