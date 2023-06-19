@@ -167,8 +167,19 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
 
 
 maxType :: VarType RustVarType -> VarType RustVarType -> VarType RustVarType
+-- ^ Unknown == Unknown
 maxType (Type (HostType Unknown)) (Type (HostType Unknown)) = (Type (HostType Unknown))
+-- ^ Any type > Unknown
 maxType (Type (HostType Unknown)) t2 = t2
 maxType t1 (Type (HostType Unknown)) = t1
+-- ^ equal types -> take the first
 maxType t1 t2 | t1 == t2 = t1
-maxType t1 t2 = error $ "Typing error. Comparing types " <> show t1 <> " and " <> show t2
+
+-- ^ unequal host types -> for know thats an error, but actually we need to resort to Rust here e.g Self vs ActualType => ActuaType
+maxType (Type (HostType t1)) (Type (HostType t2)) = error $ "Typing error. Comparing types " <> show t1 <> " and " <> show t2
+
+-- Problem: For an arbitrary host ty, we can not tell if it should be coercible to internal Types we assign to literals e.g. NumericLit/Boollit etc.
+-- What we need are HostLits, with a String representation and a Host Type. So far we don't have that andI'll hack arround the type system by always giving 
+-- precedence to the host type. 
+maxType t@(Type (HostType ty)) someInternalType = t
+maxType someInternalType t@(Type (HostType ty)) = t
