@@ -110,7 +110,10 @@ fuseFunctions Options{stateInitFusion=True} (TCProgram chans resultChan exprs) =
     go (f : fs) =
       let (fusedFun  , fs' ) = fuseFunction f fs
           (fusedFuns , fs'') = go fs'
-      in (fusedFun : fusedFuns, fs'')
+          fs''' = case fusedFun of
+                    Nothing -> f : fs''
+                    a -> fs''
+     in (fusedFun : fusedFuns, fs''')
 
     fuseFunction :: FusableFunction ty -> [FusableFunction ty] -> (Maybe (FusedFun ty), [FusableFunction ty])
     fuseFunction f [] = (Nothing, [])
