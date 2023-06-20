@@ -23,6 +23,7 @@ import Ohua.Frontend.Lang as FrLang
 
 import Ohua.Integration.Rust.TypeHandling
 import Foreign.C (throwErrno)
+import Control.Exception (assert, throw)
 
 -- | We go through expressions bottom-up and collect types of variables. Bottom-up implies, that we encounter the usage of a variable, bevor it's assignment. 
 --   Therefor we can use function argument types, extracted in the step before to annotate the argument variables at their usage site and via the context also in
@@ -60,7 +61,7 @@ typeSystem = \case
                             Just ty -> return ty
         traceM $ "Final type of bnd "<> show bnd <> " is type  " <> show ty_final
 
-        e1'' <- FrLang.applyToFinal (propagateReturnType ty_final) e1'
+        e1'' <- propagateType ty_final e1'
 
         -- That happened during processing e2
         -- updateVarType e2' (bnd, ty_final)
@@ -68,6 +69,7 @@ typeSystem = \case
         put outer_context
         traceM $ "Returing Let " <> show (VarP bnd ty_final) <> " = " <> show e1'' <> " in\n    " <> show e2'
         return $ LetE (VarP bnd ty_final) e1'' e2'
+
 
 
     (AppE fun args) -> do
@@ -84,10 +86,9 @@ typeSystem = \case
              Just fty -> return $ pureArgTypes fty
              Nothing -> throwError $ "Apply Expression haas been formaed with something that isn't a function but " <> show fun'
         -- check that function type and args lengths correspond -> else error
-        maxArgTypes <- if length argsTys == length funInputTys
-                            then return $ zipWith maxType argsTys funInputTys
-                            else throwError $ "Typing Error: Number of given arguments doesn't fit to number of arguments from declaration in fucntion call: " <> show fun
+        assertE (length argsTys == length funInputTys) $ "Number of given arguments doesn't fit to number of arguments from declaration in fucntion call: " <> show fun
                                                <> "\nWith arguments: " <> show args
+        let maxArgTypes =  zipWith maxType argsTys funInputTys
         -- maxArgTypes will fail if there was a typing inconsistency between args and function annotation
         -- update args & f with max types
         -- I was tempted to delete args from the context here, but this is not entirely top-down i.e. we can not use this to make sure the 'used arguments' aren't valid anymore downstream
@@ -122,11 +123,15 @@ typeSystem = \case
 
     (BindE state method) -> do
     {-
-            Gamma, state:S p1:T1 p2:T2 ... pn:Tn |- method:Tm
-    =================================================================
-        Gamma |- Bind state method : S -> T1 -> T2 -> ... -> Tn -> Tm
-    -}
-        return $ BindE state method
+        Gamma |- state:S  Gamma |- method: T1 -> T2 -> ... -> Tn -> Tm
+    ========================================================================
+         Gamma |- Bind state method : S -> T1 -> T2 -> ... -> Tn -> Tm
+    -}  
+        state' <- typeSystem state
+        method' <- typeSystem method
+        assertE (isJust $ funType method') $ "The function " <> show method' <> " had type " <> show (exprType method') <> " but should have had a function type."
+
+        return $ BindE state' method'
 
     (IfE cond tTrue tFalse) -> do
     {-
@@ -134,6 +139,7 @@ typeSystem = \case
     =====================================================================
                     Gamma |- If cond tTrue tFalse : T
     -}
+        cond' <- typeSystem cond
         return $ IfE cond tTrue tFalse
 
     (WhileE cond body) -> do
@@ -144,7 +150,7 @@ typeSystem = \case
     ======================================= 
         Gamma |- While cond body : Unit
 
-    -}
+    -}  
         return $ WhileE cond body
 
     (MapE loopFun generator) ->  do
@@ -157,7 +163,15 @@ typeSystem = \case
             Gamma |- MapE loopFun generator : Unit
 
     -}
-        return $ MapE loopFun generator
+        generator' <- typeSystem generator
+        loopFun' <- typeSystem loopFun
+        let loopType = exprType loopFun'
+        let generatorType = exprType generator'
+        case loopType of
+            TypeFunction (FunType [inTy] outTy ) -> assertE (inTy == generatorType) $ "In MapE " <> show loopFun' <> " " <> show generator' <> "\nReturn and loopinput don't match"
+            other -> throwError $ "For Loop bodies should be converted to Lambda expressions and have function types. This one had type " <> show other  
+        
+        return $ MapE loopFun' generator'
 
     (StmtE e1 cont) -> do
     {-
@@ -167,8 +181,10 @@ typeSystem = \case
     ========================================
             Gamma |- Stmt e1 cont : T
 
-    -}
-        return $ StmtE e1 cont
+    -}  
+        e1' <- typeSystem e1
+        cont' <- typeSystem cont
+        return $ StmtE e1' cont'
 
     (SeqE e1 cont) -> do
 
@@ -180,7 +196,9 @@ typeSystem = \case
             Gamma |- Seq e1 cont : T
 
     -}
-        return $ SeqE e1 cont
+        e1' <- typeSystem e1
+        cont' <- typeSystem cont 
+        return $ SeqE e1' cont'
 
 
     (TupE exprs) -> do
@@ -192,8 +210,9 @@ typeSystem = \case
     ======================================================================================
       Gamma |- TupE [e1, e2 ... , en] : [T1, T2, ... , Tn] -> TupleTy [T1, T2, .. , Tn] 
 
-    -}
-        return $ TupE exprs
+    -}  
+        exprs' <- mapM typeSystem exprs
+        return $ TupE exprs'
 
 
     v@(VarE bnd ty) -> do
@@ -228,6 +247,27 @@ typeSystem = \case
         traceM $ "Didn't match pattern " <> show e
         return e
 
+
+propagateType:: (ErrAndLogM m, TypeContextM m) => VarType RustVarType -> FrLang.Expr RustVarType -> m (FrLang.Expr RustVarType)
+propagateType ty = \case 
+        -- We should have a funtion type at this point
+        --- let a: x->y = LamE pats body => pats:x body:y 
+        e@LamE{} -> case ty of 
+              TypeFunction fty -> propagateFunType fty e
+              other -> throwError $ "Cannot type the lambda expression " <> show e <> " with non-function type " <> show ty
+        -- ToDo: this is not correct, there might be nested function types.  
+        --- let a: x = e => e:x 
+        e -> FrLang.applyToFinal (propagateReturnType ty) e
+
+propagateFunType::(ErrAndLogM m, TypeContextM m) => FunType RustVarType -> FrLang.Expr RustVarType -> m (FrLang.Expr RustVarType)
+propagateFunType fty (LamE pats body) = do
+    let argTypes = pureArgTypes fty 
+    let returnType = getReturnType fty
+    body' <- propagateType returnType body
+    -- FIXME: This isn't correct still. We'd need to add the typed patterns to the context and use them when passing the body again.
+    return $ LamE (zipWith setPatType argTypes pats) body'
+propagateFunType _fty other           = throwError $ "Cannot apply a function type to expression " <> show other 
+
 propagateReturnType :: (ErrAndLogM m, TypeContextM m) => VarType RustVarType -> FrLang.Expr RustVarType -> m (FrLang.Expr RustVarType)
 propagateReturnType tyNew expr = do
     ctxt <- get
@@ -249,7 +289,7 @@ propagateArgTypes tys fun  = case fun of
     -- ToDo: This doesn't propagate the pattern types into the body, but we likely allready processed the body so just adding the types to the context wont help here 
     -- > FIX by propagation types to body. 
     LamE pats body -> LamE (zipWith setPatType tys pats) body
-    BindE state fun -> BindE state (propagateArgTypes tys fun) 
+    BindE state fun -> BindE state (propagateArgTypes tys fun)
 
 
 tryUpdate::  VarTypeContext -> FrLang.Pat RustVarType -> FrLang.Pat RustVarType
@@ -299,3 +339,10 @@ replaceType tyNew e = case e of
 fullyTyped :: FunType RustVarType -> Bool
 fullyTyped (FunType args retTy) = all (\case  (Type (HostType Unknown)) -> False; TypeFunction fty -> fullyTyped fty; _ -> True) (retTy: args)
 fullyTyped (STFunType sTy argTys retTy) = all (\case (Type (HostType Unknown)) -> False; TypeFunction fty -> fullyTyped fty; _ -> True) (sTy: retTy: argTys)
+
+
+-- Stole this (kind of) from Core/Util because I don't wantto import Core here
+assertE :: (IsString s, MonadError s m, HasCallStack, Monoid s) => Bool -> s -> m ()
+assertE True  _ = return ()
+assertE False msg = throwError $ "TypingError: " <> msg
+{-# INLINE assertE #-}
