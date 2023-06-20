@@ -215,7 +215,7 @@ trans =
             -- FIXME: This shouldn't be stringly typed
             WildP ty -> TBind "_" ty
             p -> error $ 
-             "Compiler screwed up. At this point any patterns" <>
+             "The Compiler screwed up. At this point any patterns" <>
              "(function arguments or let bound variables) should be single vars or wild card but " <> show p <>
              "is not. Please file a bug."
 
