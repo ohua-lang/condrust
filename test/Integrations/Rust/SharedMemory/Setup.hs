@@ -23,6 +23,7 @@ import Language.Rust.Syntax
 import Ohua.Compile.Compiler (compile)
 import qualified Ohua.Integration.Architecture as Arch
 import qualified Ohua.Integration.Config as IC
+import qualified Ohua.Backend.Config as BC
 import qualified Ohua.Integration.Options as O
 import Ohua.Prelude
 import System.Directory (copyFile, createDirectory, setCurrentDirectory)
@@ -30,7 +31,7 @@ import System.Exit (ExitCode (..))
 import System.FilePath
 import System.IO.Temp
 import Test.Hspec
-import TestOptions 
+import TestOptions
 import Integrations.TestSetup (Testable(..))
 import Ohua.Core.Types (Options)
 import System.Process.Extra (readProcessWithExitCode)
@@ -55,6 +56,8 @@ renderRustCode =
     . layoutSmart defaultLayoutOptions
     . pretty'
 
+backendOptions :: BC.Options
+backendOptions = BC.Options False
 
 integrationOptions :: IC.Config
 integrationOptions = IC.Config Arch.SharedMemory $ O.Options Nothing Nothing
@@ -79,7 +82,7 @@ compileModule inCode opts cty = do
           let options = if debug then withDebug opts else opts
           runCompM
             LevelWarn
-            $ compile inFile compScope options integrationOptions outDir
+            $ compile inFile compScope options backendOptions integrationOptions outDir
           let outFile = outDir </> takeFileName inFile
 
           -- producedCode <- readFile outFile

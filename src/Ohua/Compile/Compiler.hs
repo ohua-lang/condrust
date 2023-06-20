@@ -21,6 +21,7 @@ import Ohua.Core.Compile.Configuration as CoreConfig
 import Ohua.Core.Compile as Core (compile)
 import qualified Ohua.Core.Compile.Configuration as CConfig
 import qualified Ohua.Backend as B (backend)
+import qualified Ohua.Backend.Config as BConfig (Options)
 import qualified Ohua.Backend.Types as BT
 import Ohua.Compile.Lower.FrLang (toAlang)
 import Ohua.Compile.Lower.DFLang (toTCLang)
@@ -37,36 +38,38 @@ compile :: CompM m
         => FilePath           -- ^ Input: path to the file to be compiled
         -> CompilationScope   -- ^ Frontend config: scope of the current compilation
         -> CoreEnv.Options    -- ^ Core config
+        -> BConfig.Options    -- ^ Backend config
         -> IConfig.Config     -- ^ Integration configuration
         -> FilePath           -- ^ Output: path to the file to be generated
         -> m ()
-compile inFile compScope coreOpts integConf outDir =
+compile inFile compScope coreOpts beConf integConf outDir =
     runIntegration
         (toText $ takeExtension inFile)
         integConf
-        (compilation inFile compScope coreOpts outDir)
+        (compilation inFile compScope coreOpts beConf outDir)
 
 compilation :: forall (lang::Lang) (arch::Arch) m.
     (CompM m, FullIntegration lang arch)
-    => FilePath 
-    -> CompilationScope 
-    -> CoreEnv.Options 
+    => FilePath
+    -> CompilationScope
+    -> CoreEnv.Options
+    -> BConfig.Options
     -> FilePath
     -> Maybe (CConfig.CustomPasses (BT.Type (Language lang)))
-    -> Language lang 
-    -> Architectures arch 
+    -> Language lang
+    -> Architectures arch
     -> m ()
-compilation inFile compScope coreOpts outDir optimizations integration arch = do
+compilation inFile compScope coreOpts beConf outDir optimizations integration arch = do
     -- frontend: extract all algorithms (function definitions) from the given scope and
     --           transform them into the frontend language
-    -- REMINDER: I need to keep brackets around (ctxt, n) here because frontend returns an object 
+    -- REMINDER: I need to keep brackets around (ctxt, n) here because frontend returns an object
     ((ctxt, extracted_algos), enc_module) <- Fr.frontend integration compScope inFile
-    -- middle end: 
+    -- middle end:
     extracted_algos_as_ALang <- updateExprs extracted_algos toAlang
     extracted_algos_as_DFLang <- updateExprsWithReturn extracted_algos_as_ALang core
     extracted_algos_final <- updateExprs extracted_algos_as_DFLang toTCLang
     -- backend
-    B.backend outDir extracted_algos_final ctxt arch enc_module
+    B.backend outDir beConf extracted_algos_final ctxt arch enc_module
 
     where
         -- core ::forall (lang::Lang) (arch::Arch) m ty. (CompM m, FullIntegration lang arch) => ty -> ALang.Expr ty -> m (DFLang.NormalizedDFExpr ty)

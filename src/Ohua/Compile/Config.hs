@@ -41,6 +41,7 @@ import Ohua.Core.Types.Stage
 import Ohua.Core.Types.Environment (Options, stageHandling, transformRecursiveFunctions)
 import Ohua.Frontend.Types (CompilationScope)
 import qualified Ohua.Integration.Config as IC
+import qualified Ohua.Backend.Config as BC (Options, defaultOptions)
 
 import qualified Data.Text as T (unpack, pack)
 import qualified Data.Yaml as Y
@@ -86,6 +87,7 @@ data CompilerOptions = CompilerOptions
     { compilationScope :: CompilationScope
     , extraFeatures :: [Feature]
     , integrationFeatures :: IC.Config
+    , backendFeatures :: BC.Options
     , debug :: DebugOptions
     } deriving (Show, Eq)
 
@@ -144,10 +146,16 @@ instance FromJSON CompilerOptions where
         (intoCompilationScope <$> v .:?  "compilation-scope" .!= []) <*>
         v .:? "extra-features" .!= [] <*>
         v .:? "integration-features" .!= IC.defaultConfig <*>
+        v .:? "backend-features" .!= BC.defaultOptions <*>
         v .:? "debug" .!= defaultDebug
 
 defaultCompilerOptions :: CompilerOptions
-defaultCompilerOptions = CompilerOptions HM.empty [] IC.defaultConfig defaultDebug
+defaultCompilerOptions = CompilerOptions
+  HM.empty
+  []
+  IC.defaultConfig
+  BC.defaultOptions
+  defaultDebug
 
 loadConfig :: (MonadIO m) => Maybe String -> m CompilerOptions
 loadConfig Nothing    = return defaultCompilerOptions
@@ -158,6 +166,9 @@ extractCoreOptions CompilerOptions {..} =
     def
         & stageHandling .~ stageHandlingOpt debug
         & transformRecursiveFunctions .~ ("tail-recursion" `elem` extraFeatures)
+
+extractBackendConfig :: CompilerOptions -> BC.Options
+extractBackendConfig CompilerOptions {..} = backendFeatures
 
 extractIntegrationConfig :: CompilerOptions -> IC.Config
 extractIntegrationConfig CompilerOptions {..} = integrationFeatures
