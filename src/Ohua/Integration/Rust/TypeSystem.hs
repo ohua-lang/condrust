@@ -21,7 +21,8 @@ import Ohua.Frontend.Lang as FrLang
       setExprFunType,
       applyToFinal)
 
-import Ohua.Integration.Rust.TypeHandling 
+import Ohua.Integration.Rust.TypeHandling
+import Foreign.C (throwErrno)
 
 -- | We go through expressions bottom-up and collect types of variables. Bottom-up implies, that we encounter the usage of a variable, bevor it's assignment. 
 --   Therefor we can use function argument types, extracted in the step before to annotate the argument variables at their usage site and via the context also in
@@ -43,6 +44,7 @@ typeSystem = \case
     =======================================================
         Gamma |– let (x:X) e1 e2 : T2 
     -}
+        traceM $ "Typing Let " <> show bnd <> " = " <> show e1 <> " in\n    " <> show e2
         outer_context <- get
         e1' <- typeSystem e1
         let ty' = maxType ty (exprType e1')
@@ -56,28 +58,47 @@ typeSystem = \case
                             Nothing -> throwError $ "Binding " <> show bnd <> " illegally removed from context. That's a bug."
                             Just ty | isUnknown ty -> throwError $ "Type for binding " <> show bnd <> " could not be inferred. Please provide annotation."
                             Just ty -> return ty
-        
-        let e1'' = FrLang.applyToFinal (replaceType ty_final) e1'
+        traceM $ "Final type of bnd "<> show bnd <> " is type  " <> show ty_final
+
+        e1'' <- FrLang.applyToFinal (propagateReturnType ty_final) e1'
 
         -- That happened during processing e2
         -- updateVarType e2' (bnd, ty_final)
 
         put outer_context
+        traceM $ "Returing Let " <> show (VarP bnd ty_final) <> " = " <> show e1'' <> " in\n    " <> show e2'
         return $ LetE (VarP bnd ty_final) e1'' e2'
 
 
-    (AppE f@(LitE (FunRefLit l)) args) -> do
+    (AppE fun args) -> do
     {-
-    Gamma|– f: T1 -> T2 -> ... Tn -> Tf    Gamma|-t1: T1 Gamma|- t2:T2 ... Gamma|- tn:Tn
+    Gamma|– fun: T1 -> T2 -> ... Tn -> Tf    Gamma|-t1: T1 Gamma|- t2:T2 ... Gamma|- tn:Tn
     ========================================================================================
-        Gamma |– f t1 t2 ... tn : Tf
+        Gamma |– fun t1 t2 ... tn : Tf
     -}
+        traceM $ "Typing AppE " <> show fun <> show args
         args' <- mapM typeSystem args
-        -- check that function type and args lengths correspond -> else error 
-        -- zipWith maxType function anontation arg types and args' types
+        fun' <- typeSystem fun
+        let argsTys = map exprType args'
+        funInputTys <- case funType fun' of
+             Just fty -> return $ pureArgTypes fty
+             Nothing -> throwError $ "Apply Expression haas been formaed with something that isn't a function but " <> show fun'
+        -- check that function type and args lengths correspond -> else error
+        maxArgTypes <- if length argsTys == length funInputTys
+                            then return $ zipWith maxType argsTys funInputTys
+                            else throwError $ "Typing Error: Number of given arguments doesn't fit to number of arguments from declaration in fucntion call: " <> show fun
+                                               <> "\nWith arguments: " <> show args
+        -- maxArgTypes will fail if there was a typing inconsistency between args and function annotation
         -- update args & f with max types
-        -- return Type is handled in let matching
-        return $ AppE f args
+        -- I was tempted to delete args from the context here, but this is not entirely top-down i.e. we can not use this to make sure the 'used arguments' aren't valid anymore downstream
+        -- but I need to update the context for any args, that where named variables or literals
+        args'' <- zipWithM propagateReturnType maxArgTypes args'
+        -- the function could be a literal, in which case type propagation is trivial. But it could also be a Lambda expression, in which case we handled the body
+        -- before, possibly without propper types in the context, in case the types came from the arguments. :-( 
+        let fun'' = propagateArgTypes maxArgTypes fun'
+        -- the functions return type is handled in the LetE matching
+        traceM $ "Returning AppE " <> show fun'' <> show args''
+        return $ AppE fun'' args''
 
     (LamE pats expr) -> do
     {-
@@ -85,7 +106,19 @@ typeSystem = \case
     =================================================================
         Gamma |- Lamda p1 p2 .. pn. e : T1 -> T2 -> ... -> Tn -> Te
     -}
-        return $ LamE pats expr
+        outer_ctxt <- get
+        traceM $ "Typing LamE " <> show pats <> show expr
+        let bndsAndTypes = concatMap patTyBnds pats
+        mapM_ (\(b, t) -> modify (HM.insert b t)) bndsAndTypes
+        expr' <- typeSystem expr
+        body_ctxt <- get
+        let pats' = map (tryUpdate body_ctxt) pats
+        -- Remove the local vars from the context 
+        put outer_ctxt
+        -- FIXME: By resetting the context, we also delete updated typing for vriables from outer context.
+        -- Resetting works if it's just about the names being defined but I think we need another meachnism (maybe intersection based on keys) here
+        traceM $ "Returning LamE " <> show pats' <> show expr'
+        return $ LamE pats' expr'
 
     (BindE state method) -> do
     {-
@@ -170,7 +203,7 @@ typeSystem = \case
         Gamma |– x: T
     -}
         ctxt <- get
-        traceM $ "Typing " <> show v
+        traceM $ "Typing " <> show v <> " in context " <> show ctxt
         -- Normally VarE is not annotated, because it's the usage of a variable
         ty' <- case HM.lookup bnd ctxt of
                             Nothing -> throwError $ "Binding " <> show bnd <> " illegally removed from context. That's a bug."
@@ -191,224 +224,33 @@ typeSystem = \case
         l : T
     -}
         return $ LitE l
-    e -> do 
+    e -> do
         traceM $ "Didn't match pattern " <> show e
         return e
 
+propagateReturnType :: (ErrAndLogM m, TypeContextM m) => VarType RustVarType -> FrLang.Expr RustVarType -> m (FrLang.Expr RustVarType)
+propagateReturnType tyNew expr = do
+    ctxt <- get
+    case expr of
+        (VarE bnd _t) -> do modify (HM.insert bnd tyNew); return (VarE bnd tyNew)
+        LitE (EnvRefLit bnd _ty) -> do modify (HM.insert bnd tyNew); return $ LitE (EnvRefLit bnd tyNew)
+        LitE (FunRefLit (FunRef q i fty)) -> return $ LitE (FunRefLit (FunRef q i  (setReturnType tyNew fty)))
+        -- ToDo: If we had a HostLiteral (instead of NumericLit etc.) we'd need to type here as well 
+        lit@(LitE l) -> return lit
+        -- ToDo: implement type return type propagation for missing expressions.
+        otherE -> throwError $ "Implementing type propagation for " <> show otherE <> " is required"
 
+propagateArgTypes:: [VarType RustVarType] -> FrLang.Expr RustVarType -> FrLang.Expr RustVarType
+propagateArgTypes tys fun  = case fun of
+    VarE bnd (TypeFunction fty) ->       let newFty = setFunType tys (getReturnType fty) fty
+                                         in  VarE bnd (TypeFunction newFty)
+    LitE (FunRefLit (FunRef q i fty)) -> let newFty = setFunType tys (getReturnType fty) fty
+                                         in  LitE (FunRefLit (FunRef q i newFty))
+    -- ToDo: This doesn't propagate the pattern types into the body, but we likely allready processed the body so just adding the types to the context wont help here 
+    -- > FIX by propagation types to body. 
+    LamE pats body -> LamE (zipWith setPatType tys pats) body
+    BindE state fun -> BindE state (propagateArgTypes tys fun) 
 
--- ToDo: Refcator to two passes
---       First: bottom up function type propagation 
-                -- uppon function applicatcations, try to type arguments with function annotation or vice versa -> fail if that fails
-                -- variable usage adds it to context, varibale assignment delets it
-propagateFunAnnotations :: (ErrAndLogM m, TypeContextM m) =>  FrLang.Expr RustVarType -> m (FrLang.Expr RustVarType)
-propagateFunAnnotations =
-    \case
-    l@(LetE pat e1 e2) -> do
-        traceM $ "\n Working on let: " <> show l
-        let realType = realPatType pat
-        case realType of
-            Just ty -> do
-                    -- If pat was annotated, (potential) usages of pat and the corresponding function type arguments are annotated. 
-                    -- The return type of e1 might not be annotated, this includes the return type of branches
-                    -- > In this case make pat the current return type, proceed with e1 and afterwards with e2
-                    ctxt <- get
-                    modify (HM.insert currentReturnBnd (FrLang.patType pat))
-                    e1' <- propagateFunAnnotations e1
-                    -- remove the current return again
-                    put ctxt
-                    e2' <- propagateFunAnnotations e2
-                    return $ LetE pat e1' e2'
-            Nothing -> do
-                -- If pat was not annotated, we might get it's type from 
-                --  a)  the return type of e1 or
-                --  b)  usages in e2 (when we concluded argument types from function annotation) written to the context
-                -- For any let x = something in cont we want to fail if we don't have a return type for something
-                -- so in this case we need to first do e2 and check if pat was used i.e. we can draw the type from the context
-                -- set pats type as the current return type if it is known now
-                -- then process e1 and fail if we neither have a return type annotated nor a real Type as currentReturn
-                -- if we didn't fail, e1 was return type annotated and we can update pats type
-                    traceM $ "Pattern is untyped" <> show pat
-                    ctxt_outer <- get
-                    e2' <- propagateFunAnnotations e2
-                    ctxt_e2 <- get
-                    traceM $ "Processed continuation. Context is " <> show ctxt_e2
-                    let pat' = tryUpdate ctxt_e2 pat
-                    put ctxt_outer
-                    modify (HM.insert currentReturnBnd (FrLang.patType pat'))
-                    e1' <- propagateFunAnnotations e1
-                    -- If traversing e1 succeeded the currentReturnType is not Unknown so we might update the binding again 
-                    ctxt_e1 <- get
-                    let pat'' = tryUpdate ctxt_e1 pat
-                    put ctxt_outer
-                    -- If pat was of type Unknown AND e1 had no return type the last traversing e1 failed. So as we got here, we might need to update pat's type now.
-                    -- We allready typed e2 and the outer expression doesn't know pat, so we do not need to add it to the context
-                    modify (HM.insert currentReturnBnd (FrLang.exprType e2'))
-                    traceM $ "Concluded pattern is: " <> show pat''
-                    return $ LetE pat'' e1' e2'
-
-    AppE fun args -> do
-        traceM $ "\n Working on App " <> show fun <> show args
-        -- here we have two possible sources of information: 
-        --    the arguments might be typed expressions
-        --    we might get a function type for fun 
-        -- The problem is, if we just traverse them, each one could fail and we don't want to fail here unless they fail both
-        -- So what to do? 
-        -- First approach: Check if the fun has a type and is fully typed 
-                    -- > if so use the argument types as returnType when traversing the arguments, also add funs return type as return Type to the context afterwards
-                    -- > if not traverse the arguments setting return type to unknown before each one, this fails if args can't be typedif it succeeds take the expr types of the arguments and the current return type to type the function
-            -- Problem, this leaves out the possiblity to type the function by first traversing it  
-        outer_context <- get
-        case FrLang.funType fun of
-            Nothing -> error $ "Couldn't get a function type for the expression:\n " <> show fun <> "\n Please file a bug."
-            Just fty -> do
-                if fullyTyped fty
-                then do
-                    traceM $ "Function is fully typed: " <> show fty
-                    let argTypes = pureArgTypes fty
-                    fun' <- propagateFunAnnotations fun
-                    put outer_context
-                    args' <- mapM (\(ty, arg) -> do modify (HM.insert currentReturnBnd ty); propagateFunAnnotations arg) (zip argTypes args)
-                    modify (HM.insert currentReturnBnd (getReturnType fty))
-                    return $ AppE fun' args' -- ToDo: Check if args are typed. 
-                                        --       If not, try to type them using the inputType of the 'fun' expression. This can be done by mapping finalTyping over input types and arguments, such that for each 
-                                        --       argument the expected input type is the current return type. If this fails -> fail, otherwise currentRetType = exprType fun
-                else do
-                    traceM $ "Function needs typing: " <> show fty
-                    args' <- mapM propagateFunAnnotations args
-                    let argTypes = map exprType args'
-                    let retTy = case HM.lookup currentReturnBnd outer_context of
-                            Nothing -> error $ "No return type for function"
-                            Just ty -> trace ("Found return type " <> show ty) ty
-                    put outer_context
-                    -- ToDo: need to set funtype fo rexpr -> might be fun lit 
-                    return $ AppE (setExprFunType fun argTypes retTy) args'
-
-
-    LamE pats body -> do
-        -- The pats are used in the body, so proceed with the body filling the context and update pats typing or fail if that doesn't work, 
-        traceM $ "\n Working on lambda" <> show pats
-        body' <- propagateFunAnnotations body
-        -- we don't want the bound patterns to be typed via the return type because this is no let expression
-        modify (HM.insert currentReturnBnd typeUnknown)
-        ctxt <- get
-        let pats' = map (tryUpdate ctxt) pats
-        modify (HM.insert currentReturnBnd (exprType body'))
-        return $  LamE pats' body'
-
-    ifE@(IfE cond eTrue eFalse) -> do
-        cond' <- propagateFunAnnotations cond
-        eTrue' <- propagateFunAnnotations eTrue
-        eFalse' <- propagateFunAnnotations eFalse
-        if exprType eTrue' == exprType eFalse'
-        then do
-            modify (HM.insert currentReturnBnd (exprType eTrue'))
-            return $  IfE cond' eTrue' eFalse'
-        else error $ "Could not derive equal return types for branches in if-expression " <> show  ifE
-
-    WhileE e1 e2 -> return $  WhileE e1 e2 -- Nothing to do, we currently don't use it 
-    MapE (LamE [pat] body) generator -> do
-        -- MapE maps a function to a generator.We only use it to represent loops at this point.
-        -- o we know the first subterm is a LamE and the pattern is untyped (because there are no type annotations on loop patterns)
-        -- 1. proceed with the generator 
-        -- 2. the return type of the generator is the input type of the function. This way we can type the patterns bound in for loops, even if they are not used in the loop
-        -- if we can type the generator -> use the type to type the pattern, otherwise we could also do it the other way arround and try to get the output typ of the generator from a usage of the pattern in the body
-        outer_context <- get
-        generator' <- propagateFunAnnotations generator
-        -- The generators return type is now the currentReturnType in the context
-        ctxt <- get
-        let pat' = tryUpdate ctxt pat
-        case patType pat' of
-            t@(Type (HostType Unknown)) -> do
-                -- the generator has no known return type, so we process the body first, then try to update the pattern and then try to give the generator a return type
-                body' <- propagateFunAnnotations body
-                body_ctxt <- get
-                -- Now we should be able to update the pattern using the context
-                let pat' =  tryUpdate body_ctxt pat
-                -- If this didn't error, the pattern now has a type
-                let newRet = patType pat'
-                -- set the correct return type to the generator
-                let generator'' = FrLang.applyToFinal (replaceType newRet) generator'
-                put outer_context
-                return $ MapE (LamE [pat'] body') generator''
-            aType -> do
-                -- Insert pattern names and types into context. The pattern might be a tuple, so there can be more than one
-                mapM_ (\(bnd, ty) -> modify (HM.insert bnd ty)) (patTyBnds pat')
-                body' <- propagateFunAnnotations body
-                put outer_context
-                return $  MapE (LamE [pat'] body') generator'
-
-
-    BindE state method -> do
-        -- ToDo: 1. This is a usage of the state so check if it is typed 
-        --          (problem with states is, that while they are arguments to methods, they apears only with Self type so we can currently only type them upon assigment. 
-        --          We might do better in the TypeHandling on impl items by carrying the type for which a method is implemented through)
-        --       2. Process the method (it's an AppE expression) 
-        --       3. currentRetType = exprType method
-        state' <- propagateFunAnnotations state
-        method' <- propagateFunAnnotations method
-        modify (HM.insert currentReturnBnd (exprType method'))
-        return $  BindE state' method'
-
-    StmtE e1 e2  -> do
-    -- This just 'does' e1 ignores the return value and procceds with e2. Hence things from e1 might be used in e2 so 
-    --       1. proceed with e2
-    --       2. proceed with e1
-    --       3. currentRetTy = exprype e2
-        outer_context <- get
-        e2' <- propagateFunAnnotations e2
-        e1' <- propagateFunAnnotations e1
-        put outer_context
-        modify (HM.insert currentReturnBnd (exprType e2'))
-        return $ StmtE e1' e2'
-
-    SeqE e1 e2 -> do
-    -- Process e2 than process e1
-    -- Question: What was the difference to StmtE again?
-        outer_context <- get
-        e2' <- propagateFunAnnotations e2
-        e1' <- propagateFunAnnotations e1
-        put outer_context
-        modify (HM.insert currentReturnBnd (exprType e2'))
-        return $ SeqE e1' e2'
-
-    TupE args -> do
-        -- That's the usage of args, not their assignment so we do not need to reset the outer context after processing them 
-        args' <- mapM propagateFunAnnotations args
-        let argTys@(t:tys) = map exprType args'
-        modify (HM.insert currentReturnBnd (TupleTy (t:| tys)))
-        return $ TupE args
-
-    l@(LitE lit) -> do
-        traceM $ "\n Working on Literal: " <> show l
-        case FrLang.exprType l of
-            t@(Type (HostType Unknown)) -> do
-                    traceM $ "Literal " <> show l <> " had unknown return type."
-                    modify (HM.insert currentReturnBnd t)
-                    return $ LitE lit --throwError $ "Couldn't type literal " <> show lit <> "Found type"<> show x <>". Please help me out by providing annotations or report error"
-            someType -> do
-                    modify (HM.insert currentReturnBnd someType)
-                    return $ LitE lit
-
-    e@(VarE bnd ty) -> do
-        -- Either current return or the variable must be typed if so -> take type, otherwise -> fail 
-        traceM $ "\n Working on Var: " <> show e
-        ctxt <- get
-        if isUnknown ty
-        then
-            case HM.lookup currentReturnBnd ctxt of
-            Nothing -> throwError $ "Couldn't type " <> show bnd
-            Just ty' | isUnknown ty' ->  throwError $ "Couldn't type " <> show bnd
-            Just ty' -> return $ VarE bnd ty' -- That should be the return variable of the algo because we treat all other variables in the context of their expression (binding/or usage)
-        else
-            do
-            traceM $ "Type is known, will insert binding to context"
-            modify (HM.insert bnd ty)
-            modify (HM.insert currentReturnBnd ty)
-            return e
-
-propagateVarAnnotations :: (ErrAndLogM m, TypeContextM m) =>  FrLang.Expr RustVarType -> m (FrLang.Expr RustVarType)
-propagateVarAnnotations = return
 
 tryUpdate::  VarTypeContext -> FrLang.Pat RustVarType -> FrLang.Pat RustVarType
 -- We want to update the pattern bound on a LHS of a Let expression
@@ -416,21 +258,17 @@ tryUpdate::  VarTypeContext -> FrLang.Pat RustVarType -> FrLang.Pat RustVarType
 -- and b) the return type of the RHS in which case the currentReturn type should be avaiblable and not of type Unknown 
 tryUpdate ctxt = \case
     (FrLang.VarP bnd (Type (HostType Unknown))) -> do
-        let mReturnType = HM.lookup currentReturnBnd ctxt
-            mUsedType = HM.lookup bnd ctxt
-        case (mReturnType, mUsedType) of
-            (Just rty, _ ) | not (isUnknown rty) -> VarP bnd rty
-            (_ , Just uty) | not (isUnknown uty) -> VarP bnd uty
-            _  -> error $ "Couldn't type binding " <> show bnd
+        case HM.lookup bnd ctxt of
+            Just rty | not (isUnknown rty) -> VarP bnd rty
+            _  -> error $ "Couldn't type pattern " <> show bnd
     tp@(FrLang.TupP pats) | (isNothing (realPatType tp)) -> do
-            let mReturnType = HM.lookup currentReturnBnd ctxt -- Current return type could be a tuple type
-                mUsedTypes = mapM (>>= (`HM.lookup` ctxt)) (FrLang.patBnd tp)
-            case (mReturnType, mUsedTypes) of
-                (Just rty, _ ) | not (isUnknown rty) -> error "We haven't implemented destruction of Rust tuple types as function return types. Please remind us to fix this." --return (VarP bnd rty)
-                (_, Just (t:ts)) -> setPatType (TupleTy (t:|ts)) tp
+            let mUsedTypes = mapM (>>= (`HM.lookup` ctxt)) (FrLang.patBnd tp)
+            case  mUsedTypes of
+                (Just [rty]) | not (isUnknown rty) -> error "We haven't implemented destruction of Rust tuple types as function return types. Please remind us to fix this." --return (VarP bnd rty)
+                (Just tys@(t:ts)) | length tys == length pats -> setPatType (TupleTy (t:|ts)) tp
                 _  -> error $ "Couldn't type tuple binding " <> show tp
     vTyped@FrLang.VarP{} -> vTyped
-    wp@FrLang.WildP{} -> wp  -- There's no value in typing a wild pattern becaus ewe type right to left here and wp's aren't used downstream
+    wp@FrLang.WildP{} -> wp  -- There's no value in typing a wild pattern because we type right to left here and wp's aren't used downstream
 
 
 
@@ -444,18 +282,18 @@ realPatType = \case
             in if any isUnknown tys then Nothing else Just (TupleTy tys)
 
 
-replaceType :: VarType RustVarType -> FrLang.Expr RustVarType -> FrLang.Expr RustVarType
-replaceType vt e = case e of
-  VarE bnd _ty -> VarE bnd vt
-  LitE (EnvRefLit b _ty) -> LitE (EnvRefLit b vt)
-  LitE (FunRefLit (FunRef q i fty)) -> LitE (FunRefLit (FunRef q i  (setReturnType vt fty)))
-  lit@(LitE l) -> if getLitType l == vt
-                    then error $ "Return type of function " <> show vt <> " doesn't match type "<> show (getLitType l) <> " of returned literal"
-                    else lit
+-- ToDo: This is essentially the same as propagateReturnType, except that we have a slightly different context and do not need to 
+-- manipulate the context -> Can we merge the functions?
+replaceType ::(ErrAndLogM m) => VarType RustVarType -> FrLang.Expr RustVarType -> m (FrLang.Expr RustVarType)
+replaceType tyNew e = case e of
+  VarE bnd _ty -> return $ VarE bnd tyNew
+  LitE (EnvRefLit b _ty) -> return $  LitE (EnvRefLit b tyNew)
+  LitE (FunRefLit (FunRef q i fty)) -> return $ LitE (FunRefLit (FunRef q i  (setReturnType tyNew fty)))
+  lit@(LitE l) -> if getLitType l == tyNew
+                    then throwError $ "Return type of function " <> show tyNew <> " doesn't match type "<> show (getLitType l) <> " of returned literal"
+                    else return lit
                   -- ToDo: We can also get TupE here, which needs to be handled
 
-currentReturnBnd::Binding
-currentReturnBnd = "InternalCurrentReturn"
 
 -- Question: Can we have functions as arguments? 
 fullyTyped :: FunType RustVarType -> Bool

@@ -24,7 +24,7 @@ import Ohua.Frontend.Lang as FrLang
 
 import Ohua.Integration.Lang
 import Ohua.Integration.Rust.Util
-import Ohua.Integration.Rust.TypeHandling as TH 
+import Ohua.Integration.Rust.TypeHandling as TH
 import Ohua.Integration.Rust.TypeSystem as TS
 import qualified Ohua.Integration.Rust.Frontend.Subset as Sub
 import qualified Ohua.Integration.Rust.Frontend.Convert as SubC
@@ -118,7 +118,7 @@ instance Integration (Language 'Rust) where
         join <$> mapM (extractImports path') nesteds'
 
       extractAlgo ::
-        SubC.ConvertM m =>
+        (SubC.ConvertM m, ErrAndLogM m) =>
         FnDecl Span ->
         Block Span ->
         m (FrLang.Expr RustVarType)
@@ -135,7 +135,7 @@ instance Integration (Language 'Rust) where
         args' <- mapM (convertPat <=< SubC.convertArg) args
         -- Convert the function block
         block' <- convertIntoFrExpr block
-        let block'' = typeReturnExpr mReturnTy block'
+        block'' <- typeReturnExpr mReturnTy block'
         return $ LamE (implGlobalArgs ++ args') block''
 
       convertIntoFrExpr :: SubC.ConvertM m => Block Span -> m (FrLang.Expr RustVarType)
@@ -162,11 +162,10 @@ instance Integration (Language 'Rust) where
       fromGlobals = do
         map (\(bnd, Sub.RustType ty) -> VarP bnd (asHostNormal ty)) . HM.toList <$> get
 
-      typeReturnExpr :: Maybe (Ty a) -> FrLang.Expr RustVarType -> FrLang.Expr RustVarType
-      typeReturnExpr mReturnTy block =
-         let varType = asVarType mReturnTy
-             retyped = FrLang.applyToFinal (replaceType varType) block
-         in retyped
+      typeReturnExpr :: (SubC.ConvertM m, ErrAndLogM m) => Maybe (Ty a) -> FrLang.Expr RustVarType -> m ( FrLang.Expr RustVarType)
+      typeReturnExpr mReturnTy block = do
+          let varType = asVarType mReturnTy
+          FrLang.applyToFinal (replaceType varType) block
 
          where asVarType Nothing = TypeUnit
                asVarType (Just ty) = asHostNormal ty
@@ -245,7 +244,7 @@ instance Integration (Language 'Rust) where
             Nothing -> trace ("No lib function found for: " <> show qb) return f -- throwError $ "I was unable to determine the types for the call to '" <> show qb <> "'. Please provide type annotations."
         e -> return e
 
-      
+
       lookupFunTypes :: ErrAndLogM m => QualifiedBinding -> m ([NSRef], QualifiedBinding)
       lookupFunTypes q@(QualifiedBinding (NSRef []) nam) =
         return $ (,q) $ maybe globs (: []) $ HM.lookup nam fullyResolvedImports
