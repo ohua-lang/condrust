@@ -9,6 +9,7 @@ import qualified Ohua.Backend.Operators.Function as F
 import qualified Ohua.Backend.Operators.State as S (Fuse(Fusable))
 import Ohua.Backend.Lang
 import Ohua.Backend.Types
+import Ohua.Backend.Config
 
 import qualified Data.HashSet as HS
 import qualified Data.Map.Ordered as OrdMap
@@ -42,16 +43,17 @@ instance Bifunctor (Fusable ty) where
 
 type FusableExpr ty = Fusable ty (VarCtrl ty) (LitCtrl ty)
 
--- TODO add config flag to make fusion optional
 
-fuse :: CompM m => Namespace (TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (VarCtrl ty) (LitCtrl ty))) anno ty
-             -> m (Namespace (TCProgram (Channel ty) (Com 'Recv ty) (TaskExpr ty)) anno ty)
-fuse ns =
+fuse :: CompM m
+     => Options
+     -> Namespace (TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (VarCtrl ty) (LitCtrl ty))) anno ty
+     -> m (Namespace (TCProgram (Channel ty) (Com 'Recv ty) (TaskExpr ty)) anno ty)
+fuse options ns =
     return $ ns & algos %~ map (\algo -> algo & algoCode %~ go)
     where
         go :: TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (VarCtrl ty) (LitCtrl ty))
            -> TCProgram (Channel ty) (Com 'Recv ty) (TaskExpr ty)
-        go = evictUnusedChannels . concludeFusion . fuseStateThreads . fuseSMaps
+        go = evictUnusedChannels . concludeFusion . (fuseFunctions options) . fuseStateThreads . fuseSMaps
 {-
 removeIdFun :: TCProgram (Channel ty1) (Com 'Recv ty1) (TaskExpr ty1) -> TCProgram (Channel ty1) (Com 'Recv ty1) (TaskExpr ty1)
 removeIdFun (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ map idTraversal exprs
@@ -83,9 +85,11 @@ evictUnusedChannels (TCProgram chans resultChan exprs) =
     in TCProgram (resultChan :| chans') resultChan exprs
 
 
-fuseFunctions :: TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty))
+fuseFunctions :: Options
               -> TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty))
-fuseFunctions (TCProgram chans resultChan exprs) =
+              -> TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty))
+fuseFunctions Options{stateInitFusion=False} t = t
+fuseFunctions Options{stateInitFusion=True} (TCProgram chans resultChan exprs) =
   let
     exprs' = map funClassify exprs
     funs = lefts exprs'

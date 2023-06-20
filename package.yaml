@@ -33,6 +33,7 @@ dependencies:
 - recursion-schemes
 - template-haskell
 - lens
+- yaml
 default-extensions:
 - OverloadedStrings
 - MultiParamTypeClasses
