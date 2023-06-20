@@ -55,6 +55,9 @@ rustBool = Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "bool" Nothing
 rustI32 :: Ty ()
 rustI32 = PathTy Nothing (Path False [PathSegment "i32" Nothing ()] ()) () 
 
+hostReturnSelf :: VarType RustVarType
+hostReturnSelf = Type $ HostType $ Normal $ PathTy Nothing (Path False [PathSegment "Self" Nothing ()] ()) () 
+
 rustInfer :: Ty ()
 rustInfer = Infer ()
 
@@ -160,9 +163,12 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
 
         extractFirstArg :: Ty a -> Arg a -> [VarType RustVarType] -> VarType RustVarType -> m (FunType RustVarType)
         extractFirstArg selfType fstArg args retTy =
-            let funType x0 = case x0 of
-                            (Type (HostType Self{})) -> STFunType x0 args retTy
-                            _ -> FunType (x0 : args) retTy
+            -- Replace a return type Self with the actual name of the struct 
+            let actualReturnType = if retTy == hostReturnSelf then asHostNormal selfType else retTy
+            
+                funType x0 = case x0 of
+                            (Type (HostType Self{})) -> STFunType x0 args actualReturnType
+                            _ -> FunType (x0 : args) actualReturnType
             in funType <$> convertImplArg selfType fstArg 
 
 
