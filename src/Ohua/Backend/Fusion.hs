@@ -5,6 +5,7 @@ import Ohua.Prelude
 
 import Ohua.Backend.Operators hiding (Fun, Fusable, Unfusable)
 import Ohua.Backend.Operators.SMap as SMap
+import qualified Ohua.Backend.Operators.Function as F
 import qualified Ohua.Backend.Operators.State as S (Fuse(Fusable))
 import Ohua.Backend.Lang
 import Ohua.Backend.Types
@@ -44,7 +45,7 @@ type FusableExpr ty = Fusable ty (VarCtrl ty) (LitCtrl ty)
 -- TODO add config flag to make fusion optional
 
 fuse :: CompM m => Namespace (TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (VarCtrl ty) (LitCtrl ty))) anno ty
-             -> m (Namespace (TCProgram (Channel ty) (Com 'Recv ty) (TaskExpr ty)) anno ty) 
+             -> m (Namespace (TCProgram (Channel ty) (Com 'Recv ty) (TaskExpr ty)) anno ty)
 fuse ns =
     return $ ns & algos %~ map (\algo -> algo & algoCode %~ go)
     where
@@ -80,6 +81,41 @@ evictUnusedChannels (TCProgram chans resultChan exprs) =
         usedChans = HS.fromList $ concatMap findChannels exprs      -- Order?: We don't need order here as the set is just a filter
         chans' = NE.filter (`HS.member` usedChans) chans
     in TCProgram (resultChan :| chans') resultChan exprs
+
+
+fuseFunctions :: TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty))
+              -> TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty))
+fuseFunctions (TCProgram chans resultChan exprs) =
+  let
+    exprs' = map funClassify exprs
+    funs = lefts exprs'
+    other = rights exprs'
+    (fusedFuns, unfusedFuns) = go funs
+    fusedFuns' = map (Unfusable . genFusedFun) $ catMaybes fusedFuns
+    unfusedFuns' = map Fun unfusedFuns
+  in
+    TCProgram chans resultChan (other ++ fusedFuns' ++ unfusedFuns')
+  where
+    funClassify :: Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty) ->
+                   Either (FusableFunction ty) (Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty))
+    funClassify (Fun f) = Left f
+    funClassify e = Right e
+
+    go :: [FusableFunction ty] -> ([Maybe (FusedFun ty)], [FusableFunction ty])
+    go [] = ([],[])
+    go (f : fs) =
+      let (fusedFun  , fs' ) = fuseFunction f fs
+          (fusedFuns , fs'') = go fs'
+      in (fusedFun : fusedFuns, fs'')
+
+    fuseFunction :: FusableFunction ty -> [FusableFunction ty] -> (Maybe (FusedFun ty), [FusableFunction ty])
+    fuseFunction f [] = (Nothing, [])
+    fuseFunction f (g : gs) =
+      case F.fuseFuns f g of
+        Just f' -> (Just f', gs)
+        Nothing -> case F.fuseFuns g f of
+                     Just g' -> (Just g', gs)
+                     Nothing -> second ([g] ++ ) $ fuseFunction f gs
 
 fuseStateThreads :: TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (VarCtrl ty) (LitCtrl ty))
                  -> TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty))
