@@ -77,9 +77,7 @@ type AExpr = Expr
 
 exprType:: Expr ty -> VarType ty
 exprType e = case e of 
-    Var (TBind _bnd varTy) -> case varTy of
-        TypeFunction funTy -> getReturnType funTy
-        ty -> ty
+    Var (TBind _bnd varTy) -> varTy
     -- We aim for "return types" here so if the literal is a function, this will evaluate to the functions return type
     Lit lit -> getLitType lit
     -- Let should be typed by e2, because this is what it resturns
@@ -88,14 +86,18 @@ exprType e = case e of
     -- Obviously we should typecheck AND with generic functions T2 could depend on T1. 
     -- However we consider generics in the host language a problem of the host languange i.e. 
     -- if the frontend integration allows for generics, than the backend should accept them .. we don't do the derivation
-    Apply funE _argE -> exprType funE
+    Apply funE _argE -> returnType funE
     -- Type of an abstraction (\x:T1. term:T2) should be T1 -> T2
     Lambda _argE termE -> exprType termE
     -- Type of a method Bind obj:TO (\x:T1. term:T2) is actually (TO, T2), but we mean the type it should
     -- explicitely evaluate to in the host language so it is T2
     BindState _objE methodcallE -> exprType methodcallE
 
-
+returnType :: Expr ty -> VarType ty
+returnType e = case funType e of 
+    Just fty -> getReturnType fty
+    Nothing -> exprType e
+    
 -- ToDo: This is actually very _unelegant_ but in some instances we need the function type from
 --       Lambda Expression, while in others we only care about the type the term will evaluate to. 
 --       I'm currently not sure, what the best way to handle this would be?!
