@@ -68,7 +68,7 @@ renderRustCode =
     . pretty'
 
 backendOptions :: BC.Options
-backendOptions = BC.Options False -- TODO turn on by default
+backendOptions = BC.Options True
 
 integrationOptions :: IC.Config
 integrationOptions = IC.Config Arch.M3 $ O.Options Nothing Nothing
