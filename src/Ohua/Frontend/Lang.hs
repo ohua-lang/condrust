@@ -5,6 +5,7 @@ module Ohua.Frontend.Lang
     ( Pat(..)
     , Expr(..)
     , exprType
+    , returnType
     , funType
     , patType
     , patBnd
@@ -92,14 +93,12 @@ data Expr ty
 
 exprType:: Expr ty -> VarType ty
 exprType (VarE _b ty) = ty
--- We aim for "return types" here so if the literal is a function, 
--- this will evaluate to the functions return type
 exprType (LitE  lit) = getLitType lit
 exprType (LetE _p _e cont) = exprType cont
-exprType (AppE fun args) = exprType fun
+exprType (AppE fun args) = returnType fun
 -- Type of an abstraction (\x:T1. term:T2) as generics are a 'problem' of the host language
 -- we do not handle any subtitution here and just take the return type of the term
-exprType (LamE _p term) = exprType term
+exprType (LamE ps term) = TypeFunction $ FunType (map patType ps) (exprType term)
 exprType (IfE c t1 t2) = exprType t1 -- we could also use t2 as they should be equal
 exprType (WhileE c body) = TypeUnit -- This will change downstream
 -- Question: How can we know this one ? 
@@ -116,6 +115,11 @@ exprType (TupE (e:es)) = TupleTy (exprType e :| map exprType es)
 exprType (TupE []) = TypeUnit
 
 
+returnType :: Expr ty -> VarType ty
+returnType e = case funType e of
+    Just fty -> getReturnType fty
+    Nothing -> exprType e
+
 funType :: Expr ty -> Maybe (FunType ty)
 funType e = case e of
         (VarE _bnd (TypeFunction fTy))   -> Just fTy
@@ -123,26 +127,26 @@ funType e = case e of
         (LamE pats body)                 -> Just $ FunType (map patType pats) (exprType body)
         (BindE _state method)            -> funType method
         -- Question: What's the type of BindState at this point?
-        other                            -> Nothing
+        other                            -> trace ("funtype called with " <> show other) Nothing
 
 
 -- If expressions have two possible exits
 -- Question how to make this more elegant. It's not a normal traversal as we don't want to recurse
 -- into every nested expression?
-applyToFinal :: (Expr ty -> Expr ty) -> Expr ty -> Expr ty
+applyToFinal ::(Monad m) =>  (Expr ty -> m (Expr ty)) -> Expr ty -> m (Expr ty)
 applyToFinal fun =  \case
     e@VarE{} -> fun e
     e@LitE{} -> fun e
     e@TupE{} -> fun e
-    LetE p e1 e2 -> LetE p e1  $ applyToFinal fun e2
-    AppE f args -> AppE (applyToFinal fun f) args
-    LamE p e -> LamE p $ applyToFinal fun e
-    IfE b e1 e2 -> IfE b (applyToFinal fun e1)  (applyToFinal fun e2)
-    WhileE e1 e2 -> WhileE e1 $ applyToFinal fun e2
-    MapE e1 e2 -> MapE (applyToFinal fun e1) e2 -- we map a function to a container so the final return is the return of the function
-    BindE e1 e2 -> BindE e1 $ applyToFinal fun e2
-    StmtE e1 e2 -> StmtE e1 $ applyToFinal fun e2
-    SeqE e1 e2 -> SeqE e1 $ applyToFinal fun e2
+    LetE p e1 e2 -> LetE p e1 <$> applyToFinal fun e2
+    AppE f args -> (`AppE` args) <$> applyToFinal fun f
+    LamE p e -> LamE p <$> applyToFinal fun e
+    IfE b e1 e2 -> IfE b <$> applyToFinal fun e1 <*> applyToFinal fun e2
+    WhileE e1 e2 -> WhileE e1 <$> applyToFinal fun e2
+    MapE e1 e2 -> (`MapE` e2) <$> applyToFinal fun e1 -- we map a function to a container so the final return is the return of the function
+    BindE e1 e2 -> BindE e1 <$> applyToFinal fun e2
+    StmtE e1 e2 -> StmtE e1 <$> applyToFinal fun e2
+    SeqE e1 e2 -> SeqE e1 <$> applyToFinal fun e2
 
 -- | Takes an expression, a list of types as argument types and a type as return type 
 --   and sets type annotytions of the expression accoringly if it is a function. Otherwise the expression is left unchanged. 
@@ -185,7 +189,7 @@ instance Plated (Expr ty) where
 
 instance IsList (Expr ty) where
     type Item (Expr ty) = Expr ty
-    fromList  = TupE 
+    fromList  = TupE
 
 
 -- ToDo: These are currently used in the Lowering tests but actually without a default type (i.e. after
