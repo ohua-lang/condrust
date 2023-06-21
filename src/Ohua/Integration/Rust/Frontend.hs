@@ -26,6 +26,7 @@ import Ohua.Integration.Lang
 import Ohua.Integration.Rust.Util
 import Ohua.Integration.Rust.TypeHandling as TH
 import Ohua.Integration.Rust.TypeSystem as TS
+import Ohua.Integration.Rust.TypePropagation as TP
 import qualified Ohua.Integration.Rust.Frontend.Subset as Sub
 import qualified Ohua.Integration.Rust.Frontend.Convert as SubC
 
@@ -135,8 +136,10 @@ instance Integration (Language 'Rust) where
         args' <- mapM (convertPat <=< SubC.convertArg) args
         -- Convert the function block
         block' <- convertIntoFrExpr block
-        block'' <- typeReturnExpr mReturnTy block'
-        return $ LamE (implGlobalArgs ++ args') block''
+        -- FIXME: typeReturnExpr must be replaced by something that works like propagateReturnType because iff the last expression is an APP, we want to set the return type of the last
+        ---       called function, not replace the funciton type by the return type of the algo.
+        -- block'' <- typeReturnExpr mReturnTy block'
+        return $ LamE (implGlobalArgs ++ args') block' 
 
       convertIntoFrExpr :: SubC.ConvertM m => Block Span -> m (FrLang.Expr RustVarType)
       convertIntoFrExpr rustBlock = do
@@ -162,6 +165,8 @@ instance Integration (Language 'Rust) where
       fromGlobals = do
         map (\(bnd, Sub.RustType ty) -> VarP bnd (asHostNormal ty)) . HM.toList <$> get
 
+      -- FIXME: typeReturnExpr must be replaced by something that works like propagateReturnType because iff the last expression is an APP, we want to set the return type of the last
+        ---       called function, not replace the funciton type by the return type of the algo.
       typeReturnExpr :: (SubC.ConvertM m, ErrAndLogM m) => Maybe (Ty a) -> FrLang.Expr RustVarType -> m ( FrLang.Expr RustVarType)
       typeReturnExpr mReturnTy block = do
           let varType = asVarType mReturnTy
@@ -187,7 +192,7 @@ instance Integration (Language 'Rust) where
     --  traceShowM $ "After convertOwn : " <> show filesAndPaths
     -- Go through all namespace references, parse the files and return all function types defined in there
     functionTypes <- fnTypesFromFiles $ concatMap fst filesAndPaths'
-    -- traceShowM $ "Function types from libraries : " <> show functionTypes
+    traceShowM $ "Function types from libraries : " <> show functionTypes
     -- For each function reference check the extracted function type, if function is not found or defined multiple
     -- times this will fail
     usedFunctionTypes <- HM.fromList . catMaybes <$> mapM (verifyAndRegister functionTypes) filesAndPaths'
@@ -346,10 +351,11 @@ instance ConvertExpr Sub.Expr where
     let method' = LitE (FunRefLit (FunRef method Nothing $ STFunType receiverTy argTys typeUnknown))
     args' <- mapM convertExpr args
     return $ BindE receiver' method' `AppE` args'
-  convertExpr (Sub.Tuple vars) = do
+  convertExpr (Sub.Tuple []) = return (LitE UnitLit)
+  convertExpr (Sub.Tuple (v:vars)) = do
+    v'<- convertExpr v
     vars' <- mapM convertExpr vars
-    argTys <- argTypesFromContext vars
-    return $ TupE vars'
+    return $ TupE (v':|vars')
   convertExpr (Sub.Binary op left right) = do
     left' <- convertExpr left
     right' <- convertExpr right
@@ -401,7 +407,7 @@ instance ConvertExpr Sub.Expr where
     --       (although there can be only one endless loop in the whole term)
     -- Basically a loop becomes :
     {-
-    let endless_loop:() = 
+    let endless_loop:bool -> () = 
         (\cond -> let result = *loopbody and 'calculate' condition twice* 
                                in if condition1 { endless_loop condition2 } else {result}  
         ) 
@@ -412,6 +418,7 @@ instance ConvertExpr Sub.Expr where
     let loopRef = "endless_loop"
     let argUnit =  asHostNormal rustUnitReturn
     let argBool =  asHostNormal rustBool
+    let loopType = TypeFunction $ FunType [argBool] argUnit
     let condRef = "cond"
     let condFunType = FunType [TypeBool] (TupleTy (TypeBool:| [TypeBool])) -- we use this to duplicate the condition hence it returns two bools
     let condFun = LitE (FunRefLit (FunRef (toQualBinding "host_id") Nothing condFunType))
@@ -420,16 +427,16 @@ instance ConvertExpr Sub.Expr where
     let condResultReuse = "copyLocalCond"
     return $
         LetE
-        (VarP loopRef argUnit)
+        (VarP loopRef loopType)
         (LamE [VarP condRef argBool] $
           LetE (VarP resultRef argUnit) body' $
           LetE (TupP (VarP condResultRef argBool :| [VarP condResultReuse argBool])) (AppE condFun [VarE condRef argBool])
             (IfE
               (VarE condResultRef argBool)
-              (AppE (VarE loopRef argUnit)  [VarE condResultReuse argBool])
+              (AppE (VarE loopRef loopType)  [VarE condResultReuse argBool])
               (VarE resultRef argUnit)
         ))
-      (AppE (VarE loopRef argUnit) [LitE $ BoolLit True])
+      (AppE (VarE loopRef loopType) [LitE $ BoolLit True])
 
   convertExpr (Sub.Closure _ _ _ args _retTy body) = do
     -- currently, we do not have support to pass the return type of a closure around
