@@ -36,14 +36,29 @@ finalTyping expr = -- do
     -- evalStateT (propagateVarAnnotations expr') HM.empty
     evalStateT (typeSystem expr) HM.empty
 
+{-
+Types := T
+       | HostType
+       | T<T>
+       | TupTy [T, T, ..., T]
+       | T -> T
+-}
 
-typeSystem:: (ErrAndLogM m, TypeContextM m) =>  FrLang.Expr RustVarType -> m (FrLang.Expr RustVarType)
+
+{-
+Environments:
+-------------
+Gamma ... associates local variables to a type
+Delta ... associates function literals to a type
+-}
+
+typeSystem :: (ErrAndLogM m, TypeContextM m) =>  FrLang.Expr RustVarType -> m (FrLang.Expr RustVarType)
 typeSystem = \case
     (LetE (VarP bnd ty) e1 e2) -> do
     {-
-        Gamma |– e1: T1  Gamma, x:(max X T1) |– e2: T2
-    =======================================================
-        Gamma |– let (x:X) e1 e2 : T2
+      Delta, Gamma |– e1: T1     Delta, Gamma, x:(max X T1) |– e2: T2
+    ==================================================================
+               Delta, Gamma |– let (x:X) e1 e2 : T2
     -}
         traceM $ "Typing Let " <> show bnd <> " = " <> show e1 <> " in\n    " <> show e2
         outer_context <- get
@@ -74,9 +89,9 @@ typeSystem = \case
 
     (AppE fun args) -> do
     {-
-     Gamma|– fun: T1 -> T2 -> ... Tn -> Tf    Gamma|-t1: T1 Gamma|- t2:T2 ... Gamma|- tn:Tn
-    ========================================================================================
-        Gamma |– fun t1 t2 ... tn : Tf
+     Delta, Gamma |– fun: T1 -> T2 -> ... Tn -> Tf    Delta, Gamma |-t1: T1     Delta, Gamma |- t2:T2 ... Delta, Gamma |- tn:Tn
+    ============================================================================================================================
+                              Delta, Gamma |– fun t1 t2 ... tn : Tf
     -}
         traceM $ "Typing AppE " <> show fun <> show args
         args' <- mapM typeSystem args
@@ -103,9 +118,9 @@ typeSystem = \case
 
     (LamE pats expr) -> do
     {-
-                Gamma, p1:T1, p2:T2, ..., pn:Tn |- e:Te
+                Delta, Gamma, p1:T1, p2:T2, ..., pn:Tn |- e:Te
     =================================================================
-        Gamma |- Lamda p1 p2 .. pn. e : T1 -> T2 -> ... -> Tn -> Te
+        Delta, Gamma |- Lamda p1 p2 .. pn. e : T1 -> T2 -> ... -> Tn -> Te
     -}
         outer_ctxt <- get
         traceM $ "Typing LamE " <> show pats <> show expr
@@ -123,9 +138,9 @@ typeSystem = \case
 
     (BindE state method) -> do
     {-
-        Gamma |- state:S  Gamma |- method: S -> Tm
+        Delta, Gamma |- state : S      Delta, Gamma |- method : S -> Tm
     ========================================================================
-         Gamma |- Bind state method : Tm
+                  Delta, Gamma |- Bind state method : Tm
     -}
         state' <- typeSystem state
         method' <- typeSystem method
@@ -135,27 +150,27 @@ typeSystem = \case
 
     (IfE cond tTrue tFalse) -> do
     {-
-        Gamma |- cond:Bool    Gamma |- tTrue:T   Gamma |- tFalse:T
-    =====================================================================
-                    Gamma |- If cond tTrue tFalse : T
+        Delta, Gamma |- cond : Bool    Delta, Gamma |- tTrue : T   Delta, Gamma |- tFalse : T
+    ===========================================================================================
+                    Delta, Gamma |- If cond tTrue tFalse : T
     -}
         cond' <- typeSystem cond
         return $ IfE cond tTrue tFalse
 
     (WhileE cond body) -> do
     {-
-     Gamma |- cond : Bool   Gamma |- body : Unit
-    ==============================================
-        Gamma |- While cond body : Unit
+     Delta, Gamma |- cond : Bool       Delta, Gamma |- body : Unit
+    ===============================================================
+              Delta, Gamma |- While cond body : Unit
 
     -}
         return $ WhileE cond body
 
     (MapE loopFun generator) ->  do
     {-
-        Gamma |- generator : T1<T2>     Gamma, x:T2 |- loopFun : T3
-    ==============================================================
-            Gamma |- MapE loopFun generator : T1<T3>
+        Delta, Gamma |- generator : T1<T2>     Delta, Gamma, x:T2 |- loopFun : T3
+    ===============================================================================
+            Delta, Gamma |- MapE loopFun generator : T1<T3>
     -}
         generator' <- typeSystem generator
         loopFun' <- typeSystem loopFun
@@ -169,9 +184,9 @@ typeSystem = \case
 
     (StmtE e1 cont) -> do
     {-
-        Gamma |- e1:T1   Gamma |- cont:T2
-    ========================================
-            Gamma |- Stmt e1 cont : T2
+        Delta, Gamma |- e1:T1    Delta, Gamma |- cont : T2
+    =======================================================
+            Delta, Gamma |- Stmt e1 cont : T2
     -}
         e1' <- typeSystem e1
         cont' <- typeSystem cont
@@ -182,35 +197,31 @@ typeSystem = \case
     {-
     Actually that expression is only introduced after this point and should be eliminated anyways :-/. So we have it for completeness but do not need to handle it actually
 
-        Gamma |- cont:T   Gamma |- e1:T1
+        Delta, Gamma |- cont : T   Delta, Gamma |- e1 : T1
     ========================================
-            Gamma |- Seq e1 cont : T
+            Delta, Gamma |- Seq e1 cont : T
 
     -}
         e1' <- typeSystem e1
         cont' <- typeSystem cont
         return $ SeqE e1' cont'
 
-
     (TupE exprs) -> do
 
     {-
-        As we now annotate the variables, there's no good reason any more to carry an extra function type for the tuple function but anyways
-
-                      Gamma |- e1:T1   Gamma |- e2:T2   ...   Gamma |- en: Tn
+        Delta, Gamma |- e1:T1  Delta, Gamma |- e2:T2   ...   Delta, Gamma |- en: Tn
     ======================================================================================
-      Gamma |- TupE [e1, e2 ... , en] : TupleTy [T1, T2, .. , Tn]
+          Delta, Gamma |- TupE [e1, e2 ... , en] : TupleTy [T1, T2, .. , Tn]
 
     -}
         exprs' <- mapM typeSystem exprs
         return $ TupE exprs'
 
-
     v@(VarE bnd ty) -> do
     {-
-        x:T in Gamma
-    =======================
-        Gamma |– x: T
+         x:T in Gamma
+    ========================
+      Delta, Gamma |– x: T
     -}
         ctxt <- get
         traceM $ "Typing " <> show v <> " in context " <> show ctxt
@@ -224,16 +235,21 @@ typeSystem = \case
         modify (HM.insert bnd ty_final)
         return $ VarE bnd ty_final
 
-    (LitE l) -> do
+    (LitE l@(FunRefLit _)) -> do
     {-
-    Usually literals just have types, e.g. True is Bool, independent of the context.
-    But we also have function names as literals. Which are actually not literals but named terms defined elsewhere, so
-    How to distigush inference rules for normal literals, that don't have preconditions in the context from function literals whose infered type depends on the context
-
-    =============
-        Gamma |- l : T
+       l:T in Delta
+    ========================
+      Delta, Gamma |- l : T
     -}
         return $ LitE l
+
+    (LitE l) -> do
+    {-
+    ==================
+      Gamma |- l : HostType
+    -}
+        return $ LitE l
+
     e -> do
         traceM $ "Didn't match pattern " <> show e
         return e
