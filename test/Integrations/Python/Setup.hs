@@ -19,6 +19,7 @@ import Ohua.Core.Types.Environment (Options)
 import Ohua.Compile.Compiler (compile)
 
 import qualified Ohua.Integration.Config as IC
+import qualified Ohua.Backend.Config as BC
 import qualified Ohua.Integration.Options as O
 import qualified Ohua.Integration.Architecture as Arch
 
@@ -55,6 +56,9 @@ instance Testable (Module SrcSpan) where
 renderPython:: (PyPretty.Pretty a) => a -> Text
 renderPython = T.pack . prettyText
 
+backendOptions :: BC.Options
+backendOptions = BC.Options False
+
 integrationOptions :: IC.Config
 integrationOptions = IC.Config Arch.MultiProcessing $ O.Options Nothing Nothing
 
@@ -79,7 +83,7 @@ compileModule inCode opts compType = do
                     let options = if debug then withDebug opts else opts
                     runErrAndLogM
                         LevelWarn
-                        $ compile inFile compScope options integrationOptions outDir
+                        $ compile inFile compScope options backendOptions integrationOptions outDir
                     (caller:modules) <- listDirectory outDir
                     -- putStr filesHint
                     -- mapM_ putStr (caller:modules)

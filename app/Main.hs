@@ -35,10 +35,11 @@ main = do
     Build CommonCmdOpts {..} -> do
       copts@CompilerOptions {..} <- runExceptM $ loadConfig config
       let coreOpts = extractCoreOptions copts
+      let backendConf = extractBackendConfig copts
       let targetConf = extractIntegrationConfig copts
       runErrAndLogM
         (logLevel debug)
-        $ compile inputModuleFile compilationScope coreOpts targetConf outputPath
+        $ compile inputModuleFile compilationScope coreOpts backendConf targetConf outputPath
   where
     odef =
       info

@@ -15,7 +15,8 @@ import Ohua.Prelude
 import Ohua.Compile.Compiler (compile)
 import qualified Ohua.Integration.Architecture as Arch
 import qualified Ohua.Integration.Config as IC
-import Ohua.Core.Types 
+import qualified Ohua.Backend.Config as BC
+import Ohua.Core.Types
 import qualified Ohua.Integration.Options as O (Options(..))
 
 
@@ -36,7 +37,7 @@ import System.FilePath
 import System.IO.Temp
 
 import Test.Hspec
-import TestOptions 
+import TestOptions
 
 import Integrations.TestSetup (Testable(..))
 import Integrations.Rust.M3.TestCode.HelperFiles
@@ -56,7 +57,7 @@ instance Testable (SourceFile Span) where
   renderFormat = renderRust
 
 renderRust :: SourceFile Span -> Text
-renderRust code =  renderStrict $ layoutSmart defaultLayoutOptions $ pretty' code 
+renderRust code =  renderStrict $ layoutSmart defaultLayoutOptions $ pretty' code
 
 renderRustCode :: SourceFile Span -> L.ByteString
 renderRustCode =
@@ -66,6 +67,8 @@ renderRustCode =
     . layoutSmart defaultLayoutOptions
     . pretty'
 
+backendOptions :: BC.Options
+backendOptions = BC.Options True
 
 integrationOptions :: IC.Config
 integrationOptions = IC.Config Arch.M3 $ O.Options Nothing Nothing
@@ -90,7 +93,7 @@ compileModule inCode opts cty = do
           let options = if debug then withDebug opts else opts
           runErrAndLogM
             LevelWarn
-            $ compile inFile compScope options integrationOptions outDir
+            $ compile inFile compScope options backendOptions integrationOptions outDir
           let outFile = outDir </> takeFileName inFile
           -- producedCode <- readFile outFile
           -- putStr ("\n PRODUCED MODULE: \n"::String)

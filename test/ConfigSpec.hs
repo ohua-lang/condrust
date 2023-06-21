@@ -10,6 +10,7 @@ import Ohua.Compile.Config as C
 import Ohua.Compile.Compiler as Comp
 
 import Ohua.Integration.Config as IC
+import Ohua.Backend.Config as BC
 import Ohua.Integration.Options as O
 import Ohua.Integration.Architecture as IA
 
@@ -37,6 +38,8 @@ spec =
                     options:
                         data-parallelism: 42
                         amorphous: 13
+                backend-features:
+                    state-init-fusion: on
                 debug:
                     log-level: verbose
                     core-stages:
@@ -52,6 +55,7 @@ spec =
                                                 , (["some","ns","module"],".go")]
                 , extraFeatures = ["tail-recursion"]
                 , integrationFeatures = IC.Config IA.SharedMemory $ O.Options (Just 42) (Just 13)
+                , backendFeatures = BC.Options True
                 , debug = C.DebugOptions { logLevel = LevelOther "verbose"
                                         , stageHandlingOpt = C.defaultStageHandling
                                         }
@@ -68,6 +72,7 @@ spec =
                 { compilationScope = HM.fromList [ (["some","ns","module"],".go") ]
                 , extraFeatures = ["tail-recursion"]
                 , integrationFeatures = IC.defaultConfig
+                , backendFeatures = BC.defaultOptions
                 , debug = C.DebugOptions { logLevel = LevelWarn
                                         , stageHandlingOpt = C.defaultStageHandling
                                         }
@@ -82,6 +87,7 @@ spec =
                 { compilationScope = HM.fromList [ (["some","ns","module"],".go") ]
                 , extraFeatures = []
                 , integrationFeatures = IC.defaultConfig
+                , backendFeatures = BC.defaultOptions
                 , debug = C.DebugOptions { logLevel = LevelWarn
                                         , stageHandlingOpt = C.defaultStageHandling
                                         }
@@ -98,6 +104,7 @@ spec =
                 { compilationScope = HM.fromList [ (["some","ns","module"],".go") ]
                 , extraFeatures = []
                 , integrationFeatures = IC.defaultConfig
+                , backendFeatures = BC.defaultOptions
                 , debug = C.DebugOptions { logLevel = LevelDebug
                                         , stageHandlingOpt = C.defaultStageHandling
                                         }
@@ -113,6 +120,7 @@ spec =
                 { compilationScope = HM.empty
                 , extraFeatures = []
                 , integrationFeatures = IC.defaultConfig
+                , backendFeatures = BC.defaultOptions
                 , debug = C.DebugOptions { logLevel = LevelDebug
                                         , stageHandlingOpt = C.defaultStageHandling
                                         }
@@ -127,6 +135,7 @@ spec =
                 { compilationScope = HM.empty
                 , extraFeatures = []
                 , integrationFeatures = IC.defaultConfig
+                , backendFeatures = BC.defaultOptions
                 , debug = C.DebugOptions { logLevel = LevelDebug
                                         , stageHandlingOpt = C.defaultStageHandling
                                         }
@@ -141,6 +150,7 @@ spec =
                 { compilationScope = HM.empty
                 , extraFeatures = []
                 , integrationFeatures = IC.Config IA.M3 $ O.Options Nothing Nothing
+                , backendFeatures = BC.defaultOptions
                 , debug = C.DebugOptions { logLevel = LevelWarn
                                         , stageHandlingOpt = C.defaultStageHandling
                                         }
@@ -156,6 +166,7 @@ spec =
                 { compilationScope = HM.empty
                 , extraFeatures = []
                 , integrationFeatures = IC.Config IA.M3 $ O.Options Nothing Nothing
+                , backendFeatures = BC.defaultOptions
                 , debug = C.DebugOptions { logLevel = LevelWarn
                                         , stageHandlingOpt = C.defaultStageHandling
                                         }
@@ -172,6 +183,7 @@ spec =
                 { compilationScope = HM.empty
                 , extraFeatures = []
                 , integrationFeatures = IC.Config IA.M3 $ O.Options (Just 42) Nothing
+                , backendFeatures = BC.defaultOptions
                 , debug = C.DebugOptions { logLevel = LevelWarn
                                         , stageHandlingOpt = C.defaultStageHandling
                                         }
@@ -188,6 +200,7 @@ spec =
                 { compilationScope = HM.empty
                 , extraFeatures = []
                 , integrationFeatures = IC.Config IA.M3 $ O.Options Nothing (Just 42)
+                , backendFeatures = BC.defaultOptions
                 , debug = C.DebugOptions { logLevel = LevelWarn
                                         , stageHandlingOpt = C.defaultStageHandling
                                         }
