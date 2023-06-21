@@ -192,6 +192,10 @@ funs = "\
 \     let the_answer = if i==23 {i} else {i+1};\ 
 \     the_answer\ 
 \ }\ 
+\ pub fn h_Arc(i:Arc<i32>) -> i32 {\ 
+\     let the_answer = if *i==23 {23} else {24};\ 
+\     the_answer\ 
+\ }\ 
 \ \
 \ pub fn g() -> String {\ 
 \     let the_answer = String::from(\"Hello, world!\");\ 

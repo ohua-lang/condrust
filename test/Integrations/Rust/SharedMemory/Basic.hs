@@ -76,8 +76,8 @@ spec =
                     let x:i32 = f();
                     let x1:Arc<i32> = std::sync::Arc::new(x);
                     let x2:Arc<i32> = x1.clone();
-                    let y:i32 = h(x1);
-                    h2(x2,y)
+                    let y:i32 = h_Arc(x1);
+                    notInLib(x2,y)
                 }
                 |]) >>=
             (\compiled -> do
