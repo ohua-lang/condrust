@@ -87,7 +87,7 @@ data Expr ty
             (Expr ty) -- ^ An expression with the return value ignored
     | SeqE (Expr ty)
            (Expr ty)
-    | TupE [Expr ty] -- ^ create a tuple value that can be destructured
+    | TupE (NonEmpty (Expr ty)) -- ^ create a tuple value that can be destructured
     deriving (Show, Generic)
 
 
@@ -110,9 +110,8 @@ exprType (BindE _s f) = exprType f
 exprType StmtE{} = TypeUnit
 -- This just makes shure e1 is evaluated although its result is ignored
 exprType (SeqE e1 e2) = exprType e2
-exprType (TupE (e:es)) = TupleTy (exprType e :| map exprType es)
--- ToDo: This is wrong in every case where Unit != None
-exprType (TupE []) = TypeUnit
+exprType (TupE exprs ) = TupleTy (map exprType exprs)
+
 
 
 returnType :: Expr ty -> VarType ty
@@ -189,7 +188,8 @@ instance Plated (Expr ty) where
 
 instance IsList (Expr ty) where
     type Item (Expr ty) = Expr ty
-    fromList  = TupE
+    fromList [] =  LitE UnitLit
+    fromList (e:es) = TupE (e:| es)
 
 
 -- ToDo: These are currently used in the Lowering tests but actually without a default type (i.e. after
