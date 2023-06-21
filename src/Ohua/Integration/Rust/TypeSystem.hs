@@ -31,11 +31,8 @@ import Control.Exception (assert, throw)
 --   the expression in wich they are bound. There can be variables e.g. the return variable of a function, that are not used as an argument. We can type them also, 
 --   by tracing the current 'innermost' return type. 
 -- ToDo: Monadify
-finalTyping :: ErrAndLogM m => FrLang.Expr RustVarType -> m (FrLang.Expr RustVarType)
-finalTyping expr = -- do
-    -- expr' <- evalStateT (propagateFunAnnotations expr) HM.empty
-    -- evalStateT (propagateVarAnnotations expr') HM.empty
-    evalStateT (typeSystem expr) HM.empty
+finalTyping :: ErrAndLogM m => VarType RustVarType -> FrLang.Expr RustVarType -> m (FrLang.Expr RustVarType)
+finalTyping returnTy expr =  evalStateT (typeSystem returnTy expr) HM.empty
 
 {-
 Types := T
@@ -53,20 +50,22 @@ Gamma ... associates local variables to a type
 Delta ... associates function literals to a type
 -}
 
-typeSystem :: (ErrAndLogM m, TypeContextM m) =>  FrLang.Expr RustVarType -> m (FrLang.Expr RustVarType)
-typeSystem = \case
-    (LetE (VarP bnd ty) e1 e2) -> do
+-- | We pass in the return type of the algorithm and the algorithm and recursively whether each expression has the type it's
+--   supposed to have such that expected return type and calculated type match, or (because we have Unknown types) that one just more specific than the other
+typeSystem :: (ErrAndLogM m, TypeContextM m) => VarType RustVarType ->  FrLang.Expr RustVarType -> m (FrLang.Expr RustVarType)
+typeSystem ty = \case
+    l@(LetE (VarP bnd vty) e1 e2) -> do
     {-
       Delta, Gamma |– e1: T1     Delta, Gamma, x:(max X T1) |– e2: T2
     ==================================================================
                Delta, Gamma |– let (x:X) e1 e2 : T2
     -}
-        traceM $ "Typing Let " <> show bnd <> " = " <> show e1 <> " in\n    " <> show e2
+        traceM $ "Typing " <> show l
         outer_context <- get
-        e1' <- typeSystem e1
+        e1' <- typeSystem vty e1 
         let ty' = maxType ty (exprType e1')
         modify (HM.insert bnd ty')
-        e2' <- typeSystem e2
+        e2' <- typeSystem ty e2 
         -- If we didn't fail up to here, the expression is well-typed
 
         inner_context <- get
@@ -95,12 +94,14 @@ typeSystem = \case
                               Delta, Gamma |– fun t1 t2 ... tn : Tf
     -}
         traceM $ "Typing AppE " <> show fun <> show args
-        args' <- mapM typeSystem args
-        fun' <- typeSystem fun
-        let argsTys = map exprType args'
+        args' <- mapM (typeSystem typeUnknown) args
+        -- here ty should be [argsTypes] -> ty
+        fun' <- typeSystem (TypeFunction $ FunType (map (const typeUnknown) args) ty) fun 
+        let argsTys = map  exprType  args'
+        -- ToDO: this check goes into the Lambda case
         funInputTys <- case funType fun' of
              Just fty -> return $ pureArgTypes fty
-             Nothing -> throwError $ "Apply Expression haas been formaed with something that isn't a function but " <> show fun'
+             Nothing -> throwError $ "Apply Expression has been formed with something that isn't a function but " <> show fun'
         -- check that function type and args lengths correspond -> else error
         assertE (length argsTys == length funInputTys) $ "Number of given arguments doesn't fit to number of arguments from declaration in fucntion call: " <> show fun
                                                <> "\nWith arguments: " <> show args
@@ -125,9 +126,11 @@ typeSystem = \case
     -}
         outer_ctxt <- get
         traceM $ "Typing LamE " <> show pats <> show expr
+        -- if we new argtypes we need to compare them here, but at least the lengths of type arguments and patterns must fit
         let bndsAndTypes = concatMap patTyBnds pats
         mapM_ (\(b, t) -> modify (HM.insert b t)) bndsAndTypes
-        expr' <- typeSystem expr
+        -- ToDo: Here ty must be the return type of the expected type
+        expr' <- typeSystem ty expr 
         body_ctxt <- get
         let pats' = map (tryUpdate body_ctxt) pats
         -- Remove the local vars from the context
@@ -143,10 +146,14 @@ typeSystem = \case
     ========================================================================
                   Delta, Gamma |- Bind state method : Tm
     -}
-        state' <- typeSystem state
-        method' <- typeSystem method
+        -- I have no idea how to get an expected type for the state, because return types say nothing about statefulness so we don't know, in the surrounding expression if
+        -- we call a stateful or stateless function 
+        -- .. ok .. I know -> first check method, we expect the it to be a Stateful function, then check the state we expect it to be the state type of method :-)
+        method' <- typeSystem ty method 
         assertE (isJust $ funType method') $ "The function " <> show method' <> " had type " <> show (exprType method') <> " but should have had a function type."
-
+        -- FIXME: replace ty by methods State type after checking it
+        state' <- typeSystem ty state
+        
         return $ BindE state' method'
 
     (IfE cond tTrue tFalse) -> do
@@ -155,7 +162,7 @@ typeSystem = \case
     ===========================================================================================
                     Delta, Gamma |- If cond tTrue tFalse : T
     -}
-        cond' <- typeSystem cond
+        cond' <- typeSystem (asHostNormal rustBool) cond
         return $ IfE cond tTrue tFalse
 
     (WhileE cond body) -> do
@@ -173,8 +180,11 @@ typeSystem = \case
     ===============================================================================
             Delta, Gamma |- MapE loopFun generator : T1<T3>
     -}
-        generator' <- typeSystem generator
-        loopFun' <- typeSystem loopFun
+        -- Question: We lower the body of a loop ao a Lambda expression, so loopFun has a function type taking T2 and returning T3 doesn't it?
+        -- ToDo: IT#s quite likely, that we cannot type the genrator per se, because of iteration syntax sugar, so better type the loop first.
+        generator' <- typeSystem ty generator
+        -- ToDo: Expected type it generatorOut -> Unit
+        loopFun' <- typeSystem ty loopFun 
         let loopType = exprType loopFun'
         let generatorType = exprType generator'
         case loopType of
@@ -189,8 +199,9 @@ typeSystem = \case
     =======================================================
             Delta, Gamma |- Stmt e1 cont : T2
     -}
-        e1' <- typeSystem e1
-        cont' <- typeSystem cont
+        -- The expected return type tells us nothing about e1's expected type so :
+        e1' <- typeSystem typeUnknown e1 
+        cont' <- typeSystem ty cont 
         return $ StmtE e1' cont'
 
     (SeqE e1 cont) -> do
@@ -199,12 +210,13 @@ typeSystem = \case
     Actually that expression is only introduced after this point and should be eliminated anyways :-/. So we have it for completeness but do not need to handle it actually
 
         Delta, Gamma |- cont : T   Delta, Gamma |- e1 : T1
-    ========================================
+    ========================================================
             Delta, Gamma |- Seq e1 cont : T
 
     -}
-        e1' <- typeSystem e1
-        cont' <- typeSystem cont
+        -- same as for Stmt, we have no expectations for e1
+        e1' <- typeSystem typeUnknown e1 
+        cont' <- typeSystem ty cont 
         return $ SeqE e1' cont'
 
     (TupE exprs) -> do
@@ -214,11 +226,12 @@ typeSystem = \case
     ======================================================================================
           Delta, Gamma |- TupE [e1, e2 ... , en] : TupleTy [T1, T2, .. , Tn]
 
-    -}
-        exprs' <- mapM typeSystem exprs
+    -}  
+        -- ToDo: we expect ty at this point to be a tuple type and we expect the typed exprs to be equal or > than the types in the tuple type 
+        exprs' <- mapM (typeSystem ty) exprs
         return $ TupE exprs'
 
-    v@(VarE bnd ty) -> do
+    v@(VarE bnd vty) -> do
     {-
          x:T in Gamma
     ========================
@@ -229,19 +242,24 @@ typeSystem = \case
         -- Normally VarE is not annotated, because it's the usage of a variable
         ty' <- case HM.lookup bnd ctxt of
                             Nothing -> throwError $ "Binding " <> show bnd <> " illegally removed from context. That's a bug."
-                            Just ty -> return ty
-        let ty_final  = maxType ty ty'
+                            Just cty -> return cty
+        let ty_calc  = maxType vty ty'
         -- At this point ty_final might still be a type variable
         -- This case can only be handled in Let, because thats where all possible type sources for bnd are handled. To do so, we need to update the context
-        modify (HM.insert bnd ty_final)
-        return $ VarE bnd ty_final
+        
+        -- ToDo: Check that type is <= expected return -> insert maxType ty_calc expected into contex, return ty_max
+        -- let ty_max = maxType ty_cal ty
+        modify (HM.insert bnd ty_calc)
+        
+        return $ VarE bnd ty_calc
 
     (LitE l@(FunRefLit _)) -> do
     {-
        l:T in Delta
     ========================
       Delta, Gamma |- l : T
-    -}
+    -}  
+        -- ToDo: type should match expected return type
         return $ LitE l
 
     (LitE l) -> do
@@ -249,10 +267,11 @@ typeSystem = \case
     ==================
       Gamma |- l : HostType
     -}
+        -- ToDo: Type should match expcted return type
         return $ LitE l
 
     e -> do
-        traceM $ "Didn't match pattern " <> show e
+        traceM $ "Didn't match pattern " <> show e 
         return e
 
 
