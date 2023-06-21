@@ -45,7 +45,7 @@ instance Doc.Pretty RustVarType where
     pretty Unknown = "Unknown" 
 
 rustUnitReturn :: Ty ()
-rustUnitReturn = Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "()" Nothing ()] ()) ()
+rustUnitReturn = Rust.TupTy [] () -- Nothing (Rust.Path False [Rust.PathSegment "()" Nothing ()] ()) ()
 
 rustBool :: Ty ()
 rustBool = Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "bool" Nothing ()] ()) ()
