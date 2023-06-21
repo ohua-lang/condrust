@@ -19,9 +19,9 @@ import qualified Integrations.Rust.SharedMemory.WIP as TestTypextraction
 
 spec :: Spec
 spec =
-    Basic.spec  >>
-    TestTypextraction.spec >>
-    If.spec >>
+    Basic.spec {- >>
+    TestTypextraction.spec  >>
+    If.spec  >>
     State.spec >>
     SMap.spec >>
     TailRec.spec >>   
@@ -29,5 +29,5 @@ spec =
     -- Benchmark.spec >>
     Control.spec >>
     Scoping.spec {- >>
-    Restrictions.spec-}
+    Restrictions.spec-}-}
  

@@ -182,6 +182,9 @@ funs = "\
 \ \
 \ }\ 
 \ \
+\ pub fn hello_world() -> String {\ 
+\    String::from(\"Hello, world!\")\ 
+\ }\ 
 \ pub fn h(i:i32) -> i32 {\ 
 \     let the_answer = if i==23 {i} else {i+1};\ 
 \     the_answer\ 
@@ -207,6 +210,12 @@ funs = "\
 \     i+j\ 
 \ }\ 
 \ \
+
+\ pub fn take_triple(i:i32, j:i32, k:usize) -> i32 {\ 
+\     i+j\ 
+\ }\ 
+\ \
+
 \ pub fn check(i:i32) -> bool {\ 
 \     i < 23\ 
 \ }\ 

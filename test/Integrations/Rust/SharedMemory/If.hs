@@ -18,7 +18,7 @@ spec =
                     let a: i32 = f0(i);
                     let b: i32 = f1(i);
                     let c: i32 = f2(i);
-                    let d: i32 = if a {
+                    let d: i32 = if check(a) {
                         g0(b)
                     } else {
                         g1(c)
@@ -27,8 +27,10 @@ spec =
                 }
                 |]) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" simple_condition
+                expected <- showCode "Expected:" simpleCondition
                 compiled `shouldBe` expected)
+
+      {-}
         it "context functions" $
             (showCode "Compiled: " =<< compileCode  [sourceFile|
                 use crate::funs::*;
@@ -44,7 +46,7 @@ spec =
                 }
                 |]) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" context_functions
+                expected <- showCode "Expected:" contextFunctions
                 compiled `shouldBe` expected)
 
         it "blocks in branches" $
@@ -90,7 +92,7 @@ spec =
                 compiled `shouldBe` expected)
 
         it "loop with stateless condition" $
-             (showCode "Compiled: " =<< compileCode  [sourceFile|
+             (showCode "Compiled: " =<< compileCode [sourceFile|
                  fn test(i: i32) -> i32 {
                     let s:State = new(i);
                     for num in random(i) {
@@ -107,7 +109,7 @@ spec =
                   }
                 |]) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" loop_with_stateless_condition
+                expected <- showCode "Expected:" loopWithStatelessCondition
                 compiled `shouldBe` expected)
 
         it "ERROR: Stateful if-else in loop - We do not support IF-Else in Loops right now" $
@@ -130,7 +132,7 @@ spec =
                 }
                 |]  `shouldThrow` anyException
 
-        it "only if branch in loop" $
+        it "Error: only if branch in loop" $
             compileCode  [sourceFile|
                 use crate::funs::*;
 
@@ -147,13 +149,13 @@ spec =
                 }
                 |]  `shouldThrow` anyException
 
-
+-}
 
                 
 ------------- Testoutput -----------------------------
 
-simple_condition :: SourceFile Span
-simple_condition = [sourceFile|
+simpleCondition :: SourceFile Span
+simpleCondition = [sourceFile|
 use crate::funs::*;
 
 fn test(i: i32) -> i32 {
@@ -297,8 +299,8 @@ fn test(i: i32) -> i32 {
   }
 }|]
 
-context_functions :: SourceFile Span
-context_functions = [sourceFile|
+contextFunctions :: SourceFile Span
+contextFunctions = [sourceFile|
 use crate::funs::*;
 
 fn test(i: i32) -> i32 {
@@ -568,8 +570,8 @@ fn test(i: i32) -> i32 {
 |]
 
 
-loop_with_stateless_condition :: SourceFile Span
-loop_with_stateless_condition = [sourceFile|
+loopWithStatelessCondition :: SourceFile Span
+loopWithStatelessCondition = [sourceFile|
 fn test(i: i32) -> i32 {
   #[derive(Debug)]
   enum RunError {

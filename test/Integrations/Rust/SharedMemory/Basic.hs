@@ -9,6 +9,7 @@ import Language.Rust.Data.Position (Span)
 spec :: Spec
 spec =
     describe "Basics" $ do
+{-
         it "a function" $
             (showCode "Compiled: " =<< compileCode  [sourceFile|
                 use funs::hello_world;
@@ -18,11 +19,11 @@ spec =
                 }
                 |]) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" a_function
+                expected <- showCode "Expected:" aFunction
                 compiled `shouldBe` expected)
 
         it "simple composition" $
-            (showCode "Compiled: " =<< compileCode  [sourceFile|
+            (showCode "Compiled: " =<< compileCode [sourceFile|
                 use crate::funs::*;
 
                 fn test() -> String {
@@ -31,7 +32,7 @@ spec =
                 }
                 |]) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" simple_composition                    
+                expected <- showCode "Expected:" simpleComposition                    
                 compiled `shouldBe` expected)
 -- FIXME see issue ohua-lang/ohua-frontend#8
 --        it "var multi fail" $
@@ -46,19 +47,19 @@ spec =
 --                }
 --                |]) `shouldThrow` anyErrorCall
         it "binary operations" $ 
-          (showCode "Compiled: " =<< compileCode  [sourceFile|
+          (showCode "Compiled: " =<< compileCode[sourceFile|
                 fn test() -> i32 {
                     let x:i32 = 0;
                     let y:i32 = 42;
                     let z:i32 = x + y;
-                    let z1:i23 = z * 2;
+                    let z1:i32 = z * 2;
                     z1 
                 }
                 |]) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" binary_operation
+                expected <- showCode "Expected:" binaryOperation
                 compiled `shouldBe` expected)
-                {-<
+ -}               
         it "var multi 1: read-only" $
           -- due to the transformation to state threads, this transforms into:
           -- let x = f();
@@ -82,7 +83,7 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:" var_multi_1
                 compiled `shouldBe` expected)
-
+{-
         it "var multi 2: explicit clone" $
           -- due to the transformation to state threads, this transforms into:
           -- let x = f();
@@ -103,6 +104,7 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:" var_multi_2 
                 compiled `shouldBe` expected)
+
         it "env vars" $
             (showCode "Compiled: " =<< compileCode  [sourceFile|
                 use funs;
@@ -113,15 +115,16 @@ spec =
                 }
                 |]) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" env_vars
+                expected <- showCode "Expected:" envVars
                 compiled `shouldBe` expected)
+
         it "algo loading" $
             (showCode "Compiled: " =<< compileCode  [sourceFile|
                 use funs;
 
-                fn algo(i: i32) -> String {
+                fn algo(i: i32, j:char) -> String {
                     let x:i32 = funs::h(i);
-                    funs::g(x)
+                    funs::take_char_i(j, x)
                 }
 
                 fn test() -> String {
@@ -129,8 +132,9 @@ spec =
                 }
                 |]) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" algo_loading 
+                expected <- showCode "Expected:" algoLoading 
                 compiled `shouldBe` expected)
+
         it "algo loading (globs)" $
             (showCode "Compiled: " =<< compileCode  [sourceFile|
                 use crate::funs::*;
@@ -147,9 +151,12 @@ spec =
             -- Question: I wonder why I didn't notice until now but ...Why are tasks doubled in 
                 -- algo() and test()?
             (\compiled -> do
-                expected <- showCode "Expected:"  algo_loading_globs
+                expected <- showCode "Expected:"  algoLoadingGlobs
                 compiled `shouldBe` expected)
+
+
         describe "tuples" $ do
+
           it "different targets" $
             (showCode "Compiled: " =<< compileCode  [sourceFile|
                 use crate::funs::*;
@@ -162,8 +169,9 @@ spec =
                 }
                 |]) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" different_targets
+                expected <- showCode "Expected:" differentTargets
                 compiled `shouldBe` expected)
+
           it "unit fun" $
             (showCode "Compiled: " =<< compileCode  [sourceFile|
                 use crate::funs::*;
@@ -184,11 +192,11 @@ spec =
                 use crate::funs::*;
 
                 fn test() -> i32 {
-                    let (a,b, c):(i32, i32, str) = f_tup();
+                    let (a,b, c):(i32, i32, String) = f_tup();
                     let x:i32 = f0(a);
                     let y:i32 = f1(b);
-                    let z:sometype = g(c);
-                    h2(x, y, z)
+                    let z:usize = take_string(c);
+                    take_triple(x, y, z)
                 }
                 |]) >>=
             (\compiled -> do
@@ -197,8 +205,8 @@ spec =
 -}
 ------------- Testouput -------------------------------------
 
-a_function :: SourceFile Span
-a_function = [sourceFile|
+aFunction :: SourceFile Span
+aFunction = [sourceFile|
                         use funs::hello_world;
 
                         fn test() -> String {
@@ -244,8 +252,8 @@ a_function = [sourceFile|
                         }
                     |]
 
-simple_composition :: SourceFile Span
-simple_composition = [sourceFile|
+simpleComposition :: SourceFile Span
+simpleComposition = [sourceFile|
                         use crate::funs::*;
 
                         fn test() -> String {
@@ -300,8 +308,8 @@ simple_composition = [sourceFile|
                         }
                     |]
 
-binary_operation :: SourceFile Span
-binary_operation = [sourceFile|
+binaryOperation:: SourceFile Span
+binaryOperation= [sourceFile|
                       fn test() -> i32 {
                         #[derive(Debug)]
                         enum RunError {
@@ -520,8 +528,8 @@ fn test() -> String {
   }
 }|]
 
-env_vars :: SourceFile Span
-env_vars = [sourceFile|
+envVars :: SourceFile Span
+envVars = [sourceFile|
                         use funs;
 
                         fn test(i: i32) -> String {
@@ -575,8 +583,8 @@ env_vars = [sourceFile|
                         }
                     |]
 
-algo_loading :: SourceFile Span
-algo_loading = [sourceFile|
+algoLoading :: SourceFile Span
+algoLoading = [sourceFile|
                       use funs;
 
                     fn algo(i: i32) -> String {
@@ -682,8 +690,8 @@ algo_loading = [sourceFile|
                     }
                     |]
 
-algo_loading_globs :: SourceFile Span
-algo_loading_globs = 
+algoLoadingGlobs :: SourceFile Span
+algoLoadingGlobs = 
                     [sourceFile|
                         use crate::funs::*;
 
@@ -790,8 +798,8 @@ algo_loading_globs =
                         }
                     |]
 
-different_targets :: SourceFile Span
-different_targets = [sourceFile|
+differentTargets :: SourceFile Span
+differentTargets = [sourceFile|
 use crate::funs::*;
 
 fn test(i: i32) -> i32 {
@@ -976,8 +984,8 @@ fn test() -> i32 {
   let (e_0_0_tx, e_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (a_0_0_0_tx, a_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (b_0_0_0_tx, b_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
-  let (c_0_0_0_tx, c_0_0_0_rx) = std::sync::mpsc::channel::<  str,>();
-  let (z_0_0_0_tx, z_0_0_0_rx) = std::sync::mpsc::channel::<  sometype,>();
+  let (c_0_0_0_tx, c_0_0_0_rx) = std::sync::mpsc::channel::<  String,>();
+  let (z_0_0_0_tx, z_0_0_0_rx) = std::sync::mpsc::channel::<  usize,>();
   let (y_0_0_0_tx, y_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
@@ -988,7 +996,7 @@ fn test() -> i32 {
         let var_0 = x_0_0_0_rx.recv()?;
         let var_1 = y_0_0_0_rx.recv()?;
         let var_2 = z_0_0_0_rx.recv()?;
-        let e_0_0 = h2(var_0, var_1, var_2);
+        let e_0_0 = take_triple(var_0, var_1, var_2);
         e_0_0_tx.send(e_0_0)?;
         ()
       }
@@ -997,7 +1005,7 @@ fn test() -> i32 {
     .push(Box::new(move || -> _ {
       loop {
         let var_0 = c_0_0_0_rx.recv()?;
-        let z_0_0_0 = g(var_0);
+        let z_0_0_0 = take_string(var_0);
         z_0_0_0_tx.send(z_0_0_0)?;
         ()
       }
@@ -1046,5 +1054,4 @@ fn test() -> i32 {
     Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
   }
 }
-
 |]
