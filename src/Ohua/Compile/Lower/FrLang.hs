@@ -200,9 +200,7 @@ trans =
         BindEF ref e -> BindState ref e
         StmtEF e1 cont -> Let (TBind "_" TypeUnit) e1 cont
         SeqEF source target -> (trace $ "Seq Transforming" <> show source) ALang.seqBuiltin (ALang.exprType source) (ALang.exprType target) `Apply` source `Apply` target
-        TupEF [] -> 
-            foldl Apply (pureFunction IFuns.mkTuple Nothing (FunType [] TypeUnit)) []
-        TupEF (e:es) -> 
+        TupEF (e:|es) -> 
             foldl Apply (pureFunction IFuns.mkTuple Nothing (FunType (map ALang.exprType (e:es)) (TupleTy (ALang.exprType e :| map ALang.exprType es)))) (e:es)
         
         WhileEF cond _body ->  error "While loop has not been replaced. Please file a bug"
