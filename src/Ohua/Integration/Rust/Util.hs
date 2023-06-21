@@ -19,7 +19,10 @@ toBinding :: Ident -> Binding
 toBinding Ident{name=n} = fromString n
 
 filePathToNsRef :: FilePath -> NSRef
-filePathToNsRef = makeThrow . map fromString . splitDirectories . dropExtension
+filePathToNsRef = makeThrow . filePathToList
+
+filePathToList :: FilePath -> [Binding]
+filePathToList = map fromString . splitDirectories . dropExtension
 
 loadRustFile :: FilePath -> IO (SourceFile Span)
 -- We want library files to be optionally provided for imports. Hence we might end up here

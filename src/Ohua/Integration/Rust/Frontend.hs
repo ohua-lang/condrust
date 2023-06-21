@@ -181,17 +181,17 @@ instance Integration (Language 'Rust) where
   loadTypes _ (Module ownFile _) ohuaNs = do
     -- Extract namespace reference (filepath) and Qualified name for all functions called in each algo
     filesAndPaths <- concat <$> mapM funsForAlgo (ohuaNs ^. algos)
-    -- traceShowM $ "files and paths: " <> show filesAndPaths
+    traceShowM $ "Function references from Algos: " <> show filesAndPaths
     -- For functions from the compiled module (not imported), set the file path to the current file
     let filesAndPaths' = map (first convertOwn) filesAndPaths
     --  traceShowM $ "After convertOwn : " <> show filesAndPaths
     -- Go through all namespace references, parse the files and return all function types defined in there
     functionTypes <- fnTypesFromFiles $ concatMap fst filesAndPaths'
-    -- traceShowM $ "Loaded function types: " <> show functionTypes
+    -- traceShowM $ "Function types from libraries : " <> show functionTypes
     -- For each function reference check the extracted function type, if function is not found or defined multiple
     -- times this will fail
     usedFunctionTypes <- HM.fromList . catMaybes <$> mapM (verifyAndRegister functionTypes) filesAndPaths'
-    -- traceShowM $ "extracted types: " <> show usedFunctionTypes
+    traceShowM $ "extracted types: " <> show usedFunctionTypes
     -- Replace type annotations of function literals with extracted types
     ohuaNsTypedFuns  <- updateExprs ohuaNs (transformM (assignTypes usedFunctionTypes))
     -- Types might now come form either annotations

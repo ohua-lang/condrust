@@ -39,8 +39,6 @@ type VarTypeContext = HM.HashMap Binding (VarType RustVarType)
 type TypeContextM m = (Monad m, MonadState VarTypeContext m)
 
 
-
-
 instance Doc.Pretty RustVarType where
     pretty (Self ty lT  mut) = RustP.pretty' ty
     pretty (Normal ty) = RustP.pretty' ty
@@ -92,9 +90,10 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
             mapM
                 (\case
                     (Fn _ _ ident decl _ _ _ _ ) -> do 
-                        let fName = createFunRef ident
+                        let fName = createFunRef ident Nothing
                             (argTys, retTy) = getTypes decl
                             fType =  FunType argTys retTy
+                        -- traceShowM $ "Normal function: " <> show fName <> ": " <> show fType
                         return (Just (fName, fType): [])
                     (Impl _ _ _ _ _ _ _ selfType items _) -> 
                         mapM (extractFromImplItem selfType) items
@@ -116,11 +115,14 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
                 :| [])
                 span
 
-        createFunRef :: Ident -> QualifiedBinding
-        createFunRef =
-            QualifiedBinding (filePathToNsRef srcFile) .
-            toBinding
-        
+        createFunRef :: Ident -> Maybe (Ty a)-> QualifiedBinding
+        createFunRef funIdent maybeStructType =
+            case maybeStructType of
+                -- The namespace qualified bining of impl and trait functions needs to include the struct they are implemented for
+                -- ToDo: We still have to solve the problem of multiple traits for the same struct defining equally named functions
+                Just ty -> QualifiedBinding (makeThrow $ filePathToList srcFile ++ [show $ RustP.pretty' (deSpan ty)]) $ toBinding funIdent
+                Nothing -> QualifiedBinding (filePathToNsRef srcFile) $ toBinding funIdent
+
         getTypes :: Show a => FnDecl a -> ([VarType RustVarType], VarType RustVarType)
         getTypes f@(FnDecl _ _ True _) = error $ "Currently, we do not support variadic arguments." <> show f
         getTypes (FnDecl args retType _ _) =  (map toVarType args, fromMaybeRet retType)
@@ -153,12 +155,12 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
         extractFromImplItem selfType (MethodI _ _ _ ident _ (MethodSig _ decl) _ _) =
           case decl of
             FnDecl [] _ _ _ -> return Nothing
-            _ -> Just . (createFunRef ident, ) <$> extractFunType (extractFirstArg selfType) decl
+            _ -> Just . (createFunRef ident (Just selfType), ) <$> extractFunType (extractFirstArg selfType) decl
         extractFromImplItem _ _ = return Nothing
 
         extractFromTraitItem :: (ErrAndLogM m, Show a) => Ty a -> TraitItem a -> m (Maybe (QualifiedBinding, FunType RustVarType ))
         extractFromTraitItem selfType (MethodT _ ident _ (MethodSig _ decl) _ _) =
-            Just . (createFunRef ident, ) <$> extractFunType (extractFirstArg selfType) decl
+            Just . (createFunRef ident (Just selfType), ) <$> extractFunType (extractFirstArg selfType) decl
         extractFromTraitItem _ _ = return Nothing
 
         extractFirstArg :: Ty a -> Arg a -> [VarType RustVarType] -> VarType RustVarType -> m (FunType RustVarType)
