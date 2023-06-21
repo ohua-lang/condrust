@@ -37,14 +37,29 @@ finalTyping expr = -- do
     -- evalStateT (propagateVarAnnotations expr') HM.empty
     evalStateT (typeSystem expr) HM.empty
 
+{-
+Types := T
+       | HostType
+       | T<T>
+       | TupTy [T, T, ..., T]
+       | T -> T
+-}
 
-typeSystem:: (ErrAndLogM m, TypeContextM m) =>  FrLang.Expr RustVarType -> m (FrLang.Expr RustVarType)
+
+{-
+Environments:
+-------------
+Gamma ... associates local variables to a type
+Delta ... associates function literals to a type
+-}
+
+typeSystem :: (ErrAndLogM m, TypeContextM m) =>  FrLang.Expr RustVarType -> m (FrLang.Expr RustVarType)
 typeSystem = \case
     (LetE (VarP bnd ty) e1 e2) -> do
     {-
-        Gamma |– e1: T1  Gamma, x:(max X T1) |– e2: T2  
-    =======================================================
-        Gamma |– let (x:X) e1 e2 : T2 
+      Delta, Gamma |– e1: T1     Delta, Gamma, x:(max X T1) |– e2: T2
+    ==================================================================
+               Delta, Gamma |– let (x:X) e1 e2 : T2
     -}
         traceM $ "Typing Let " <> show bnd <> " = " <> show e1 <> " in\n    " <> show e2
         outer_context <- get
@@ -52,7 +67,7 @@ typeSystem = \case
         let ty' = maxType ty (exprType e1')
         modify (HM.insert bnd ty')
         e2' <- typeSystem e2
-        -- If we didn't fail up to here, the expression is well-typed 
+        -- If we didn't fail up to here, the expression is well-typed
 
         inner_context <- get
         -- We assume that processing e2 updated the binding in the context if it was used with a concrete type
@@ -75,9 +90,9 @@ typeSystem = \case
 
     (AppE fun args) -> do
     {-
-    Gamma|– fun: T1 -> T2 -> ... Tn -> Tf    Gamma|-t1: T1 Gamma|- t2:T2 ... Gamma|- tn:Tn
-    ========================================================================================
-        Gamma |– fun t1 t2 ... tn : Tf
+     Delta, Gamma |– fun: T1 -> T2 -> ... Tn -> Tf    Delta, Gamma |-t1: T1     Delta, Gamma |- t2:T2 ... Delta, Gamma |- tn:Tn
+    ============================================================================================================================
+                              Delta, Gamma |– fun t1 t2 ... tn : Tf
     -}
         traceM $ "Typing AppE " <> show fun <> show args
         args' <- mapM typeSystem args
@@ -96,7 +111,7 @@ typeSystem = \case
         -- but I need to update the context for any args, that where named variables or literals
         args'' <- zipWithM propagateReturnType maxArgTypes args'
         -- the function could be a literal, in which case type propagation is trivial. But it could also be a Lambda expression, in which case we handled the body
-        -- before, possibly without propper types in the context, in case the types came from the arguments. :-( 
+        -- before, possibly without propper types in the context, in case the types came from the arguments. :-(
         let fun'' = propagateArgTypes maxArgTypes fun'
         -- the functions return type is handled in the LetE matching
         traceM $ "Returning AppE " <> show fun'' <> show args''
@@ -104,9 +119,9 @@ typeSystem = \case
 
     (LamE pats expr) -> do
     {-
-                Gamma, p1:T1 p2:T2 ... pn:Tn |- e:Te
+                Delta, Gamma, p1:T1, p2:T2, ..., pn:Tn |- e:Te
     =================================================================
-        Gamma |- Lamda p1 p2 .. pn. e : T1 -> T2 -> ... -> Tn -> Te
+        Delta, Gamma |- Lamda p1 p2 .. pn. e : T1 -> T2 -> ... -> Tn -> Te
     -}
         outer_ctxt <- get
         traceM $ "Typing LamE " <> show pats <> show expr
@@ -115,7 +130,7 @@ typeSystem = \case
         expr' <- typeSystem expr
         body_ctxt <- get
         let pats' = map (tryUpdate body_ctxt) pats
-        -- Remove the local vars from the context 
+        -- Remove the local vars from the context
         put outer_ctxt
         -- FIXME: By resetting the context, we also delete updated typing for vriables from outer context.
         -- Resetting works if it's just about the names being defined but I think we need another meachnism (maybe intersection based on keys) here
@@ -124,10 +139,10 @@ typeSystem = \case
 
     (BindE state method) -> do
     {-
-        Gamma |- state:S  Gamma |- method: T1 -> T2 -> ... -> Tn -> Tm
+        Delta, Gamma |- state : S      Delta, Gamma |- method : S -> Tm
     ========================================================================
-         Gamma |- Bind state method : S -> T1 -> T2 -> ... -> Tn -> Tm
-    -}  
+                  Delta, Gamma |- Bind state method : Tm
+    -}
         state' <- typeSystem state
         method' <- typeSystem method
         assertE (isJust $ funType method') $ "The function " <> show method' <> " had type " <> show (exprType method') <> " but should have had a function type."
@@ -136,33 +151,27 @@ typeSystem = \case
 
     (IfE cond tTrue tFalse) -> do
     {-
-        Gamma |- cond:Bool    Gamma |- tTrue:T   Gamma |- tFalse:T 
-    =====================================================================
-                    Gamma |- If cond tTrue tFalse : T
+        Delta, Gamma |- cond : Bool    Delta, Gamma |- tTrue : T   Delta, Gamma |- tFalse : T
+    ===========================================================================================
+                    Delta, Gamma |- If cond tTrue tFalse : T
     -}
         cond' <- typeSystem cond
         return $ IfE cond tTrue tFalse
 
     (WhileE cond body) -> do
     {-
-    While loops (at least in Rust) allways evaluate to ()/Unit
+     Delta, Gamma |- cond : Bool       Delta, Gamma |- body : Unit
+    ===============================================================
+              Delta, Gamma |- While cond body : Unit
 
-            Gamma |- cond:Bool    
-    ======================================= 
-        Gamma |- While cond body : Unit
-
-    -}  
+    -}
         return $ WhileE cond body
 
     (MapE loopFun generator) ->  do
     {-
-    Like while, for-loops (which we represent as MapE) are expressions but can never evaluate to anything but Unit
-    
-
-        Gamma |- generator:Tg     Gamma |- loopFun: Tg -> Unit
-    ==============================================================
-            Gamma |- MapE loopFun generator : Unit
-
+        Delta, Gamma |- generator : T1<T2>     Delta, Gamma, x:T2 |- loopFun : T3
+    ===============================================================================
+            Delta, Gamma |- MapE loopFun generator : T1<T3>
     -}
         generator' <- typeSystem generator
         loopFun' <- typeSystem loopFun
@@ -170,19 +179,16 @@ typeSystem = \case
         let generatorType = exprType generator'
         case loopType of
             TypeFunction (FunType [inTy] outTy ) -> assertE (inTy == generatorType) $ "In MapE " <> show loopFun' <> " " <> show generator' <> "\nReturn and loopinput don't match"
-            other -> throwError $ "For Loop bodies should be converted to Lambda expressions and have function types. This one had type " <> show other  
-        
+            other -> throwError $ "For Loop bodies should be converted to Lambda expressions and have function types. This one had type " <> show other
+
         return $ MapE loopFun' generator'
 
     (StmtE e1 cont) -> do
     {-
-    The return type of e1 is ignored. Nevertheless what happens in e1 is relevant for cont, e1 must be well typed. I'm not sure how to express this         
-
-        Gamma |- cont:T   Gamma |- e1:T1
-    ========================================
-            Gamma |- Stmt e1 cont : T
-
-    -}  
+        Delta, Gamma |- e1:T1    Delta, Gamma |- cont : T2
+    =======================================================
+            Delta, Gamma |- Stmt e1 cont : T2
+    -}
         e1' <- typeSystem e1
         cont' <- typeSystem cont
         return $ StmtE e1' cont'
@@ -192,35 +198,31 @@ typeSystem = \case
     {-
     Actually that expression is only introduced after this point and should be eliminated anyways :-/. So we have it for completeness but do not need to handle it actually
 
-        Gamma |- cont:T   Gamma |- e1:T1
+        Delta, Gamma |- cont : T   Delta, Gamma |- e1 : T1
     ========================================
-            Gamma |- Seq e1 cont : T
+            Delta, Gamma |- Seq e1 cont : T
 
     -}
         e1' <- typeSystem e1
-        cont' <- typeSystem cont 
+        cont' <- typeSystem cont
         return $ SeqE e1' cont'
-
 
     (TupE exprs) -> do
 
     {-
-        As we now annotate the variables, there's no good reason any more to carry an extra function type for the tuple function but anyways
-
-                      Gamma |- e1:T1  Gamma |- e2:T2 ... Gamma |- en: Tn
+        Delta, Gamma |- e1:T1  Delta, Gamma |- e2:T2   ...   Delta, Gamma |- en: Tn
     ======================================================================================
-      Gamma |- TupE [e1, e2 ... , en] : [T1, T2, ... , Tn] -> TupleTy [T1, T2, .. , Tn] 
+          Delta, Gamma |- TupE [e1, e2 ... , en] : TupleTy [T1, T2, .. , Tn]
 
-    -}  
+    -}
         exprs' <- mapM typeSystem exprs
         return $ TupE exprs'
 
-
     v@(VarE bnd ty) -> do
     {-
-        x:T in Gamma
-    =======================
-        Gamma |– x: T
+         x:T in Gamma
+    ========================
+      Delta, Gamma |– x: T
     -}
         ctxt <- get
         traceM $ "Typing " <> show v <> " in context " <> show ctxt
@@ -234,18 +236,24 @@ typeSystem = \case
         modify (HM.insert bnd ty_final)
         return $ VarE bnd ty_final
 
-    (LitE l) -> do
+    (LitE l@(FunRefLit _)) -> do
     {-
-    Usually literals just have types, e.g. True is Bool, independent of the context. 
-    But we also have function names as literals. Which are actually not literals but named terms defined elsewhere, so
-    How to distigush inference rules for normal literals, that don't have preconditions in the context fom function literals whose infered type depends on the context
-
-    =============
-        l : T
+       l:T in Delta
+    ========================
+      Delta, Gamma |- l : T
     -}
         return $ LitE l
+
+    (LitE l) -> do
+    {-
+    ==================
+      Gamma |- l : HostType
+    -}
+        return $ LitE l
+
     e -> do
         traceM $ "Didn't match pattern " <> show e
         return e
+
 
 
