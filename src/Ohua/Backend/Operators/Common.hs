@@ -29,15 +29,15 @@ fromVarReceive (PureVar c r) = (c,r)
 unwrapChan :: OutputChannel ty -> Com 'Channel ty
 unwrapChan (OutputChannel c) = c
 
-unwrapBnd :: OutputChannel ty -> Binding 
+unwrapBnd :: OutputChannel ty -> Binding
 unwrapBnd (OutputChannel (SChan b)) = b
 
 initVarsExpr :: [(Binding, Com 'Recv ty)] -> [OutputChannel ty] -> TaskExpr ty -> TaskExpr ty
-initVarsExpr rVars sVars cont = 
+initVarsExpr rVars sVars cont =
     foldr (\(bnd, e) c -> Let bnd e c) cont $ toExpr rVars sVars
 
 receiveVarsExpr :: [(OutputChannel ty, Com 'Recv ty)] -> [OutputChannel ty] -> TaskExpr ty
-receiveVarsExpr rVars sVars = 
+receiveVarsExpr rVars sVars =
     foldr (\(OutputChannel (SChan bnd), e) c -> Stmt (Assign bnd e) c) (Lit UnitLit) $ toExpr rVars sVars
 
 toExpr :: [(a, Com 'Recv ty)] -> [OutputChannel ty] -> [(a, TaskExpr ty)]
@@ -47,9 +47,9 @@ toExpr rVars sVars  = map (second f) rVars
         f r  = ReceiveData r
         ctrled = HS.fromList $ map unwrapChan sVars
 
-ctrlTuple:: Bool -> Either Binding Integer -> TaskExpr ty
-ctrlTuple bl eth = 
-  let second = case eth of 
+ctrlTuple :: Bool -> Either Binding Integer -> TaskExpr ty
+ctrlTuple bl eth =
+  let second = case eth of
         Left bind -> Left bind
         Right n -> Right (NumericLit n)
-  in (Tuple $ Right (BoolLit bl):|[second]) 
+  in (Tuple $ Right (BoolLit bl):|[second])
