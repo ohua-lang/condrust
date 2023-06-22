@@ -77,9 +77,7 @@ type AExpr = Expr
 
 exprType:: Expr ty -> VarType ty
 exprType e = case e of 
-    Var (TBind _bnd varTy) -> case varTy of
-        TypeFunction funTy -> getReturnType funTy
-        ty -> ty
+    Var (TBind _bnd varTy) -> varTy
     -- We aim for "return types" here so if the literal is a function, this will evaluate to the functions return type
     Lit lit -> getLitType lit
     -- Let should be typed by e2, because this is what it resturns
