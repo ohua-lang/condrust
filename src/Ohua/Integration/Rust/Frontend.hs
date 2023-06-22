@@ -206,7 +206,9 @@ instance Integration (Language 'Rust) where
     -- So now we go bootom-up and try to type annotate untyped varaibles by first trying to type the arguments of each function call using 
     -- information from the funciton literals and second try to type those arguments where they are assigned (i.e. further up in the code)
     -- using the type info gathered from their usage. 
-    updateExprs ohuaNsTypedFuns TS.finalTyping
+    -- ToDo: THe type argument should be return type of each algo which we either have separtely gotten from lowering or, prefereable, the argument will vanish because 
+    -- The algo got a let expression containing the algo type itself.
+    updateExprs ohuaNsTypedFuns (TS.finalTyping typeUnknown)
 
     where
       funsForAlgo :: ErrAndLogM m => Algo (FrLang.Expr RustVarType) (Item Span) -> m [([NSRef], QualifiedBinding)]
