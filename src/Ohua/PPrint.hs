@@ -3,7 +3,7 @@ module Ohua.PPrint where
 import Universum
 
 import Ohua.Types.Literal
-import Ohua.Types.Reference
+import Ohua.Types.Bindings
 import Ohua.Types.Make
 import Ohua.Types.Classes
 import Ohua.LensClasses
@@ -37,54 +37,14 @@ errorD = error . ohuaDefaultLayoutDoc
 flexText :: Text -> PP.Doc ann
 flexText = PP.vsep . map (PP.fillSep . map PP.pretty . words) . lines
 
-
-prettyFunRef :: FunRef ty -> Doc ann
-prettyFunRef (FunRef sf fid ty) = pretty sf <> angles (pretty ty)  <> maybe emptyDoc (angles . pretty) fid
-
-prettyLit :: Lit ty -> Doc ann
-prettyLit =
-    \case
-        FunRefLit funRef -> pretty funRef
-        NumericLit n -> pretty n
-        UnitLit -> "()"
-        EnvRefLit he ty -> "$" <> pretty he <> "::" <> pretty ty
-        BoolLit b -> pretty b 
-        StringLit str -> pretty str
-
-prettyFunType :: FunType ty -> Doc ann
-prettyFunType = 
-    \case
-        FunType [] retTy -> "() -> " <> pretty retTy
-        FunType argsTys retTy -> 
-            let pArgs = hsep (punctuate comma $ toList $ map pretty argsTys)
-                pRet = pretty retTy
-            in parens pArgs <> " -> " <> pRet
-        STFunType stateTy [] retTy -> pretty stateTy  <> "-> () -> " <> pretty retTy
-        STFunType stateTy argsTys retTy ->
-            let pArgs = hsep (punctuate comma $ toList $ map pretty argsTys)
-                pRet = pretty retTy
-            in pretty stateTy <>" -> "<> parens pArgs <> " -> " <> pRet
-
-instance Pretty (VarType ty) where
-    pretty = flexText . showNoType
-
-instance Pretty (FunType ty) where
-    pretty = prettyFunType
-
 instance Pretty FnId where
     pretty = pretty . unwrap
 
 instance Pretty Binding where
     pretty = pretty . (unwrap :: Binding -> Text)
 
-instance Pretty (FunRef ty) where
-    pretty = prettyFunRef
-
 instance Pretty QualifiedBinding where
     pretty qb = pretty (qb ^. namespace) <> slash <> pretty (qb ^. name)
 
 instance Pretty NSRef where
     pretty = hcat . punctuate dot . map pretty . unwrap
-
-instance Pretty (Lit ty) where
-    pretty = prettyLit

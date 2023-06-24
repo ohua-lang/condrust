@@ -29,7 +29,7 @@ import Control.Lens.Operators ((.=))
 import Control.Lens.TH
 
 import Ohua.Types.Error
-import Ohua.Types.Reference
+import Ohua.Types.Bindings
 import Ohua.Types.Make
 
 

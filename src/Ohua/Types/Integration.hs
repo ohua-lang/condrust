@@ -3,7 +3,7 @@ module Ohua.Types.Integration where
 
 import Universum
 
-import Ohua.Types.Reference
+import Ohua.Types.Bindings
 import Control.Lens.TH
 
 
@@ -18,7 +18,7 @@ declareLenses[d|
                , alias :: Binding
                }
           | Glob -- path that imports all bindings in this path.
-               { ns :: NSRef 
+               { ns :: NSRef
                }
           deriving (Show, Eq)
     |]
@@ -38,7 +38,7 @@ newtype Global = Global Binding deriving (Show, Eq)
 -- to match on to extract the type and b) we'd carry lots of stuff through the compile steps when all we need is one type.
 
 declareLenses[d|
-     data Algo expr inpt = Algo 
+     data Algo expr inpt = Algo
           { algoName :: Binding
           , algoCode :: expr
           , algoInputCode :: inpt
@@ -64,7 +64,7 @@ updateExprs namespace f = updateExprs' namespace $ \_ e -> f e
 
 updateExprs' :: Monad m => Namespace expr1 inpt -> (Binding -> expr1 -> m expr2) -> m (Namespace expr2 inpt)
 updateExprs' namespace f = do
-     algos' <- 
+     algos' <-
           forM (namespace^.algos) $ \algo -> do
                algoCode' <- f (algo^.algoName) (algo^.algoCode)
                return $ over algoCode (const algoCode') algo

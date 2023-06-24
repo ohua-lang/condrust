@@ -13,8 +13,8 @@
     , TypeApplications
 #-}
 
-module Ohua.Types.Reference where
-{-
+module Ohua.Types.Resolved.Reference where
+
 import Universum hiding (Nat, toList)
 
 import GHC.Generics
@@ -103,66 +103,6 @@ type FunType ty = FType ty 'Resolved
 
 -- Because dependent types in Haskell suck, I have to replicate the data structure
 
-data UnresolvedVarType ty
-    = UTypeNat
-    | UTypeBool
-    | UTypeUnit
-    | UTypeString
-    | UTypeList (UnresolvedVarType ty)
-    | UType (HostType ty)
-    | UTupleTy (NonEmpty (UnresolvedVarType ty))
-    -- REMINDER: Can't derive Lift for Unit, therefor not for FunType and therefor I can't have FunType here for now
-    --           Find a way to fix this
-    | UTypeFunction (UnresolvedFunType ty) -- This is mainly used for inlined algos
-    | TypeVar
-    deriving (Lift, Generic)
-
-data UnresolvedFunType ty where
-     -- arguments types -> return type -> function type 
-     UFunType :: [UnresolvedVarType ty] -> UnresolvedVarType ty -> UnresolvedFunType ty
-     -- state/object type -> return type -> function type 
-     USTFunType :: UnresolvedVarType ty -> [UnresolvedVarType ty] -> UnresolvedVarType ty -> UnresolvedFunType ty
-     deriving (Lift)
-
-instance EqNoType (UnresolvedVarType ty) where
-    UTypeNat ~= UTypeNat = True
-    UTypeBool ~= UTypeBool = True
-    UTypeUnit ~= UTypeUnit = True
-    UTypeString ~= UTypeString = True
-    UType (HostType ty1) ~= UType (HostType ty2) = ty1 == ty2
-    (UTupleTy ts) ~= (UTupleTy ts') = ts == ts' -- turns into ~=, see instance below
-    (UTypeList inner1) ~= (UTypeList inner2) = inner1 == inner2
-    (UTypeFunction fty1) ~= (UTypeFunction fty2) = fty1 == fty2
-    _ ~= _ = False
-
-instance Eq (UnresolvedVarType ty) where
-    (==) = (~=)
-
-instance ShowNoType (UnresolvedVarType ty) where
-    showNoType UTypeNat = "INat"
-    showNoType UTypeBool = "IBool"
-    showNoType UTypeUnit = "IUnit"
-    -- Is it internal though?
-    showNoType UTypeString = "IString"
-    showNoType (UTypeList ts) = "IList [" <> showNoType ts <> "]"
-    showNoType (UType (HostType ty)) = show (pretty ty)
-    showNoType (UTupleTy ts) = "(" <>  foldl (\b a -> show a <> ", " <> b) ")" ts
-    showNoType (UTypeFunction fTy) = "Fun::" <> show fTy
-    showNoType TypeVar = "TypeVar"
-
-
-instance Show (UnresolvedVarType ty) where
-    show = T.unpack . showNoType
-
-instance Hashable (UnresolvedVarType ty) where
-    hashWithSalt s _ = s
-
-deriving instance Show (UnresolvedFunType ty)
-deriving instance Eq (UnresolvedFunType ty)
-deriving instance Generic (UnresolvedFunType ty)
-instance Hashable (UnresolvedFunType ty)
-
-
 data VarType ty
     = TypeNat
     | TypeBool
@@ -183,10 +123,10 @@ data FunType ty where
      STFunType :: VarType ty -> [VarType ty] -> VarType ty -> FunType ty
      deriving (Lift)
 
-
 -- ToDo: This is just a helper until we get types of control nodes right
 controlSignalType :: VarType ty
 controlSignalType = TupleTy $ TypeBool:| [TypeNat]
+
 
 instance EqNoType (VarType ty) where
     TypeNat ~= TypeNat = True
@@ -218,19 +158,13 @@ instance Show (VarType ty) where
     show = T.unpack . showNoType
 
 instance Hashable (VarType ty) where
-    hashWithSalt s TypeNat = s
-    hashWithSalt s TypeBool = s
-    hashWithSalt s TypeUnit = s
-    hashWithSalt s TypeString = s
-    hashWithSalt s (TypeList ts) = s
-    hashWithSalt s (Type _) = s
-    hashWithSalt s (TupleTy _) = s
-    hashWithSalt s (TypeFunction fty) = s
+    hashWithSalt s _ = s
 
 deriving instance Show (FunType ty)
 deriving instance Eq (FunType ty)
 deriving instance Generic (FunType ty)
 instance Hashable (FunType ty)
+
 
 --------------------------------------------------------------
 --               Representation of Variables
@@ -267,9 +201,9 @@ asType (TBind _bnd ty) = ty
 -- at each call side because we assume that either generics are not allowed or
 -- are also allowed in the backend such that we can consider a generic return type 
 -- as fully resolved.
-getReturnType :: UnresolvedFunType ty -> UnresolvedVarType ty
-getReturnType (UFunType _ins out) = out
-getReturnType (USTFunType _s _ins out) = out
+getReturnType :: FunType ty -> VarType ty
+getReturnType (FunType _ins out) = out
+getReturnType (STFunType _s _ins out) = out
 
 pureArgTypes :: FunType ty -> [VarType ty]
 pureArgTypes (FunType ins _out) = ins
@@ -289,7 +223,7 @@ setFunType intys outty (STFunType s _ins _out) = STFunType s intys outty
 
 
 data FunRef ty where
-    FunRef :: QualifiedBinding -> Maybe FnId -> UnresolvedFunType ty -> FunRef ty
+    FunRef :: QualifiedBinding -> Maybe FnId -> FunType ty -> FunRef ty
 
 getRefType (FunRef _q _i funTy) = funTy
 getRefReturnType (FunRef _q _i funTy) = getReturnType funTy
@@ -302,4 +236,3 @@ deriving instance Show (FunRef ty)
 deriving instance Eq (FunRef ty)
 deriving instance Generic (FunRef ty)
 instance Hashable (FunRef ty)
--}
