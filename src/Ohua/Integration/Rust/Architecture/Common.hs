@@ -60,18 +60,15 @@ toRustTy ty = case ty of
     TypeUnit -> Just $ Rust.TupTy [] ()
     TypeNat -> Just $  Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "usize" Nothing ()] ()) ()
     TypeBool ->  Just $ Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "bool" Nothing ()] ()) ()
-    
+
     (Type (HostType (TH.Self ty _ _ ))) ->  Just $ ty
     (Type (HostType (TH.Normal ty))) -> Just $  ty
-    (Type (HostType (TH.Unknown))) -> trace "Type Unknown mad it through the compiler" Just $  Rust.Infer ()
-    
-    (TupleTy types) ->  do 
-      let check = any (== Type (HostType TH.Unknown)) types
-      traceM $ "Is there an UnKnown in the types?:  " <> show check 
+
+    (TupleTy types) ->  do
       types' <- mapM toRustTy types
       return $ Rust.TupTy (toList types') ()
-    
-    (TypeList itemType) ->  do 
+
+    (TypeList itemType) ->  do
       traceM $ "Got a List type"
       itemTy <- toRustTy itemType
       traceM $ "Item type is" <> show itemTy
