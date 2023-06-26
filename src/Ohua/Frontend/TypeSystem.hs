@@ -65,8 +65,6 @@ Delta ... associates function literals to a type
 
 type Gamma varTy ty = HM.HashMap Binding (varTy ty)
 
--- | We pass in the return type of the algorithm and the algorithm and recursively whether each expression has the type it's
---   supposed to have such that expected return type and calculated type match, or (because we have Unknown types) that one just more specific than the other
 typeSystem :: ErrAndLogM m => Gamma VarType ty, FrLang.Expr ty -> m (Gamma Res.VarType ty, WT.Expr ty, Res.VarType ty)
 typeSystem gamma = \case
     (FrLang.LetE (FrLang.VarP bnd tyT1) e1 e2) -> do
@@ -83,31 +81,41 @@ typeSystem gamma = \case
 
     (FrLang.AppE fun args) ->
     {-
-     Delta, Gamma |– fun: T1 -> T2 -> ... Tm -> Tf  n<=m  Delta, Gamma |-t1: T1     Delta, Gamma |- t2:T2 ... Delta, Gamma |- tn:Tn
-    ============================================================================================================================
-                              Delta, Gamma |– fun t1 t2 ... tn : Tf
+                 Delta, Gamma |– fun: T1 -> T2 -> ... Tm -> Tf  n<=m
+       Delta, Gamma |-t1: T1     Delta, Gamma |- t2:T2 ... Delta, Gamma |- tn:Tn
+    ===================================================================================
+                    Delta, Gamma |– fun t1 t2 ... tn : Tf
     -}
       let
-        handleFun [] (_:_) = throwError "Too many argumemts in function application."
-        handleFun l [] = l
-        handleFun (x:xs) (arg:args) = do
-          (argsAndTy, pendingTy) <- handleFun xs args
-          return ((arg,x) : argsAndTy, pendingTy)
+        assocArgWithType [] (_:_) = throwError "Too many argumemts in function application."
+        assocArgWithType l [] = l
+        assocArgWithType (x:xs) (arg:args) = do
+            (argsAndTy, pendingTy) <- assocArgWithType xs args
+            return ((arg,x) : argsAndTy, pendingTy)
+        handleFun ins args = do
+            (argsAndTy, pendingArgsTy) <- assocArgWithType ins args
+            gamma' <-
+              foldM (\g (b, t) ->
+                       case b of
+                         Var bnd ty -> case HM.lookup bnd gamma of
+                                         Nothing -> throwError "Invariant broken: var not in context"
+                                         Just ty' -> HM.insert bnd (fromResType $ maxType ty' ty) gamma
+                         _ -> g)
+                    gamma
+                    argsAndTy
+            return (gamma', pendingArgsTy)
       in do
         (gamma', fun', funTy) <- typeSystem gamma fun
 
         (gamma'', resTy) <- case funTy of
           Res.FunctionType (Res.FunType ins out) -> do
-            (argsAndTy, pendingTy) <- handFun ins args
-            foldM (\g (b, t) ->
-                     case b of
-                       Var bnd ty -> case HM.lookup bnd gamma of
-                                       Nothing -> throwError "Invariant broken: var not in context"
-                                       Just ty' -> HM.insert bnd (fromResType $ maxType ty' ty) gamma
-                       _ -> g
-                     HM.insert ) gamma argsAndTy
+              (gamma'', pendingArgsTy) <- handleFun ins args
+              case pendingArgsTy of
+                [] -> return (gamma'', out)
+                _  -> return (gamma'', Res.FunctionType (Res.FunType pendingsArgsTy out))
           Res.FunctionType (Res.STFunType sin ins out) -> do
-            handleFun ins args
+              (gamma'', pendingArgsTy) <- handleFun ins args
+              return (gamma'', Res.FunctionType (Res.STFunType sin pendingsArgsTy out))
           Nothing -> throwError "First argument of function application is not a function!"
 
         (_, args', _argsTy) <- unzip3 $ mapM (typeSystem gamma'') args
@@ -132,21 +140,9 @@ typeSystem gamma = \case
               $ map fst bndsAndTypes
         let ty = TypeFunction $ FunType argTypes tyE
 
-        {-
-        body_ctxt <- get
-        -- ToDo; Check if tryUpdate needs to update the context,i.e. if there's any use of that. If not, we can save us the deletion step for the patterns afterwars.
-        let pats' = map (tryUpdate body_ctxt) pats
-        -- Remove the local vars from the context
-        let bound_names = map fst bndsAndTypes
-        let outer_context = foldr HM.delete body_ctxt bound_names
-        put outer_context
-        traceM $ "Returning LamE " <> show pats' <> show expr'
-        traceM $ "In context " <> show outer_context
-        -}
-
         return (gamma, WT.LamE pats' expr', ty)
 
-    (BindE state method) -> do
+    (FrLang.BindE state method) -> do
     {-
         Delta, Gamma |- state : S      Delta, Gamma |- method : S -> Tm
     ========================================================================
@@ -160,7 +156,7 @@ typeSystem gamma = \case
 
         return (gamma'', WT.BindE state' method', ty)
 
-    (IfE cond tTrue tFalse) -> do
+    (FrLang.IfE cond tTrue tFalse) -> do
     {-
         Delta, Gamma |- cond : Bool    Delta, Gamma |- tTrue : T   Delta, Gamma |- tFalse : T
     ===========================================================================================
@@ -179,7 +175,7 @@ typeSystem gamma = \case
 
         return (gamma', WT.IfE cond' tTrue' tFalse', ty)
 
-    (WhileE cond body) -> do
+    (FrLang.WhileE cond body) -> do
     {-
      Delta, Gamma |- cond : Bool       Delta, Gamma |- body : T
     ===============================================================
@@ -195,7 +191,7 @@ typeSystem gamma = \case
 
         return (gamma', WT.WhileE cond' body', Res.TypeUnit)
 
-    (MapE loopFun gen) ->  do
+    (FrLang.MapE loopFun gen) ->  do
     {-
         Delta, Gamma |- generator : T1<T2>     Delta, Gamma, x:T2 |- loopFun : T3
     ===============================================================================
@@ -210,7 +206,7 @@ typeSystem gamma = \case
 
         return (gamma', WT.MapE loopFun' gen', Res.TypeList loopFunTy)
 
-    (StmtE e1 cont) -> do
+    (FrLang.StmtE e1 cont) -> do
     {-
         Delta, Gamma |- e1:T1    Delta, Gamma |- cont : T2
     =======================================================
@@ -220,22 +216,7 @@ typeSystem gamma = \case
         (gamma', cont', contTy) <- typeSystem gamma cont
         return (gamma', WT.StmtE e1' cont', contTy)
 
---    (SeqE e1 cont) -> do
---
---    {-
---    Actually that expression is only introduced after this point and should be eliminated anyways :-/. So we have it for completeness but do not need to handle it actually
---
---        Delta, Gamma |- cont : T   Delta, Gamma |- e1 : T1
---    ========================================================
---            Delta, Gamma |- Seq e1 cont : T
---
---    -}
---        -- same as for Stmt, we have no expectations for e1
---        e1' <- typeSystem typeUnknown e1
---        cont' <- typeSystem ty cont
---        return $ SeqE e1' cont'
-
-    (TupE exprs) -> do
+    (FrLang.TupE exprs) -> do
     {-
         Delta, Gamma |- e1:T1  Delta, Gamma |- e2:T2   ...   Delta, Gamma |- en: Tn
     ======================================================================================
@@ -245,45 +226,51 @@ typeSystem gamma = \case
         (gamma' :| _, exprs',exprsTy ) <- unzip3 <$> mapM (typeSystem gamma) exprs
         return (gamma', WT.TupE exprs', Res.TupleTy exprsTy)
 
-    v@(VarE bnd vty) -> do
+    v@(FrLang.VarE bnd vty) -> do
     {-
          x:T in Gamma
     ========================
       Delta, Gamma |– x: T
     -}
-        ty <- case HM.lookup bnd ctxt of
-                   Nothing -> throwError "Invariant broken: var not in typing context."
-                   Just t -> return t
+        (gamma', ty) <- handleVar gamma bnd vty
+        return (gamma', WT.VarE bnd ty, ty)
 
-        ty' <- case toResType ty of
-                   Just t -> maxType vty t
-                   Nothing -> case toResType vty of
-                                  Just t' -> maxType ty t'
-                                  Nothing -> throwError $ "Invariant broken: var in context has no type: " <> show bnd
+    (FrLang.LitE (EnvRefLit bnd vty)) -> do
+        (gamma', ty) <- handleVar gamma bnd vty
+        return (gamma', WT.LitE $ Res.EnvRefLit bnd ty, ty)
 
-        return (HM.singleton bnd ty', WT.VarE, ty')
-
-    (LitE l@(FunRefLit _)) -> do
+    (FrLang.LitE (FunRefLit f)) -> do
     {-
        l:T in Delta
     ========================
       Delta, Gamma |- l : T
     -}
-        -- ToDo: type should match expected return type
+        -- TODO instead of in Delta, we store these types already directly on the literal
+        --      for functions, this really needs to be a FunType!
+        -- FIXME this case seems wrong to me unless we encode TypeVar as Type -> TypeVar!
+        --       there must be a step in the frontend that does this. Where is it?!
         return $ LitE l
 
-    (LitE l) -> do
+    (FrLang.LitE l) -> do
     {-
     ==================
       Gamma |- l : HostType
     -}
-        -- ToDo: Type should match expcted return type
         return $ LitE l
 
-    e -> do
-        traceM $ "Didn't match pattern " <> show e
-        return e
+    where
+        handleVar gamma bnd vty = do
+            ty <- case HM.lookup bnd ctxt of
+                      Nothing -> throwError "Invariant broken: var not in typing context."
+                      Just t -> return t
 
+            ty' <- case toResType ty of
+                       Just t -> maxType vty t
+                       Nothing -> case toResType vty of
+                                      Just t' -> maxType ty t'
+                                      Nothing -> throwError $ "Invariant broken: var in context has no type: " <> show bnd
+
+            return (HM.singleton bnd ty', ty')
 
 
 maxType :: ErrAndLogM m => VarType ty -> Res.VarType ty -> m (Res.VarType ty)
