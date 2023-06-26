@@ -20,6 +20,7 @@ import Ohua.Frontend.PPrint ()
 import Ohua.Frontend.Lang as FrLang
     ( Expr(..),
       Pat(TupP, VarP, WildP),
+      patType,
       applyToFinal)
 
 import Ohua.Integration.Lang
@@ -90,7 +91,7 @@ instance Integration (Language 'Rust) where
                 <$> mapM
                   ( \case
                       f@(Fn _ _ ident decl _ _ block _) ->
-                        Just . (\e -> Algo (toBinding ident) e f) <$> evalStateT (extractAlgo decl block) globs
+                        Just . (\e -> Algo (toBinding ident) e f) <$> evalStateT (extractAlgo ident decl block) globs
                       _ -> return Nothing
                   )
                   items
@@ -120,11 +121,12 @@ instance Integration (Language 'Rust) where
 
       extractAlgo ::
         (SubC.ConvertM m, ErrAndLogM m) =>
+        Ident ->
         FnDecl Span ->
         Block Span ->
         m (FrLang.Expr RustVarType)
-      extractAlgo (FnDecl args _ True _) block = error "We do not support compilation of variadic functions for the moment"
-      extractAlgo (FnDecl args mReturnTy _ _) block = do
+      extractAlgo _algoName (FnDecl _ _ True _) _block = error "We do not support compilation of variadic functions for the moment"
+      extractAlgo algoName  (FnDecl args mReturnTy _ _) block = do
         -- globally defined values are (implicit) arguments to each function
         -- we get them from the context BEFORE parsing the algo and make them explicit argumets here. 
         -- BUT we need to treat them differently in non-shared-memory backends. This can be acchieved by also 
@@ -136,10 +138,10 @@ instance Integration (Language 'Rust) where
         args' <- mapM (convertPat <=< SubC.convertArg) args
         -- Convert the function block
         block' <- convertIntoFrExpr block
-        -- FIXME: typeReturnExpr must be replaced by something that works like propagateReturnType because iff the last expression is an APP, we want to set the return type of the last
-        ---       called function, not replace the funciton type by the return type of the algo.
-        -- block'' <- typeReturnExpr mReturnTy block'
-        return $ LamE (implGlobalArgs ++ args') block' 
+        -- ToDo: Currently we do not compile methods. If we do we'll propably need to adapt this
+        let returnType = asVarType mReturnTy
+        let wrappedBlock = LetE (VarP "result" returnType) block' (VarE "result" returnType) 
+        return $ LamE (implGlobalArgs ++ args') wrappedBlock 
 
       convertIntoFrExpr :: SubC.ConvertM m => Block Span -> m (FrLang.Expr RustVarType)
       convertIntoFrExpr rustBlock = do
@@ -153,27 +155,13 @@ instance Integration (Language 'Rust) where
                                               else return $ fromString iname
           (PathSegment _ (Just _) _) -> error $ "We currently do not support import paths with path parameters.\n" <> show p
 
-      getReturn :: FnDecl Span -> RustVarType
-      -- FIXME: We may need more elaborate patterns for the type here
-      -- Currently we only care for pure functions as algos and do nto support tuple
-      -- returns (or any sort of elaborate types in the composition). If this changes, we need to 
-      -- make the return type more specific
-      getReturn (FnDecl _ (Just ty) _ _ ) = TH.Normal $ deSpan ty
-      getReturn (FnDecl _ Nothing _ _ ) = TH.Normal TH.rustUnitReturn
-
       fromGlobals:: SubC.ConvertM m => m [FrLang.Pat RustVarType]
       fromGlobals = do
         map (\(bnd, Sub.RustType ty) -> VarP bnd (asHostNormal ty)) . HM.toList <$> get
 
-      -- FIXME: typeReturnExpr must be replaced by something that works like propagateReturnType because iff the last expression is an APP, we want to set the return type of the last
-        ---       called function, not replace the funciton type by the return type of the algo.
-      typeReturnExpr :: (SubC.ConvertM m, ErrAndLogM m) => Maybe (Ty a) -> FrLang.Expr RustVarType -> m ( FrLang.Expr RustVarType)
-      typeReturnExpr mReturnTy block = do
-          let varType = asVarType mReturnTy
-          FrLang.applyToFinal (replaceType varType) block
-
-         where asVarType Nothing = TypeUnit
-               asVarType (Just ty) = asHostNormal ty
+      asVarType:: Maybe (Ty Span) -> VarType RustVarType
+      asVarType Nothing = TypeUnit
+      asVarType (Just ty) = asHostNormal ty
 
 
   loadTypes ::
