@@ -3,22 +3,23 @@
 
 module Ohua.Frontend.Lang
     ( Pat(..)
+    , WellTypedExpr(..)
     , Expr(..)
-    , exprType
-    , returnType
-    , funType
+--    , exprType
+--    , returnType
+--    , funType
     , patType
     , patBnd
     , patTyBnds
     , setPatType
-    , setExprFunType
+--    , setExprFunType
     , PatF(..)
     , ExprF(..)
     , patterns
     , applyToFinal
     ) where
 
-import Ohua.Prelude
+import Ohua.UResPrelude
 
 
 import Control.Lens (Traversal')
@@ -35,17 +36,17 @@ data Pat ty
     | WildP (VarType ty)
     deriving (Show, Eq, Generic)
 
-patType:: Pat ty -> VarType ty
+patType :: Pat ty -> VarType ty
 patType = \case
     VarP _ ty -> ty
     TupP ps -> TupleTy (map patType ps)
     WildP ty -> ty
 
-patBnd:: Pat ty -> [Maybe Binding]
+patBnd :: Pat ty -> [Maybe Binding]
 patBnd = \case
     VarP bnd ty -> Just bnd : []
     TupP ps -> concatMap patBnd ps
-    WildP ty -> Nothing: []
+    WildP ty -> Nothing : []
 
 -- | Helper function to update the binding context from typed patterns
 patTyBnds :: Pat ty -> [(Binding, VarType ty)]
@@ -54,12 +55,53 @@ patTyBnds = \case
     TupP ps -> concatMap patTyBnds ps
     WildP ty -> []
 
+{-
 setPatType :: VarType ty -> Pat ty -> Pat ty
 setPatType nty = \case
     VarP bnd ty -> VarP bnd nty
     TupP ps -> case nty of
         TupleTy tys -> TupP $ NE.map (uncurry setPatType) (NE.zip tys ps)
     WildP ty -> WildP nty
+-}
+{-
+
+Again this approach does not work because of all this TH non-sense in the
+traversal libraries that we use.
+Again, let's find a way to get rid of Haskell soon.
+
+data Expr' varF ty
+    -- REMINDER: We need to wrap the host type in an VarType here, because
+    -- the compiler will introdude variables typed as internal bool/unit/int 
+    -- ... that also have to be representable
+    = VarE Binding (varF ty)
+    | LitE (Lit ty)
+    | LetE (Pat ty)
+           (Expr' varF ty)
+           (Expr' varF ty)
+    | AppE (Expr' varF ty)
+           [Expr' varF ty]
+    | LamE [Pat ty]
+           (Expr' varF ty) -- ^ An expression creating a function
+    | IfE (Expr' varF ty)
+          (Expr' varF ty)
+          (Expr' varF ty)
+    | WhileE (Expr' varF ty) (Expr' varF ty)
+    | MapE (Expr' varF ty) -- ^ Map expression that 'maps' its first argument to its second :: map f xs.
+           (Expr' varF ty)
+
+    | BindE (Expr' varF ty)
+            (Expr' varF ty) -- ^ @BindE state function@ binds @state@ to be operated on by @function@
+    | StmtE (Expr' varF ty)
+            (Expr' varF ty) -- ^ An expression with the return value ignored
+    | SeqE (Expr' varF ty)
+           (Expr' varF ty)
+    | TupE (NonEmpty (Expr' varF ty)) -- ^ create a tuple value that can be destructured
+    deriving (Show, Generic)
+
+type Expr ty = Expr (Expr' VarType ty)
+type UnresolvedExpr ty = UnresolvedExpr (Expr' UnresolvedVarType ty)
+
+--}
 
 data Expr ty
     -- REMINDER: We need to wrap the host type in an VarType here, because
@@ -77,21 +119,20 @@ data Expr ty
     | IfE (Expr ty)
           (Expr ty)
           (Expr ty)
-    | WhileE (Expr ty) (Expr ty)
+    | WhileE (Expr ty)
+             (Expr ty)
     | MapE (Expr ty) -- ^ Map expression that 'maps' its first argument to its second :: map f xs.
            (Expr ty)
-
     | BindE (Expr ty)
             (Expr ty) -- ^ @BindE state function@ binds @state@ to be operated on by @function@
     | StmtE (Expr ty)
             (Expr ty) -- ^ An expression with the return value ignored
-    | SeqE (Expr ty)
-           (Expr ty)
+--    | SeqE (Expr ty)
+--           (Expr ty)
     | TupE (NonEmpty (Expr ty)) -- ^ create a tuple value that can be destructured
     deriving (Show, Generic)
 
-
-exprType:: Expr ty -> VarType ty
+exprType :: Expr ty -> VarType ty
 exprType (VarE _b ty) = ty
 exprType (LitE  lit) = getLitType lit
 exprType (LetE _p _e cont) = exprType cont
@@ -111,8 +152,6 @@ exprType StmtE{} = TypeUnit
 -- This just makes shure e1 is evaluated although its result is ignored
 exprType (SeqE e1 e2) = exprType e2
 exprType (TupE exprs ) = TupleTy (map exprType exprs)
-
-
 
 returnType :: Expr ty -> VarType ty
 returnType e = case funType e of
@@ -146,7 +185,7 @@ applyToFinal fun =  \case
     BindE e1 e2 -> BindE e1 <$> applyToFinal fun e2
     StmtE e1 e2 -> StmtE e1 <$> applyToFinal fun e2
     SeqE e1 e2 -> SeqE e1 <$> applyToFinal fun e2
-
+{-
 -- | Takes an expression, a list of types as argument types and a type as return type 
 --   and sets type annotytions of the expression accoringly if it is a function. Otherwise the expression is left unchanged. 
 setExprFunType :: Expr ty -> [VarType ty] -> VarType ty -> Expr ty
@@ -158,7 +197,7 @@ setExprFunType e argTys retTy = case e of
         -- (TupE exprs)                          -> TupE exprs
         -- Question: What's the type of BindState at this point?
         other                                 -> other
-
+-}
 
 patterns :: Traversal' (Expr ty) (Pat ty)
 patterns f =
@@ -195,10 +234,10 @@ instance IsList (Expr ty) where
 -- ToDo: These are currently used in the Lowering tests but actually without a default type (i.e. after
 --       removing 'TypeVar') it doen't make to much sense any more to turn strings into pattern or vars
 instance IsString (Expr ty) where
-    fromString = (\bnd -> VarE bnd TypeNat). fromString
+    fromString = (\bnd -> VarE bnd UTypeNat). fromString
 
 instance IsString (Pat ty) where
-    fromString = (\bnd -> VarP bnd TypeNat). fromString
+    fromString = (\bnd -> VarP bnd UTypeNat). fromString
 
 instance IsList (Pat ty) where
     type Item (Pat ty) = (Pat ty)

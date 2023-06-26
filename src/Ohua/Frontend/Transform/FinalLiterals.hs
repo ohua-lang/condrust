@@ -20,7 +20,7 @@ transformFinalLiterals = \case
     go (StmtE f cont) = StmtE f $ go cont
     go e = e
     constLit f l =
-      let ty = exprType f in 
+      let ty = exprType f in
           LetE (VarP "x" ty) f $
           SeqE (VarE "x" ty) l
 

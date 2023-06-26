@@ -13,7 +13,7 @@ class (Show (Type lang)) => Integration lang where
     type HostModule lang :: *
     type Type lang :: *
     type AlgoSrc lang :: *
-    
+
     loadNs :: ErrAndLogM m
            => lang
            -> FilePath
@@ -28,7 +28,7 @@ type LanguageFileSuffix = Text
 type CompilationScope = HM.HashMap NSRef LanguageFileSuffix
 
 -- | This registers all algos used in a given namespace with their qualified names.
-type NamespaceRegistry ty = HM.HashMap QualifiedBinding (Expr ty)
+type NamespaceRegistry ty = HM.HashMap QualifiedBinding (UnresolvedExpr ty)
 
 
 class Someclass a where
