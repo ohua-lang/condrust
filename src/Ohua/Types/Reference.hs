@@ -153,7 +153,10 @@ instance Hashable (FunType ty)
 -- | A binding name
 newtype Binding =
     Binding Text
-    deriving (Eq, Hashable, Generic, Ord, Monoid, Semigroup, NFData, Show, Lift)
+    deriving (Eq, Hashable, Generic, Ord, Monoid, Semigroup, NFData, Lift)
+
+instance Show Binding where
+    show (Binding name) = show name
 
 -- | A typed Binding 
 data TypedBinding ty = TBind Binding (VarType ty) deriving (Show, Generic)
@@ -180,7 +183,10 @@ asType (TBind _bnd ty) = ty
 -- | Hierarchical reference to a namespace
 newtype NSRef =
     NSRef [Binding]
-    deriving (Eq, Generic, NFData, Ord, Show, Lift)
+    deriving (Eq, Generic, NFData, Ord, Lift)
+
+instance Show NSRef where
+    show (NSRef bnds) =show $  concatMap (("::" ++) . show) bnds 
 
 -- | A qualified binding. References a particular bound value inside a
 -- namespace.
@@ -188,8 +194,12 @@ declareFields [d|
     data QualifiedBinding = QualifiedBinding
         { qualifiedBindingNamespace :: NSRef
         , qualifiedBindingName      :: Binding
-        } deriving (Eq, Generic, Ord, Show, Lift)
+        } deriving (Eq, Generic, Ord, Lift)
   |]
+
+instance Show QualifiedBinding where
+    show (QualifiedBinding (NSRef scopeBnds) funBnd) = show $ foldr (\n o -> n <>"::"<> o) funBnd scopeBnds
+
 
 --------------------------------------------------------------
 --             Representation of Functions
