@@ -14,7 +14,7 @@ import Language.Rust.Parser (Span)
 import Language.Rust.Syntax as Rust hiding (Rust)
 
 
-import Ohua.Prelude hiding (getVarType)
+import Ohua.UResPrelude hiding (getVarType)
 import Ohua.Frontend.Types
 import Ohua.Frontend.PPrint ()
 import Ohua.Frontend.Lang as FrLang
