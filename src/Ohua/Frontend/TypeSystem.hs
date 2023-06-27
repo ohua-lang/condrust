@@ -1,5 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
-
 module Ohua.Frontend.TypeSystem
   ( RawExpr(..)
   , toWellTyped
@@ -18,10 +16,13 @@ import Ohua.Frontend.PPrint ()
 import qualified Ohua.Frontend.Lang as FrLang
     ( Expr(..)
     , Pat(TupP, VarP, WildP)
+    , patTyBnds
+    , patType
     )
 import qualified Ohua.Frontend.WellTyped as WT
     ( Expr(..)
     ,  Pat(TupP, VarP, WildP)
+    , patTyBnds
     )
 
 --import Ohua.Integration.Rust.TypeHandling
@@ -59,22 +60,26 @@ typeSystem :: ErrAndLogM m
            -> FrLang.Expr ty
            -> m (Gamma Res.VarType ty, WT.Expr ty, Res.VarType ty)
 typeSystem delta gamma = \case
-    (FrLang.LetE (FrLang.VarP bnd tyT1) e1 e2) -> do
+    (FrLang.LetE pat e1 e2) -> do
     {-
       Delta, Gamma |– e1: T1     Delta, Gamma, x:(max X T1) |– e2: T2
     ==================================================================
                Delta, Gamma |– let (x:X) e1 e2 : T2
     -}
         (_, e1', tyT1') <- typeSystem delta gamma e1
-        let tyT1'' = maxType tyT1 tyT1'
-        (gamma', e2', tyT2) <- typeSystem delta (HM.insert bnd tyT1'' gamma) e2
+        pat' <- typePat pat tyT1'
+        let gamma' =
+              foldr (\ g (b, t) -> HM.insert b t g) gamma
+              $ map fromResType
+              $ WT.patTyBnds pat'
+        (gamma', e2', tyT2) <- typeSystem delta gamma' e2
 
-        return (gamma', WT.LetE (WT.VarP bnd tyT1'') e1' e2', tyT2)
+        return (gamma', WT.LetE pat' e1' e2', tyT2)
 
     (FrLang.AppE fun args) ->
     {-
                  Delta, Gamma |– fun: T1 -> T2 -> ... Tm -> Tf  n<=m
-       Delta, Gamma |-t1: T1     Delta, Gamma |- t2:T2 ... Delta, Gamma |- tn:Tn
+       Delta, Gamma |-t1: T1  Delta, Gamma |- t2:T2  ...  Delta, Gamma |- tn:Tn
     ===================================================================================
                     Delta, Gamma |– fun t1 t2 ... tn : Tf
     -}
@@ -115,16 +120,14 @@ typeSystem delta gamma = \case
         (_, args', _argsTy) <- unzip3 $ mapM (typeSystem delta gamma'') args
 
         return (gamma', WT.AppE fun' args', resTy)
-
     (FrLang.LamE pats expr) -> do
     {-
                 Delta, Gamma, p1:T1, p2:T2, ..., pn:Tn |- e:Te
     =================================================================
         Delta, Gamma |- Lamda p1 p2 .. pn. e : T1 -> T2 -> ... -> Tn -> Te
     -}
-        let bndsAndTypes = concatMap patTyBnds pats
+        let bndsAndTypes = FrLang.patTyBnds pats
         let gamma' = foldr (\ g (b, t) -> HM.insert b t g) gamma bndsAndTypes
-        -- ToDo: Here ty must be the return type of the expected type
         (gamma'', expr', tyE) <- typeSystem delta gamma' expr
         argTypes <-
               map (\b -> case HM.lookup b gamma'' of
@@ -133,6 +136,7 @@ typeSystem delta gamma = \case
                   )
               $ map fst bndsAndTypes
         let ty = Res.TypeFunction $ Res.FunType argTypes tyE
+        pats' <- mapM (uncurry typePat) $ zip pats argTypes
 
         return (gamma, WT.LamE pats' expr', ty)
 
@@ -264,6 +268,16 @@ typeSystem delta gamma = \case
 
             return (HM.singleton bnd ty', ty')
 
+typePat :: ErrAndLogM m => FrLang.Pat ty -> Res.VarType ty -> m (WT.Pat ty)
+typePat pat newTy = do
+  let oldTy = FrLang.patType pat
+  newTy' <- maxType oldTy newTy
+  go pat newTy'
+  where
+    go (FrLang.VarP bnd _) t = return $ WT.VarP bnd t
+    go (FrLang.TupP (p:|ps)) (Res.TupleTy (pTy:|psTy)) = (\x xs -> WT.TupP $ x:|xs) <$> go p pTy <*> (mapM (uncurry go) $ zip ps psTy)
+    go (FrLang.TupP _) _ = throwError "The impossible happened"
+    go (FrLang.WildP _) t = return $ WT.WildP t
 
 maxType :: ErrAndLogM m => VarType ty -> Res.VarType ty -> m (Res.VarType ty)
 -- ^ equal types

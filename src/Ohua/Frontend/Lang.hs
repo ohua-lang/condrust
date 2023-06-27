@@ -29,8 +29,6 @@ import GHC.Exts
 
 data Pat ty
     = VarP Binding (VarType ty)
-    -- Actualy a tuple pattern starts making sense at two or more patterns
-    -- but it should have at least one. So I changed this from [] to NonEmpty
     | TupP (NonEmpty (Pat ty))
     | WildP (VarType ty)
     deriving (Show, Eq, Generic)
@@ -47,7 +45,6 @@ patBnd = \case
     TupP ps -> concatMap patBnd ps
     WildP ty -> Nothing : []
 
--- | Helper function to update the binding context from typed patterns
 patTyBnds :: Pat ty -> [(Binding, VarType ty)]
 patTyBnds = \case
     VarP bnd ty -> [(bnd, ty)]
