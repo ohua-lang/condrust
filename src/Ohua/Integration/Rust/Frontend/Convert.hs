@@ -10,17 +10,14 @@ import Ohua.Prelude
 
 import qualified Data.HashMap.Lazy as HM
 
-type RustContext = HM.HashMap Binding Sub.RustType
+-- type RustContext = HM.HashMap Binding Sub.RustType
 
-type ConvertM m = (Monad m, MonadState RustContext m)
+type ConvertM m = (Monad m, MonadError Error m) -- MonadState RustContext m)
 
 convertExpr :: ConvertM m => Rust.Expr Span -> m Sub.Expr
 convertExpr e@Box {} = error $ "Currently, we do not support the construction of boxed values. Please do so in a function." <> show e
 convertExpr e@Vec {} = error $ "Currently, we do not support array expressions. Please do so in a function.\n" <> show e
 convertExpr (Call [] fun args _) = do
-  -- FIXME_L: If we allready fill the context in this conversion, we should have the
-  --          argument types as well as the return type of a call available, when we parse the call because 
-  --          we convert algos top down
   fun' <- convertExpr fun
   args' <- mapM convertExpr args
   return $ Sub.Call fun' args'
@@ -150,7 +147,7 @@ convertPath ::
 convertPath p@(Path _ segments _) =
   case segments of
     [segment] -> do
-      refname <- convertPathSegment segment  
+      refname <- convertPathSegment segment
       return $ Left $ fromString refname
     (seg : rest) -> do
       let segs = seg :| rest

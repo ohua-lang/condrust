@@ -3,7 +3,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Ohua.Integration.Rust.TypeHandling where
 
-import Ohua.UResPrelude
+import Ohua.Prelude
 
 import Ohua.Integration.Rust.Util
 
@@ -58,10 +58,10 @@ hostReturnSelf = Type $ HostType $ Normal $ PathTy Nothing (Path False [PathSegm
 rustInfer :: Ty ()
 rustInfer = Infer ()
 
-asHostNormal:: Ty a -> VarType RustVarType
+asHostNormal :: Ty a -> VarType RustVarType
 asHostNormal ty = Type $ HostType $ Normal (deSpan ty)
 
-asHostSelf:: Ty a -> (Maybe (Lifetime a)) -> Mutability-> VarType RustVarType
+asHostSelf :: Ty a -> (Maybe (Lifetime a)) -> Mutability-> VarType RustVarType
 asHostSelf ty lt mut = Type $ HostType $ Self (deSpan ty) (map deSpan lt) mut
 
 
