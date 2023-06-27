@@ -3,6 +3,7 @@ module Ohua.Frontend.Types where
 import Ohua.Prelude hiding (Type)
 
 import Ohua.Frontend.Lang
+import Ohua.Frontend.TypeSystem (Delta)
 import qualified Data.HashMap.Lazy as HM
 
 -- TODO: What is the proper type constellation here, so that the first parameter of
@@ -21,8 +22,8 @@ class (Show (Type lang)) => Integration lang where
 
     loadTypes :: ErrAndLogM m
               => lang -> HostModule lang
-              ->    Namespace (Expr (Type lang)) (AlgoSrc lang) 
-              -> m (Namespace (Expr (Type lang)) (AlgoSrc lang) )
+              ->    Namespace (Expr (Type lang)) (AlgoSrc lang)
+              -> m (Delta ty, Namespace (Expr (Type lang)) (AlgoSrc lang))
 
 type LanguageFileSuffix = Text
 type CompilationScope = HM.HashMap NSRef LanguageFileSuffix

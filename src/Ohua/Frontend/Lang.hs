@@ -3,7 +3,6 @@
 
 module Ohua.Frontend.Lang
     ( Pat(..)
-    , WellTypedExpr(..)
     , Expr(..)
 --    , exprType
 --    , returnType
@@ -11,12 +10,12 @@ module Ohua.Frontend.Lang
     , patType
     , patBnd
     , patTyBnds
-    , setPatType
+--    , setPatType
 --    , setExprFunType
     , PatF(..)
     , ExprF(..)
     , patterns
-    , applyToFinal
+--    , applyToFinal
     ) where
 
 import Ohua.UResPrelude
@@ -131,7 +130,7 @@ data Expr ty
 --           (Expr ty)
     | TupE (NonEmpty (Expr ty)) -- ^ create a tuple value that can be destructured
     deriving (Show, Generic)
-
+{-
 exprType :: Expr ty -> VarType ty
 exprType (VarE _b ty) = ty
 exprType (LitE  lit) = getLitType lit
@@ -185,7 +184,7 @@ applyToFinal fun =  \case
     BindE e1 e2 -> BindE e1 <$> applyToFinal fun e2
     StmtE e1 e2 -> StmtE e1 <$> applyToFinal fun e2
     SeqE e1 e2 -> SeqE e1 <$> applyToFinal fun e2
-{-
+
 -- | Takes an expression, a list of types as argument types and a type as return type 
 --   and sets type annotytions of the expression accoringly if it is a function. Otherwise the expression is left unchanged. 
 setExprFunType :: Expr ty -> [VarType ty] -> VarType ty -> Expr ty
@@ -234,10 +233,10 @@ instance IsList (Expr ty) where
 -- ToDo: These are currently used in the Lowering tests but actually without a default type (i.e. after
 --       removing 'TypeVar') it doen't make to much sense any more to turn strings into pattern or vars
 instance IsString (Expr ty) where
-    fromString = (\bnd -> VarE bnd UTypeNat). fromString
+    fromString = (\bnd -> VarE bnd TypeNat). fromString
 
 instance IsString (Pat ty) where
-    fromString = (\bnd -> VarP bnd UTypeNat). fromString
+    fromString = (\bnd -> VarP bnd TypeNat). fromString
 
 instance IsList (Pat ty) where
     type Item (Pat ty) = (Pat ty)

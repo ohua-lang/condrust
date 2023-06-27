@@ -1,6 +1,16 @@
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE LambdaCase #-}
+
 module Ohua.Frontend.WellTyped where
 
 import Ohua.Prelude
+
+import Control.Lens (Traversal')
+import Control.Lens.Plated (Plated, gplate, plate)
+import Data.Functor.Foldable.TH (makeBaseFunctor)
+import qualified Data.List.NonEmpty as NE
+import GHC.Exts
+
 
 data Pat ty
     = VarP Binding (VarType ty)

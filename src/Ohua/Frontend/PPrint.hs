@@ -64,5 +64,4 @@ instance Pretty (Expr ty) where
                              ])]
     pretty (BindE s t) = hsep [brackets $ pretty s, pretty t]
     pretty (StmtE e c) = vsep $ hsep [pretty e, ";"] : [pretty c]
-    pretty (SeqE e c) = vsep $ hsep ["seq"] : [pretty e, pretty c]
     pretty (TupE (e:|es)) = hsep [align $ tupled $ map pretty (e:es)]

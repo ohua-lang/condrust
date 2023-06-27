@@ -31,18 +31,15 @@ contextedTraversal f = go
         goPat (WildP _ty) = []
         goPat (VarP bdg _pTy) = [bdg]
         goPat (TupP ps) = join $ Ohua.Prelude.map goPat (NE.toList ps)
-
--- | This transformation establishes well-scopedness 
+{-
+-- | This transformation establishes well-scopedness
 --      The implementation is quite straight forward: collect the variables and check for
 --      references that are not defined as variables (usually in function position).
 --      These must be references to functions in the current namespace.
 makeWellScoped :: Binding -> Expr ty -> Expr ty
 makeWellScoped currentFun expr = runIdentity $ contextedTraversal intoFunLit (HS.singleton currentFun) expr
   where
-    -- We don't transform anything here. The frontend integrations are resposible for mapping things correctly to the IR 
-    intoFunLit _ e = error $ "Couldn't find " <> show e <> " in scope. This means it looks like a variable, but should be a literal (i.e. something comming from outer scope e.g. an imported function)"
- {-    -- Question should this map all variables ? 
-    -- Now we have variables typed and those types include a function type for ... variables that bind functions
     intoFunLit _ (VarE bdg (TypeFunction fTy)) = return $ LitE $ FunRefLit $ FunRef (QualifiedBinding (makeThrow []) bdg) Nothing fTy
-    -- intoFunLit _ (VarE bdg ty) = return $ LitE $ FunRefLit $ FunRef (QualifiedBinding (makeThrow []) bdg) Nothing ty
-    intoFunLit _ e = return e -- FIXME type above is not precise enough-}  
+    intoFunLit _ (VarE bnd TypeVar) = return $ LitE $ FunRefLit $ FunRef (QualifiedBinding (makeThrow []) bdg) Nothing $ FunType [TypeVar] TypeVar
+    intoFunLit _ e = return e
+-}
