@@ -8,9 +8,9 @@ import Ohua.Frontend.Lang
 -- | Transform argument patterns to let bindings i.e. @\ x y -> function_body@ becomes @let x = $x in let y = $ y in function_body@
 --   for all algos
 prepareRootAlgoVars :: ErrAndLogM m => Expr ty -> m (Expr ty)
-prepareRootAlgoVars (LamE vars body) =  go vars body
+prepareRootAlgoVars (LamE vars body) =  go (toList vars) body
   where
     go ((VarP x xty):xs) rest =
         go xs $ LetE (VarP x xty) (LitE $ EnvRefLit x xty) rest
     go [] rest = return rest
-prepareRootAlgoVars _ = throwError "compiler invariant broken"
+prepareRootAlgoVars _ = throwError "Error: Algo has none-var pattern arguments."

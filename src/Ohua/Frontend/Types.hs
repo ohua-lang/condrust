@@ -1,6 +1,6 @@
 module Ohua.Frontend.Types where
 
-import Ohua.Prelude hiding (Type)
+import Ohua.UResPrelude hiding (Type)
 
 import Ohua.Frontend.Lang
 import Ohua.Frontend.TypeSystem (Delta)
@@ -29,9 +29,9 @@ type LanguageFileSuffix = Text
 type CompilationScope = HM.HashMap NSRef LanguageFileSuffix
 
 -- | This registers all algos used in a given namespace with their qualified names.
-type NamespaceRegistry ty = HM.HashMap QualifiedBinding (UnresolvedExpr ty)
+type NamespaceRegistry ty = HM.HashMap QualifiedBinding (Expr ty)
 
-
+{-
 class Someclass a where
        data SpecialThing1 a:: *
        data SpecialThing2 a:: *
@@ -47,3 +47,4 @@ instance Someclass Something where
        doStuff (Thing1 str) (Thing2 i) 
               | i < 23 =  This i 
               | otherwise = That str
+-}

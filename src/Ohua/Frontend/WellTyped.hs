@@ -15,26 +15,23 @@ import GHC.Exts
 data Pat ty
     = VarP Binding (VarType ty)
     | TupP (NonEmpty (Pat ty))
-    | WildP (VarType ty)
+--    | WildP (VarType ty)
     deriving (Show, Eq, Generic)
 
 patType :: Pat ty -> VarType ty
 patType = \case
     VarP _ ty -> ty
     TupP ps -> TupleTy (map patType ps)
-    WildP ty -> ty
 
-patBnd :: Pat ty -> [Maybe Binding]
+patBnd :: Pat ty -> NonEmpty Binding
 patBnd = \case
-    VarP bnd ty -> Just bnd : []
-    TupP ps -> concatMap patBnd ps
-    WildP ty -> Nothing : []
+    VarP bnd ty -> bnd :| []
+    TupP (ps) -> neConcat $ map patBnd ps
 
-patTyBnds :: Pat ty -> [(Binding, VarType ty)]
+patTyBnds :: Pat ty -> NonEmpty (Binding, VarType ty)
 patTyBnds = \case
-    VarP bnd ty -> [(bnd, ty)]
-    TupP ps -> concatMap patTyBnds ps
-    WildP ty -> []
+    VarP bnd ty -> (bnd, ty) :| []
+    TupP (ps) -> neConcat $ map patTyBnds ps
 
 data Expr ty
     -- REMINDER: We need to wrap the host type in an VarType here, because
@@ -47,7 +44,7 @@ data Expr ty
            (Expr ty)
     | AppE (Expr ty)
            [Expr ty]
-    | LamE [Pat ty]
+    | LamE (NonEmpty (Pat ty))
            (Expr ty) -- ^ An expression creating a function
     | IfE (Expr ty)
           (Expr ty)

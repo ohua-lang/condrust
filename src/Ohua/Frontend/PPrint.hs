@@ -26,7 +26,6 @@ afterLetIndent = 0
 instance Pretty (Pat ty) where
     pretty (VarP b ty) = pretty b <> "::" <> pretty ty
     pretty (TupP pats) = align $ tupled $ map pretty (NE.toList pats)
-    pretty (WildP ty) = "_"  <> "::" <> pretty ty
 
 instance Pretty (Expr ty) where
     pretty (VarE bnd ty) = pretty bnd
@@ -48,7 +47,7 @@ instance Pretty (Expr ty) where
     pretty (AppE x xs) = pretty x <> align (tupled $ map pretty xs)
     pretty (LamE ps b) = sep ["λ" <+>
                     align
-                        (sep [ sep (map pretty ps <> ["->"])
+                        (sep [ sep (map pretty (toList ps) <> ["->"])
                              , pretty b
                              ])]
     pretty (IfE c t f) = sep ["if" <+>
