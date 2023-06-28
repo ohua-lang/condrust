@@ -1,7 +1,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Ohua.Frontend.Transform.Load (loadAlgosAndImports) where
 
-import Ohua.Prelude hiding (Type)
+import Ohua.UResPrelude hiding (Type)
 
 import Ohua.Frontend.Lang
 import Ohua.Frontend.Types
@@ -27,8 +27,8 @@ import qualified Data.HashMap.Strict as HM
 --   Just load all algorithms that exist in the project scope. By using
 --   a lazy hashmap, this should only load the algo once actually needed.
 loadDeps :: forall m lang.
-    (ErrAndLogM m, Integration lang) 
-    => lang -> CompilationScope -> Namespace (UnresolvedExpr (Type lang)) (AlgoSrc lang) -> m (NamespaceRegistry (Type lang))
+    (ErrAndLogM m, Integration lang)
+    => lang -> CompilationScope -> Namespace (Expr (Type lang)) (AlgoSrc lang) -> m (NamespaceRegistry (Type lang))
 loadDeps lang scope (Namespace _name imps globs algs) = do
     let currentNs = Namespace (makeThrow []) imps globs algs
     let registry' = registerAlgos HM.empty currentNs
@@ -36,27 +36,27 @@ loadDeps lang scope (Namespace _name imps globs algs) = do
     let registry'' = foldl registerAlgos registry' modules
     return registry''
     where
-        registerAlgos :: NamespaceRegistry ty -> Namespace (UnresolvedExpr ty) anno -> NamespaceRegistry ty
-        registerAlgos registry ns = 
-            foldl 
-                (\reg algo -> 
-                    HM.insert 
+        registerAlgos :: NamespaceRegistry ty -> Namespace (Expr ty) anno -> NamespaceRegistry ty
+        registerAlgos registry ns =
+            foldl
+                (\reg algo ->
+                    HM.insert
                         (QualifiedBinding (ns^.nsName) (algo^.algoName))
-                        (algo^.algoCode) 
+                        (algo^.algoCode)
                         reg)
                 registry
                 $ ns^.algos
 
 
--- | This function calls the language integration to extract defined functions (algorithms) and imports 
+-- | This function calls the language integration to extract defined functions (algorithms) and imports
 --   from the input file. Extracting algorithms means, they are translated to an expression of the
 --   frontend IR here. In a second step
 --   the same is done for all files in the given scope to build up a registry of algorithms, mapping their names
 --   (qualified by the file they come from) to their translated code.
 loadAlgosAndImports :: forall m lang.
-    (ErrAndLogM m, Integration lang) 
-    => lang -> CompilationScope -> FilePath 
-    -> m (HostModule lang, Namespace (UnresolvedExpr (Type lang)) (AlgoSrc lang), NamespaceRegistry (Type lang), HostModule lang)
+    (ErrAndLogM m, Integration lang)
+    => lang -> CompilationScope -> FilePath
+    -> m (HostModule lang, Namespace (Expr (Type lang)) (AlgoSrc lang), NamespaceRegistry (Type lang), HostModule lang)
 loadAlgosAndImports  lang scope inFile = do
     -- logDebugN $ "Loading module: " <> show inFile <> "..."
     (ctxt, ns, placeholder) <- loadNs lang inFile

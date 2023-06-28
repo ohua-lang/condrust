@@ -20,7 +20,7 @@ module Ohua.Frontend.Transform.Resolve where
 
 import Ohua.UResPrelude
 
-import Ohua.Frontend.Lang as FrLang (Expr'(LitE, LetE, VarE, LamE), Pat(VarP), Expr'F(LitEF), UnresolvedExpr)
+import Ohua.Frontend.Lang as FrLang (Expr(LitE, LetE, VarE, LamE), Pat(VarP), ExprF(LitEF))
 import Ohua.Frontend.Types
 import Ohua.Frontend.PPrint ()
 
