@@ -48,6 +48,8 @@ import qualified Text.Show
 data HostType ty where
     HostType::(Pretty ty, Show ty, Eq ty) =>  ty -> HostType ty
 
+deriving instance Eq (HostType ty)
+
 instance Show (HostType ty) where
     show (HostType ty) = show ty
 

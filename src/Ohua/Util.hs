@@ -2,6 +2,7 @@ module Ohua.Util
     ( runExceptM
     , neUnzip
     , neUnzip3
+    , neConcat
     ) where
 
 import Universum
@@ -23,3 +24,7 @@ neUnzip3 ((x,y,z) :| [] ) = (x:|[], y:|[], z:|[])
 neUnzip3 ((x,y,z) :| (xyz : xyzs)) =
   let (xs, ys, zs) = neUnzip3 (xyz :| xyzs)
   in (x<|xs , y<|ys, z<|zs)
+
+neConcat :: (NonEmpty (NonEmpty a)) -> NonEmpty a
+neConcat (x :| []) = x
+neConcat (x :| (y:ys)) = x <> neConcat (y:|ys)

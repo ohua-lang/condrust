@@ -9,15 +9,15 @@ module Ohua.Types.Resolved.Types
     , VarType(..)
     , controlSignalType
     , FunType(..)
-    , getReturnType
-    , setReturnType
-    , setFunType
-    , pureArgTypes
+--    , getReturnType
+--    , setReturnType
+--    , setFunType
+--    , pureArgTypes
     , toFilePath
     , symbolFromString
     , FunRef(..)
     , getRefType
-    , getRefReturnType
+--    , getRefReturnType
     , Lit(..)
     , getLitType
     , Unit(..)

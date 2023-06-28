@@ -113,19 +113,24 @@ data VarType ty
     | TupleTy (NonEmpty (VarType ty))
     -- REMINDER: Can't derive Lift for Unit, therefor not for FunType and therefor I can't have FunType here for now
     --           Find a way to fix this
-    | TypeFunction (FunType ty) -- This is mainly used for inlined algos
+    | TypeFunction (FunType ty)
     deriving (Lift, Generic)
 
 data FunType ty where
-     -- arguments types -> return type -> function type 
-     FunType :: [VarType ty] -> VarType ty -> FunType ty
-     -- state/object type -> return type -> function type 
+     -- arguments types -> return type -> function type
+     FunType :: NonEmpty (VarType ty) -> VarType ty -> FunType ty
+     -- state/object type -> return type -> function type
+     -- FIXME This is not properly defined.
+     -- STFunType s [] t
+     -- versus
+     -- STFunType s [TypeUnit] t
+     -- Yet formally, STFunType s [] t :: S -> T and that is ok.
      STFunType :: VarType ty -> [VarType ty] -> VarType ty -> FunType ty
      deriving (Lift)
 
 -- ToDo: This is just a helper until we get types of control nodes right
 controlSignalType :: VarType ty
-controlSignalType = TupleTy $ TypeBool:| [TypeNat]
+controlSignalType = TupleTy $ TypeBool :| [TypeNat]
 
 
 instance EqNoType (VarType ty) where
@@ -196,7 +201,7 @@ asType (TBind _bnd ty) = ty
 --             Representation of Functions
 --------------------------------------------------------------
 
-
+{-
 -- Actually we can only do it this way, i.e. without involving the argument type
 -- at each call side because we assume that either generics are not allowed or
 -- are also allowed in the backend such that we can consider a generic return type 
@@ -205,7 +210,7 @@ getReturnType :: FunType ty -> VarType ty
 getReturnType (FunType _ins out) = out
 getReturnType (STFunType _s _ins out) = out
 
-pureArgTypes :: FunType ty -> [VarType ty]
+pureArgTypes :: FunType ty -> NonEmpty (VarType ty)
 pureArgTypes (FunType ins _out) = ins
 pureArgTypes (STFunType s ins _out) = ins
 
@@ -217,16 +222,16 @@ setReturnType :: VarType ty -> FunType ty -> FunType ty
 setReturnType ty (FunType ins out) = FunType ins ty
 setReturnType ty (STFunType s ins out) = STFunType s ins ty
 
-setFunType :: [VarType ty] -> VarType ty -> FunType ty -> FunType ty
+setFunType :: NonEmpty (VarType ty) -> VarType ty -> FunType ty -> FunType ty
 setFunType intys outty (FunType _i _out) = FunType intys outty
 setFunType intys outty (STFunType s _ins _out) = STFunType s intys outty 
-
+-}
 
 data FunRef ty where
     FunRef :: QualifiedBinding -> Maybe FnId -> FunType ty -> FunRef ty
 
 getRefType (FunRef _q _i funTy) = funTy
-getRefReturnType (FunRef _q _i funTy) = getReturnType funTy
+-- getRefReturnType (FunRef _q _i funTy) = getReturnType funTy
 
 --------------------------------------------------------------
 --                           Instances

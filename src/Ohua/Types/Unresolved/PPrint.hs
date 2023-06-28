@@ -33,7 +33,6 @@ prettyLit =
 prettyFunType :: FunType ty -> Doc ann
 prettyFunType =
     \case
-        FunType [] retTy -> "() -> " <> pretty retTy
         FunType argsTys retTy ->
             let pArgs = hsep (punctuate comma $ toList $ map pretty argsTys)
                 pRet = pretty retTy
