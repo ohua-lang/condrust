@@ -13,7 +13,7 @@ data Lit ty
     -- Reminder: To support any kind of host literals we could have:
     -- We would need to require however, that any of the possible literals can be turned  into/recovered from a string
     --  | Hostlit String (VarType ty)
-    | EnvRefLit Binding (VarType ty)-- ^ a variable bound by the outermost lambda that we compile
+    | EnvRefLit Binding (VarType ty) -- ^ a variable bound by the outermost lambda that we compile
     | FunRefLit (FunRef ty) -- ^ Reference to an external function
     deriving (Show, Eq, Generic)
 

@@ -111,9 +111,7 @@ data VarType ty
     | TypeList (VarType ty)
     | Type (HostType ty)
     | TupleTy (NonEmpty (VarType ty))
-    -- REMINDER: Can't derive Lift for Unit, therefor not for FunType and therefor I can't have FunType here for now
-    --           Find a way to fix this
-    | TypeFunction (FunType ty) -- This is mainly used for inlined algos
+    | TypeFunction (FunType ty)
     | TypeVar
     deriving (Lift, Generic)
 

@@ -67,7 +67,7 @@ import Control.Lens
 import Control.Lens.Tuple
 
 import Data.Generics.Product
-    ( 
+    (
     -- constraints
     -- , constraints'
       field

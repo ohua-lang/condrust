@@ -10,9 +10,6 @@ data Lit ty
     | BoolLit Bool -- ^ a boolean literal
     | UnitLit -- ^ aka @()@
     | StringLit String
-    -- Reminder: To support any kind of host literals we could have:
-    -- We would need to require however, that any of the possible literals can be turned  into/recovered from a string
-    --  | Hostlit String (VarType ty)
     | EnvRefLit Binding (VarType ty)-- ^ a variable bound by the outermost lambda that we compile
     | FunRefLit (FunRef ty) -- ^ Reference to an external function
     deriving (Show, Eq, Generic)
