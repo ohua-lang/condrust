@@ -106,7 +106,7 @@ data Expr ty
            (Expr ty)
            (Expr ty)
     | AppE (Expr ty)
-           [Expr ty]
+           (NonEmpty (Expr ty))
     | LamE (NonEmpty (Pat ty))
            (Expr ty) -- ^ An expression creating a function
     | IfE (Expr ty)

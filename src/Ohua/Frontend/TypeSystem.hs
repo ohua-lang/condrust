@@ -115,16 +115,16 @@ typeSystem delta gamma = \case
 
         (gamma'', resTy) <- case funTy of
           Res.TypeFunction (Res.FunType ins out) -> do
-              (gamma'', pendingArgsTy) <- handleFun (toList ins) args
+              (gamma'', pendingArgsTy) <- handleFun (toList ins) $ toList args
               case pendingArgsTy of
                 [] -> return (gamma'', out)
                 (x:xs)  -> return (gamma'', Res.TypeFunction (Res.FunType (x:|xs) out))
           Res.TypeFunction (Res.STFunType sin ins out) -> do
-              (gamma'', pendingArgsTy) <- handleFun ins args
+              (gamma'', pendingArgsTy) <- handleFun ins $ toList args
               return (gamma'', Res.TypeFunction (Res.STFunType sin pendingArgsTy out))
           t -> throwError $ "Type Error: First argument of function application is not a function, but has type: " <> show t
 
-        (_, args', _argsTy) <- unzip3 <$> mapM (typeSystem delta gamma'') args
+        (_, args', _argsTy) <- neUnzip3 <$> mapM (typeSystem delta gamma'') args
 
         return (gamma', WT.AppE fun' args', resTy)
     (FrLang.LamE pats expr) ->

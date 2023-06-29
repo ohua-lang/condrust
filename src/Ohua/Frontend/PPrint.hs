@@ -44,7 +44,7 @@ instance Pretty (Expr ty) where
         , align (pretty cont)
         ]
 
-    pretty (AppE x xs) = pretty x <> align (tupled $ map pretty xs)
+    pretty (AppE x xs) = pretty x <> align (tupled $ map pretty $ toList xs)
     pretty (LamE ps b) = sep ["λ" <+>
                     align
                         (sep [ sep (map pretty (toList ps) <> ["->"])

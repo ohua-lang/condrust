@@ -13,7 +13,7 @@ noFinalLiterals = go
       throwError $ "It seems you tried to have a function ("<> show l <>" ) as return value. The compiler will not handle this."
     go (LetE _p _f l@LitE{}) = errorOut l
     go (LetE p f cont) = go f >> go cont
-    go (AppE e1 e2) = mapM_ go (e1:e2)
+    go (AppE e1 e2) = mapM_ go (e1 : toList e2)
     go (LamE _ e) = go e
     go (IfE e1 e2 e3) = go e1 >> go e2 >> go e3
     go (WhileE e1 e2) = go e1 >> go e2
