@@ -25,13 +25,13 @@ frontend lang compScope inFile = do
         (langNs, ns, reg, placeholder) <- loadAlgosAndImports lang compScope inFile
         ns'                            <- updateExprs ns trans
         ns''                           <- resolveNS (ns',reg)
-        (delta, ns''')                 <- loadTypes lang langNs ns''
-        let ns'''' =
+        delta                 <- loadTypes lang langNs ns''
+        let ns''' =
               -- we exclude recursive functions from stand-alone compilation.
               -- there is really no value in compiling them.
-              over algos (filter (not . isRecAlgo)) ns'''
-        ns'''''                        <- updateExprs ns'''' (toWellTyped delta)
-        return ((langNs, ns'''''), placeholder)
+              over algos (filter (not . isRecAlgo)) ns''
+        ns''''                        <- updateExprs ns''' (toWellTyped delta)
+        return ((langNs, ns''''), placeholder)
     where
         trans :: ErrAndLogM m => FrLang.Expr ty -> m (FrLang.Expr ty)
         trans e = noFinalLiterals e >> prepareRootAlgoVars e

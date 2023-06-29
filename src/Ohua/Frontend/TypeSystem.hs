@@ -11,8 +11,8 @@ import qualified Data.List.NonEmpty as NE
 import Ohua.UResPrelude hiding (getVarType)
 import qualified Ohua.Prelude as Res
   ( Lit(..), VarType(..), FunType(..))
+import Ohua.Types.Casts
 
---import Ohua.Frontend.Types
 import Ohua.Frontend.PPrint ()
 import qualified Ohua.Frontend.Lang as FrLang
     ( Expr(..)
@@ -324,39 +324,3 @@ maxFunType (FunType ins out) (Res.FunType rins rout) =
 maxFunType (STFunType sin ins out) (Res.STFunType rsin rins rout) =
   Res.STFunType <$> maxType sin rsin <*> mapM (uncurry maxType) (zip ins rins) <*> maxType out rout
 
-toResType :: VarType ty -> Maybe (Res.VarType ty)
-toResType TypeNat = Just Res.TypeNat
-toResType TypeBool = Just Res.TypeBool
-toResType TypeUnit = Just Res.TypeUnit
-toResType TypeString = Just Res.TypeString
-toResType (TypeList l) = Res.TypeList <$> toResType l
-toResType (Type t) = Just $ Res.Type t
-toResType (TupleTy xs) = Res.TupleTy <$> (sequence $ map toResType xs)
-toResType (TypeFunction f) = Res.TypeFunction <$> toResFunType f
-toResType TypeVar = Nothing
-
-toResFunType :: FunType ty -> Maybe (Res.FunType ty)
-toResFunType (FunType ins out) = Res.FunType <$> (sequence $ map toResType ins) <*> toResType out
-toResFunType (STFunType sin ins out) =
-  Res.STFunType <$>
-  toResType sin <*>
-  (sequence $ map toResType ins) <*>
-  toResType out
-
-fromResType :: Res.VarType ty -> VarType ty
-fromResType Res.TypeNat = TypeNat
-fromResType Res.TypeBool = TypeBool
-fromResType Res.TypeUnit = TypeUnit
-fromResType Res.TypeString = TypeString
-fromResType (Res.TypeList l) = TypeList $ fromResType l
-fromResType (Res.Type t) = Type t
-fromResType (Res.TupleTy xs) = TupleTy $ map fromResType xs
-fromResType (Res.TypeFunction f) = TypeFunction $ fromResFunType f
-
-fromResFunType :: Res.FunType ty -> FunType ty
-fromResFunType (Res.FunType ins out) = FunType (map fromResType ins) $ fromResType out
-fromResFunType (Res.STFunType sin ins out) =
-  STFunType
-  (fromResType sin)
-  (map fromResType ins)
-  (fromResType out)

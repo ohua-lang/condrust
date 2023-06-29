@@ -35,7 +35,7 @@ patTyBnds = \case
 
 data Expr ty
     -- REMINDER: We need to wrap the host type in an VarType here, because
-    -- the compiler will introdude variables typed as internal bool/unit/int 
+    -- the compiler will introdude variables typed as internal bool/unit/int
     -- ... that also have to be representable
     = VarE Binding (VarType ty)
     | LitE (Lit ty)

@@ -16,6 +16,8 @@ module Ohua.Frontend.Lang
     , ExprF(..)
     , patterns
 --    , applyToFinal
+    , unitArgs
+    , unitParams
     ) where
 
 import Ohua.UResPrelude
@@ -239,4 +241,12 @@ instance IsList (Pat ty) where
     fromList [] = error $ "Cannot create a tuple pattern from an empty list"
     toList p = error $ "Ohua tried to convert the pattern "
                 <>show p <>"into a list, which is not supported"
+
+unitArgs :: [Expr ty] -> NonEmpty (Expr ty)
+unitArgs []     = LitE UnitLit :| []
+unitArgs (x:xs) = x :| xs
+
+unitParams :: [Pat ty] -> NonEmpty (Pat ty)
+unitParams []     = VarP "_" TypeUnit :| []
+unitParams (x:xs) = x :| xs
 
