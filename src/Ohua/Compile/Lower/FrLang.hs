@@ -9,7 +9,7 @@ import Data.Functor.Foldable (cata)
 import qualified Data.HashSet as HS
 import GHC.Exts
 
-import Ohua.Frontend.Lang as FR
+import Ohua.Frontend.WellTyped as FR
 import Ohua.Frontend.PPrint ()
 import Ohua.Core.ALang.Lang hiding (Expr, ExprF)
 import qualified Ohua.Core.ALang.Lang as ALang
@@ -36,7 +36,7 @@ _ensureLambdaInSmap =
 mkLamSingleArgument :: FR.Expr ty -> FR.Expr ty
 mkLamSingleArgument =
     rewrite $ \case
-        LamE (x1:x2:xs) b -> Just $ LamE [x1] $ LamE (x2 : xs) b
+        LamE (x1:|(x2:xs)) b -> Just $ LamE (x1 :| []) $ LamE (x2 :| xs) b
         _ -> Nothing
 
 removeDestructuring :: MonadGenBnd m => FR.Expr ty -> m (FR.Expr ty)
@@ -46,17 +46,11 @@ removeDestructuring =
             valBnd <- generateBinding
             let tupleTy = (tupTypeFrom pats)
             pure $ Just $ LetE (VarP valBnd tupleTy) e1 $ unstructure (valBnd, tupleTy) pats e2
-        LamE [TupP pats] e -> do
+        LamE (TupP pats :| []) e -> do
             valBnd <- generateBinding
             let tupleTy = (tupTypeFrom pats)
-            pure $ Just $ LamE [VarP valBnd tupleTy] $ unstructure (valBnd, tupleTy) pats e
+            pure $ Just $ LamE (VarP valBnd tupleTy :| []) $ unstructure (valBnd, tupleTy) pats e
         _ -> pure Nothing
-
-giveEmptyLambdaUnitArgument :: FR.Expr ty -> FR.Expr ty
-giveEmptyLambdaUnitArgument =
-    rewrite $ \case
-        LamE [] e -> Just $ LamE [WildP (FR.exprType e)] e
-        _ -> Nothing
 
 -- | The idea here is, that we transform a while loop to a recursive call
 --   As the inner part of the while loop is a local scope and there is no 'return' 
@@ -153,7 +147,7 @@ whileToRecursion = return
 
 -- ToDo: Replace by Alang definition
 nthFun :: VarType ty -> VarType ty -> FR.Expr ty
-nthFun collTy elemTy = LitE $ FunRefLit $ FunRef IFuns.nth Nothing $ FunType [TypeNat, TypeNat, collTy] elemTy
+nthFun collTy elemTy = LitE $ FunRefLit $ FunRef IFuns.nth Nothing $ FunType (TypeNat :| [TypeNat, collTy]) elemTy
 
 unstructure :: (Binding, VarType ty) -> NonEmpty (FR.Pat ty) -> FR.Expr ty -> FR.Expr ty
 unstructure (valBnd, valTy) pats = go (toInteger $ length pats) (NE.toList pats)
@@ -165,10 +159,10 @@ unstructure (valBnd, valTy) pats = go (toInteger $ length pats) (NE.toList pats)
                  LetE pat $
                  AppE
                      (nthFun valTy (FR.patType pat))
-                     [ LitE (NumericLit idx)
-                     , LitE (NumericLit numPats)
+                     (LitE (NumericLit idx) :|
+                     [ LitE (NumericLit numPats)
                      , VarE valBnd valTy
-                     ]) .
+                     ])) .
         zip [0 ..]
 
 trans :: FR.Expr ty -> ALang.Expr ty
@@ -182,48 +176,40 @@ trans =
             | otherwise -> foldl Apply e1 e2
         LamEF p e ->
             case p of
-                [] -> e
-                [p0] -> Lambda (patToTBind p0) e
+                (p0:|[]) -> Lambda (patToTBind p0) e
                 _ ->
                     error $
                     "Invariant broken: Found multi apply or destructure lambda: " <>
                     show p
         IfEF cont then_ else_ ->
-            ALang.ifBuiltin 
+            ALang.ifBuiltin
                 (ALang.exprType  then_)
-                `Apply` cont  
-                    `Apply` Lambda (TBind "_" TypeUnit) then_ 
+                `Apply` cont
+                    `Apply` Lambda (TBind "_" TypeUnit) then_
                     `Apply` Lambda (TBind "_" TypeUnit) else_
-        MapEF function coll -> case ALang.funType function of 
+        MapEF function coll -> case ALang.funType function of
             Just fTy -> (ALang.smapBuiltin (TypeFunction fTy) (ALang.exprType coll) (TypeList TypeUnit)) `Apply` function `Apply` coll
-            Nothing -> error $ "Function type is not available for expression:\n "<> show function <> "\n Please report this error." 
+            Nothing -> error $ "Function type is not available for expression:\n "<> show function <> "\n Please report this error."
         BindEF ref e -> BindState ref e
         StmtEF e1 cont -> Let (TBind "_" TypeUnit) e1 cont
-        SeqEF source target -> (trace $ "Seq Transforming" <> show source) ALang.seqBuiltin (ALang.exprType source) (ALang.exprType target) `Apply` source `Apply` target
-        TupEF (e:|es) -> 
-            foldl Apply (pureFunction IFuns.mkTuple Nothing (FunType (map ALang.exprType (e:es)) (TupleTy (ALang.exprType e :| map ALang.exprType es)))) (e:es)
-        
+        TupEF (e:|es) ->
+            foldl Apply (pureFunction IFuns.mkTuple Nothing (FunType (map ALang.exprType (e :| es)) (TupleTy (ALang.exprType e :| map ALang.exprType es)))) (e:es)
         WhileEF cond _body ->  error "While loop has not been replaced. Please file a bug"
   where
     patToTBind =
         \case
             VarP v ty -> TBind v ty
-            -- Reminder: The underscore is used to represent things that will be
-            -- ignored later i.e. not send, meaning we will not need to type channels for it
-            -- FIXME: This shouldn't be stringly typed
-            WildP ty -> TBind "_" ty
-            p -> error $ 
-             "The Compiler screwed up. At this point any patterns" <>
-             "(function arguments or let bound variables) should be single vars or wild card but " <> show p <>
+            p -> error $
+             "Invariant broken: At this point any patterns" <>
+             "(function arguments or let bound variables) should be single vars but " <> show p <>
              "is not. Please file a bug."
 
 toAlang' :: ErrAndLogM m => HS.HashSet Binding -> Expr ty -> m (ALang.Expr ty)
 toAlang' taken expr = runGenBndT taken $ transform expr
-    where 
+    where
         transform =
             whileToRecursion >=>
-            giveEmptyLambdaUnitArgument >>>
-            mkLamSingleArgument >>> 
+            mkLamSingleArgument >>>
             removeDestructuring >=> pure . trans
 
 toAlang :: ErrAndLogM m => FR.Expr ty -> m (ALang.Expr ty)
@@ -235,11 +221,10 @@ definedBindings olang =
     [v | VarE v _ty <- universe olang] <>
     [v | VarP v _ty <- universeOn (cosmos . patterns) olang]
 
-tupTypeFrom:: NonEmpty (Pat ty) -> (VarType ty)
-tupTypeFrom pats = TupleTy $ NE.map getPType pats 
-    where 
+tupTypeFrom :: NonEmpty (Pat ty) -> (VarType ty)
+tupTypeFrom pats = TupleTy $ NE.map getPType pats
+    where
         getPType (VarP _b ty) = ty
-        -- ToDO: Or would we add a unit type here? 
-        getPType (WildP ty) = error $ "Encountered a unit inside a tuple pattern, like \"let (a, (), b) = ...\". Please file a bug"
         -- Actually we could probably support it. Also we should have cought that case before
         getPType (TupP _ ) = error $ "Encountered a nested tuple pattern, like \"let (a, (b, c)) = ...\". This is currently not supported"
+
