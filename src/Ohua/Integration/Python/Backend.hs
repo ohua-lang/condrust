@@ -1,17 +1,17 @@
 module Ohua.Integration.Python.Backend where
+
 import Ohua.Prelude
+
+import Ohua.Types.Vector (Nat(..), SNat(..), replicateNE, nlength, withSuccSing)
 
 import Ohua.Backend.Lang as TCLang
 import Ohua.Backend.Types as B
 
 import Ohua.Integration.Lang hiding (Lang)
-
-
 import Ohua.Integration.Python.Util
-import Ohua.Integration.Python.TypeHandling 
+import Ohua.Integration.Python.TypeHandling
 import qualified Ohua.Integration.Python.Backend.Subset as Sub
 import qualified Ohua.Integration.Python.SpecialFunctions as SF
-
 
 import qualified Language.Python.Common.AST as Py
 import Language.Python.Common (SrcSpan)
@@ -20,21 +20,22 @@ import Data.Text (unpack)
 import Data.Functor.Foldable (cata, embed)
 
 import Data.Maybe
+import Data.List.NonEmpty ((<|))
 
-defaultType:: VarType PythonVarType
+defaultType :: VarType PythonVarType
 defaultType = Type $ HostType PythonObject
 
 {-| Convert a task to a function block of the
     subset Language.
 -}
 -- Todo: Check if Let is really something different
-convertToSuite::(Architecture arch, Lang arch ~ Language 'Python)
+convertToSuite ::(Architecture arch, Lang arch ~ Language 'Python)
     => arch -> TaskExpr PythonVarType  -> Sub.Suite
 convertToSuite arch (TCLang.Let varName valExpr inExpr) =
     convertExpr arch (TCLang.Assign varName valExpr) : convertToSuite arch inExpr
 convertToSuite arch (TCLang.Stmt stmt otherStmts) =
     convertExpr arch stmt : convertToSuite arch otherStmts
-convertToSuite arch lastStmt = case lastStmt of 
+convertToSuite arch lastStmt = case lastStmt of
     TCLang.Lit UnitLit -> []
     _ ->  [convertExpr arch lastStmt]
 
@@ -46,7 +47,7 @@ instance Integration (Language 'Python) where
     type Expr (Language 'Python) = Sub.Stmt
     type Task (Language 'Python) = Sub.Suite
 
-    {- | Lower basically turns a Programm (Backend.Types) of taskExpressions 
+    {- | Lower basically turns a Programm (Backend.Types) of taskExpressions
          into a task as defined for the Backend (in this case a subset Suite).
     -}
     lower (Module filePath (Py.Module statements)) arch nameSpace = do
@@ -60,12 +61,12 @@ instance Integration (Language 'Python) where
                     $ map (convertToSuite arch . convertEnvs <$>) tasks
             convertTasks statement _ = error $ "Trying to convert something, that is not a function but "<> show statement
 
-            convertEnvs :: TCLang.TaskExpr PythonVarType  -> TCLang.TaskExpr PythonVarType 
+            convertEnvs :: TCLang.TaskExpr PythonVarType  -> TCLang.TaskExpr PythonVarType
             convertEnvs = cata $ \case
-                LitF (EnvRefLit arg _ty) -> Var arg 
+                LitF (EnvRefLit arg _ty) -> Var arg
                 e -> embed e
 
-            argToVar :: Py.Parameter a -> TCLang.TaskExpr PythonVarType 
+            argToVar :: Py.Parameter a -> TCLang.TaskExpr PythonVarType
             argToVar param = Var $ toBinding $ Py.param_name param
 
     convertExpr _ (TCLang.Var bnd) = wrapSubExpr $ Sub.Var bnd
@@ -83,7 +84,7 @@ instance Integration (Language 'Python) where
     convertExpr arch (Apply (Stateless bnd args)) = convertFunCall arch bnd args
     convertExpr arch (Apply sOp@(Stateful stateBnd funBnd args)) = case funBnd of
         SF.SetItemFunction -> transformToSubscript arch sOp
-        SF.GetItemFunction -> transformToSubscript arch sOp 
+        SF.GetItemFunction -> transformToSubscript arch sOp
         any_statefull_function ->  wrapSubExpr $
              Sub.Call
                 (Sub.DotExpr (unwrapSubStmt $ convertExpr arch stateBnd) funBnd)
@@ -107,7 +108,7 @@ instance Integration (Language 'Python) where
         in Sub.WhileStmt condition suite
 
     -- Todo: Can we find out, if the function applied 'forEach' is just a call such that
-    --       we could wrap this in a comprehension ? 
+    --       we could wrap this in a comprehension ?
     convertExpr arch (TCLang.ForEach itemBnd itemsBnd expr) =
         let suite = convertToSuite arch expr
             targets = [Sub.Var itemBnd]
@@ -237,23 +238,23 @@ convertFunCall arch op [arg1, arg2] | isJust $ binOp op =
             _ -> Nothing
 
 
-convertFunCall arch SF.ListConstructor args = 
+convertFunCall arch SF.ListConstructor args =
     wrapSubExpr $ Sub.List items
     where items = map (unwrapSubStmt . convertExpr arch) args
 
-convertFunCall arch SF.DictConstructor args = 
+convertFunCall arch SF.DictConstructor args =
     wrapSubExpr $ Sub.Dict items
     where items = map (convertDictItem arch) args
 
-convertFunCall arch SF.TupleConstructor args = 
+convertFunCall arch SF.TupleConstructor args =
     wrapSubExpr $ Sub.Tuple items
     where items = map (unwrapSubStmt . convertExpr arch) args
 
-convertFunCall arch SF.SetConstructor args = 
+convertFunCall arch SF.SetConstructor args =
     wrapSubExpr $ Sub.Set items
     where items = map (unwrapSubStmt . convertExpr arch) args
 
-convertFunCall arch op [arg] 
+convertFunCall arch op [arg]
     | isJust $ unOp op =
         wrapSubExpr $ Sub.UnaryOp (fromJust $ unOp op) arg'
         where
@@ -264,29 +265,32 @@ convertFunCall arch op [arg]
                 _ -> Nothing
 
 convertFunCall arch funRef args =
-    let args' = case args of 
+    let args' = case args of
                     [TCLang.Lit UnitLit] -> []
                     _ -> map (convertArgument arch) args
+        n = nlength args'
     in
-    wrapSubExpr $ Sub.Call
-                    ( unwrapSubStmt $ convertExpr arch $ asFunctionLiteral funRef (length args')) args'
+      withSuccSing n $ \m ->
+      wrapSubExpr $
+      Sub.Call
+      ( unwrapSubStmt $ convertExpr arch $ asFunctionLiteral funRef m) args'
 
 
-convertArgument:: (Architecture arch, Lang arch ~ Language 'Python) =>
+convertArgument :: (Architecture arch, Lang arch ~ Language 'Python) =>
     arch -> TaskExpr PythonVarType  -> Sub.Argument
 -- TODO: If I could translate args and kwargs at the frontend I'd maybe just prepend their names with '*'/'**'
 -- > Check if translating this back just using normal args yields same behaviour
--- > Currently original type annotation and default are lost in translation (no pun intended) anyways, otherwise 
--- doing it this way would theoretically allow args/kwars with type annotation or defaults so actually this should not be 
+-- > Currently original type annotation and default are lost in translation (no pun intended) anyways, otherwise
+-- doing it this way would theoretically allow args/kwars with type annotation or defaults so actually this should not be
 -- 'stringly typed'
--- TODO: Keyword Arguments... Would be nice not to loose this information. 
+-- TODO: Keyword Arguments... Would be nice not to loose this information.
 convertArgument arch arg = Sub.Arg ( unwrapSubStmt (convertExpr arch arg))
 
-convertDictItem:: (Architecture arch, Lang arch ~ Language 'Python) =>
+convertDictItem :: (Architecture arch, Lang arch ~ Language 'Python) =>
     arch -> TaskExpr PythonVarType  -> (Sub.Expr, Sub.Expr)
-convertDictItem arch item = 
-    let item' = unwrapSubStmt $ convertExpr arch item 
-    in 
+convertDictItem arch item =
+    let item' = unwrapSubStmt $ convertExpr arch item
+    in
         case item' of
             Sub.Var bnd -> (Sub.Subscript (Sub.Var bnd) (Sub.Int 0), Sub.Subscript (Sub.Var bnd) (Sub.Int 1))
             any -> error $ "dict item was not received variable but" <> show any
@@ -297,8 +301,9 @@ dotConcat (NSRef refs) bind =
     let concatName = foldr (\ref name -> bndToStr ref ++ "." ++ name) (bndToStr bind) refs
     in fromString concatName
 
-
-asFunctionLiteral qBinding numArgs = TCLang.Lit $ FunRefLit $ FunRef qBinding Nothing $ FunType (replicate numArgs (defaultType)) (defaultType)
+asFunctionLiteral :: QualifiedBinding -> SNat ('Succ n) -> TaskExpr PythonVarType
+asFunctionLiteral qBinding n =
+  TCLang.Lit $ FunRefLit $ FunRef qBinding Nothing $ FunType (replicateNE n defaultType) (defaultType)
 
 
 hasAttrArgs :: Binding -> [Sub.Argument]

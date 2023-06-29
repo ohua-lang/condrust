@@ -7,10 +7,11 @@
 
 module Ohua.Integration.Python.Frontend where
 
-import Ohua.Prelude
+import Ohua.UResPrelude
 import GHC.Exts
 import Ohua.Frontend.Types
 import Ohua.Frontend.Lang as FrLang
+import Ohua.Frontend.TypeSystem (Delta(..))
 
 import Ohua.Integration.Lang
 
@@ -25,6 +26,7 @@ import qualified Language.Python.Common.AST as Py
 
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
+import Data.List.NonEmpty ((<|))
 import qualified Data.List.NonEmpty as NE
 
 -- | Contexts keeps track of names and types 
@@ -42,11 +44,11 @@ instance Integration (Language 'Python) where
     type Type (Language 'Python) =  PythonVarType
     type AlgoSrc (Language 'Python) = Py.Statement SrcSpan
 
-    {- | Loading a namespace means extracting 
+    {- | Loading a namespace means extracting
             a) function defintions to be complied and
             b) imported references
          from a given source file. Any other top-level statements will be
-         ignored for now. 
+         ignored for now.
     -}
     -- REMINDER: Type of placeholder needs to be adapted here
     loadNs :: ErrAndLogM m => Language 'Python -> FilePath -> m (Module, PythonNamespace, Module)
@@ -68,21 +70,21 @@ instance Integration (Language 'Python) where
                                                         from_items= items} -> Just <$> extractRelativeImports modName items
                                     _ -> return Nothing)
                                 statements
-                    -- ToDo: add proper extraction of gloabl assignments 
-                    globals <- return [] 
+                    -- ToDo: add proper extraction of gloabl assignments
+                    globals <- return []
                     -- ISSUE: Algo extraction needs a State Monad
                     -- During extraction we want to encapsulate non-compilable code into functions, move those to a library
-                    -- and replace the code by a call to that library function. So the State of the monad needs to be of 
-                    -- type HostModule lang 
+                    -- and replace the code by a call to that library function. So the State of the monad needs to be of
+                    -- type HostModule lang
                     algos <- catMaybes <$>
                             mapM
                                 (\case
                                     fun@Py.Fun{} ->
-                                        Just . (\e -> 
-                                            Algo 
+                                        Just . (\e ->
+                                            Algo
                                                 (toBinding$ Py.fun_name fun)
                                                 e
-                                                fun) <$> extractAlgo fun globals 
+                                                fun) <$> extractAlgo fun globals
                                     _ -> return Nothing)
                                 statements
                     return $ Namespace (filePathToNsRef srcFile) imports globals algos
@@ -93,7 +95,10 @@ instance Integration (Language 'Python) where
                     -- ToDo: replace empty context with globals filled context if needed
                     args' <- mapM ((`evalStateT` HM.empty) . subParamToIR <=< paramToSub) (Py.fun_args function)
                     block' <- ((`evalStateT` HM.empty) . subSuiteToIR <=< suiteToSub) (Py.fun_body function)
-                    return $ LamE (globArgs ++ args') block'
+                    let args'' = case globArgs ++ args' of
+                                   [] -> VarP "_" TypeUnit :| []
+                                   (x:xs) -> x :| xs
+                    return $ LamE args'' block'
 
                 extractImports::ErrAndLogM m => [Py.ImportItem SrcSpan] -> m [Import]
                 extractImports [] = throwError "Invalid: Empty import should not have passed the python parser"
@@ -113,21 +118,22 @@ instance Integration (Language 'Python) where
                             -- incompatible python paths (or dark magic :-/)
                         Nothing -> throwError  "Currently we do not support relative import paths"
 
-    -- | This function assigns types to the functions called inside an algorithm. In Rust, it 
+    -- | This function assigns types to the functions called inside an algorithm. In Rust, it
     --   would do so, by checking the given namespace for definitions of those functions.
     --   As we currently do not 'type' any of the arguments in Python and the number of
     --   (explicit) arguments may vary for each function due to default values, we just assign
     --   a type of [PyObject] to every function call site.
-    loadTypes :: ErrAndLogM m => Language 'Python ->
-                    Module ->
-                    PythonNamespace ->
-                    m PythonNamespace
+--    loadTypes :: ErrAndLogM m => Language 'Python ->
+--                    Module ->
+--                    PythonNamespace ->
+--                    m (Delta PythonVarType, PythonNamespace)
     loadTypes lang (Module filepath pymodule) ohuaNS = do
         {-filesAndPaths <- concat <$> mapM funsForAlgo (ohuaNS^.algos)
         let filesAndPaths' = map (first convertOwn) filesAndPaths
         fun_types <- typesFromNS $ concatMap fst filesAndPaths'
         types' <- HM.fromList <$> mapM (verifyAndRegister fun_types) filesAndPaths'-}
-        updateExprs ohuaNS (transformM (assignTypes HM.empty))
+        ns <- updateExprs ohuaNS (transformM (assignTypes HM.empty))
+        return (HM.empty, ns)
         where
             {-funsForAlgo :: ErrAndLogM m => Algo (FrLang.Expr PythonVarType) (Py.Statement SrcSpan)
                     -> m [([NSRef], QualifiedBinding)]
@@ -152,8 +158,8 @@ instance Integration (Language 'Python) where
                 (AppE (LitE (FunRefLit (FunRef qBinding funID _))) args) ->
                     return $
                     -- Question: (To me) -> can we do better with the return type? i.e. it might be a tuple and we can know that
-                         AppE (LitE $ FunRefLit $ FunRef qBinding funID $ FunType (listofPyType args) defaultType) args
-                    {- 
+                         AppE (LitE $ FunRefLit $ FunRef qBinding funID $ FunType (neOfPyType args) defaultType) args
+                    {-
                     case args of
                         -- Note: In Rust this type assignment happens based on the function definitions, while the
                         -- Python integration does this based on function calls right now.
@@ -179,7 +185,7 @@ globOrAlias :: Py.ImportItem SrcSpan -> Import
 globOrAlias  (Py.ImportItem dotted Nothing  annot) = Glob . makeThrow $ toBindings dotted
 globOrAlias  (Py.ImportItem dotted (Just alias) annot) = flip Alias (toBinding alias) . makeThrow $ toBindings dotted
 
-subSuiteToIR::ConvertM m => Sub.Suite -> m (FrLang.Expr PythonVarType)
+subSuiteToIR :: ConvertM m => Sub.Suite -> m (FrLang.Expr PythonVarType)
 subSuiteToIR (Sub.PySuite stmts) =
     evalStateT (convertStmts stmts) =<< get
     where
@@ -204,7 +210,7 @@ subSuiteToIR (Sub.PySuite stmts) =
                         pat' <- subTargetToIR target
                         expr' <- subExprToIR expr
                         let pat'' =  case (expr', pat')  of
-                                    (LamE tars expr, VarP bnd ty) -> VarP bnd (TypeFunction (FunType (listofPyType tars) defaultType))
+                                    (LamE tars expr, VarP bnd ty) -> VarP bnd (TypeFunction (FunType (neOfPyType tars) defaultType))
                                     _ -> pat'
                         return $ LetE pat'' expr'
 
@@ -217,7 +223,7 @@ subSuiteToIR (Sub.PySuite stmts) =
         lastStmtToIR stmt = (\e -> e $ LitE UnitLit) <$> stmtToIR stmt
 
 -- ToDo: This gives valid Python code automatically because subscripting is syntactic sugar
--- for those function. BUT: If we retranslate this in the backend, can we accidentally transoform 
+-- for those function. BUT: If we retranslate this in the backend, can we accidentally transform
 -- more than intended
 -- when we use real function names here ?
 subscriptToCall :: Sub.Stmt -> Sub.Stmt
@@ -230,7 +236,7 @@ subscriptToCall (Sub.StmtExpr (Sub.Subscript bnd keyExpr)) =
 
 
 subStmtToIR :: ConvertM m=> Sub.Stmt -> m (FrLang.Expr PythonVarType)
-subStmtToIR (Sub.WhileStmt expr suite) = error "Currently we do not support while-loops. Please use a recursion while we implement it." 
+subStmtToIR (Sub.WhileStmt expr suite) = error "Currently we do not support while-loops. Please use a recursion while we implement it."
     {-do
     cond <- subExprToIR expr
     suite' <- subSuiteToIR (Sub.PySuite suite)
@@ -243,7 +249,7 @@ subStmtToIR (Sub.ForStmt target generator suite) = do
     targets' <- subTargetToIR target
     generator' <- subExprToIR generator
     suite <- subSuiteToIR (Sub.PySuite suite)
-    return $ MapE (LamE [targets'] suite) generator'
+    return $ MapE (LamE (targets' :| []) suite) generator'
 
 subStmtToIR (Sub.CondStmt [(cond, suite)] elseSuite) = do
     cond' <- subExprToIR cond
@@ -272,68 +278,57 @@ subExprToIR (Sub.Bool bool) = return $ LitE $ BoolLit bool
 subExprToIR Sub.None = return $  LitE  UnitLit
 
 subExprToIR (Sub.Call (Sub.Pure bnd) args) = do
-    args'<- mapM subArgToIR args
-    let argTypes = listofPyType args
+    args'<- FrLang.unitArgs <$> mapM subArgToIR args
+    let argTypes = neOfPyType args'
     funLit <- toFunRefLit bnd (argTypes, defaultType)
     return $ AppE funLit args'
-
 subExprToIR (Sub.Call (Sub.Dotted objBnd funBnd) args) = do
-    args' <- mapM subArgToIR args
+    args' <- FrLang.unitArgs <$> mapM subArgToIR args
     let receiver = VarE objBnd defaultType
         argTypes = listofPyType args
         method = LitE (FunRefLit (FunRef funBnd Nothing $ STFunType defaultType argTypes defaultType))
     return $ BindE receiver method `AppE` args'
-
 subExprToIR (Sub.Call (Sub.Direct lambdaExpr) args) = do
-    args' <- mapM subArgToIR args
+    args' <- FrLang.unitArgs <$> mapM subArgToIR args
     fun <- subExprToIR lambdaExpr
-    return $ (trace $ "Lambda: " <> show fun) AppE fun args'
-
+    return $ AppE fun args'
 subExprToIR (Sub.CondExpr condE trueExpr falseExpr) = do
     cond <- subExprToIR condE
     true <- subExprToIR trueExpr
     false <- subExprToIR falseExpr
     return $ IfE cond true false
-
 subExprToIR (Sub.BinaryOp binOp expr1 expr2) = do
     op' <- subBinOpToIR binOp
     expr1' <- subExprToIR expr1
     expr2' <- subExprToIR expr2
-    return $ op' `AppE` [expr1', expr2']
-
+    return $ op' `AppE` (expr1' :| [expr2'])
 subExprToIR (Sub.UnaryOp unOp expr1) = do
     op' <- subUnOpToIR unOp
     expr1' <- subExprToIR expr1
-    return $ op' `AppE` [expr1']
-
+    return $ op' `AppE` (expr1' :| [])
 subExprToIR (Sub.Lambda params expr) = do
     ctxt <- get
-    params' <- mapM subParamToIR params
+    params' <- FrLang.unitParams <$> mapM subParamToIR params
     expr' <- subExprToIR expr
     put ctxt
     return $ LamE params' expr'
-
 subExprToIR (Sub.Tuple exprs) = do
-    exprs' <- mapM subExprToIR exprs
-    tupleCall <- toFunRefLit SF.tupleConstructor (map (const $ defaultType) exprs, defaultType)
+    exprs' <- FrLang.unitArgs <$> mapM subExprToIR exprs
+    tupleCall <- toFunRefLit SF.tupleConstructor (map (const defaultType) exprs', defaultType)
     return $ AppE tupleCall exprs'
-
 subExprToIR (Sub.List exprs) = do
-    exprs' <- mapM subExprToIR exprs
-    listCall <- toFunRefLit SF.listConstructor (map (const $ defaultType)  exprs, defaultType)
+    exprs' <- FrLang.unitArgs <$> mapM subExprToIR exprs
+    listCall <- toFunRefLit SF.listConstructor (map (const defaultType) exprs', defaultType)
     return $ AppE listCall exprs'
-
 -- | Mapping d = {1:2, 3:4} to d = dict(((1,2), (3,4)))
 subExprToIR (Sub.Dict mappings) = do
-    exprs' <- mapM (\(k,v) -> subExprToIR $ Sub.Tuple [k,v]) mappings
-    dictCall <- toFunRefLit SF.dictConstructor (map (const $ defaultType) mappings , defaultType)
+    exprs' <- FrLang.unitArgs <$> mapM (\(k,v) -> subExprToIR $ Sub.Tuple [k,v]) mappings
+    dictCall <- toFunRefLit SF.dictConstructor (map (const defaultType) exprs', defaultType)
     return $ AppE dictCall exprs'
-
 subExprToIR (Sub.Set  exprs) = do
-    exprs' <- mapM subExprToIR exprs
-    setCall <- toFunRefLit SF.setConstructor (map (const $ defaultType) exprs, defaultType)
+    exprs' <- FrLang.unitArgs <$> mapM subExprToIR exprs
+    setCall <- toFunRefLit SF.setConstructor (map (const defaultType) exprs', defaultType)
     return $ AppE setCall exprs'
-
 subExprToIR subExpr@(Sub.Subscript bnd expr) = do
     let (Sub.StmtExpr call) = subscriptToCall (Sub.StmtExpr subExpr)
     subExprToIR call
@@ -347,7 +342,7 @@ mappingToTuple (key, value) = do
 subArgToIR :: ConvertM m => Sub.Argument -> m ( FrLang.Expr PythonVarType)
 subArgToIR (Sub.Arg expr) = subExprToIR expr
 
-subParamToIR::ConvertM m => Sub.Param -> m (FrLang.Pat PythonVarType)
+subParamToIR :: ConvertM m => Sub.Param -> m (FrLang.Pat PythonVarType)
 subParamToIR (Sub.Param bnd) = do
     modify (HM.insert bnd Sub.PythonType)
     -- We do not need typing in Python so everything gets the default 'python object' type
@@ -357,10 +352,10 @@ subTargetToIR :: ConvertM m => Sub.Target -> m (FrLang.Pat PythonVarType)
 subTargetToIR (Sub.Single bnd) = return $ VarP bnd defaultType
 subTargetToIR (Sub.Tpl (b:bnds)) =
     let v = VarP b defaultType
-        vars = map (\bnd -> VarP bnd defaultType) bnds 
+        vars = map (\bnd -> VarP bnd defaultType) bnds
     in return $ TupP (v:| vars)
 
-subBinOpToIR:: ConvertM m => Sub.BinOp -> m ( FrLang.Expr PythonVarType)
+subBinOpToIR :: ConvertM m => Sub.BinOp -> m ( FrLang.Expr PythonVarType)
 subBinOpToIR Sub.Plus = toFunRefLit "+" simpleBinarySignature
 subBinOpToIR Sub.Minus = toFunRefLit "-" simpleBinarySignature
 subBinOpToIR Sub.Multiply = toFunRefLit "*" simpleBinarySignature
@@ -391,7 +386,7 @@ subBinOpToIR Sub.ShiftLeft = toFunRefLit "<<" simpleBinarySignature
 subBinOpToIR Sub.ShiftRight = toFunRefLit ">>" simpleBinarySignature
 
 
-subUnOpToIR:: ConvertM m => Sub.UnOp -> m ( FrLang.Expr PythonVarType)
+subUnOpToIR :: ConvertM m => Sub.UnOp -> m ( FrLang.Expr PythonVarType)
 subUnOpToIR Sub.Not  = toFunRefLit "not" simpleUnarySignature
 subUnOpToIR Sub.Invert = toFunRefLit "~" simpleUnarySignature
 
@@ -400,19 +395,25 @@ listofPyType :: [a] -> [VarType PythonVarType]
 listofPyType [] = []
 listofPyType args = map (const defaultType) args
 
+neOfPyType :: NonEmpty a -> NonEmpty (VarType PythonVarType)
+neOfPyType (x:|[]) = defaultType :| []
+neOfPyType (x:|(y:ys)) = defaultType <| neOfPyType (y:|ys)
 
-{- | Turns given string representation into literal expression representig an untyped, 
-     'unscoped' (the empty list in as Binding argument) function reference 
+
+
+{- | Turns given string representation into literal expression representig an untyped,
+     'unscoped' (the empty list in as Binding argument) function reference
 -}
-toFunRefLit :: Monad m => Binding -> ([VarType PythonVarType], VarType PythonVarType) -> m (FrLang.Expr PythonVarType)
-toFunRefLit funBind (argTys, retTy) = return $
-                        LitE $ FunRefLit $
-                        FunRef (QualifiedBinding (makeThrow []) funBind) Nothing $ FunType argTys retTy
+toFunRefLit :: Monad m => Binding -> (NonEmpty (VarType PythonVarType), VarType PythonVarType) -> m (FrLang.Expr PythonVarType)
+toFunRefLit funBind (argTys, retTy) =
+  return $
+  LitE $ FunRefLit $
+  FunRef (QualifiedBinding (makeThrow []) funBind) Nothing $ FunType argTys retTy
 
-simpleBinarySignature :: ([VarType PythonVarType], VarType PythonVarType)
-simpleBinarySignature = ([defaultType, defaultType], defaultType)
+simpleBinarySignature :: (NonEmpty (VarType PythonVarType), VarType PythonVarType)
+simpleBinarySignature = (defaultType :| [defaultType], defaultType)
 
-simpleUnarySignature :: ([VarType PythonVarType], VarType PythonVarType)
-simpleUnarySignature = ([defaultType], defaultType)
+simpleUnarySignature :: (NonEmpty (VarType PythonVarType), VarType PythonVarType)
+simpleUnarySignature = (defaultType :| [], defaultType)
 
 toBindings = map toBinding

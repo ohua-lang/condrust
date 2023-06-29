@@ -251,7 +251,7 @@ liftFunction collectTy retTy (PureDFFun out fun inp) cont = do
       DFL.Let
         ( PureDFFun
             out
-            (FunRef joinFuture Nothing (FunType [collectTy] retTy))
+            (FunRef joinFuture Nothing (FunType (collectTy :| []) retTy))
             (DFVar futuresATBnd :| [])
         )
         cont
@@ -265,17 +265,17 @@ liftFunction collectTy retTy (PureDFFun out fun inp) cont = do
         (DFEnvVar (TypeFunction funTy) (FunRefLit fun) NE.<| inp)
 
 
-    getSpawnFunType (FunRef _ _ (FunType [] rty)) funTy = FunType [ (TypeFunction funTy) ] rty
-    getSpawnFunType (FunRef _ _ (FunType  xs rty )) funTy = FunType ((TypeFunction funTy) : xs) rty
+    getSpawnFunType (FunRef _ _ (FunType (TypeUnit :| []) rty)) funTy = FunType (TypeFunction funTy :| []) rty
+    getSpawnFunType (FunRef _ _ (FunType xs               rty)) funTy = FunType (TypeFunction funTy :| xs) rty
 
 -- |
 -- All that the language and backend requires to support this transformations are
 -- the implementations of the below functions.
 lowerTaskPar :: forall lang arch ty. (ty ~ BT.Type (BT.Lang arch))
              => lang -> arch -> FullTask ty (B.TaskExpr ty) -> B.TaskExpr ty
-lowerTaskPar _ arch = go 
+lowerTaskPar _ arch = go
     where
-        go (FullTask _sends _recvs taskE) = 
+        go (FullTask _sends _recvs taskE) =
             case  go' taskE of
                 (taskE', _) -> taskE'
 
@@ -287,7 +287,7 @@ lowerTaskPar _ arch = go
                 -- we need to do this on the Rust level because
                 -- it would be hard to construct this call.
                 e@(B.ApplyF (B.Stateless qb _args)) | qb == spawnFuture -> embed <$> sequence e
-               
+
                 -- there is nothing to be done here.
                 -- because we can implement this function easily in Rust.
                 e@(B.ApplyF (B.Stateless qb _args)) | qb == joinFuture -> do { put True; embed <$> sequence e }
@@ -296,12 +296,12 @@ lowerTaskPar _ arch = go
 takeN :: QualifiedBinding
 takeN = "ohua.lang/takeN"
 
-takeNLit ty = Lit $ FunRefLit $ FunRef takeN Nothing $ FunType  (ty : [TypeNat]) ty
+takeNLit ty = Lit $ FunRefLit $ FunRef takeN Nothing $ FunType  (ty :| [TypeNat]) ty
 
 concat :: QualifiedBinding
 concat = "ohua.lang/concat"
 
-concatLit ty = Lit $ FunRefLit $ FunRef concat Nothing $ FunType (ty : [ty]) ty
+concatLit ty = Lit $ FunRefLit $ FunRef concat Nothing $ FunType (ty :| [ty]) ty
 
 -- | This transformation adds a limit on the tries per round and therewith provides
 --   a tuning knob to control the number of invalid (colliding) computation per round.
@@ -489,7 +489,7 @@ amorphous numRetries = transformM go
       ( AL.Let
           v
           (Apply f@(Apply
-                    (PureFunctionTy smapF _ (FunType (inpTy : _) retTy ) )
+                    (PureFunctionTy smapF _ (FunType (inpTy :| _) retTy ) )
                     _)
                  (AL.Var loopInp'))
           cont
@@ -523,7 +523,7 @@ amorphous numRetries = transformM go
       ( AL.Let
           v
            (Apply f@(Apply
-                    (PureFunctionTy smapF _ (FunType (inpTy : _) retTy ))
+                    (PureFunctionTy smapF _ (FunType (inpTy :| _) retTy ))
                     _)
                  (AL.Var loopInp'))
           cont
@@ -568,8 +568,8 @@ third3 (_,_,c) = c
 typeAmorphous :: NormalizedDFExpr ty -> OhuaM (NormalizedDFExpr ty)
 typeAmorphous = return . mapFuns go
     where
-        go (PureDFFun outs (FunRef f id (FunType (a:b:c) retTy) ) ins) | f == concat =
-            PureDFFun outs (FunRef f id (FunType (TypeList a : TypeList b : c ) retTy)) ins
-        go (PureDFFun outs (FunRef f id (FunType (a : b) retTy ) ) ins) | f == takeN =
-            PureDFFun outs (FunRef f id (FunType (TypeList a : b) retTy) ) ins
+        go (PureDFFun outs (FunRef f id (FunType (a:|b:c) retTy) ) ins) | f == concat =
+            PureDFFun outs (FunRef f id (FunType (TypeList a :| TypeList b : c ) retTy)) ins
+        go (PureDFFun outs (FunRef f id (FunType (a :| b) retTy ) ) ins) | f == takeN =
+            PureDFFun outs (FunRef f id (FunType (TypeList a :| b) retTy) ) ins
         go a = a

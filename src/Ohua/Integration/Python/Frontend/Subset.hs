@@ -7,8 +7,8 @@ import Data.Functor.Foldable.TH (makeBaseFunctor)
 import Language.Haskell.TH.Syntax (Lift)
 import Control.Lens.Plated
 
-{- | This is the supported frontend subset of the python 
--- integration, as the AST generated from language-python is underspecified at some points, this 
+{- | This is the supported frontend subset of the python
+-- integration, as the AST generated from language-python is underspecified at some points, this
 -- subset refers to the grammer definition of python 3.1 which underlies the ASt
 -}
 
@@ -20,38 +20,38 @@ newtype Suite  =  PySuite [Stmt]
   deriving (Eq, Generic, Show)
 
 type Block = [Stmt] -- ^ this is an alias for blocks inside loops or branches that must not contain 'return'
-    
-data Stmt  = 
-    WhileStmt Expr Block 
-    | ForStmt Target Expr Block 
+
+data Stmt  =
+    WhileStmt Expr Block
+    | ForStmt Target Expr Block
     | CondStmt [(Expr, Block )] (Maybe Block)
     -- TODO: Rework when/if assignments and returns of lists of targets are supported
-    | Assign Target Expr 
-    | Pass 
-    | StmtExpr Expr     
+    | Assign Target Expr
+    | Pass
+    | StmtExpr Expr
     -- TODO: Add AugmAssign when possible
-    | Return (Maybe Expr)  
+    | Return (Maybe Expr)
       deriving (Eq, Generic, Show)
 
 
-data Expr = 
+data Expr =
     Var Binding
-    | Int Integer 
+    | Int Integer
     | Bool Bool
     | None
     -- MethodCalls are not a separate token. They are 'Calls' where:
-    -- A) the call_fun attribute is a dotExpr and 
+    -- A) the call_fun attribute is a dotExpr and
     -- B) it is not a class method or a toplevel function of an imported module
     | Call FRef [Argument]
-    | CondExpr Expr Expr Expr 
+    | CondExpr Expr Expr Expr
     | BinaryOp BinOp Expr Expr
     | UnaryOp UnOp Expr
     | Lambda [Param] Expr
     | Tuple [Expr]
-    -- for the following expressions, there's no buildin equivalent in Ohua's frontend 
+    -- for the following expressions, there's no buildin equivalent in Ohua's frontend
     -- so we will map them to fuction calls (because also in Python they are actually syntax sugar)
     | List [Expr]
-    -- | ListComp Context Expr Target Expr -- ^ x = [f(t) for t in ts] gives ListComp x f(t) t ts 
+    -- | ListComp Context Expr Target Expr -- ^ x = [f(t) for t in ts] gives ListComp x f(t) t ts
     | Dict [(Expr, Expr)]
     | Set [Expr]
     | Subscript Binding Expr
