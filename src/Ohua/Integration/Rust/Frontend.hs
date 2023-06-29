@@ -64,6 +64,9 @@ instance Integration (Language 'Rust) where
         globalDefs <- collectGlobals input
         extractWithGlobals globalDefs input
         where
+          -- FIXME globals are in the wrong place here.
+          --       they belong into the delta because their only purpose is to deliver the type for
+          --       free vars in the algos
           collectGlobals input@(SourceFile _ _ items) = do
             return $
               foldl (\hm (k, v) -> HM.insert k v hm) HM.empty
@@ -119,13 +122,15 @@ instance Integration (Language 'Rust) where
         m (FrLang.Expr RustVarType)
       extractAlgo _algoName (FnDecl _ _ True _) _block = error "We do not support compilation of variadic functions for the moment"
       extractAlgo algoName  (FnDecl args mReturnTy _ _) block = do
-        implGlobalArgs <- fromGlobals
+        -- implGlobalArgs <- fromGlobals
         -- traceM $ "Implicit Arguments:" <> show implGlobalArgs
-        args' <- mapM (convertPat <=< SubC.convertArg) args
+        args' <- unitParams <$> mapM (convertPat <=< SubC.convertArg) args
         block' <- convertIntoFrExpr block
-        let returnType = asVarType mReturnTy
-        let wrappedBlock = LetE (VarP "result" returnType) block' (VarE "result" returnType) 
-        return $ LamE (unitParams $ implGlobalArgs ++ args') wrappedBlock 
+        let returnType = case mReturnTy of
+                           Nothing -> TypeUnit
+                           Just t  -> asHostNormalURes t
+        let wrappedBlock = LetE (VarP "result" returnType) block' (VarE "result" returnType)
+        return $ LamE ({- implGlobalArgs ++ -} args') wrappedBlock
 
       convertIntoFrExpr :: SubC.ConvertM m => Block Span -> m (FrLang.Expr RustVarType)
       convertIntoFrExpr rustBlock = do
@@ -142,18 +147,14 @@ instance Integration (Language 'Rust) where
       fromGlobals :: SubC.ConvertM m => m [FrLang.Pat RustVarType]
       fromGlobals = do
         map (\(bnd, Sub.RustType ty) -> VarP bnd (asHostNormalURes ty)) . HM.toList <$> get
-
-      asVarType :: Maybe (Ty Span) -> VarType RustVarType
-      asVarType Nothing = TypeUnit
-      asVarType (Just ty) = asHostNormalURes ty
 -}
 
-  loadTypes :: forall m ty.
+  loadTypes ::
     ErrAndLogM m =>
     Language 'Rust ->
     Module ->
     Namespace (FrLang.Expr RustVarType) (Item Span) ->
-    m (Delta ty)
+    m (Delta RustVarType)
   loadTypes _ (Module ownFile _) ohuaNs = do
     filesAndPaths <- concat <$> mapM funsForAlgo (ohuaNs ^. algos)
     -- traceShowM $ "Function references from Algos: " <> show filesAndPaths
@@ -376,7 +377,7 @@ instance ConvertExpr Sub.Expr where
 
 instance ConvertExpr Sub.Block where
   convertExpr (Sub.RustBlock Sub.Normal stmts) =
-    evalStateT (convertStmts stmts) =<< get
+    convertStmts stmts
     where
       convertStmts [] = return $ LitE UnitLit
       convertStmts (x : xs) =
@@ -392,6 +393,7 @@ instance ConvertExpr Sub.Block where
                   convertedHeads
       convertStmt :: SubC.ConvertM m => Sub.Stmt -> m (FrLang.Expr RustVarType -> FrLang.Expr RustVarType)
       convertStmt s@(Sub.Local pat ty e) = do
+        {-
         case (pat, ty) of
           -- ToDo: We should move this to Rust -> Sub Conversion and set it automatically if the RHS is a literal
           (Sub.IdentP (Sub.IdentPat _mode bnd), Just ty') -> modify (HM.insert bnd ty')
@@ -401,6 +403,7 @@ instance ConvertExpr Sub.Block where
                 keysAndValues = zip asBindings asSubRustType
             modify (\context-> foldl (\c (a,b) ->  HM.insert a b c) context keysAndValues)
           untypedpattern -> return () --ToDo: Should we warn here? logWarnN $ "Targets of the assignment: " <> show s <> " are not annotated\n"
+        -}
         pat' <- convertPat pat
         e' <- convertExpr e
         return $ LetE pat' e'

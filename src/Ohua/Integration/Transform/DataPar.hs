@@ -9,12 +9,13 @@ import qualified Ohua.Integration.Options as IOpt
 
 import Data.Functor.Foldable (cata, embed, cataA)
 import qualified Data.HashSet as HS
+import Data.List.NonEmpty ((<|))
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Text.Prettyprint.Doc as PP
 import qualified Ohua.Backend.Lang as B
 import Ohua.Backend.Types as BT (FullTask(..), Architecture, Lang, Type)
 import Ohua.Core.ALang.Lang as AL
-import Ohua.Core.InternalFunctions as IFuns 
+import Ohua.Core.InternalFunctions as IFuns
 import Ohua.Core.ALang.Util (destructure, findFreeBindings, findFreeVariables, lambdaArgsAndBody, substitute)
 import Ohua.Core.Compile.Configuration
 import Ohua.Core.DFLang.Lang as DFL hiding (length, substitute)
@@ -266,7 +267,7 @@ liftFunction collectTy retTy (PureDFFun out fun inp) cont = do
 
 
     getSpawnFunType (FunRef _ _ (FunType (TypeUnit :| []) rty)) funTy = FunType (TypeFunction funTy :| []) rty
-    getSpawnFunType (FunRef _ _ (FunType xs               rty)) funTy = FunType (TypeFunction funTy :| xs) rty
+    getSpawnFunType (FunRef _ _ (FunType xs               rty)) funTy = FunType (TypeFunction funTy <| xs) rty
 
 -- |
 -- All that the language and backend requires to support this transformations are

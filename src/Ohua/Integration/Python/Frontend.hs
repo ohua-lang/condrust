@@ -123,10 +123,10 @@ instance Integration (Language 'Python) where
     --   As we currently do not 'type' any of the arguments in Python and the number of
     --   (explicit) arguments may vary for each function due to default values, we just assign
     --   a type of [PyObject] to every function call site.
---    loadTypes :: ErrAndLogM m => Language 'Python ->
---                    Module ->
---                    PythonNamespace ->
---                    m (Delta PythonVarType, PythonNamespace)
+    loadTypes :: ErrAndLogM m => Language 'Python ->
+                    Module ->
+                    PythonNamespace ->
+                    m (Delta PythonVarType)
     loadTypes lang (Module filepath pymodule) ohuaNS = do
         {-filesAndPaths <- concat <$> mapM funsForAlgo (ohuaNS^.algos)
         let filesAndPaths' = map (first convertOwn) filesAndPaths
