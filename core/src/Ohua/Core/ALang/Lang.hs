@@ -40,7 +40,7 @@ module Ohua.Core.ALang.Lang
   -- ** Builtin Function Literals
   , ifBuiltin
   , smapBuiltin
-  , seqBuiltin
+--  , seqBuiltin
   -- ** Convenience patterns
   , pattern PureFunction, pattern PureFunctionTy, pattern PureFunctionF
   , pattern StatefulFunction, pattern StatefulFunctionTy, pattern StatefulFunctionF
@@ -75,16 +75,16 @@ data Expr ty
 type AExpr = Expr
 
 
-exprType:: Expr ty -> VarType ty
-exprType e = case e of 
+exprType :: Expr ty -> VarType ty
+exprType e = case e of
     Var (TBind _bnd varTy) -> varTy
     -- We aim for "return types" here so if the literal is a function, this will evaluate to the functions return type
     Lit lit -> getLitType lit
     -- Let should be typed by e2, because this is what it resturns
     Let _bnd _e1 e2 -> exprType e2
     -- Apply (\x:T1. term:T2) (t:T1), should obviously be typed as T2
-    -- Obviously we should typecheck AND with generic functions T2 could depend on T1. 
-    -- However we consider generics in the host language a problem of the host languange i.e. 
+    -- Obviously we should typecheck AND with generic functions T2 could depend on T1.
+    -- However we consider generics in the host language a problem of the host languange i.e.
     -- if the frontend integration allows for generics, than the backend should accept them .. we don't do the derivation
     Apply funE _argE -> returnType funE
     -- Type of an abstraction (\x:T1. term:T2) should be T1 -> T2
@@ -94,23 +94,23 @@ exprType e = case e of
     BindState _objE methodcallE -> exprType methodcallE
 
 returnType :: Expr ty -> VarType ty
-returnType e = case funType e of 
-    Just fty -> getReturnType fty
+returnType e = case funType e of
+    Just (FunType _ out) -> out
+    Just (STFunType _ _ out) -> out
     Nothing -> exprType e
-    
+
 -- ToDo: This is actually very _unelegant_ but in some instances we need the function type from
---       Lambda Expression, while in others we only care about the type the term will evaluate to. 
+--       Lambda Expression, while in others we only care about the type the term will evaluate to.
 --       I'm currently not sure, what the best way to handle this would be?!
 
-funType:: Expr ty -> Maybe (FunType ty) 
-funType e = case e of 
+funType :: Expr ty -> Maybe (FunType ty)
+funType e = case e of
         (Var (TBind _bnd (TypeFunction fTy)))   -> Just fTy
-        (Lit (FunRefLit fRef))                  -> Just $ getRefType fRef 
-        (Lambda tBnd term)                      -> Just $ FunType [asType tBnd] (exprType term)
+        (Lit (FunRefLit fRef))                  -> Just $ getRefType fRef
+        (Lambda tBnd term)                      -> Just $ FunType (asType tBnd :| []) (exprType term)
         (BindState _state method)               -> funType method
         -- Question: What's the type of BindState at this point?
         other                                   -> Nothing
-
 
 
 
@@ -126,21 +126,22 @@ mkFunLit qBnd = pureFunction qBnd Nothing
 -- Specific Functions, that should become part of the language ---------
 
 idBuiltin :: VarType ty -> Expr ty
-idBuiltin vTy = pureFunction IFuns.id Nothing (FunType [vTy] vTy)
+idBuiltin vTy = pureFunction IFuns.id Nothing (FunType (vTy :| []) vTy)
 
 
 ifBuiltin :: VarType ty -> Expr ty
-ifBuiltin vTy = mkFunLit IFuns.ifThenElse (FunType [TypeBool ,vTy ,vTy ] vTy)
+ifBuiltin vTy = mkFunLit IFuns.ifThenElse (FunType (TypeBool :| [vTy ,vTy]) vTy)
 
+{-
 seqBuiltin :: VarType ty ->  VarType ty ->  Expr ty
 -- Operator to sequence statements igrnoring the result of the first one
 -- ToDo: check if we still need that anywhere
 seqBuiltin fstTy scndTy =  mkFunLit IFuns.seq (FunType [fstTy, scndTy] scndTy)
-
+--}
 
 smapBuiltin :: VarType ty ->  VarType ty -> VarType ty -> Expr ty
 -- HO for-loop: function -> collection to apply function to -> typeOfCollection ( return Type function)
-smapBuiltin fnTy collTy resTy = mkFunLit IFuns.smap (FunType [fnTy, collTy] resTy )
+smapBuiltin fnTy collTy resTy = mkFunLit IFuns.smap (FunType (fnTy :| [collTy]) resTy )
 
 
 -------------------- Recursion schemes support -------------------------

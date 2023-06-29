@@ -29,7 +29,7 @@ mkUnitFunctionsExplicit e =
         Let v (Apply (Lit (FunRefLit fun@(FunRef _bnd _id fTy))) u@(Lit UnitLit)) ie ->
             Let
                 v
-                ((Lit $ FunRefLit $ FunRef unitFun Nothing $ FunType [TypeFunction fTy,  TypeUnit] (TypeFunction fTy) ) `Apply`
+                ((Lit $ FunRefLit $ FunRef unitFun Nothing $ FunType (TypeFunction fTy :| [TypeUnit]) (TypeFunction fTy) ) `Apply`
                  (Lit $ FunRefLit fun) `Apply`
                  u)
                 ie

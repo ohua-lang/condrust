@@ -38,11 +38,11 @@ import Ohua.Core.ALang.PPrint ()
 smapSfFun :: VarType ty -> VarType ty -> Expr ty
 -- Takes a collection and returns (contained Dt, control signal, Nat)
 -- I can get the data type from the input type of the function
-smapSfFun collTy elemTy = Lit $ FunRefLit $ FunRef IFuns.smapFun Nothing $ FunType [collTy] (TupleTy (elemTy :| [controlSignalType, TypeNat]))
+smapSfFun collTy elemTy = Lit $ FunRefLit $ FunRef IFuns.smapFun Nothing $ FunType (collTy :| []) (TupleTy (elemTy :| [controlSignalType, TypeNat]))
 
 collectSf :: VarType ty -> Expr ty
 -- Takes a nat and the return type t of the function and returns [t]
-collectSf outTy = Lit $ FunRefLit $ FunRef IFuns.collect Nothing $ FunType [TypeNat, outTy] (TypeList outTy)
+collectSf outTy = Lit $ FunRefLit $ FunRef IFuns.collect Nothing $ FunType (TypeNat :| [outTy]) (TypeList outTy)
 
 smapRewrite :: (Monad m, MonadGenBnd m) => Expr ty -> m (Expr ty)
 smapRewrite =
@@ -56,8 +56,8 @@ smapRewrite =
                 let innerFunRet = exprType lamExpr
                     -- ToDo: get input type from lambda term
                     innerFunInput = case funType lamExpr of
-                        Just (FunType [inTy] out) -> inTy
-                        Just (FunType (it:its) out) -> TupleTy (it:|its)
+                        Just (FunType (inTy :| [] ) out) -> inTy
+                        Just (FunType (it   :| its) out) -> TupleTy (it:|its)
                         _ -> error $ "I expected a function with at least one input in an smapRewrite, but got: "
                                             <> quickRender lamExpr
                                             <> ".Please report this error."

@@ -42,5 +42,5 @@ literalsToFunctions e =
             let litType = getLitType lit
             return $
                 Let v
-                    (Lit (FunRefLit $ FunRef IFuns.id Nothing (FunType [litType ] litType )) `Apply` Lit lit)
+                    (Lit (FunRefLit $ FunRef IFuns.id Nothing (FunType (litType :| []) litType )) `Apply` Lit lit)
                     body

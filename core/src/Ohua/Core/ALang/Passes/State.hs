@@ -51,11 +51,11 @@ postControlPasses = transformCtxtExits -- . traceShow "transforming ctxt exists!
 
 
 runSTCLangSMapFun :: VarType ty -> Expr ty
-runSTCLangSMapFun stateTy = Lit $ FunRefLit $ FunRef IFuns.runSTCLangSMap Nothing $ FunType [TypeNat, stateTy] stateTy -- size and the state, i.e., there is one per state
+runSTCLangSMapFun stateTy = Lit $ FunRefLit $ FunRef IFuns.runSTCLangSMap Nothing $ FunType (TypeNat :| [stateTy]) stateTy -- size and the state, i.e., there is one per state
 
 
 runSTCLangIfFun :: VarType ty -> Expr ty
-runSTCLangIfFun stateTy = Lit $ FunRefLit $ FunRef IFuns.runSTCLangIf Nothing $ FunType [TypeBool, stateTy, stateTy] stateTy
+runSTCLangIfFun stateTy = Lit $ FunRefLit $ FunRef IFuns.runSTCLangIf Nothing $ FunType (TypeBool :| [stateTy, stateTy]) stateTy
 
 -- invariant: this type of node has at least one var as input (the computation result)
 ctxtExit :: QualifiedBinding
@@ -63,7 +63,7 @@ ctxtExit = "ohua.lang/ctxtExit"
 
 -- To type-encode the assumption of at least one input a Nonempty is sufficient. We don't need a 'Nat for this.
 ctxtExitFunRef :: NE.NonEmpty (VarType ty)  -> VarType ty -> Expr ty
-ctxtExitFunRef  inputTys retTy = Lit $ FunRefLit $ FunRef ctxtExit Nothing $ FunType (NE.toList inputTys) retTy
+ctxtExitFunRef  inputTys retTy = Lit $ FunRefLit $ FunRef ctxtExit Nothing $ FunType inputTys retTy
 
 -- | Transforms every stateful function into a fundamental state thread.
 --   Corrects the reference to the state for the rest of the computation.
@@ -181,7 +181,7 @@ transformControlStateThreads = transformM f
               HS.foldr
               (\missingState c ->
                  Let missingState
-                 (pureFunction IFuns.id Nothing (FunType [asType missingState] (asType missingState))
+                 (pureFunction IFuns.id Nothing (FunType (asType missingState :| []) (asType missingState))
                    `Apply` Var missingState)
                  c)
             trueBranch' = applyToBody (`addMissing` trueBranchStatesMissing) trueBranch

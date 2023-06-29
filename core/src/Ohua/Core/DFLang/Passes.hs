@@ -260,7 +260,7 @@ handleApplyExpr (Apply fn a) = go (a :| []) fn
           go (arg NE.<| args) f
         Lit (FunRefLit fr@(FunRef f _ident (FunType argTypes retTy))) -> do
           assertTermTypes args argTypes "function" f
-          return (fr, Nothing, zip' argTypes args)
+          return (fr, Nothing, NE.zip argTypes args)
         Lit (FunRefLit (FunRef qb _ STFunType {})) ->
           failWith $ "Wrong function type 'st' for pure function: " <> show qb
         BindState _state0 (Lit (FunRefLit (FunRef f _ FunType {}))) ->

@@ -200,12 +200,12 @@ The operator has two incoming arcs and two outgoing arcs:
 
 module Ohua.Core.Feature.TailRec.Passes.ALang where
 
-import Ohua.Core.Prelude
+import Ohua.Core.Prelude hiding (toList)
 
 import qualified Data.Text.Prettyprint.Doc as PP
 
 import qualified Data.HashSet as HS
-import Data.List.NonEmpty (fromList)
+import Data.List.NonEmpty (fromList, toList)
 
 import Ohua.Core.ALang.Lang
 import Ohua.Core.ALang.PPrint ()
@@ -232,7 +232,7 @@ recurHof = "ohua.lang/recur_hof"
 -- Wraps a function a and "returns" it's evaluation type so it's type should be
 -- exprType a -> exprType a
 recurSf :: VarType ty -> Expr ty
-recurSf ty = pureFunction recur Nothing $ FunType [ty] ty
+recurSf ty = pureFunction recur Nothing $ FunType (ty :| []) ty
 
 recurStartMarker :: QualifiedBinding
 recurStartMarker = "ohua.lang.marker/recur_start"
@@ -246,11 +246,11 @@ y = "ohua.lang/Y"
 
 -- Just as recurSF this is a marker for a an execution contex -> its type is ty-> ty
 ySf :: VarType ty -> Expr ty
-ySf ty = pureFunction y Nothing $ FunType [ty] ty
+ySf ty = pureFunction y Nothing $ FunType (ty :| []) ty
 
 -- see above 
 recurFunPureFunction :: VarType ty -> Expr ty
-recurFunPureFunction ty = pureFunction IFuns.recurFun Nothing $ FunType [ty] ty
+recurFunPureFunction ty = pureFunction IFuns.recurFun Nothing $ FunType (ty :| []) ty
 
 
 
@@ -416,9 +416,9 @@ rewriteCallExpr e = do
         inputs = TBind inputsBnd inputsType
         funTy = case callArgs of
             -- Question is this a problem/error? Why? 
-            [] -> error "It seems you called a recursion with no arguments"
-            _args -> (trace $ "Got "<> show callArgs <> " callArgs here and recurVars are\n " <> show recurVars)  genFunType callArgs inputsType
-    return $ 
+            [] -> error "Invariant broken: It seems you called a recursion with no arguments" -- FIXME fromApplyToList needs to return a NonEmpty
+            (a:as) -> (trace $ "Got "<> show callArgs <> " callArgs here and recurVars are\n " <> show recurVars)  genFunType (a:|as) inputsType
+    return $
         Let inputs (fromListToApply (FunRef recurStartMarker Nothing $ funTy) callArgs) $
         mkDestructured (recurCtrl : recurVars) inputs expr'
   where
@@ -448,11 +448,11 @@ rewriteCallExpr e = do
                     (Left _f, Right _bnds) -> errorD $ flexText "I am sorry, but for now the recursion is required to be on the first (`then`) branch of the final condition. This is a bug of the implementation and will be fixed in the future. (Issue #36)\n\nYour code violating this invariant was\n" <> PP.indent 4 (PP.pretty fullExpr) -- (f, bnds)
                     (Right bnds, Left f) -> (f, bnds)
                     _ -> error "invariant broken"
-            callArgs = cond : fixRef : recurVars
+            callArgs = cond :| fixRef : recurVars
             returnTy = TupleTy $ exprType cond :| (exprType fixRef : (map exprType recurVars))
-            finalExpr = fromListToApply (FunRef recurEndMarker Nothing $ genFunType callArgs returnTy) callArgs
+            finalExpr = fromListToApply (FunRef recurEndMarker Nothing $ genFunType callArgs returnTy) $ toList callArgs
         in finalExpr
-            
+
     rewriteCond _ =
         error
             "invariant broken: recursive function does not have the proper structure."

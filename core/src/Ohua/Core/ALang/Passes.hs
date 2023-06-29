@@ -176,7 +176,7 @@ ensureFinalLet' =
             | otherwise -> do -- Rebind anything else
                 newBnd <- generateBinding
                 let expr' = embed $ fmap fst any0
-                let newTy = exprType expr'  
+                let newTy = exprType expr'
                 pure $ Let (TBind newBnd newTy) (embed $ fmap fst any0) (Var (TBind newBnd newTy))
   where
     isVarOrLambdaF =
@@ -184,7 +184,6 @@ ensureFinalLet' =
             VarF _ -> True
             LambdaF {} -> True
             _ -> False
-    
 
 ensureFinalLetInLambdas :: MonadOhua m => Expr ty -> m (Expr ty)
 ensureFinalLetInLambdas =
@@ -195,7 +194,7 @@ ensureFinalLetInLambdas =
 ensureAtLeastOneCall :: (Monad m, MonadGenBnd m) => Expr ty -> m (Expr ty)
 ensureAtLeastOneCall e@(Var (TBind bnd ety)) = do
     newBnd <- generateBinding
-    pure $ Let (TBind newBnd ety) (pureFunction IFuns.id Nothing (FunType [ety] ety )`Apply` e) $ Var (TBind newBnd ety)
+    pure $ Let (TBind newBnd ety) (pureFunction IFuns.id Nothing (FunType (ety :| []) ety )`Apply` e) $ Var (TBind newBnd ety)
 ensureAtLeastOneCall e = cata f e
   where
     f (LambdaF tbnd body) =
@@ -204,7 +203,7 @@ ensureAtLeastOneCall e = cata f e
                 newBnd <- generateBinding
                 pure $
                     Lambda tbnd $
-                    Let (TBind newBnd vty) (pureFunction IFuns.id Nothing (FunType [vty] vty ) `Apply` v) $
+                    Let (TBind newBnd vty) (pureFunction IFuns.id Nothing (FunType (vty :| []) vty ) `Apply` v) $
                     Var (TBind newBnd vty)
             eInner -> pure $ Lambda tbnd eInner
     f eInner = embed <$> sequence eInner
