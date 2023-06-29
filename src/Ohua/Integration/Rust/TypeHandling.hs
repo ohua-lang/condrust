@@ -22,21 +22,9 @@ import Data.List.NonEmpty hiding (map)
 data Module = Module FilePath (SourceFile Span)
 
 
--- We currently have the problem, that during lowering the rust code it is ok for some things to be not properly typed i.e.
--- we first translate the algo, extracting the type info from annotations, next we extracttype info from imported functions and last we
--- (will) try to merge those infos to find out if there's anything elft untyped. 
--- We used to represent unknown types by 'TypeVar'. However we don't want things INSIDE the compiler to be of unknown type so we need to move this 
--- representation of 'unknown type' into the realm of the rust representation (it's really just Rust because in Python we don't have that problem)
--- The most accurate solution would be to have two Rust type representations one including 'untyped' and on without that we would pass further down the compiler to
--- really rule out untyped stuff in the compiler. But this would require refactoring the definitions (types) of Integration, passes and what not. So to 
--- keep it simple for know and first finish the task of eliminating 'TypeVar', we'll include an 'untyped' in the Rust type representation. 
 data RustVarType = Self (Ty ()) (Maybe (Lifetime ())) Mutability | Normal (Ty ()) deriving (Show, Eq)
 type RustHostType = HostType RustVarType
 type FunTypes = HM.HashMap QualifiedBinding (FunType RustVarType)
-
-
-type VarTypeContext = HM.HashMap Binding (VarType RustVarType)
-type TypeContextM m = (Monad m, MonadState VarTypeContext m)
 
 
 instance Doc.Pretty RustVarType where
@@ -116,9 +104,10 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
                 Just ty -> QualifiedBinding (makeThrow $ filePathToList srcFile ++ [show $ RustP.pretty' (deSpan ty)]) $ toBinding funIdent
                 Nothing -> QualifiedBinding (filePathToNsRef srcFile) $ toBinding funIdent
 
-        getTypes :: Show a => FnDecl a -> ([VarType RustVarType], VarType RustVarType)
+        getTypes :: Show a => FnDecl a -> (NonEmpty (VarType RustVarType), VarType RustVarType)
         getTypes f@(FnDecl _ _ True _) = error $ "Currently, we do not support variadic arguments." <> show f
-        getTypes (FnDecl args retType _ _) = (map toVarType args, fromMaybeRet retType)
+        getTypes (FnDecl [] retType _ _) = (TypeUnit :| [], fromMaybeRet retType)
+        getTypes (FnDecl (a:args) retType _ _) = (map toVarType (a:|args), fromMaybeRet retType)
 
         fromMaybeRet:: Maybe (Ty a) -> VarType RustVarType
         fromMaybeRet (Just retTy) = asHostNormal retTy
@@ -131,8 +120,8 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
         extractFunType _ f@(FnDecl _ _ True _) = throwError $ "Currently, we do not support variadic arguments." <> show f
         extractFunType f (FnDecl args retType _ _) =
             case args of
-                [] -> return $ FunType [] (fromMaybeRet retType)
-                (fstArg: args) -> f fstArg  (map toVarType args) (fromMaybeRet retType)
+                [] -> return $ FunType (TypeUnit :| []) (fromMaybeRet retType)
+                (fstArg : args) -> f fstArg (map toVarType args) (fromMaybeRet retType)
 
         convertImplArg :: (ErrAndLogM m, Show a) => Ty a -> Arg a -> m (VarType RustVarType)
         convertImplArg selfType (SelfValue _ mut _) = return $ asHostSelf selfType Nothing mut
@@ -162,7 +151,7 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
             let actualReturnType = if retTy == hostReturnSelf then asHostNormal selfType else retTy
                 funType x0 = case x0 of
                             (Type (HostType Self{})) -> STFunType x0 args actualReturnType
-                            _ -> FunType (x0 : args) actualReturnType
+                            _ -> FunType (x0 :| args) actualReturnType
             in funType <$> convertImplArg selfType fstArg
 
 

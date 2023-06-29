@@ -132,10 +132,11 @@ instance Integration (Language 'Python) where
         let filesAndPaths' = map (first convertOwn) filesAndPaths
         fun_types <- typesFromNS $ concatMap fst filesAndPaths'
         types' <- HM.fromList <$> mapM (verifyAndRegister fun_types) filesAndPaths'-}
-        ns <- updateExprs ohuaNS (transformM (assignTypes HM.empty))
-        return (HM.empty, ns)
+        -- ns <- updateExprs ohuaNS (transformM (assignTypes HM.empty))
+        return HM.empty
+        {-
         where
-            {-funsForAlgo :: ErrAndLogM m => Algo (FrLang.Expr PythonVarType) (Py.Statement SrcSpan)
+            funsForAlgo :: ErrAndLogM m => Algo (FrLang.Expr PythonVarType) (Py.Statement SrcSpan)
                     -> m [([NSRef], QualifiedBinding)]
             funsForAlgo (Algo _name code annotation) = do
                 return []
@@ -151,7 +152,7 @@ instance Integration (Language 'Python) where
             verifyAndRegister :: ErrAndLogM m => FunTypes -> ([NSRef], QualifiedBinding)
                         -> m (QualifiedBinding, FunType PythonVarType)
             verifyAndRegister fun_types ([candidate], qB@(QualifiedBinding _ qBName)) = undefined
-            verifyAndRegister fun_types ( _ , qB@(QualifiedBinding _ qBName)) = undefined-}
+            verifyAndRegister fun_types ( _ , qB@(QualifiedBinding _ qBName)) = undefine
 
             assignTypes :: ErrAndLogM m => FunTypes -> FrLang.Expr PythonVarType -> m (FrLang.Expr PythonVarType)
             assignTypes funTypes function = case function of
@@ -176,6 +177,7 @@ instance Integration (Language 'Python) where
 
             globs :: [NSRef]
             globs = mapMaybe (\case (Glob n) -> Just n; _ -> Nothing) (ohuaNS^.imports)
+-}
 
 fullByNameOrAlias :: Py.DottedName SrcSpan -> Py.FromItem SrcSpan -> Import
 fullByNameOrAlias dotted (Py.FromItem  ident Nothing annot) = flip Full (toBinding ident) . makeThrow $ toBindings dotted
