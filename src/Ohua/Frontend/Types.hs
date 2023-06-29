@@ -23,7 +23,7 @@ class (Show (Type lang)) => Integration lang where
     loadTypes :: ErrAndLogM m
               => lang -> HostModule lang
               ->    Namespace (Expr (Type lang)) (AlgoSrc lang)
-              -> m (Delta ty)
+              -> m (Delta (Type lang))
 
 type LanguageFileSuffix = Text
 type CompilationScope = HM.HashMap NSRef LanguageFileSuffix
