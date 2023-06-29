@@ -226,5 +226,9 @@ tupTypeFrom pats = TupleTy $ NE.map getPType pats
     where
         getPType (VarP _b ty) = ty
         -- Actually we could probably support it. Also we should have cought that case before
+        -- FIXME correct!
+        -- steps:
+        -- 1) adapt TupleTy (in Resolved.Types)
+        -- 2) adapt TupP (in WellTyped)
         getPType (TupP _ ) = error $ "Encountered a nested tuple pattern, like \"let (a, (b, c)) = ...\". This is currently not supported"
 
