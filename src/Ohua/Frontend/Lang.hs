@@ -18,16 +18,18 @@ module Ohua.Frontend.Lang
 --    , applyToFinal
     , unitArgs
     , unitParams
+    , freeVars
     ) where
 
 import Ohua.UResPrelude
-
 
 import Control.Lens (Traversal')
 import Control.Lens.Plated (Plated, gplate, plate)
 import Data.Functor.Foldable.TH (makeBaseFunctor)
 import qualified Data.List.NonEmpty as NE
+import qualified Data.HashSet as HS
 import GHC.Exts
+
 
 data Pat ty
     = VarP Binding (VarType ty)
@@ -250,3 +252,18 @@ unitParams :: [Pat ty] -> NonEmpty (Pat ty)
 unitParams []     = VarP "_" TypeUnit :| []
 unitParams (x:xs) = x :| xs
 
+freeVars :: Expr ty -> [(Binding, VarType ty)]
+freeVars = go HS.empty
+  where
+    go  ctxt (VarE bnd _) | HS.member bnd ctxt = []
+    go _ctxt (VarE bnd ty) = [(bnd, ty)]
+    go  ctxt (LitE _) = []
+    go  ctxt (LetE p e1 e2) = go ctxt e1 ++ (go (foldl (flip HS.insert) ctxt $ patBnd p) e2)
+    go  ctxt (AppE f xs) = go ctxt f ++ foldl (\vs e -> vs ++ go ctxt e) [] xs
+    go  ctxt (LamE ps e) = go (foldl (flip HS.insert) ctxt $ neConcat $ map patBnd ps) e
+    go  ctxt (IfE e1 e2 e3) = go ctxt e1 ++ go ctxt e2 ++ go ctxt e3
+    go  ctxt (WhileE e1 e2) = go ctxt e1 ++ go ctxt e2
+    go  ctxt (MapE e1 e2) = go ctxt e1 ++ go ctxt e2
+    go  ctxt (BindE e1 e2) = go ctxt e1 ++ go ctxt e2
+    go  ctxt (StmtE e1 e2) = go ctxt e1 ++ go ctxt e2
+    go  ctxt (TupE es) = foldl (\vs e -> vs ++ go ctxt e) [] es
