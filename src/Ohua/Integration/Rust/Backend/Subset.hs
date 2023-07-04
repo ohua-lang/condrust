@@ -16,7 +16,7 @@ import Language.Rust.Parser (Span)
 import Language.Rust.Syntax (GenericArgs)
 import Ohua.Integration.Rust.Common.Subset hiding (Block, Stmt)
 import qualified Ohua.Integration.Rust.Common.Subset as CSTypes (Block, Stmt)
-import Ohua.Integration.Rust.TypeHandling
+import Ohua.Integration.Rust.Types.Extraction
 import Ohua.Prelude hiding (Nat)
 import Ohua.Types.Vector (Nat)
 

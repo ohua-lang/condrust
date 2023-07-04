@@ -66,6 +66,7 @@ dependencies:
 - template-haskell
 - lens
 - yaml
+- tomland
 
 library:
   source-dirs: src

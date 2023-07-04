@@ -1,7 +1,7 @@
 {-# LANGUAGE ConstraintKinds #-}
 
 {-# LANGUAGE ScopedTypeVariables #-}
-module Ohua.Integration.Rust.TypeHandling where
+module Ohua.Integration.Rust.Types.Extraction where
 
 import Ohua.Prelude
 

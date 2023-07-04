@@ -9,7 +9,7 @@ import Data.Text.Lazy (unpack)
 import Language.Rust.Pretty (pretty', Resolve, Pretty)
 import Language.Rust.Syntax as Rust hiding (Rust)
 import Ohua.Backend.Types
-import qualified Ohua.Integration.Rust.TypeHandling  as TH
+import qualified Ohua.Integration.Rust.Types.Extraction  as TH
 import Ohua.Integration.Rust.Util
 import Ohua.Prelude
 import System.FilePath (takeFileName)

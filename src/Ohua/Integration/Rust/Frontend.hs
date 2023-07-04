@@ -27,7 +27,7 @@ import Ohua.Frontend.Lang as FrLang
 
 import Ohua.Integration.Lang
 import Ohua.Integration.Rust.Util
-import Ohua.Integration.Rust.TypeHandling as TH
+import Ohua.Integration.Rust.Types.Extraction as TH
 import qualified Ohua.Integration.Rust.Frontend.Subset as Sub
 import qualified Ohua.Integration.Rust.Frontend.Convert as SubC
 

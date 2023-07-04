@@ -22,7 +22,7 @@ import Ohua.Integration.Rust.Backend.Convert
     convertGenericArgs
   )
 import qualified Ohua.Integration.Rust.Backend.Subset as Sub
-import qualified Ohua.Integration.Rust.TypeHandling as TH
+import qualified Ohua.Integration.Rust.Types.Extraction as TH
 import Ohua.Integration.Rust.Architecture.SharedMemory.Transform.DataPar (getInitializers)
 import Ohua.Prelude
 
@@ -32,8 +32,7 @@ instance Architecture (Architectures 'SharedMemory) where
   type ATask (Architectures 'SharedMemory) = [Rust.Stmt ()]
 
   convertChannel SSharedMemory{} (SRecv argTy (SChan bnd)) =
-    -- help out the type inference of Rust a little here
-    let chanTy = 
+    let chanTy =
           case convertToRustType argTy of
             Just rustType -> Just $
                 Sub.AngleBracketed [ Sub.TypeArg rustType ]
