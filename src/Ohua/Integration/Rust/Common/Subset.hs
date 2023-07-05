@@ -33,9 +33,10 @@ data UnOp = Not | Neg | Deref deriving (Show, Eq, Generic)
 data CallRef = CallRef QualifiedBinding (Maybe GenericArgs) deriving (Show, Eq, Generic)
 data TyRef = TyRef QualifiedBinding (Maybe GenericArgs) deriving (Show, Eq, Generic)
 
-newtype GenericArgs = AngleBracketed [GenericArg] deriving (Show, Eq, Generic)
+data GenericArgs
+  = AngleBracketed [GenericArg]
+  | Parenthesized [TyRef] (Maybe TyRef) deriving (Show, Eq, Generic)
 newtype GenericArg = TypeArg RustType deriving (Show, Eq, Generic)
-
 
 -------------------- Recursion schemes support --------------------
 

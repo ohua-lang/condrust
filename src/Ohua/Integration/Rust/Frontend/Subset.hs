@@ -35,16 +35,11 @@ data Expr
   | BlockExpr Block
   -- | the below two are just captured by a Path in Rust.
   | PathExpr CallRef
-  -- As we convert 
-  -- We want variabels to be typed as we lower to Frontend Lang
-  -- However we might derive the type from different sources (annotation on assignment, 
-  -- derived from funciton types). Hence to be flexible in the source of typing we intially accept 
-  -- Maybe Type
   | Var VarRef (Maybe RustType)
   | Lit Lit
   deriving (Show, Eq, Generic)
 
--- ToDo: Add other literals, find solution for unit
+-- ToDo: Add other literals
 data Lit = Int Integer | Bool Bool deriving (Show, Eq, Generic)
 type VarRef = Binding
 data Arg = Arg Pat RustType deriving (Show, Eq, Generic)

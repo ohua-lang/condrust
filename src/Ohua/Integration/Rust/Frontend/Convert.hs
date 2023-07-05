@@ -170,7 +170,9 @@ convertLastSegment (PathSegment Ident {name = n} ty _) = (n,) <$> mapM convertGe
 convertGenericArgs :: ConvertM m => GenericArgs Span -> m Sub.GenericArgs
 convertGenericArgs (AngleBracketed args [] _) = Sub.AngleBracketed <$> mapM convertGenericArg args
 convertGenericArgs a@(AngleBracketed _ as _) = error $ "Currently, we do not support type constraints: " <> show a
-convertGenericArgs a = error $ "Currently, we only support angle-bracketed type information: " <> show a
+convertGenericArgs (Parenthesized argTys (Just funTargetTy) _) =
+  Sub.Parenthesized <$> mapM convertTy argTys <*> (Just <$> convertTy funTargetTy)
+convertGenericArgs (Parenthesized argTys Nothing _) = flip Sub.Parenthesized Nothing <$> mapM convertTy argTys
 
 convertGenericArg :: ConvertM m => GenericArg Span -> m Sub.GenericArg
 convertGenericArg (TypeArg ty) = return $ Sub.TypeArg $ Sub.RustType (noSpan <$ ty)
@@ -181,6 +183,14 @@ convertArg :: ConvertM m => Rust.Arg Span -> m Sub.Arg
 convertArg (Arg _ (Just p) ty _) = (`Sub.Arg` Sub.RustType (noSpan <$ ty)) <$> convertPat p
 convertArg a@(Arg _ Nothing _ _) = error $ "Currently, we require a name for each argument, not only its type. If this is a type definition in your code, then please file a bug.\n" <> show a
 convertArg a = error $ "Currently, we do not support self arguments. \n" <> show a
+
+convertTy :: ConvertM m => Rust.Ty Span -> m Sub.TyRef
+convertTy (PathTy Nothing path _) = do
+  path' <- convertPath path
+  case path' of
+    Left bnd -> return $ Sub.TyRef (QualifiedBinding (makeThrow []) bnd) Nothing
+    Right (Sub.CallRef qb ga) -> return $ Sub.TyRef qb ga
+convertTy e = throwError $ "Unsupported Rust Path detected: \n" <> show e
 
 convertPat :: ConvertM  m => Rust.Pat Span -> m Sub.Pat
 convertPat (WildP _) = return Sub.WildP
