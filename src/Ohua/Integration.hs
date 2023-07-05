@@ -3,7 +3,7 @@
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 module Ohua.Integration where
 
-import Ohua.Prelude
+import Ohua.Prelude hiding (putStrLn)
 
 import qualified Ohua.Frontend.Types as F
 import qualified Ohua.Backend.Types as B
@@ -18,6 +18,7 @@ import Ohua.Integration.Rust.Architecture.SharedMemory.Transform.DataPar (liftCo
 import Ohua.Integration.Rust.Architecture.M3 ()
 import Ohua.Integration.Rust.Frontend ()
 import Ohua.Integration.Rust.Backend ()
+import Ohua.Integration.Rust.Types.Definition (macro_support)
 
 import qualified Ohua.Integration.Python.Backend.Passes as PyPasses
 import Ohua.Integration.Python.MultiProcessing ()
@@ -26,6 +27,7 @@ import Ohua.Integration.Python.Frontend ()
 import Ohua.Integration.Python.Backend ()
 
 import qualified Data.Text as T
+import Data.Text.IO (putStrLn)
 
 
 type FileExtension = Text
@@ -51,8 +53,8 @@ type Compiler m a = (forall lang arch.
 data Integration =
     forall (lang::Lang) (arch::Arch).
     FullIntegration lang arch =>
-    Integration (Language lang) 
-        (Architectures arch) 
+    Integration (Language lang)
+        (Architectures arch)
         (Maybe (CConfig.CustomPasses (B.Type (Language lang))))
 
 class Apply integration where
@@ -78,3 +80,8 @@ runIntegration ext (Config arch options) comp = do
                MultiProcessing-> return $ Integration SPython (SMultiProc options) $ Just $ PyPasses.passes options id
     _ -> throwError $ "No language integration defined for files with extension '" <> ext <> "'"
   apply integration comp
+
+langInfo :: Text -> IO ()
+langInfo lang | (T.toLower lang) == "rust" || (T.toLower lang) == "condrust" = macro_support
+langInfo lang | (T.toLower lang) == "python" = putStrLn "No further information for the Python integration available"
+langInfo lang = putStrLn $ "Language not supported: " <> show lang
