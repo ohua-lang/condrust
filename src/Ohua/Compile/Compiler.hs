@@ -10,7 +10,10 @@ Portability : portable
 This source code is licensed under the terms described in the associated LICENSE.TXT file
 
 -}
-module Ohua.Compile.Compiler where
+module Ohua.Compile.Compiler
+  ( compile
+  , langInfo
+  ) where
 
 import Ohua.Prelude
 
@@ -18,7 +21,7 @@ import qualified  Ohua.Frontend as Fr (frontend)
 import Ohua.Frontend.Types (CompilationScope)
 import Ohua.Core.Types.Environment as CoreEnv
 import Ohua.Core.Compile.Configuration as CoreConfig
-import Ohua.Core.Compile as Core (compile)
+import qualified Ohua.Core.Compile as Core (compile)
 import qualified Ohua.Core.Compile.Configuration as CConfig
 import qualified Ohua.Backend as B (backend)
 import qualified Ohua.Backend.Config as BConfig (Options)
@@ -26,13 +29,12 @@ import qualified Ohua.Backend.Types as BT
 import Ohua.Compile.Lower.FrLang (toAlang)
 import Ohua.Compile.Lower.DFLang (toTCLang)
 
-import Ohua.Integration (FullIntegration, runIntegration)
+import Ohua.Integration (FullIntegration, runIntegration, langInfo)
 import Ohua.Integration.Config as IConfig hiding (Options(..))
 import Ohua.Integration.Lang (Lang, Language)
 import Ohua.Integration.Architecture (Arch, Architectures)
 
 import System.FilePath
-
 
 compile :: ErrAndLogM m
         => FilePath           -- ^ Input: path to the file to be compiled

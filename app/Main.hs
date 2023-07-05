@@ -4,7 +4,7 @@ module Main where
 import qualified Data.String as Str
 import Data.Time (getCurrentTime)
 import Language.Haskell.TH (Exp (LitE), Lit (StringL))
-import Ohua.Compile.Compiler (compile)
+import Ohua.Compile.Compiler (compile, langInfo)
 import Ohua.Compile.Config
 import Ohua.Integration.Lang
 import Ohua.Prelude
@@ -14,6 +14,7 @@ import Options.Applicative.Help.Pretty as O
 data Command
   = Build CommonCmdOpts
   | ShowVersion
+  | Language Text
 
 data CommonCmdOpts = CommonCmdOpts
   { inputModuleFile :: FilePath,
@@ -40,6 +41,7 @@ main = do
       runErrAndLogM
         (logLevel debug)
         $ compile inputModuleFile compilationScope coreOpts backendConf targetConf outputPath
+    Language lang -> langInfo lang
   where
     odef =
       info
@@ -76,7 +78,18 @@ main = do
                       "Show information, such as the version, about this binary."
                   )
               )
+            <> command
+              "lang"
+              ( info
+                  (Language <$> commonLangParser)
+                  ( progDesc
+                      "Show specific information for a dedicated integration, such as `rust`."
+                  )
+              )
+
         )
+    commonLangParser = argument str (metavar "LANGUAGE" <> help "Host language")
+
     commonOptsParser =
       CommonCmdOpts
         <$> argument str (metavar "SOURCE" <> help "Source file to compile")
