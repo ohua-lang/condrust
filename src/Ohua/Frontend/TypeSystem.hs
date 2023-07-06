@@ -8,12 +8,12 @@ where
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.List.NonEmpty as NE
 
-import Ohua.UResPrelude hiding (getVarType)
+import Ohua.UResPrelude hiding (getVarType, Nat)
 import qualified Ohua.Prelude as Res
   ( Lit(..), VarType(..), FunType(..), FunRef(..))
 import Ohua.Types.Casts
 
-import Ohua.Frontend.PPrint ()
+import Ohua.Frontend.PPrint (prettyExpr)
 import qualified Ohua.Frontend.Lang as FrLang
     ( Expr(..)
     , Pat(TupP, VarP)
@@ -28,10 +28,14 @@ import qualified Ohua.Frontend.WellTyped as WT
     , patType
     )
 
---import Ohua.Integration.Rust.TypeHandling
---import Ohua.Frontend.TypePropagation
+import Ohua.Types.Vector (Nat(..))
 
 import Control.Exception (assert, throw)
+
+
+-- TODO config param
+exprTraceDepth :: Nat
+exprTraceDepth = Succ $ Succ $ Succ Zero
 
 {-
 Types := T
@@ -57,11 +61,42 @@ toWellTyped delta e =
   let
     gamma = HM.fromList $ FrLang.freeVars e
   in do
-    (_gamma', e, _ty) <- typeSystem delta gamma e
-    return e
+    (_gamma', e', _ty) <- flip runReaderT (e :| []) $ typeSystem delta gamma e
+    return e'
+
+type TypeErrorM m ty = MonadReader (NonEmpty (FrLang.Expr ty)) m
+
+throwErrorWithTrace :: forall m ty a.
+                       (ErrAndLogM m, TypeErrorM m ty)
+                    => Text
+                    -> m a
+throwErrorWithTrace m = do
+  exprs <- ask
+  throwError $ m <> exprTrace (NE.reverse exprs) exprTraceDepth
+  where
+    exprTrace :: NonEmpty (FrLang.Expr ty) -> Nat -> Text
+    exprTrace (e:|_ ) Zero = "\nIn expr:\n" <> prettyExpr e
+    exprTrace (e:|[]) _    = "\nIn expr:\n" <> prettyExpr e
+    exprTrace (e:|(es:ess)) (Succ n) = "\nIn expr:\n" <> prettyExpr e <> exprTrace (es:|ess) n
+
+invariantBroken :: (ErrAndLogM m, TypeErrorM m ty) => Text -> m a
+invariantBroken m = throwErrorWithTrace $ "Invariant broken: " <> m
+
+wfError :: (ErrAndLogM m, TypeErrorM m ty) => Text -> m a
+wfError m = throwErrorWithTrace $ "Wellformedness error: " <> m
+
+typeError :: (ErrAndLogM m, TypeErrorM m ty) => Text -> m a
+typeError m = throwErrorWithTrace $ "Type error: " <> m
+
+typeExpr :: (ErrAndLogM m, TypeErrorM m ty)
+            => Delta ty
+            -> Gamma VarType ty
+            -> FrLang.Expr ty
+            -> m (Gamma Res.VarType ty, WT.Expr ty, Res.VarType ty)
+typeExpr delta gamma e = local ( <> (e:|[])) $ typeSystem delta gamma e
 
 typeSystem :: forall ty m
-           .  ErrAndLogM m
+           .  (ErrAndLogM m, TypeErrorM m ty)
            => Delta ty
            -> Gamma VarType ty
            -> FrLang.Expr ty
@@ -73,12 +108,12 @@ typeSystem delta gamma = \case
              Delta, Gamma |– let (x:X) e1 e2 : T2
   -}
   (FrLang.LetE pat e1 e2) -> do
-    (_, e1', tyT1') <- typeSystem delta gamma e1
+    (_, e1', tyT1') <- typeExpr delta gamma e1
     pat' <- typePat pat tyT1'
     let gamma' = foldl (\ g (b, t) -> HM.insert b t g) gamma
                  $ map (second fromResType)
                  $ WT.patTyBnds pat'
-    (gamma'', e2', tyT2) <- typeSystem delta gamma' e2
+    (gamma'', e2', tyT2) <- typeExpr delta gamma' e2
 
     return (gamma'', WT.LetE pat' e1' e2', tyT2)
 
@@ -91,13 +126,13 @@ typeSystem delta gamma = \case
   (FrLang.AppE fun args) ->
     let
       assocArgWithType [] (_:_) =
-        throwError $ "Too many argumemts in function application: " <> show (FrLang.AppE fun args)
+        wfError "Too many argumemts in function application."
       assocArgWithType l [] = return ([], l)
       assocArgWithType (t:ts) (arg:args) = do
         (argsAndTy, pendingTy) <- assocArgWithType ts args
         return ((arg,t) : argsAndTy, pendingTy)
     in do
-      (gamma', fun', funTy) <- typeSystem delta gamma fun
+      (gamma', fun', funTy) <- typeExpr delta gamma fun
 
       resTy <- case funTy of
         Res.TypeFunction (Res.FunType ins out) -> do
@@ -108,9 +143,9 @@ typeSystem delta gamma = \case
         Res.TypeFunction (Res.STFunType sin ins out) -> do
             (_, pendingArgsTy) <- assocArgWithType ins $ toList args
             return $ Res.TypeFunction (Res.STFunType sin pendingArgsTy out)
-        t -> throwError $ "Type Error: First argument of function application is not a function, but has type: " <> show t
+        t -> typeError $ "First argument of function application is not a function, but has type: " <> show t
 
-      (_, args', _argsTy) <- neUnzip3 <$> mapM (typeSystem delta gamma) args
+      (_, args', _argsTy) <- neUnzip3 <$> mapM (typeExpr delta gamma) args
 
       return (gamma', WT.AppE fun' args', resTy)
 
@@ -125,7 +160,7 @@ typeSystem delta gamma = \case
       invariantGetGamma bnd = do
         gam <- get
         case HM.lookup bnd gam of
-          Nothing -> throwError $ "Invariant broken: pattern deleted while typing."
+          Nothing -> invariantBroken $ "Pattern deleted while typing. Deleted pattern: " <> show bnd
           Just ty' -> (modify $ HM.delete bnd) >> return ty'
 
       typePatFromGamma :: FrLang.Pat ty -> StateT (Gamma Res.VarType ty) m (WT.Pat ty)
@@ -134,7 +169,7 @@ typeSystem delta gamma = \case
     in do
       let bndsAndTypes = map FrLang.patTyBnds pats
       let gamma' = foldl (\ g (b, t) -> HM.insert b t g) gamma $ neConcat bndsAndTypes
-      (gamma'', expr', tyE) <- typeSystem delta gamma' expr
+      (gamma'', expr', tyE) <- typeExpr delta gamma' expr
       (pats', gamma''') <- runStateT (mapM typePatFromGamma pats) gamma''
       let ty = Res.TypeFunction $ Res.FunType (map WT.patType pats') tyE
 
@@ -145,11 +180,11 @@ typeSystem delta gamma = \case
                 Delta, Gamma |- Bind state method : Tm
   -}
   (FrLang.BindE state method) -> do
-    (gamma',  state' , stateTy ) <- typeSystem delta gamma state
-    (gamma'', method', methodTy) <- typeSystem delta gamma method
+    (gamma',  state' , stateTy ) <- typeExpr delta gamma state
+    (gamma'', method', methodTy) <- typeExpr delta gamma method
     ty <- case methodTy of
             Res.TypeFunction (Res.STFunType sTy _ resTy) | sTy == stateTy -> return resTy
-            _ -> throwError $ "Typing error. State types do not match: " <> show (FrLang.BindE state method)
+            _ -> typeError $ "State types do not match."
 
     return (gamma'', WT.BindE state' method', ty)
 
@@ -159,16 +194,16 @@ typeSystem delta gamma = \case
                   Delta, Gamma |- If cond tTrue tFalse : T
   -}
   (FrLang.IfE cond tTrue tFalse) -> do
-    (_, cond', condTy) <- typeSystem delta gamma cond
+    (_, cond', condTy) <- typeExpr delta gamma cond
     if condTy == Res.TypeBool
     then return ()
-    else throwError "Type error: condition input does not have type bool!"
+    else typeError "Condition input does not have type bool."
 
-    (_, tTrue', tTrueTy) <- typeSystem delta gamma tTrue
-    (gamma', tFalse', tFalseTy) <- typeSystem delta gamma tFalse
+    (_, tTrue', tTrueTy) <- typeExpr delta gamma tTrue
+    (gamma', tFalse', tFalseTy) <- typeExpr delta gamma tFalse
     if tTrueTy == tFalseTy
     then return ()
-    else throwError "Type error: conditional branches have different types."
+    else typeError "Conditional branches have different types."
 
     return (gamma', WT.IfE cond' tTrue' tFalse', tTrueTy)
 
@@ -182,9 +217,9 @@ typeSystem delta gamma = \case
     (_, cond', condTy) <- typeSystem delta gamma cond
     if condTy == Res.TypeBool
     then return ()
-    else throwError "Type error: condition input for while loop does not have type bool!"
+    else typeError "Condition input for while loop does not have type bool."
 
-    (gamma', body', _bodyTy) <- typeSystem delta gamma body
+    (gamma', body', _bodyTy) <- typeExpr delta gamma body
 
     return (gamma', WT.WhileE cond' body', Res.TypeUnit)
 
@@ -194,12 +229,12 @@ typeSystem delta gamma = \case
           Delta, Gamma |- MapE loopFun generator : T1<T3>
   -}
   (FrLang.MapE loopFun gen) ->  do
-    (_, gen', genTy) <- typeSystem delta gamma gen
+    (_, gen', genTy) <- typeExpr delta gamma gen
     elemTy <- case genTy of
                 Res.TypeList eTy -> return eTy
-                _ -> throwError "Type error: loop generator is not a list!"
+                _ -> typeError "Loop generator is not a list!"
 
-    (gamma', loopFun', loopFunTy) <- typeSystem delta gamma loopFun
+    (gamma', loopFun', loopFunTy) <- typeExpr delta gamma loopFun
 
     return (gamma', WT.MapE loopFun' gen', Res.TypeList loopFunTy)
 
@@ -209,8 +244,8 @@ typeSystem delta gamma = \case
           Delta, Gamma |- Stmt e1 cont : T2
   -}
   (FrLang.StmtE e1 cont) -> do
-    (_, e1', _e1Ty) <- typeSystem delta gamma e1
-    (gamma', cont', contTy) <- typeSystem delta gamma cont
+    (_, e1', _e1Ty) <- typeExpr delta gamma e1
+    (gamma', cont', contTy) <- typeExpr delta gamma cont
     return (gamma', WT.StmtE e1' cont', contTy)
 
   {-
@@ -219,7 +254,7 @@ typeSystem delta gamma = \case
         Delta, Gamma |- TupE [e1, e2 ... , en] : TupleTy [T1, T2, .. , Tn]
   -}
   (FrLang.TupE exprs) -> do
-    (gamma' :| _, exprs',exprsTy ) <- neUnzip3 <$> mapM (typeSystem delta gamma) exprs
+    (gamma' :| _, exprs',exprsTy ) <- neUnzip3 <$> mapM (typeExpr delta gamma) exprs
     return (gamma', WT.TupE exprs', Res.TupleTy exprsTy)
 
   {-
@@ -241,7 +276,7 @@ typeSystem delta gamma = \case
           ((\ty'' ->
             (HM.empty, WT.LitE $ Res.FunRefLit $ Res.FunRef qbnd id ty', ty'')) .
           Res.TypeFunction) <$> maxFunType ty ty'
-        Nothing -> throwError $ "Type error: missing type information for function literal:" <> show qbnd
+        Nothing -> typeError $ "Missing type information for function literal:" <> show qbnd
 
   {-
   ==================
@@ -258,7 +293,7 @@ typeSystem delta gamma = \case
         Nothing ->
           case toResType ty2 of
             Just ty2' -> maxType ty1 ty2'
-            Nothing -> throwError $ "Invariant broken: var in context has no type: " <> show bnd
+            Nothing -> invariantBroken $ "Var in context has no type: " <> show bnd
 
     handleVar gamma bnd ty = do
       case HM.lookup bnd gamma of
@@ -270,7 +305,7 @@ typeSystem delta gamma = \case
               (\ty' ->
                 (HM.empty, WT.LitE $ Res.FunRefLit $ Res.FunRef qbnd Nothing ty1, ty'))
               <$> maxType ty (Res.TypeFunction ty1)
-            Nothing -> throwError "Invariant broken: var not in typing context(s)."
+            Nothing -> wfError $ "Var not in typing context(s). Var: " <> show bnd
 
 typePat :: ErrAndLogM m => FrLang.Pat ty -> Res.VarType ty -> m (WT.Pat ty)
 typePat pat newTy = do
