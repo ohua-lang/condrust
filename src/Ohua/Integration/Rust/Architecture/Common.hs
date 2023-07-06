@@ -9,7 +9,7 @@ import Data.Text.Lazy (unpack)
 import Language.Rust.Pretty (pretty', Resolve, Pretty)
 import Language.Rust.Syntax as Rust hiding (Rust)
 import Ohua.Backend.Types
-import qualified Ohua.Integration.Rust.Types.Extraction  as TH
+import qualified Ohua.Integration.Rust.Types.Extraction as TH
 import Ohua.Integration.Rust.Util
 import Ohua.Prelude
 import System.FilePath (takeFileName)
@@ -27,7 +27,7 @@ serialize (TH.Module path (SourceFile modName atts items)) ns createProgram plac
   let algos' = HM.fromList $ map (\(Algo name expr _ ) -> (name, expr)) $ ns ^. algos
       src = SourceFile modName atts $ map (replaceAlgo algos') items
       path' = takeFileName path -- TODO verify this!
-      (TH.Module libname lib) = placeholder 
+      (TH.Module libname lib) = placeholder
    in return $ (path', render src) :| [(libname, render lib)]
   where
     -- FIXME now we can just insert instead of replacing them!
@@ -38,21 +38,6 @@ serialize (TH.Module path (SourceFile modName atts items)) ns createProgram plac
             Fn atts vis ident decl header gen (span <$ createProgram algo) span
           Nothing -> f
       i -> i
-
-render :: (Resolve a, Pretty a) => a -> L.ByteString
-render =
-  encodeUtf8
-    . (<> "\n")
-    . renderLazy
-    . layoutSmart defaultLayoutOptions
-    . pretty'
-
-renderStr :: (Resolve a, Pretty a) => a -> String
-renderStr =
-    unpack
-    . renderLazy
-    . layoutSmart defaultLayoutOptions
-    . pretty'
 
 
 toRustTy :: VarType TH.RustVarType -> Maybe (Rust.Ty ())

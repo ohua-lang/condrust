@@ -1,5 +1,6 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 module Ohua.Integration.Rust.Types.Extraction where
 
 import Ohua.Prelude
@@ -12,16 +13,16 @@ import Ohua.Types.Unit (Unit)
 
 import Language.Rust.Syntax as Rust hiding (Normal, Type)
 import Language.Rust.Data.Ident (Ident)
-import Language.Rust.Parser (Span)
+import Language.Rust.Parser (Span, parse, inputStreamFromString)
 import Language.Rust.Pretty as RustP
 
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text.Prettyprint.Doc as Doc (Pretty(..))
 import Data.List.NonEmpty hiding (map)
+import Data.Text (pack)
 
 
 data Module = Module FilePath (SourceFile Span)
-
 
 data RustVarType = Self (Ty ()) (Maybe (Lifetime ())) Mutability | Normal (Ty ()) deriving (Show, Eq)
 type RustHostType = HostType RustVarType
@@ -96,17 +97,25 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
             externSpecs <- catMaybes <$> mapM checkExternSpec atts
             case externSpecs of
                 [] -> return $ makeThrow $ filePathToList srcFile
-                [TyRef (QualifiedBinding (NSRef path) bnd) _] -> return $ NSRef $ path ++ [bnd]
+                [QualifiedBinding (NSRef path) bnd] -> return $ NSRef $ path ++ [bnd]
                 xs -> throwError $ "Detected multiple extern_spec definitions. Please only specify one: " <> show xs
 
-        checkExternSpec :: Attribute Span -> m (Maybe TyRef)
+        checkExternSpec :: Attribute Span -> m (Maybe QualifiedBinding)
         checkExternSpec (Attribute Outer path ts _) = do
             path' <- convertPath path
             case path' of
-                Right (Sub.CallRef "extern_spec" (Just (Sub.Parenthesized [path''] Nothing))) ->
-                    return $ Just path''
+                Right (Sub.CallRef "extern_spec" Nothing) ->
+                  case tokenStreamToExpr ts of
+                    Right (ParenExpr _ (PathExpr _ Nothing nsPath _) _) -> do
+                      nsPath' <- convertPath nsPath
+                      case nsPath' of
+                        Left bnd -> return $ Just $ QualifiedBinding (makeThrow []) bnd
+                        Right (Sub.CallRef qbnd _) -> return $ Just qbnd
+                    _ -> return Nothing
                 _ -> return Nothing
         checkExternSpec _ = return Nothing
+
+        tokenStreamToExpr = parse @(Rust.Expr Span) . inputStreamFromString . renderStr
 
         toTraitType :: Ident -> Span -> Ty Span
         toTraitType ident span =

@@ -12,6 +12,7 @@ import Ohua.Backend.Types hiding (Expr, convertExpr)
 import Ohua.Integration.Architecture
 import Ohua.Integration.Lang hiding (Lang)
 import Ohua.Integration.Rust.Architecture.Common as C
+import Ohua.Integration.Rust.Util (renderStr)
 import Ohua.Integration.Rust.Common.Subset as CSub
 import Ohua.Integration.Rust.Backend
 import Ohua.Integration.Rust.Backend.Convert
@@ -147,7 +148,7 @@ instance Architecture (Architectures 'M3) where
               taskCode
               noSpan
           taskCall = Rust.Call [] taskClosure cArgs noSpan
-          exprToTokenStream = parse' @Rust.TokenStream . inputStreamFromString . C.renderStr
+          exprToTokenStream = parse' @Rust.TokenStream . inputStreamFromString . renderStr
         in
           Rust.MacExpr
             []

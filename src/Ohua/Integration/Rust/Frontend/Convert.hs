@@ -147,8 +147,13 @@ convertPath ::
 convertPath p@(Path _ segments _) =
   case segments of
     [segment] -> do
-      refname <- convertPathSegment segment
-      return $ Left $ fromString refname
+      (refname, ty) <- convertLastSegment segment
+      case ty of
+        Nothing -> return $ Left $ fromString refname
+        _ -> return $ Right $
+                        Sub.CallRef
+                          (QualifiedBinding (makeThrow []) $ fromString refname)
+                          ty
     (seg : rest) -> do
       let segs = seg :| rest
       let firstSegs = init segs
