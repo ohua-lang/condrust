@@ -75,12 +75,12 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
                         let fName = QualifiedBinding path $ toBinding ident
                         (argTys, retTy) <- getTypes decl
                         let fType =  FunType argTys retTy
-                        -- traceShowM $ "Normal function: " <> show fName <> ": " <> show fType
                         return (Just (fName, fType): [])
                     (Impl atts _ _ _ _ _ _ selfType items _) -> do
                         path <- getPath atts
                         selfTyRef <- convertTy selfType
                         let path' = prependNS path selfTyRef
+                        traceM $ "path': " <> show path'
                         mapM (extractFromImplItem path' selfType) items
                     (Trait atts _ ident _ _ _ _ items span) -> do
                         (NSRef path) <- getPath atts
@@ -104,7 +104,7 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
         checkExternSpec (Attribute Outer path ts _) = do
             path' <- convertPath path
             case path' of
-                Right (Sub.CallRef "extern_spec" Nothing) ->
+                Left "extern_spec" ->
                   case tokenStreamToExpr ts of
                     Right (ParenExpr _ (PathExpr _ Nothing nsPath _) _) -> do
                       nsPath' <- convertPath nsPath
@@ -164,9 +164,7 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
 
         extractFromImplItem :: NSRef -> Ty Span -> ImplItem Span -> m (Maybe (QualifiedBinding, FunType RustVarType))
         extractFromImplItem path selfType (MethodI _ _ _ ident _ (MethodSig _ decl) _ _) =
-          case decl of
-            FnDecl [] _ _ _ -> return Nothing
-            _ -> Just . (createRef path ident, ) <$> extractFunType (extractFirstArg selfType) decl
+            Just . (createRef path ident, ) <$> extractFunType (extractFirstArg selfType) decl
         extractFromImplItem _ _ _ = return Nothing
 
         extractFromTraitItem :: NSRef -> Ty Span -> TraitItem Span -> m (Maybe (QualifiedBinding, FunType RustVarType ))

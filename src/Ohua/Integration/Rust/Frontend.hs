@@ -157,21 +157,17 @@ instance Integration (Language 'Rust) where
     m (Delta RustVarType)
   loadTypes _ (Module ownFile _) ohuaNs = do
     filesAndPaths <- concat <$> mapM funsForAlgo (ohuaNs ^. algos)
-    -- traceShowM $ "Function references from Algos: " <> show filesAndPaths
     let filesAndPaths' = map (first convertOwn) filesAndPaths
     functionTypes <- fnTypesFromFiles $ concatMap fst filesAndPaths'
-    -- traceShowM $ "Function types from libraries : " <> show functionTypes
     usedFunctionTypes <- HM.fromList . catMaybes <$> mapM (verifyAndRegister functionTypes) filesAndPaths'
-    -- traceShowM $ "extracted types: " <> show usedFunctionTypes
     return usedFunctionTypes
     where
       funsForAlgo :: ErrAndLogM m => Algo (FrLang.Expr RustVarType) (Item Span) -> m [([NSRef], QualifiedBinding)]
       funsForAlgo (Algo _name code _inputCode ) = do
-        -- traceShowM $ "algo: " <> show _name <> "\n code: \n" <> quickRender code
         mapM
           lookupFunTypes
-          $ [f | LitE (FunRefLit (FunRef f _ _)) <- universe code] ++
-            [toQualBinding bnd | VarE bnd _ <- universe code]
+          $ [f                 | LitE (FunRefLit (FunRef f _ _)) <- universe code] ++
+            [toQualBinding bnd | VarE bnd _                      <- universe code]
 
       convertOwn :: [NSRef] -> [NSRef]
       convertOwn [] = [filePathToNsRef ownFile]
@@ -181,31 +177,27 @@ instance Integration (Language 'Rust) where
       fnTypesFromFiles :: ErrAndLogM m => [NSRef] -> m FunTypes
       fnTypesFromFiles nsRefs = HM.unions <$> mapM (extractFromFile . toFilePath . (,".rs")) nsRefs
 
-      verifyAndRegister :: ErrAndLogM m => FunTypes -> ([NSRef], QualifiedBinding) -> m (Maybe (QualifiedBinding, Res.FunType RustVarType))
-      verifyAndRegister typez ([candidate], qp@(QualifiedBinding _ nam)) =
-        case HM.lookup (QualifiedBinding candidate nam) typez of
+      -- | Deal with Globs here.
+      verifyAndRegister :: ErrAndLogM m
+                        => FunTypes
+                        -> ([NSRef], QualifiedBinding)
+                        -> m (Maybe (QualifiedBinding, Res.FunType RustVarType))
+      verifyAndRegister typez ([candidate], qp@(QualifiedBinding (NSRef nsRef) nam)) = do
+        let ref = case nsRef of
+                    [] -> QualifiedBinding candidate nam
+                    _ -> qp
+        case HM.lookup ref typez of
           Just t -> return $ Just (qp, t)
           Nothing -> do
             -- $ (logWarn) $ "Function `" <> show (unwrap nam) <> "` not found in module `" <> show candidate <> "`."
             return Nothing
-      verifyAndRegister typez (globs', qp@(QualifiedBinding _ nam)) =
+      verifyAndRegister typez (globs', qp@(QualifiedBinding _ nam)) = do
         case mapMaybe ((`HM.lookup` typez) . (`QualifiedBinding` nam)) globs' of
           [] -> do
             -- $ (logWarn) $ "Function `" <> show (unwrap nam) <> "` not found in modules `" <> show globs' <> "`. "
             return Nothing
           [t] -> return $ Just (qp, t)
           _ -> throwError $ "Multiple definitions of function `" <> show (unwrap nam) <> "` in modules " <> show globs' <> " detected!\nPlease verify again that your code compiles properly by running `rustc`. If the problem persists then please file a bug. (See issue sertel/ohua-frontend#1)"
-
-{-
-      assignTypes :: ErrAndLogM m => FunTypes -> FrLang.Expr RustVarType -> m (FrLang.Expr RustVarType)
-      assignTypes typez = \case
-        f@(LitE (FunRefLit (FunRef qb i ft))) | fullyTyped ft -> return f
-        f@(LitE (FunRefLit (FunRef qb i ft))) ->
-          case HM.lookup qb typez of
-            Just typ -> return $ LitE $ FunRefLit $ FunRef qb i typ
-            Nothing -> trace ("No lib function found for: " <> show qb) return f -- throwError $ "I was unable to determine the types for the call to '" <> show qb <> "'. Please provide type annotations."
-        e -> return e
--}
 
       lookupFunTypes :: ErrAndLogM m => QualifiedBinding -> m ([NSRef], QualifiedBinding)
       lookupFunTypes q@(QualifiedBinding (NSRef []) nam) =
