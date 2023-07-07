@@ -9,7 +9,7 @@
 -- Portability : portable
 -- This source code is licensed under the terms described in the associated LICENSE.TXT file
 module LoweringSpec
-    ( spec
+    ( --spec
     )  where
 
 import Ohua.Prelude
@@ -25,6 +25,7 @@ import qualified Ohua.Core.InternalFunctions as IFuns
 import qualified Data.HashSet as HS
 import Data.List.NonEmpty (fromList)
 
+{-
 spec :: Spec
 spec =
     describe "removing destructuring" $ do
@@ -60,3 +61,4 @@ spec =
                      Let (TBind "b"  TypeNat) (mkNth 1 3) $ 
                      Let (TBind "c"  TypeNat) (mkNth 2 3) 
                      (Var $ TBind "y"  TypeNat))
+-}

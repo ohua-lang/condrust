@@ -197,6 +197,13 @@ funs = "\
 \     the_answer\ 
 \ }\ 
 \ \
+\ pub fn f() -> i32 { 1 }\
+\ \
+\ #[extern_spec(std::sync)]\
+\ impl Arc {\
+\   pub fn new() -> Arc { }\
+\ }\
+\ \
 \ pub fn g() -> String {\ 
 \     let the_answer = String::from(\"Hello, world!\");\ 
 \     the_answer\ 

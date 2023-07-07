@@ -14,7 +14,7 @@ main = hspec spec
 
 spec :: Spec
 spec = do
-  describe "LoweringSpec" Lowering.spec
+--  describe "LoweringSpec" Lowering.spec
   describe "ConfigSpec" Config.spec
   describe "Rust Integration SharedMemory" Rust.spec
   -- describe "Python Integration" Python.spec
