@@ -131,13 +131,13 @@ withSing n f = case toSing n of
 withSuccSing :: Nat -> (forall n.SNat ('Succ n) -> a) -> a
 withSuccSing n f = case toSing n of
                      SomeSing s@(SSucc _) -> f s
-                     
+
 natToInt :: Nat -> Int
 natToInt Zero = 0
 natToInt (Succ n) = 1 + natToInt n
 
 intToNat :: Integer -> Nat
-intToNat x 
+intToNat x
  | x == 0 = Zero
  | x > 0 = Succ (intToNat (x-1))
  | otherwise = undefined

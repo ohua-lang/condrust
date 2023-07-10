@@ -1,6 +1,5 @@
-module Ohua.Types
-{-
-  ( FnId
+module Ohua.Types.Resolved.Types
+    ( FnId
     , Binding
     , TypedBinding(..)
     , asBnd, asType
@@ -10,15 +9,15 @@ module Ohua.Types
     , VarType(..)
     , controlSignalType
     , FunType(..)
-    , getReturnType
-    , setReturnType
-    , setFunType
-    , pureArgTypes
+--    , getReturnType
+--    , setReturnType
+--    , setFunType
+--    , pureArgTypes
     , toFilePath
     , symbolFromString
     , FunRef(..)
     , getRefType
-    , getRefReturnType
+--    , getRefReturnType
     , Lit(..)
     , getLitType
     , Unit(..)
@@ -37,16 +36,15 @@ module Ohua.Types
     , Embed(embedE)
     -- ** Unsafely creating values
     , UnsafeMake(unsafeMake)
-    )
--}
-where
-{-
+    ) where
+
 import Ohua.Types.Computation
 import Ohua.Types.Classes
 import Ohua.Types.Error
 import Ohua.Types.Integration
-import Ohua.Types.Literal
+import Ohua.Types.Resolved.Literal
 import Ohua.Types.Unit
 import Ohua.Types.Make
-import Ohua.Types.Reference
--}
+import Ohua.Types.Resolved.Reference
+import Ohua.Types.Bindings
+import Ohua.Types.HostTypes
