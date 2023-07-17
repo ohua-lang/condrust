@@ -32,7 +32,7 @@ spec =
                 }
                 |]) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" simpleComposition                    
+                expected <- showCode "Expected:" simpleComposition
                 compiled `shouldBe` expected)
 -- FIXME see issue ohua-lang/ohua-frontend#8
 --        it "var multi fail" $
@@ -59,7 +59,7 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:" binaryOperation
                 compiled `shouldBe` expected)
- -}               
+ -}
         it "var multi 1: read-only" $
           -- due to the transformation to state threads, this transforms into:
           -- let x = f();
