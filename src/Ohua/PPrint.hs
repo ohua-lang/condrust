@@ -9,8 +9,8 @@ import Ohua.Types.Classes
 import Ohua.LensClasses
 
 import Data.Text as T hiding (map)
-import Data.Text.Prettyprint.Doc as PP
-import Data.Text.Prettyprint.Doc.Render.Text as PP
+import Prettyprinter as PP
+import Prettyprinter.Render.Text as PP
 
 import qualified Data.Text.IO as LT
 import Data.List.NonEmpty ( (<|) )

@@ -1,5 +1,10 @@
-module Ohua.Types.Resolved.Literal where
+module Ohua.Types.Resolved.Literal
+  (module Ohua.Types.Common.Literal)
+where
 
+import Ohua.Types.Common.Literal
+
+{-
 import Universum
 import Ohua.Types.Bindings (Binding)
 import Ohua.Types.Resolved.Reference ( FunRef(..), VarType(..), getRefType )
@@ -23,3 +28,4 @@ getLitType UnitLit        = TypeUnit
 getLitType (StringLit _)  = TypeString
 getLitType (EnvRefLit _b vTy)  = vTy
 getLitType (FunRefLit fRef)  = TypeFunction $ getRefType fRef
+-}

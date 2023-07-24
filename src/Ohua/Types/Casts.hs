@@ -1,5 +1,6 @@
 module Ohua.Types.Casts where
 
+{-
 import Universum
 
 import qualified Ohua.Types.Resolved.Types as Res (VarType(..), FunType(..))
@@ -43,3 +44,4 @@ fromResFunType (Res.STFunType sin ins out) =
   (fromResType sin)
   (map fromResType ins)
   (fromResType out)
+-}

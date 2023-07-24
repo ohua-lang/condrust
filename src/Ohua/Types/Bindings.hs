@@ -15,7 +15,7 @@
 
 module Ohua.Types.Bindings where
 
-import Universum
+import Universum hiding (fromList)
 
 import GHC.Generics
 import Control.Lens.TH
