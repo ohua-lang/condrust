@@ -54,8 +54,6 @@ toRustTy ty = case ty of
       return $ Rust.TupTy (toList types') ()
 
     (TypeList itemType) ->  do
-      traceM $ "Got a List type"
       itemTy <- toRustTy itemType
-      traceM $ "Item type is" <> show itemTy
       return $ PathTy Nothing (Path False [PathSegment "Vec" (Just (AngleBracketed [TypeArg itemTy] [] ())) ()] ()) ()
-    TypeFunction (fty) -> trace ("There was a function type ") Nothing
+    TypeFunction (fty) -> Nothing

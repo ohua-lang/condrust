@@ -189,12 +189,13 @@ instance Integration (Language 'Rust) where
         case HM.lookup ref typez of
           Just t -> return $ Just (qp, t)
           Nothing -> do
-            -- $ (logWarn) $ "Function `" <> show (unwrap nam) <> "` not found in module `" <> show candidate <> "`."
+            traceM $ "Function `" <> show ref <> "` not found in module `" <> show candidate <> "`."
+            traceM $ "Extracted: \n" <> (quickRender $ HM.toList typez)
             return Nothing
       verifyAndRegister typez (globs', qp@(QualifiedBinding _ nam)) = do
         case mapMaybe ((`HM.lookup` typez) . (`QualifiedBinding` nam)) globs' of
           [] -> do
-            -- $ (logWarn) $ "Function `" <> show (unwrap nam) <> "` not found in modules `" <> show globs' <> "`. "
+            traceM $ "Function `" <> show (unwrap nam) <> "` not found in modules `" <> show globs' <> "`. "
             return Nothing
           [t] -> return $ Just (qp, t)
           _ -> throwError $ "Multiple definitions of function `" <> show (unwrap nam) <> "` in modules " <> show globs' <> " detected!\nPlease verify again that your code compiles properly by running `rustc`. If the problem persists then please file a bug. (See issue sertel/ohua-frontend#1)"
@@ -238,7 +239,7 @@ instance Integration (Language 'Rust) where
       globs :: [NSRef]
       globs = mapMaybe (\case (Glob n) -> Just n; _ -> Nothing) (ohuaNs ^. imports)
 
-
+{-
 argTypesFromContext :: SubC.ConvertM m => [Sub.Expr] -> m [VarType RustVarType]
 argTypesFromContext = mapM getVarType
 
@@ -250,6 +251,7 @@ getVarType' (Right lit) = case lit of
   Sub.Int i ->  return $ asHostNormalURes rustI32
   -- Sub.String s ->  return $ asHostNormalURes PathTy Nothing (Path False [PathSegment "String" Nothing ()] ()) ()
   -- ToDo: Add other literals
+-}
 
 getVarType :: SubC.ConvertM m => Sub.Expr -> m (VarType RustVarType)
 getVarType (Sub.Var bnd (Just (Sub.RustType ty))) = return $ asHostNormalURes ty
@@ -298,20 +300,6 @@ instance ConvertExpr Sub.Expr where
     cond' <- convertExpr cond
     block' <- convertExpr block
     return $ WhileE cond' block'
-{-
-    let loopLambdaRef = "while_loop_body"
-    let recur =
-          IfE
-            cond'
-            (AppE (VarE loopLambdaRef)  [])
-            $ LitE UnitLit
-    return $
-      -- FIXME proper name generation needed here!
-      LetE
-        (VarP loopLambdaRef)
-        (LamE [] $ StmtE block' recur)
-        recur
--}
   convertExpr (Sub.ForLoop pat dataExpr body) = do
     pat' <- convertPat pat
     dataExpr' <- convertExpr dataExpr
@@ -320,43 +308,7 @@ instance ConvertExpr Sub.Expr where
       MapE
         (LamE (pat' :| []) body')
         dataExpr'
-  convertExpr (Sub.EndlessLoop body) = do
-    body' <- convertExpr body
-    -- FIXME proper name generation needed here!
-    --       (although there can be only one endless loop in the whole term)
-    -- Basically a loop becomes :
-    {-
-    let endless_loop:bool -> () = 
-        (\cond -> let result = *loopbody and 'calculate' condition twice* 
-                               in if condition1 { endless_loop condition2 } else {result}  
-        ) 
-        in  endless_loop true
-    -}
-    -- FIXME: the type of the loop is not () but bool -> () AND it is not a simple variable but a function
-    -- Reminder: The result and input type are () only because we do not thread the states explicitly
-    let loopRef = "endless_loop"
-    let argUnit =  asHostNormalURes rustUnitReturn
-    let argBool =  asHostNormalURes rustBool
-    let loopType = TypeFunction $ FunType (argBool :| []) argUnit
-    let condRef = "cond"
-    let condFunType = FunType (TypeBool :| []) (TupleTy (TypeBool:| [TypeBool])) -- we use this to duplicate the condition hence it returns two bools
-    let condFun = LitE (FunRefLit (FunRef (toQualBinding "host_id") Nothing condFunType))
-    let resultRef = "result"
-    let condResultRef = "localCondition"
-    let condResultReuse = "copyLocalCond"
-    return $
-        LetE
-        (VarP loopRef loopType)
-        (LamE (VarP condRef argBool :| []) $
-          LetE (VarP resultRef argUnit) body' $
-          LetE (TupP (VarP condResultRef argBool :| [VarP condResultReuse argBool])) (AppE condFun (VarE condRef argBool :| []))
-            (IfE
-              (VarE condResultRef argBool)
-              (AppE (VarE loopRef loopType)  (VarE condResultReuse argBool :| []))
-              (VarE resultRef argUnit)
-        ))
-      (AppE (VarE loopRef loopType) ((LitE $ BoolLit True) :| []))
-
+  convertExpr (Sub.EndlessLoop body) = convertExpr $ Sub.WhileE (Sub.Lit $ BoolLit True) body
   convertExpr (Sub.Closure _ _ _ args _retTy body) = do
     args' <- unitParams <$> mapM convertPat args
     body' <- convertExpr body

@@ -80,7 +80,6 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
                         path <- getPath atts
                         selfTyRef <- convertTy selfType
                         let path' = prependNS path selfTyRef
-                        traceM $ "path': " <> show path'
                         mapM (extractFromImplItem path' selfType) items
                     (Trait atts _ ident _ _ _ _ items span) -> do
                         (NSRef path) <- getPath atts

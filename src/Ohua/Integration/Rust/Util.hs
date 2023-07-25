@@ -14,7 +14,7 @@ import System.Directory (doesFileExist)
 import qualified Data.ByteString.Lazy.Char8 as L
 import Data.Text.Prettyprint.Doc hiding (Pretty)
 import Data.Text.Prettyprint.Doc.Render.Text
-import Data.Text.Lazy (unpack)
+import Data.Text.Lazy as LT (unpack, Text)
 
 
 deSpan ::(Functor a) =>  a anno -> a ()
@@ -42,18 +42,18 @@ loadRustFile srcFile = do
 placeholderModule :: SourceFile Span
 placeholderModule = SourceFile Nothing [] []
 
+renderText :: (Resolve a, Pretty a) => a -> LT.Text
+renderText =
+    renderLazy
+    . layoutSmart defaultLayoutOptions
+    . pretty'
+
 render :: (Resolve a, Pretty a) => a -> L.ByteString
 render =
   encodeUtf8
     . (<> "\n")
-    . renderLazy
-    . layoutSmart defaultLayoutOptions
-    . pretty'
+    . renderText
 
 renderStr :: (Resolve a, Pretty a) => a -> String
-renderStr =
-    unpack
-    . renderLazy
-    . layoutSmart defaultLayoutOptions
-    . pretty'
+renderStr = unpack . renderText
 

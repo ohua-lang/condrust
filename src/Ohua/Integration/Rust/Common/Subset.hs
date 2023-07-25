@@ -47,3 +47,17 @@ makeBaseFunctor ''Block
 instance Plated Pat where plate = gplate
 instance Plated (Stmt e)  where plate = gplate
 instance Plated (Block e) where plate = gplate
+
+-------------------- Instances --------------------
+
+instance Pathable RustType where
+  toPath =
+    \case
+      (RustType (PathTy Nothing (Path _ (p:ps) _) _) ->
+         let (p':|ps') = map convertSegment (p:|ps)
+         in case ps' of
+             [] -> Just $ Left $ Binding p'
+             _ -> Just $ Right $ QualifiedBinding (NSRef ps') p'
+      _ -> Nohting
+    where
+      convertSegment (PathSegment Ident {name = n} _ _) = n
