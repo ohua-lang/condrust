@@ -205,6 +205,7 @@ pub fn f() -> i32 { 1 }
 #[extern_spec(std::sync)]
 impl Arc {
   pub fn new() -> Arc { }
+  pub fn clone(&self) -> Arc { }
 }
 
 pub fn g() -> String {
