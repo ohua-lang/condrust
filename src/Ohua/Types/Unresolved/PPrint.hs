@@ -1,5 +1,10 @@
-module Ohua.Types.Unresolved.PPrint where
+module Ohua.Types.Unresolved.PPrint
+  (module Ohua.Types.Common.PPrint)
+where
 
+import Ohua.Types.Common.PPrint
+
+{-
 import Universum
 
 import Ohua.Types.Unresolved.Literal
@@ -54,3 +59,4 @@ instance Pretty (FunRef ty) where
 
 instance Pretty (Lit ty) where
     pretty = prettyLit
+-}

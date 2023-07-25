@@ -1,19 +1,14 @@
-module Ohua.Types.Resolved.Types
-  (module Ohua.Types.Common.Types)
-where
-
-import Ohua.Types.Common.Types
-
-{-
-  ( FnId
+module Ohua.Types.Common.Types
+    ( FnId
     , Binding
     , TypedBinding(..)
-    , asBnd, asType
+--    , asBnd, asType
     , NSRef(..)
     , QualifiedBinding(..)
     , HostType(..)
-    , VarType(..)
-    , controlSignalType
+    , OhuaType(..)
+    , InternalType(..)
+--    , controlSignalType
     , FunType(..)
 --    , getReturnType
 --    , setReturnType
@@ -22,10 +17,10 @@ import Ohua.Types.Common.Types
     , toFilePath
     , symbolFromString
     , FunRef(..)
-    , getRefType
+--    , getRefType
 --    , getRefReturnType
     , Lit(..)
-    , getLitType
+--    , getLitType
     , Unit(..)
     , module Ohua.Types.Computation
     , module Ohua.Types.Classes
@@ -48,10 +43,9 @@ import Ohua.Types.Computation
 import Ohua.Types.Classes
 import Ohua.Types.Error
 import Ohua.Types.Integration
-import Ohua.Types.Resolved.Literal
+import Ohua.Types.Unresolved.Literal
 import Ohua.Types.Unit
 import Ohua.Types.Make
-import Ohua.Types.Resolved.Reference
+import Ohua.Types.Unresolved.Reference
 import Ohua.Types.Bindings
 import Ohua.Types.HostTypes
--}

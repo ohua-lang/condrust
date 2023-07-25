@@ -6,7 +6,7 @@
 {-# LANGUAGE TypeOperators #-}
 module Ohua.Types.Vector where
 
-import Universum hiding (Nat, toList, map, replicate, zip, zip3, filter, unzip, unzip3)
+import Universum hiding (Nat, toList, fromList, map, replicate, zip, zip3, filter, unzip, unzip3)
 import Data.Singletons
 
 data Nat where

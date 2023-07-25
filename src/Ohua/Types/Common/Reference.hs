@@ -18,13 +18,8 @@
     , InstanceSigs
 #-}
 
-module Ohua.Types.Unresolved.Reference
-  (module Ohua.Types.Common.Reference)
-where
+module Ohua.Types.Common.Reference where
 
-import Ohua.Types.Common.Reference
-
-{-
 import Universum hiding (Nat, toList)
 
 import Data.Kind
@@ -123,20 +118,21 @@ type FunType ty = FType ty 'Resolved
 class Heq a b where
   heq :: a -> b -> Bool
 
-data Stage = Frontend | Core
+data Stage = Frontend | Resolved | Core
 
 type In :: Stage -> [Stage] -> Stage
 type family In x xs where
   Frontend `In` '[]       = Core
   Core     `In` '[]       = Frontend
+  Resolved `In` '[]       = Core
   x        `In` (x ': ys) = x
   x        `In` (y ': ys) = x `In` ys
 
 type OhuaType :: Type -> Stage -> Type
 data OhuaType ty s where
-  HType :: HostType ty -> Maybe (InternalType ty s) -> OhuaType ty (s `In` '[ 'Frontend, 'Core])
-  IType :: InternalType ty s -> OhuaType ty (s `In` '[ 'Core ])
-  TStar  :: OhuaType ty (s `In` '[ 'Frontend ])
+  HType :: HostType ty -> Maybe (InternalType ty s) -> OhuaType ty (s `In` '[ Frontend, Resolved, Core])
+  IType :: InternalType ty s -> OhuaType ty (s `In` '[ Core ])
+  TStar  :: OhuaType ty (s `In` '[ Frontend ])
 
 deriving instance Show (OhuaType ty s)
 instance Heq (OhuaType ty s1) (OhuaType ty s2) where
@@ -189,7 +185,6 @@ instance Heq (FunType ty s1) (FunType ty s2) where
     (and $ map (uncurry heq) $ zip args1 args2) &&
     heq res1 res2
   heq _ _ = False
-
 
 {-
 data VarType ty
@@ -336,4 +331,3 @@ instance Eq (FunRef ty s) where
   (FunRef qb1 _ ty1) == (FunRef qb2 _ ty2) = qb1 == qb2 -- && heq ty1 ty2
 -- deriving instance Generic (FunRef ty s)
 -- instance Hashable (FunRef ty s)
--}

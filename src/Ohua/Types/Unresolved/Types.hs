@@ -1,13 +1,21 @@
 module Ohua.Types.Unresolved.Types
+  (module Ohua.Types.Common.Types)
+where
+
+import Ohua.Types.Common.Types
+
+{-
+
+module Ohua.Types.Unresolved.Types
     ( FnId
     , Binding
     , TypedBinding(..)
-    , asBnd, asType
+--    , asBnd, asType
     , NSRef(..)
     , QualifiedBinding(..)
     , HostType(..)
     , VarType(..)
-    , controlSignalType
+--    , controlSignalType
     , FunType(..)
 --    , getReturnType
 --    , setReturnType
@@ -48,3 +56,4 @@ import Ohua.Types.Make
 import Ohua.Types.Unresolved.Reference
 import Ohua.Types.Bindings
 import Ohua.Types.HostTypes
+-}

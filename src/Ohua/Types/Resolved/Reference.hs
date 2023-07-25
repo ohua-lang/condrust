@@ -11,12 +11,21 @@
     , StandaloneDeriving
     , ScopedTypeVariables
     , TypeApplications
+    , TypeOperators
+    , PolyKinds
+    , StandaloneKindSignatures
 #-}
 
-module Ohua.Types.Resolved.Reference where
+module Ohua.Types.Resolved.Reference
+  (module Ohua.Types.Common.Reference)
+where
 
+import Ohua.Types.Common.Reference
+
+{-
 import Universum hiding (Nat, toList)
 
+import Data.Kind
 import GHC.Generics
 import Control.Lens.TH
 import Control.Lens.Plated
@@ -103,6 +112,53 @@ type FunType ty = FType ty 'Resolved
 
 -- Because dependent types in Haskell suck, I have to replicate the data structure
 
+
+data Stage = Frontend | Core
+
+type In :: Stage -> [Stage] -> Stage
+type family In x xs where
+  Frontend `In` '[]              = Core
+  Core     `In` '[]              = Frontend
+  Frontend `In` (Frontend ': xs) = Frontend
+  Core     `In` (Core ': xs)     = Core
+  x        `In` (_ ': xs)        = x `In` xs
+
+
+type OhuaType :: Type -> Stage -> Type
+data OhuaType ty s where
+  HType :: HostType ty -> Maybe (InternalType ty s) -> OhuaType ty (s `In` '[Frontend, Core])
+  IType :: InternalType ty s -> OhuaType ty (s `In` '[Core])
+
+deriving instance Show (OhuaType ty s)
+deriving instance Eq (OhuaType ty)
+
+data InternalType ty s
+    = TypeNat
+    | TypeBool
+    | TypeUnit
+    | TypeString
+    | TypeList (OhuaType ty s)
+    | TupleTy (NonEmpty (OhuaType ty s))
+    | TypeFunction (FunType ty s)
+    deriving (Generic, Show, Eq)
+
+deriving instance Lift (InternalType ty s)
+
+data FunType ty s where
+     FunType :: NonEmpty (OhuaType ty s) -> OhuaType ty s -> FunType ty s
+     -- FIXME This is not properly defined.
+     -- STFunType s [] t
+     -- versus
+     -- STFunType s [TypeUnit] t
+     -- Yet formally, STFunType s [] t :: S -> T and that is ok.
+     STFunType :: OhuaType ty s -> [OhuaType ty s] -> OhuaType ty s -> FunType ty s
+     deriving (Show,Eq)
+
+deriving instance Lift (FunType ty s)
+
+{-
+-- TODO get rid of VarType
+
 data VarType ty
     = TypeNat
     | TypeBool
@@ -115,24 +171,13 @@ data VarType ty
     --           Find a way to fix this
     | TypeFunction (FunType ty)
     deriving (Lift, Generic)
-
-data FunType ty where
-     -- arguments types -> return type -> function type
-     FunType :: NonEmpty (VarType ty) -> VarType ty -> FunType ty
-     -- state/object type -> return type -> function type
-     -- FIXME This is not properly defined.
-     -- STFunType s [] t
-     -- versus
-     -- STFunType s [TypeUnit] t
-     -- Yet formally, STFunType s [] t :: S -> T and that is ok.
-     STFunType :: VarType ty -> [VarType ty] -> VarType ty -> FunType ty
-     deriving (Lift)
+-}
 
 -- ToDo: This is just a helper until we get types of control nodes right
-controlSignalType :: VarType ty
-controlSignalType = TupleTy $ TypeBool :| [TypeNat]
+controlSignalType :: OhuaType ty 'Core
+controlSignalType = IType $ TupleTy $ TypeBool :| [TypeNat]
 
-
+{-
 instance EqNoType (VarType ty) where
     TypeNat ~= TypeNat = True
     TypeBool ~= TypeBool = True
@@ -169,14 +214,14 @@ deriving instance Show (FunType ty)
 deriving instance Eq (FunType ty)
 deriving instance Generic (FunType ty)
 instance Hashable (FunType ty)
-
+-}
 
 --------------------------------------------------------------
 --               Representation of Variables
 --------------------------------------------------------------
 
 -- | A typed Binding
-data TypedBinding ty = TBind Binding (VarType ty) deriving (Show, Generic)
+data TypedBinding ty = TBind Binding (OhuaType ty 'Core) deriving (Show, Generic)
 
 instance Hashable (TypedBinding ty) where
     hashWithSalt s (TBind b ty) = hashWithSalt s b
@@ -191,11 +236,13 @@ instance Ord (TypedBinding ty) where
 instance Eq (TypedBinding ty) where
     (TBind b1 _ty1) == (TBind b2 _ty2) = b1 == b2
 
+{-
 asBnd :: TypedBinding ty -> Binding
 asBnd (TBind bnd _ty) = bnd
 
-asType :: TypedBinding ty -> VarType ty
+asType :: TypedBinding ty -> OhuaType ty 'Core
 asType (TBind _bnd ty) = ty
+-}
 
 --------------------------------------------------------------
 --             Representation of Functions
@@ -227,17 +274,18 @@ setFunType intys outty (FunType _i _out) = FunType intys outty
 setFunType intys outty (STFunType s _ins _out) = STFunType s intys outty 
 -}
 
-data FunRef ty where
-    FunRef :: QualifiedBinding -> Maybe FnId -> FunType ty -> FunRef ty
+data FunRef ty s where
+    FunRef :: QualifiedBinding -> Maybe FnId -> FunType ty s -> FunRef ty s
 
-getRefType (FunRef _q _i funTy) = funTy
+-- getRefType (FunRef _q _i funTy) = funTy
 -- getRefReturnType (FunRef _q _i funTy) = getReturnType funTy
 
 --------------------------------------------------------------
 --                           Instances
 --------------------------------------------------------------
 
-deriving instance Show (FunRef ty)
-deriving instance Eq (FunRef ty)
-deriving instance Generic (FunRef ty)
-instance Hashable (FunRef ty)
+deriving instance Show (FunRef ty s)
+deriving instance Eq (FunRef ty s)
+deriving instance Generic (FunRef ty s)
+instance Hashable (FunRef ty s)
+-}

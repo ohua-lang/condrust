@@ -38,26 +38,30 @@ import Ohua.Types.Error
 import Ohua.Types.Make
 import Ohua.Types.Classes
 import Ohua.Types.Unit (Unit)
--- import Ohua.Types.Vector (Nat(..))
 import Ohua.Types.Bindings
 
 
 import qualified Text.Show
 
+class Pathable t where
+  toPath :: t -> Maybe (Either Binding QualifiedBinding)
 
 data HostType ty where
-    HostType::(Pretty ty, Show ty, Eq ty) =>  ty -> HostType ty
+  HostType::(Pretty ty, Show ty, Eq ty, Pathable ty) => ty -> HostType ty
 
 deriving instance Eq (HostType ty)
 
 instance Show (HostType ty) where
-    show (HostType ty) = show ty
+  show (HostType ty) = show ty
 
 instance Lift (HostType ty) where
   lift (HostType ty) = [|hosttype _ |]
 
 instance Pretty (HostType ty) where
-    pretty (HostType ty) = pretty ty
+  pretty (HostType ty) = pretty ty
+
+instance Pathable (HostType ty) where
+  toPath (HostType t) = toPath t
 
 ------------------------------------------------------------------------------------
 --  Generics implementation for GADTS taken from the example described at 
@@ -76,7 +80,7 @@ instance (c, Eq (f x)) => Eq (ECC c f x) where
   ECC x == ECC y = x == y
 
 instance Generic (HostType ty) where
-  type Rep (HostType ty) = (ECC (Pretty ty, Show ty, Eq ty) (Rec0 ty))
+  type Rep (HostType ty) = (ECC (Pretty ty, Show ty, Eq ty, Pathable ty) (Rec0 ty))
 
   from (HostType x) = ECC (K1 x)
   to (ECC (K1 x)) = HostType x
