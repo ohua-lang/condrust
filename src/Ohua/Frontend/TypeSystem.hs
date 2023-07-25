@@ -7,26 +7,34 @@ where
 
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.List.NonEmpty as NE
+import Data.Text.Prettyprint.Doc
+import Data.Text.Prettyprint.Doc.Render.Text
 
 import Ohua.UResPrelude hiding (getVarType, Nat)
 import qualified Ohua.Prelude as Res
   ( Lit(..), VarType(..), FunType(..), FunRef(..))
 import Ohua.Types.Casts
+import Ohua.PPrint
 
 import Ohua.Frontend.PPrint (prettyExpr)
-import qualified Ohua.Frontend.Lang as FrLang
-    ( Expr(..)
+import Ohua.Frontend.Lang
+    ( UnresolvedExpr
+    , ResolvedExpr
+    , UnresolvedType
+    , ResolvedType
     , Pat(TupP, VarP)
     , patTyBnds
     , patType
     , freeVars
     )
+{-
 import qualified Ohua.Frontend.WellTyped as WT
     ( Expr(..)
     ,  Pat(TupP, VarP)
     , patTyBnds
     , patType
     )
+-}
 
 import Ohua.Types.Vector (Nat(..))
 
@@ -56,15 +64,20 @@ Delta ... associates function literals to a type
 type Gamma varTy ty = HM.HashMap Binding (varTy ty)
 type Delta ty = HM.HashMap QualifiedBinding (Res.FunType ty)
 
-toWellTyped :: forall ty m. ErrAndLogM m => Delta ty -> FrLang.Expr ty -> m (WT.Expr ty)
-toWellTyped delta e =
+type Delta' ty = ([Import], Delta ty)
+
+toWellTyped :: forall ty m. ErrAndLogM m => Delta ty -> [Import] -> UnresolvedExpr ty -> m (ResolvedExpr ty)
+toWellTyped delta imports e =
   let
     gamma = HM.fromList $ FrLang.freeVars e
   in do
-    (_gamma', e', _ty) <- flip runReaderT (e :| []) $ typeSystem delta gamma e
+    traceM "delta (pretty):"
+    traceM $ renderStrict $ layoutSmart defaultLayoutOptions $ pretty $ HM.toList delta
+    traceM ""
+    (_gamma', e', _ty) <- flip runReaderT (e :| []) $ typeSystem (imports, delta) gamma e
     return e'
 
-type TypeErrorM m ty = MonadReader (NonEmpty (FrLang.Expr ty)) m
+type TypeErrorM m ty = MonadReader (NonEmpty (UnresolvedExpr ty)) m
 
 throwErrorWithTrace :: forall m ty a.
                        (ErrAndLogM m, TypeErrorM m ty)
@@ -74,7 +87,7 @@ throwErrorWithTrace m = do
   exprs <- ask
   throwError $ m <> exprTrace (NE.reverse exprs) exprTraceDepth
   where
-    exprTrace :: NonEmpty (FrLang.Expr ty) -> Nat -> Text
+    exprTrace :: NonEmpty (UnresolvedExpr ty) -> Nat -> Text
     exprTrace (e:|_ ) Zero = "\nIn expr:\n" <> prettyExpr e
     exprTrace (e:|[]) _    = "\nIn expr:\n" <> prettyExpr e
     exprTrace (e:|(es:ess)) (Succ n) = "\nIn expr:\n" <> prettyExpr e <> exprTrace (es:|ess) n
@@ -88,26 +101,29 @@ wfError m = throwErrorWithTrace $ "Wellformedness error: " <> m
 typeError :: (ErrAndLogM m, TypeErrorM m ty) => Text -> m a
 typeError m = throwErrorWithTrace $ "Type error: " <> m
 
+symResError :: (ErrAndLogM m, TypeErrorM m ty) => Text -> m a
+symResError m = throwErrorWithTrace $ "Symbol resolution error: " <> m
+
 typeExpr :: (ErrAndLogM m, TypeErrorM m ty)
             => Delta ty
-            -> Gamma VarType ty
-            -> FrLang.Expr ty
-            -> m (Gamma Res.VarType ty, WT.Expr ty, Res.VarType ty)
+            -> Gamma UnresolvedType ty
+            -> UnresolvedExpr ty
+            -> m (Gamma ResolvedType ty, ResolvedExpr ty, ResolvedType ty)
 typeExpr delta gamma e = local ( <> (e:|[])) $ typeSystem delta gamma e
 
 typeSystem :: forall ty m
            .  (ErrAndLogM m, TypeErrorM m ty)
-           => Delta ty
-           -> Gamma VarType ty
-           -> FrLang.Expr ty
-           -> m (Gamma Res.VarType ty, WT.Expr ty, Res.VarType ty)
+           => Delta' ty
+           -> Gamma UnresolvedType ty
+           -> UnresolvedExpr ty
+           -> m (Gamma ResolvedType ty, ResolvedExpr ty, ResolvedType ty)
 typeSystem delta gamma = \case
   {-
     Delta, Gamma |– e1: T1     Delta, Gamma, x:(max X T1) |– e2: T2
   ==================================================================
              Delta, Gamma |– let (x:X) e1 e2 : T2
   -}
-  (FrLang.LetE pat e1 e2) -> do
+  (LetE pat e1 e2) -> do
     (_, e1', tyT1') <- typeExpr delta gamma e1
     pat' <- typePat pat tyT1'
     let gamma' = foldl (\ g (b, t) -> HM.insert b t g) gamma
@@ -115,7 +131,7 @@ typeSystem delta gamma = \case
                  $ WT.patTyBnds pat'
     (gamma'', e2', tyT2) <- typeExpr delta gamma' e2
 
-    return (gamma'', WT.LetE pat' e1' e2', tyT2)
+    return (gamma'', LetE pat' e1' e2', tyT2)
 
   {-
                Delta, Gamma |– fun: T1 -> T2 -> ... Tm -> Tf  n<=m
@@ -123,7 +139,7 @@ typeSystem delta gamma = \case
   ===================================================================================
                   Delta, Gamma |– fun t1 t2 ... tn : Tf
   -}
-  (FrLang.AppE fun args) ->
+  (AppE fun args) ->
     let
       assocArgWithType [] (_:_) =
         wfError "Too many argumemts in function application."
@@ -135,67 +151,69 @@ typeSystem delta gamma = \case
       (gamma', fun', funTy) <- typeExpr delta gamma fun
 
       resTy <- case funTy of
-        Res.TypeFunction (Res.FunType ins out) -> do
+        TypeFunction (FunType ins out) -> do
             (_, pendingArgsTy) <- assocArgWithType (toList ins) $ toList args
             case pendingArgsTy of
               [] -> return out
-              (x:xs)  -> return $ Res.TypeFunction (Res.FunType (x:|xs) out)
-        Res.TypeFunction (Res.STFunType sin ins out) -> do
+              (x:xs)  -> return $ TypeFunction (FunType (x:|xs) out)
+        TypeFunction (STFunType sin ins out) -> do
             (_, pendingArgsTy) <- assocArgWithType ins $ toList args
-            return $ Res.TypeFunction (Res.STFunType sin pendingArgsTy out)
+            return $ TypeFunction (STFunType sin pendingArgsTy out)
         t -> typeError $ "First argument of function application is not a function, but has type: " <> show t
 
       (_, args', _argsTy) <- neUnzip3 <$> mapM (typeExpr delta gamma) args
 
-      return (gamma', WT.AppE fun' args', resTy)
+      return (gamma', AppE fun' args', resTy)
 
   {-
               Delta, Gamma, p1:T1, p2:T2, ..., pn:Tn |- e:Te
   =================================================================
       Delta, Gamma |- Lambda p1 p2 .. pn. e : T1 -> T2 -> ... -> Tn -> Te
   -}
-  (FrLang.LamE pats expr) ->
+  (LamE pats expr) ->
     let
-      invariantGetGamma :: Binding -> StateT (Gamma Res.VarType ty) m (Res.VarType ty)
+      invariantGetGamma :: Binding -> StateT (Gamma ResolvedType ty) m (ResolvedType ty)
       invariantGetGamma bnd = do
         gam <- get
         case HM.lookup bnd gam of
           Nothing -> invariantBroken $ "Pattern deleted while typing. Deleted pattern: " <> show bnd
           Just ty' -> (modify $ HM.delete bnd) >> return ty'
 
-      typePatFromGamma :: FrLang.Pat ty -> StateT (Gamma Res.VarType ty) m (WT.Pat ty)
-      typePatFromGamma (FrLang.VarP bnd t) = (\ t' -> WT.VarP bnd <$> maxType t t') =<< invariantGetGamma bnd
-      typePatFromGamma (FrLang.TupP ps) = WT.TupP <$> mapM typePatFromGamma ps
+      typePatFromGamma :: UnresolvedPat ty -> StateT (Gamma ResolvedType ty) m (ResolvedPat ty)
+      typePatFromGamma (VarP bnd t) = (\ t' -> VarP bnd <$> maxType t t') =<< invariantGetGamma bnd
+      typePatFromGamma (TupP ps) = TupP <$> mapM typePatFromGamma ps
     in do
       let bndsAndTypes = map FrLang.patTyBnds pats
       let gamma' = foldl (\ g (b, t) -> HM.insert b t g) gamma $ neConcat bndsAndTypes
       (gamma'', expr', tyE) <- typeExpr delta gamma' expr
       (pats', gamma''') <- runStateT (mapM typePatFromGamma pats) gamma''
-      let ty = Res.TypeFunction $ Res.FunType (map WT.patType pats') tyE
+      let ty = TypeFunction $ FunType (map WT.patType pats') tyE
 
-      return (gamma''', WT.LamE pats' expr', ty)
+      return (gamma''', LamE pats' expr', ty)
   {-
       Delta, Gamma |- state : S     Delta, Gamma |- method : S -> Tm
   ========================================================================
                 Delta, Gamma |- Bind state method : Tm
   -}
-  (FrLang.BindE state method) -> do
+  (BindE state f args) -> do
     (gamma',  state' , stateTy ) <- typeExpr delta gamma state
-    (gamma'', method', methodTy) <- typeExpr delta gamma method
+    -- TODO get type prefix from stateTy via Pathable
+    let qb = undefined
+    (gamma'', method', methodTy) <- typeExpr delta gamma args
     ty <- case methodTy of
-            Res.TypeFunction (Res.STFunType sTy _ resTy) | sTy == stateTy -> return resTy
+            TypeFunction (STFunType sTy _ resTy) | sTy == stateTy -> return resTy
             _ -> typeError $ "State types do not match."
 
-    return (gamma'', WT.BindE state' method', ty)
+    return (gamma'', StateFunE state' qb method', ty)
 
   {-
       Delta, Gamma |- cond : Bool    Delta, Gamma |- tTrue : T   Delta, Gamma |- tFalse : T
   ===========================================================================================
                   Delta, Gamma |- If cond tTrue tFalse : T
   -}
-  (FrLang.IfE cond tTrue tFalse) -> do
+  (IfE cond tTrue tFalse) -> do
     (_, cond', condTy) <- typeExpr delta gamma cond
-    if condTy == Res.TypeBool
+    if condTy == TypeBool
     then return ()
     else typeError "Condition input does not have type bool."
 
@@ -205,7 +223,7 @@ typeSystem delta gamma = \case
     then return ()
     else typeError "Conditional branches have different types."
 
-    return (gamma', WT.IfE cond' tTrue' tFalse', tTrueTy)
+    return (gamma', IfE cond' tTrue' tFalse', tTrueTy)
 
   {-
    Delta, Gamma |- cond : Bool       Delta, Gamma |- body : T
@@ -213,133 +231,133 @@ typeSystem delta gamma = \case
             Delta, Gamma |- While cond body : Unit
 
   -}
-  (FrLang.WhileE cond body) -> do
+  (WhileE cond body) -> do
     (_, cond', condTy) <- typeSystem delta gamma cond
-    if condTy == Res.TypeBool
+    if condTy == TypeBool
     then return ()
     else typeError "Condition input for while loop does not have type bool."
 
     (gamma', body', _bodyTy) <- typeExpr delta gamma body
 
-    return (gamma', WT.WhileE cond' body', Res.TypeUnit)
+    return (gamma', WhileE cond' body', IType TypeUnit)
 
   {-
       Delta, Gamma |- generator : T1<T2>     Delta, Gamma, x:T2 |- loopFun : T3
   ===============================================================================
           Delta, Gamma |- MapE loopFun generator : T1<T3>
   -}
-  (FrLang.MapE loopFun gen) ->  do
+  (MapE loopFun gen) ->  do
     (_, gen', genTy) <- typeExpr delta gamma gen
     elemTy <- case genTy of
-                Res.TypeList eTy -> return eTy
+                TypeList eTy -> return eTy
                 _ -> typeError "Loop generator is not a list!"
 
     (gamma', loopFun', loopFunTy) <- typeExpr delta gamma loopFun
 
-    return (gamma', WT.MapE loopFun' gen', Res.TypeList loopFunTy)
+    return (gamma', MapE loopFun' gen', IType $ TypeList loopFunTy)
 
   {-
       Delta, Gamma |- e1:T1    Delta, Gamma |- cont : T2
   =======================================================
           Delta, Gamma |- Stmt e1 cont : T2
   -}
-  (FrLang.StmtE e1 cont) -> do
+  (StmtE e1 cont) -> do
     (_, e1', _e1Ty) <- typeExpr delta gamma e1
     (gamma', cont', contTy) <- typeExpr delta gamma cont
-    return (gamma', WT.StmtE e1' cont', contTy)
+    return (gamma', StmtE e1' cont', contTy)
 
   {-
       Delta, Gamma |- e1:T1  Delta, Gamma |- e2:T2   ...   Delta, Gamma |- en: Tn
   ======================================================================================
         Delta, Gamma |- TupE [e1, e2 ... , en] : TupleTy [T1, T2, .. , Tn]
   -}
-  (FrLang.TupE exprs) -> do
+  (TupE exprs) -> do
     (gamma' :| _, exprs',exprsTy ) <- neUnzip3 <$> mapM (typeExpr delta gamma) exprs
-    return (gamma', WT.TupE exprs', Res.TupleTy exprsTy)
+    return (gamma', TupE exprs', IType $ TupleTy exprsTy)
 
   {-
        x:T in Gamma
   ========================
     Delta, Gamma |– x: T
   -}
-  (FrLang.VarE bnd ty) -> handleVar gamma bnd ty
-  (FrLang.LitE (EnvRefLit bnd ty)) -> (\(g, _, ty') -> (g, WT.LitE $ Res.EnvRefLit bnd ty', ty')) <$> handleVar gamma bnd ty
+  (VarE bnd ty) -> handleVar gamma bnd ty
+  (LitE (EnvRefLit bnd ty)) -> (\(g, _, ty') -> (g, LitE $ EnvRefLit bnd ty', ty')) <$> handleVar gamma bnd ty
 
   {-
      l:T in Delta
   ========================
     Delta, Gamma |- l : T
   -}
-  (FrLang.LitE (FunRefLit (FunRef qbnd id ty))) -> do
+  (LitE (FunRefLit (FunRef qbnd id ty))) -> do
       case HM.lookup qbnd delta of
         Just ty' ->
           ((\ty'' ->
-            (HM.empty, WT.LitE $ Res.FunRefLit $ Res.FunRef qbnd id ty', ty'')) .
-          Res.TypeFunction) <$> maxFunType ty ty'
-        Nothing -> typeError $ "Missing type information for function literal:" <> show qbnd
+            (HM.empty, LitE $ FunRefLit $ FunRef qbnd id ty', ty'')) .
+          TypeFunction) <$> maxFunType ty ty'
+        Nothing -> typeError $ "Missing type information for function literal: " <> (quickRender qbnd)
 
   {-
   ==================
     Gamma |- l : HostType
   -}
-  (FrLang.LitE (NumericLit n)) -> return (HM.empty, WT.LitE $ Res.NumericLit n, Res.TypeNat) -- FIXME incorrect. we should not have this in this language!
-  (FrLang.LitE (BoolLit b))    -> return (HM.empty, WT.LitE $ Res.BoolLit b   , Res.TypeBool)
-  (FrLang.LitE UnitLit)        -> return (HM.empty, WT.LitE Res.UnitLit       , Res.TypeUnit)
-  (FrLang.LitE (StringLit s))  -> return (HM.empty, WT.LitE $ Res.StringLit s , Res.TypeString)
+  (LitE (NumericLit n)) -> return (HM.empty, LitE $ NumericLit n, TypeNat) -- FIXME incorrect. we should not have this in this language!
+  (LitE (BoolLit b))    -> return (HM.empty, LitE $ BoolLit b   , TypeBool)
+  (LitE UnitLit)        -> return (HM.empty, LitE UnitLit       , TypeUnit)
+  (LitE (StringLit s))  -> return (HM.empty, LitE $ StringLit s , TypeString)
   where
-    resolveBothDirections bnd ty1 ty2 =
-      case toResType ty1 of
-        Just ty1' -> maxType ty2 ty1'
-        Nothing ->
-          case toResType ty2 of
-            Just ty2' -> maxType ty1 ty2'
-            Nothing -> invariantBroken $ "Var in context has no type: " <> show bnd
+    handleRef bnd ty =
+      let (imports,delta') = delta
+      case resolve delta imports Nothing bnd
+        Left (q,ty1) ->
+          (\ty' ->
+            (HM.empty, LitE $ FunRefLit $ FunRef qbnd Nothing ty1, ty'))
+          <$> maxType ty (TypeFunction ty1)
+        Right (BndError b) -> symResError $ "Unresolved symbol: " <> quickRender b
+        Right (QBndError qb) -> symResError $ "Unresolved qualified symbol: " <> quickRender qb
+        Right (NoTypeFound qb) -> wfError $ "No type in environment found for qualified symbol: " <> quickRender qb
+        Right (Ambiguity qb1 qb2) -> symResError $ "Symbol ambiguity detected.\n" <> quickRender qb1 <> "\n vs.\n" <> quickRender qb2
 
     handleVar gamma bnd ty = do
       case HM.lookup bnd gamma of
-        Just ty1 -> (\ty' -> (HM.singleton bnd ty', WT.VarE bnd ty', ty')) <$> resolveBothDirections bnd ty ty1
-        Nothing ->
-          let qbnd = QualifiedBinding (makeThrow []) bnd
-          in case HM.lookup qbnd delta of
-            Just ty1 ->
-              (\ty' ->
-                (HM.empty, WT.LitE $ Res.FunRefLit $ Res.FunRef qbnd Nothing ty1, ty'))
-              <$> maxType ty (Res.TypeFunction ty1)
-            Nothing -> wfError $ "Var not in typing context(s). Var: " <> show bnd
+        Just ty1 ->
+          case toResType ty1 of
+            Just ty1' -> (\ty' -> (HM.singleton bnd ty', VarE bnd ty', ty')) <$> maxType ty ty1'
+            Nothing -> handleRef bnd ty
+        _ -> handleRef bnd ty
 
-typePat :: ErrAndLogM m => FrLang.Pat ty -> Res.VarType ty -> m (WT.Pat ty)
+typePat :: (ErrAndLogM m, TypeErrorM m ty) => UnresolvedPat ty -> ResolvedType ty -> m (ResolvedPat ty)
 typePat pat newTy = do
   let oldTy = FrLang.patType pat
   newTy' <- maxType oldTy newTy
   go pat newTy'
   where
-    go (FrLang.VarP bnd _) t = return $ WT.VarP bnd t
-    go (FrLang.TupP (p:|ps)) (Res.TupleTy (pTy:|psTy)) = (\x xs -> WT.TupP $ x:|xs) <$> go p pTy <*> (mapM (uncurry go) $ zip ps psTy)
-    go (FrLang.TupP _) _ = throwError "The impossible happened"
+    go (VarP bnd _) t = return $ VarP bnd t
+    go (TupP (p:|ps)) (TupleTy (pTy:|psTy)) = (\x xs -> TupP $ x:|xs) <$> go p pTy <*> (mapM (uncurry go) $ zip ps psTy)
+    go (TupP _) _ = invariantBroken "The impossible happened"
 
-maxType :: ErrAndLogM m => VarType ty -> Res.VarType ty -> m (Res.VarType ty)
--- ^ equal types
-maxType TypeNat Res.TypeNat = return Res.TypeNat
-maxType TypeBool Res.TypeBool = return Res.TypeBool
-maxType TypeUnit Res.TypeUnit = return Res.TypeUnit
-maxType TypeString Res.TypeString = return Res.TypeString
-maxType (TypeList x) (Res.TypeList y) = Res.TypeList <$> maxType x y
-maxType (Type t1) (Res.Type t2) | t1 == t2 = return $ Res.Type t2
+maxType :: (ErrAndLogM m, TypeErrorM m ty) => UnresolvedType ty -> ResolvedType ty -> m (ResolvedType ty)
+-- maxType TypeNat TypeNat = return TypeNat
+-- maxType TypeBool TypeBool = return TypeBool
+-- maxType TypeUnit TypeUnit = return TypeUnit
+-- maxType TypeString TypeString = return TypeString
+-- maxType (TypeList x) (TypeList y) = TypeList <$> maxType x y
+maxType (HType t1 _) (HType t2 _) | t1 == t2 = return $ HType t2
 -- ^ unequal host types -> for know thats an error, but actually we need to resort to Rust here e.g Self vs ActualType => ActuaType
-maxType (Type t1) (Res.Type t2) = throwError $ "Type error. Comparing types " <> show t1 <> " and " <> show t2
-maxType (TupleTy (x:|xs)) (Res.TupleTy (y:|ys)) =
-  if length xs == length ys
-  then do
-    xs' <- mapM (uncurry maxType) $ zip xs ys
-    x' <- maxType x y
-    return $ Res.TupleTy (x':|xs')
-  else throwError "Type error: list with different length detected."
-maxType (TypeFunction f) (Res.TypeFunction g) = Res.TypeFunction <$> maxFunType f g
-maxType TypeVar t2 = return t2
+maxType (HType t1 _) (HType t2 _) = typeError $ "Comparing types " <> show t1 <> " and " <> show t2 <> " failed."
+-- maxType (TupleTy (x:|xs)) (TupleTy (y:|ys)) =
+--   if length xs == length ys
+--   then do
+--     xs' <- mapM (uncurry maxType) $ zip xs ys
+--     x' <- maxType x y
+--     return $ TupleTy (x':|xs')
+--   else throwError "Type error: list with different length detected."
+-- maxType (TypeFunction f) (TypeFunction g) = TypeFunction <$> maxFunType f g
+maxType TypeStar t2 = return t2
 
-maxFunType :: ErrAndLogM m => FunType ty -> Res.FunType ty -> m (Res.FunType ty)
-maxFunType (FunType ins out) (Res.FunType rins rout) =
-  Res.FunType <$> mapM (uncurry maxType) (NE.zip ins rins) <*> maxType out rout
-maxFunType (STFunType sin ins out) (Res.STFunType rsin rins rout) =
-  Res.STFunType <$> maxType sin rsin <*> mapM (uncurry maxType) (zip ins rins) <*> maxType out rout
-
+{-
+maxFunType :: (ErrAndLogM m, TypeErrorM m ty) => FunType ty Frontend -> FunType ty Resolved-> m (FunType ty Resolved)
+maxFunType (FunType ins out) (FunType rins rout) =
+  FunType <$> mapM (uncurry maxType) (NE.zip ins rins) <*> maxType out rout
+maxFunType (STFunType sin ins out) (STFunType rsin rins rout) =
+  STFunType <$> maxType sin rsin <*> mapM (uncurry maxType) (zip ins rins) <*> maxType out rout
+-}

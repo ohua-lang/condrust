@@ -1,9 +1,19 @@
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE
+    TypeOperators
+    , DataKinds
+    , StandaloneKindSignatures
+    , AllowAmbiguousTypes
+#-}
 
 module Ohua.Frontend.Lang
     ( Pat(..)
     , Expr(..)
+    , UnresolvedExpr(..)
+    , ResolvedExpr(..)
+    , UnresolvedPat
+    , ResolvedPat
+    , UnresolvedType
+    , ResolvedType
 --    , exprType
 --    , returnType
 --    , funType
@@ -12,9 +22,9 @@ module Ohua.Frontend.Lang
     , patTyBnds
 --    , setPatType
 --    , setExprFunType
-    , PatF(..)
-    , ExprF(..)
-    , patterns
+--    , PatF(..)
+--    , ExprF(..)
+--    , patterns
 --    , applyToFinal
     , unitArgs
     , unitParams
@@ -23,31 +33,39 @@ module Ohua.Frontend.Lang
 
 import Ohua.UResPrelude
 
-import Control.Lens (Traversal')
-import Control.Lens.Plated (Plated, gplate, plate)
-import Data.Functor.Foldable.TH (makeBaseFunctor)
+--import Control.Lens (Traversal')
+--import Control.Lens.Plated (Plated, gplate, plate)
+--import Data.Functor.Foldable.TH (makeBaseFunctor)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.HashSet as HS
-import GHC.Exts
+--import GHC.Exts
 
 
-data Pat ty
-    = VarP Binding (VarType ty)
-    | TupP (NonEmpty (Pat ty))
+type Pat :: Type -> Resolution -> Type
+data Pat ty s where
+  VarP :: Binding -> OhuaType ty s -> Pat ty s
+  TupP :: NonEmpty (Pat ty s) -> Pat ty s
     -- | WildP -- (VarType ty)
-    deriving (Show, Eq, Generic)
 
-patType :: Pat ty -> VarType ty
+deriving instance Show (Pat ty s)
+instance Heq (Pat ty s) (Pat ty s) where
+  heq (VarP b1 _) (VarP b2 _) = b1 == b2
+  heq (TupP xs1) (TupP xs2) =
+    NE.length xs1 == NE.length xs2 &&
+    (and $ map (uncurry heq) $ NE.zip xs1 xs2)
+  heq _ _ = False
+
+patType :: Pat ty Resolved -> OhuaType ty Resolved
 patType = \case
     VarP _ ty -> ty
-    TupP ps -> TupleTy (map patType ps)
+    TupP ps -> IType $ TupleTy (map patType ps)
 
-patBnd :: Pat ty -> NonEmpty Binding
+patBnd :: Pat ty s -> NonEmpty Binding
 patBnd = \case
-    VarP bnd ty -> bnd :| []
+    VarP bnd _ty -> bnd :| []
     TupP (ps) -> neConcat $ map patBnd ps
 
-patTyBnds :: Pat ty -> NonEmpty (Binding, VarType ty)
+patTyBnds :: Pat ty s -> NonEmpty (Binding, OhuaType ty s)
 patTyBnds = \case
     VarP bnd ty -> (bnd, ty) :| []
     TupP (ps) -> neConcat $ map patTyBnds ps
@@ -100,34 +118,32 @@ type UnresolvedExpr ty = UnresolvedExpr (Expr' UnresolvedVarType ty)
 
 --}
 
-data Expr ty
-    -- REMINDER: We need to wrap the host type in an VarType here, because
-    -- the compiler will introdude variables typed as internal bool/unit/int 
-    -- ... that also have to be representable
-    = VarE Binding (VarType ty)
-    | LitE (Lit ty)
-    | LetE (Pat ty)
-           (Expr ty)
-           (Expr ty)
-    | AppE (Expr ty)
-           (NonEmpty (Expr ty))
-    | LamE (NonEmpty (Pat ty))
-           (Expr ty) -- ^ An expression creating a function
-    | IfE (Expr ty)
-          (Expr ty)
-          (Expr ty)
-    | WhileE (Expr ty)
-             (Expr ty)
-    | MapE (Expr ty) -- ^ Map expression that 'maps' its first argument to its second :: map f xs.
-           (Expr ty)
-    | BindE (Expr ty)
-            (Expr ty) -- ^ @BindE state function@ binds @state@ to be operated on by @function@
-    | StmtE (Expr ty)
-            (Expr ty) -- ^ An expression with the return value ignored
---    | SeqE (Expr ty)
---           (Expr ty)
-    | TupE (NonEmpty (Expr ty)) -- ^ create a tuple value that can be destructured
-    deriving (Show, Generic)
+type Expr :: Type -> Resolution -> Type
+data Expr ty s where
+  VarE      :: Binding -> OhuaType ty s                                                -> Expr ty s
+  LitE      :: Lit ty                                                                  -> Expr ty s
+  LetE      :: Pat ty s -> Expr ty s -> Expr ty s                                      -> Expr ty s
+  AppE      :: Expr ty s -> NonEmpty (Expr ty s)                                       -> Expr ty s
+  LamE      :: NonEmpty (Pat ty s) -> Expr ty s                                        -> Expr ty s
+  IfE       :: Expr ty s -> Expr ty s -> Expr ty s                                     -> Expr ty s
+  WhileE    :: Expr ty s -> Expr ty s                                                  -> Expr ty s
+  MapE      :: Expr ty s -> Expr ty s                                                  -> Expr ty s
+  BindE     :: Expr ty Unresolved -> Binding          -> NonEmpty (Expr ty Unresolved) -> Expr ty Unresolved
+  StateFunE :: Expr ty Resolved   -> QualifiedBinding -> NonEmpty (Expr ty Resolved)   -> Expr ty Resolved
+  StmtE     :: Expr ty s -> Expr ty s                                                  -> Expr ty s
+  TupE      :: NonEmpty (Expr ty s)                                                    -> Expr ty s
+
+deriving instance Show (Expr ty s)
+
+type UnresolvedExpr ty = Expr ty Unresolved
+type ResolvedExpr ty = Expr ty Resolved
+
+type UnresolvedType ty = OhuaType ty Unresolved
+type ResolvedType ty = OhuaType ty Resolved
+
+type UnresolvedPat ty = Pat ty Unresolved
+type ResolvedPat ty = Pat ty Resolved
+
 {-
 exprType :: Expr ty -> VarType ty
 exprType (VarE _b ty) = ty
@@ -196,6 +212,7 @@ setExprFunType e argTys retTy = case e of
         other                                 -> other
 -}
 
+{-
 patterns :: Traversal' (Expr ty) (Pat ty)
 patterns f =
     \case
@@ -243,16 +260,19 @@ instance IsList (Pat ty) where
     fromList [] = error $ "Cannot create a tuple pattern from an empty list"
     toList p = error $ "Ohua tried to convert the pattern "
                 <>show p <>"into a list, which is not supported"
+-}
 
-unitArgs :: [Expr ty] -> NonEmpty (Expr ty)
+unitArgs :: [Expr ty s] -> NonEmpty (Expr ty s)
 unitArgs []     = LitE UnitLit :| []
 unitArgs (x:xs) = x :| xs
 
-unitParams :: [Pat ty] -> NonEmpty (Pat ty)
-unitParams []     = VarP "_" TypeUnit :| []
+
+unitParams :: [Pat ty Resolved] -> NonEmpty (Pat ty Resolved)
+unitParams []     = (VarP "_" $ IType TypeUnit) :| []
 unitParams (x:xs) = x :| xs
 
-freeVars :: Expr ty -> [(Binding, VarType ty)]
+
+freeVars :: Expr ty s -> [(Binding, OhuaType ty s)]
 freeVars = go HS.empty
   where
     go  ctxt (VarE bnd _) | HS.member bnd ctxt = []
@@ -264,6 +284,7 @@ freeVars = go HS.empty
     go  ctxt (IfE e1 e2 e3) = go ctxt e1 ++ go ctxt e2 ++ go ctxt e3
     go  ctxt (WhileE e1 e2) = go ctxt e1 ++ go ctxt e2
     go  ctxt (MapE e1 e2) = go ctxt e1 ++ go ctxt e2
-    go  ctxt (BindE e1 e2) = go ctxt e1 ++ go ctxt e2
+    go  ctxt (BindE s _ xs) = go ctxt s ++ foldl (\vs e -> vs ++ go ctxt e) [] xs
+    go  ctxt (StateFunE s _ xs) = go ctxt s ++ foldl (\vs e -> vs ++ go ctxt e) [] xs
     go  ctxt (StmtE e1 e2) = go ctxt e1 ++ go ctxt e2
     go  ctxt (TupE es) = foldl (\vs e -> vs ++ go ctxt e) [] es

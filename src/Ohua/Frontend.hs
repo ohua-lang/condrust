@@ -8,7 +8,7 @@ import qualified Ohua.Frontend.Lang as FrLang (Expr)
 import qualified Ohua.Frontend.WellTyped as WT (Expr)
 import Ohua.Frontend.Transform.Load ( loadAlgosAndImports  )
 import Ohua.Frontend.Transform.Resolve ( resolveNS )
-import Ohua.Frontend.Transform.Envs ( prepareRootAlgoVars )
+-- import Ohua.Frontend.Transform.Envs ( prepareRootAlgoVars )
 import Ohua.Frontend.Transform.TailRec ( isRecAlgo )
 import Ohua.Frontend.Transform.FinalLiterals ( noFinalLiterals )
 import Ohua.Frontend.TypeSystem ( toWellTyped )
@@ -34,4 +34,4 @@ frontend lang compScope inFile = do
         return ((langNs, ns''''), placeholder)
     where
         trans :: ErrAndLogM m => FrLang.Expr ty -> m (FrLang.Expr ty)
-        trans e = noFinalLiterals e >> prepareRootAlgoVars e
+        trans e = noFinalLiterals e >> (return e)-- prepareRootAlgoVars e

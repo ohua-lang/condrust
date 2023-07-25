@@ -3,6 +3,7 @@
 
 module Ohua.Frontend.WellTyped where
 
+{-
 import Ohua.Prelude
 
 import Control.Lens (Traversal')
@@ -109,3 +110,4 @@ instance IsList (Pat ty) where
     fromList [] = error $ "Cannot create a tuple pattern from an empty list"
     toList p = error $ "Ohua tried to convert the pattern "
                 <>show p <>"into a list, which is not supported"
+-}
