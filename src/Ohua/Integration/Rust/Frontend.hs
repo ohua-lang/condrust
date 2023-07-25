@@ -159,8 +159,8 @@ instance Integration (Language 'Rust) where
     filesAndPaths <- concat <$> mapM funsForAlgo (ohuaNs ^. algos)
     let filesAndPaths' = map (first convertOwn) filesAndPaths
     functionTypes <- fnTypesFromFiles $ concatMap fst filesAndPaths'
-    usedFunctionTypes <- HM.fromList . catMaybes <$> mapM (verifyAndRegister functionTypes) filesAndPaths'
-    return usedFunctionTypes
+    -- usedFunctionTypes <- HM.fromList . catMaybes <$> mapM (verifyAndRegister functionTypes) filesAndPaths'
+    return functionTypes -- usedFunctionTypes
     where
       funsForAlgo :: ErrAndLogM m => Algo (FrLang.Expr RustVarType) (Item Span) -> m [([NSRef], QualifiedBinding)]
       funsForAlgo (Algo _name code _inputCode ) = do
