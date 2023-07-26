@@ -8,15 +8,15 @@ import Universum
 
 import Ohua.Types.Common.Reference
 
-f :: OhuaType ty Unresolved -> Bool
-f t = case t of
-        (HType _ _) -> True
-        -- Error/Warning: non-exhaustive pattern match ... TStar
+-- f :: OhuaType ty Unresolved -> Bool
+-- f t = case t of
+--         (HType _ _) -> True
+--         -- Error/Warning: non-exhaustive pattern match ... TStar
 
 f' :: OhuaType ty Unresolved -> Bool
 f' t = case t of
          (HType _ _) -> True
-         (IType _) -> False -- Error/Warning: inaccesible code
+         --(IType _) -> False -- Error/Warning: inaccesible code
          TStar -> True
 
 {-

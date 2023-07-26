@@ -84,7 +84,9 @@ fromList :: SNat n -> [a] -> Vec n a
 fromList s xs =
     case (s,xs) of
         (SZero,[]) -> VNil
+        (SZero , (_:_)) -> undefined
         (SSucc s', a:rest) -> a :> fromList s' rest
+        ((SSucc _), []) -> undefined
 
 map :: (a -> b) -> Vec n a -> Vec n b
 map _ VNil = VNil
@@ -130,6 +132,7 @@ withSing n f = case toSing n of
 
 withSuccSing :: Nat -> (forall n.SNat ('Succ n) -> a) -> a
 withSuccSing n f = case toSing n of
+                     SomeSing SZero -> undefined
                      SomeSing s@(SSucc _) -> f s
 
 natToInt :: Nat -> Int
