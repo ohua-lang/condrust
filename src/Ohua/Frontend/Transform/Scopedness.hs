@@ -12,7 +12,7 @@ import qualified Data.List.NonEmpty as NE
 
 type Ctxt = HS.HashSet Binding
 
-contextedTraversal :: Monad m => (Ctxt -> Expr ty -> m (Expr ty)) -> Ctxt -> Expr ty -> m (Expr ty)
+contextedTraversal :: Monad m => (Ctxt -> Expr ty 'Resolved -> m (Expr ty 'Resolved)) -> Ctxt -> Expr ty 'Resolved -> m (Expr ty 'Resolved )
 contextedTraversal f = go
     where
         --  see example 5 in
@@ -25,9 +25,10 @@ contextedTraversal f = go
             let ctxt' = HS.union ctxt $ HS.fromList $ join $ Ohua.Prelude.map goPat $ Ohua.Prelude.toList vs
             in LamE vs <$> go ctxt' b
         go ctxt v@(VarE bdg ty) | not (HS.member bdg ctxt) = f ctxt v
-        go ctxt e = descendM (go ctxt) e
-        descendM = mapMOf plate -- http://hackage.haskell.org/package/lens-3.0.6/docs/Control-Lens-Plated.html#v:descendM
-        --descend = over plate -- note composOp = descend = over plate -> https://www.stackage.org/haddock/lts-14.25/lens-4.17.1/Control-Lens-Plated.html#v:para (below)
+        go ctxt e = go' ctxt e      
+        -- descendM = mapMOf plate -- http://hackage.haskell.org/package/lens-3.0.6/docs/Control-Lens-Plated.html#v:descendM
+        -- Recurse one level into a structure with a monadic effect. (a.k.a composOpM from Björn Bringert's compos) 
+        go' 
         goPat (VarP bdg _pTy) = [bdg]
         goPat (TupP ps) = join $ Ohua.Prelude.map goPat (NE.toList ps)
 {-

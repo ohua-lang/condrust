@@ -3,8 +3,9 @@ module Ohua.Frontend.Transform.FinalLiterals where
 import Ohua.UResPrelude
 
 import Ohua.Frontend.Lang
-
-noFinalLiterals :: (ErrAndLogM m) => Expr ty -> m ()
+import Data.ByteString (concatMap)
+-- FIXME: Change res to Resolved probably
+noFinalLiterals :: (ErrAndLogM m) => Expr ty Resolved -> m ()
 noFinalLiterals = go
   where
     go (VarE _ _) = return ()
@@ -18,7 +19,7 @@ noFinalLiterals = go
     go (IfE e1 e2 e3) = go e1 >> go e2 >> go e3
     go (WhileE e1 e2) = go e1 >> go e2
     go (MapE e1 e2) = go e1 >> go e2
-    go (BindE e1 e2) = go e1 >> go e2
+    go (StateFunE e1 state e2) = go e1 >> concatMapM go e2
     go (StmtE f l@LitE{}) = errorOut l
     go (StmtE f cont) = go f >> go cont
     go (TupE es) = mapM_ go es

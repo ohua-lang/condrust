@@ -12,14 +12,17 @@ import Data.Text.Prettyprint.Doc.Render.Text
 
 import Ohua.UResPrelude hiding (getVarType, Nat)
 import qualified Ohua.Prelude as Res
-  ( Lit(..), VarType(..), FunType(..), FunRef(..))
+  ( Lit(..), FunType(..), FunRef(..))
 import Ohua.Types.Casts
 import Ohua.PPrint
 
 import Ohua.Frontend.PPrint (prettyExpr)
 import Ohua.Frontend.Lang
-    ( UnresolvedExpr
-    , ResolvedExpr
+    ( UnresolvedExpr(..)
+    , ResolvedExpr(..)
+    , Expr(..)
+    , UnresolvedPat(..)
+    , ResolvedPat(..)
     , UnresolvedType
     , ResolvedType
     , Pat(TupP, VarP)
@@ -27,6 +30,8 @@ import Ohua.Frontend.Lang
     , patType
     , freeVars
     )
+  
+import Ohua.Frontend.SymbolResolution (SymResError(..))
 {-
 import qualified Ohua.Frontend.WellTyped as WT
     ( Expr(..)
@@ -69,7 +74,7 @@ type Delta' ty = ([Import], Delta ty)
 toWellTyped :: forall ty m. ErrAndLogM m => Delta ty -> [Import] -> UnresolvedExpr ty -> m (ResolvedExpr ty)
 toWellTyped delta imports e =
   let
-    gamma = HM.fromList $ FrLang.freeVars e
+    gamma = HM.fromList $ freeVars e
   in do
     traceM "delta (pretty):"
     traceM $ renderStrict $ layoutSmart defaultLayoutOptions $ pretty $ HM.toList delta
@@ -128,7 +133,7 @@ typeSystem delta gamma = \case
     pat' <- typePat pat tyT1'
     let gamma' = foldl (\ g (b, t) -> HM.insert b t g) gamma
                  $ map (second fromResType)
-                 $ WT.patTyBnds pat'
+                 $ patTyBnds pat'
     (gamma'', e2', tyT2) <- typeExpr delta gamma' e2
 
     return (gamma'', LetE pat' e1' e2', tyT2)
@@ -183,11 +188,11 @@ typeSystem delta gamma = \case
       typePatFromGamma (VarP bnd t) = (\ t' -> VarP bnd <$> maxType t t') =<< invariantGetGamma bnd
       typePatFromGamma (TupP ps) = TupP <$> mapM typePatFromGamma ps
     in do
-      let bndsAndTypes = map FrLang.patTyBnds pats
+      let bndsAndTypes = map patTyBnds pats
       let gamma' = foldl (\ g (b, t) -> HM.insert b t g) gamma $ neConcat bndsAndTypes
       (gamma'', expr', tyE) <- typeExpr delta gamma' expr
       (pats', gamma''') <- runStateT (mapM typePatFromGamma pats) gamma''
-      let ty = TypeFunction $ FunType (map WT.patType pats') tyE
+      let ty = TypeFunction $ FunType (map patType pats') tyE
 
       return (gamma''', LamE pats' expr', ty)
   {-
@@ -305,17 +310,17 @@ typeSystem delta gamma = \case
   (LitE UnitLit)        -> return (HM.empty, LitE UnitLit       , TypeUnit)
   (LitE (StringLit s))  -> return (HM.empty, LitE $ StringLit s , TypeString)
   where
-    handleRef bnd ty =
+    handleRef bnd ty = do 
       let (imports,delta') = delta
-      case resolve delta imports Nothing bnd
-        Left (q,ty1) ->
-          (\ty' ->
-            (HM.empty, LitE $ FunRefLit $ FunRef qbnd Nothing ty1, ty'))
-          <$> maxType ty (TypeFunction ty1)
-        Right (BndError b) -> symResError $ "Unresolved symbol: " <> quickRender b
-        Right (QBndError qb) -> symResError $ "Unresolved qualified symbol: " <> quickRender qb
-        Right (NoTypeFound qb) -> wfError $ "No type in environment found for qualified symbol: " <> quickRender qb
-        Right (Ambiguity qb1 qb2) -> symResError $ "Symbol ambiguity detected.\n" <> quickRender qb1 <> "\n vs.\n" <> quickRender qb2
+      case resolve delta imports Nothing bnd of 
+          Left (q,ty1) ->
+                          (\ty' ->
+                            (HM.empty, LitE $ FunRefLit $ FunRef qbnd Nothing ty1, ty'))
+                          <$> maxType ty (TypeFunction ty1)
+          Right (BndError b) -> symResError $ "Unresolved symbol: " <> quickRender b
+          Right (QBndError qb) -> symResError $ "Unresolved qualified symbol: " <> quickRender qb
+          Right (NoTypeFound qb) -> wfError $ "No type in environment found for qualified symbol: " <> quickRender qb
+          Right (Ambiguity qb1 qb2) -> symResError $ "Symbol ambiguity detected.\n" <> quickRender qb1 <> "\n vs.\n" <> quickRender qb2
 
     handleVar gamma bnd ty = do
       case HM.lookup bnd gamma of
@@ -327,7 +332,7 @@ typeSystem delta gamma = \case
 
 typePat :: (ErrAndLogM m, TypeErrorM m ty) => UnresolvedPat ty -> ResolvedType ty -> m (ResolvedPat ty)
 typePat pat newTy = do
-  let oldTy = FrLang.patType pat
+  let oldTy = patType pat
   newTy' <- maxType oldTy newTy
   go pat newTy'
   where
@@ -352,7 +357,7 @@ maxType (HType t1 _) (HType t2 _) = typeError $ "Comparing types " <> show t1 <>
 --     return $ TupleTy (x':|xs')
 --   else throwError "Type error: list with different length detected."
 -- maxType (TypeFunction f) (TypeFunction g) = TypeFunction <$> maxFunType f g
-maxType TypeStar t2 = return t2
+maxType TStar t2 = return t2
 
 {-
 maxFunType :: (ErrAndLogM m, TypeErrorM m ty) => FunType ty Frontend -> FunType ty Resolved-> m (FunType ty Resolved)

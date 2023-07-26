@@ -23,11 +23,11 @@ prettyExprM = LT.putStr . prettyExpr
 afterLetIndent :: Int
 afterLetIndent = 0
 
-instance Pretty (Pat ty) where
+instance Pretty (Pat ty res) where
     pretty (VarP b ty) = pretty b <> "::" <> pretty ty
     pretty (TupP pats) = align $ tupled $ map pretty (NE.toList pats)
 
-instance Pretty (Expr ty) where
+instance Pretty (Expr ty res) where
     pretty (VarE bnd ty) = pretty bnd
     pretty (LitE l) = pretty l
     pretty (LetE p app cont) =
@@ -44,7 +44,7 @@ instance Pretty (Expr ty) where
         , align (pretty cont)
         ]
 
-    pretty (AppE x xs) = pretty x <> align (tupled $ map pretty xs)
+    pretty (AppE x xs) = pretty x <> align (tupled $ NE.toList $ NE.map pretty xs)
     pretty (LamE ps b) = sep ["λ" <+>
                     align
                         (sep [ sep (map pretty (toList ps) <> ["->"])
@@ -61,6 +61,6 @@ instance Pretty (Expr ty) where
                         (sep [ pretty b
                              , pretty d
                              ])]
-    pretty (BindE s f xs) = hsep [brackets $ pretty s, pretty f, align (tupled $ map pretty xs)]
+    pretty (BindE s f xs) = hsep [brackets $ pretty s, pretty f, align (tupled $ NE.toList $ NE.map pretty xs)]
     pretty (StmtE e c) = vsep $ hsep [pretty e, ";"] : [pretty c]
     pretty (TupE (e:|es)) = hsep [align $ tupled $ map pretty (e:es)]

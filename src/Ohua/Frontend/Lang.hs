@@ -135,8 +135,8 @@ data Expr ty s where
 
 deriving instance Show (Expr ty s)
 
-type UnresolvedExpr ty = Expr ty Unresolved
-type ResolvedExpr ty = Expr ty Resolved
+type UnresolvedExpr ty = Expr ty 'Unresolved
+type ResolvedExpr ty = Expr ty 'Resolved
 
 type UnresolvedType ty = OhuaType ty Unresolved
 type ResolvedType ty = OhuaType ty Resolved
