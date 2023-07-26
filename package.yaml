@@ -21,6 +21,8 @@ description:         Please see the README on GitHub at <https://github.com/sert
 
 ghc-options:
 - -Wall
+- -Werror=inaccessible-code
+- -Werror=incomplete-patterns
 
 dependencies:
 - base >= 4.8 && < 5
