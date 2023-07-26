@@ -118,21 +118,13 @@ type FunType ty = FType ty 'Resolved
 class Heq a b where
   heq :: a -> b -> Bool
 
-data Stage = Frontend | Resolved | Core
+data Resolution = Unresolved | Resolved
 
-type In :: Stage -> [Stage] -> Stage
-type family In x xs where
-  Frontend `In` '[]       = Core
-  Core     `In` '[]       = Frontend
-  Resolved `In` '[]       = Core
-  x        `In` (x ': ys) = x
-  x        `In` (y ': ys) = x `In` ys
-
-type OhuaType :: Type -> Stage -> Type
+type OhuaType :: Type -> Resolution -> Type
 data OhuaType ty s where
-  HType :: HostType ty -> Maybe (InternalType ty s) -> OhuaType ty (s `In` '[ Frontend, Resolved, Core])
-  IType :: InternalType ty s -> OhuaType ty (s `In` '[ Core ])
-  TStar  :: OhuaType ty (s `In` '[ Frontend ])
+  HType :: HostType ty -> Maybe (InternalType ty s) -> OhuaType ty s
+  IType :: InternalType ty Resolved                 -> OhuaType ty Resolved
+  TStar ::                                             OhuaType ty Unresolved
 
 deriving instance Show (OhuaType ty s)
 instance Heq (OhuaType ty s1) (OhuaType ty s2) where
@@ -141,7 +133,7 @@ instance Heq (OhuaType ty s1) (OhuaType ty s2) where
   heq TStar TStar = True
   heq _ _ = False
 
-type InternalType :: Type -> Stage -> Type
+type InternalType :: Type -> Resolution -> Type
 data InternalType ty s where
   TypeNat :: InternalType ty s
   TypeBool :: InternalType ty s
@@ -164,6 +156,7 @@ instance Heq (InternalType ty s1) (InternalType ty s2) where
   heq (TypeFunction ty1) (TypeFunction ty2) = heq ty1 ty2
   heq _ _ = False
 
+type FunType :: Type -> Resolution -> Type
 data FunType ty s where
      FunType :: NonEmpty (OhuaType ty s) -> OhuaType ty s -> FunType ty s
      -- FIXME This is not properly defined.
@@ -261,7 +254,7 @@ instance Hashable (FunType ty)
 --------------------------------------------------------------
 
 -- | A typed Binding
-data TypedBinding ty = TBind Binding (OhuaType ty 'Core) deriving (Generic)
+data TypedBinding ty = TBind Binding (OhuaType ty Resolved) deriving (Generic)
 
 deriving instance Show (TypedBinding ty)
 
@@ -316,6 +309,7 @@ setFunType intys outty (FunType _i _out) = FunType intys outty
 setFunType intys outty (STFunType s _ins _out) = STFunType s intys outty 
 -}
 
+type FunRef :: Type -> Resolution -> Type
 data FunRef ty s where
     FunRef :: QualifiedBinding -> Maybe FnId -> FunType ty s -> FunRef ty s
 

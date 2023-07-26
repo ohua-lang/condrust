@@ -6,7 +6,7 @@ module Ohua.Types.Common.Literal where
 
 import Universum
 import Ohua.Types.Bindings (Binding)
-import Ohua.Types.Unresolved.Reference ( FunRef(..), OhuaType(..), Heq(..), InternalType(..), Stage ( Frontend, Core ) )
+import Ohua.Types.Unresolved.Reference ( FunRef(..), OhuaType(..), Heq(..), InternalType(..), Resolution(..) )
 
 -- | Literals of kinds we expect any host language to support
 data Lit ty
@@ -16,8 +16,8 @@ data Lit ty
     | StringLit String
     -- | forall lit. backend -> Hostlit lit (VarType ty) TODO we would need to provide a closure to make sure that the
     --                                                        type stays usable in the backend.
-    | EnvRefLit Binding (OhuaType ty Frontend) -- ^ a variable bound by the outermost lambda that we compile
-    | FunRefLit (FunRef ty Frontend) -- ^ Reference to an external function
+    | EnvRefLit Binding (OhuaType ty Unresolved) -- ^ a variable bound by the outermost lambda that we compile
+    | FunRefLit (FunRef ty Unresolved) -- ^ Reference to an external function
     deriving (Show, Generic)
 
 instance Eq (Lit ty) where

@@ -1,4 +1,4 @@
-resolver: lts-21.4 # lts-14.22 # ghc-8.6.5
+resolver: lts-21.4
 
 packages:
 - .

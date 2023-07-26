@@ -10,6 +10,8 @@ module Ohua.Types.Common.Types
     , InternalType(..)
 --    , controlSignalType
     , FunType(..)
+    , Resolution(..)
+    , Heq(..)
 --    , getReturnType
 --    , setReturnType
 --    , setFunType
