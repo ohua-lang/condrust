@@ -10,11 +10,11 @@ import Data.HashSet as HS
 -- This module needs to hold all the code for detecting and validating
 -- the tail recursion that we currently support. (see ohua-core/#10)
 
-isRec :: Binding -> Expr ty -> Bool
+isRec :: Binding -> ResolvedExpr ty -> Bool
 isRec currentFun expr = execState (contextedTraversal check HS.empty expr) False
   where
     check _ v@(VarE bdg ty) = modify (\c -> c || bdg == currentFun) >> return v
     check _ e = return e
 
-isRecAlgo :: Algo (Expr ty) a -> Bool
+isRecAlgo :: Algo (ResolvedExpr ty) a -> Bool
 isRecAlgo (Algo aName code _ ) = isRec aName code

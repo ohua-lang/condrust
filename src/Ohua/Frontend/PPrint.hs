@@ -28,7 +28,7 @@ instance Pretty (Pat ty res) where
     pretty (TupP pats) = align $ tupled $ map pretty (NE.toList pats)
 
 instance Pretty (Expr ty res) where
-    pretty (VarE bnd ty) = pretty bnd
+    pretty (VarE bnd _ty) = pretty bnd
     pretty (LitE l) = pretty l
     pretty (LetE p app cont) =
         sep
@@ -61,6 +61,12 @@ instance Pretty (Expr ty res) where
                         (sep [ pretty b
                              , pretty d
                              ])]
+    pretty (WhileE e1 e2) = sep ["while" <+>
+                        align 
+                        (sep [ pretty e1 <> ":"
+                             , pretty e2
+                             ])]
     pretty (BindE s f xs) = hsep [brackets $ pretty s, pretty f, align (tupled $ NE.toList $ NE.map pretty xs)]
+    pretty (StateFunE me qb args) = hsep [brackets $ pretty qb, pretty me, align (tupled $ NE.toList $ NE.map pretty args)]
     pretty (StmtE e c) = vsep $ hsep [pretty e, ";"] : [pretty c]
     pretty (TupE (e:|es)) = hsep [align $ tupled $ map pretty (e:es)]

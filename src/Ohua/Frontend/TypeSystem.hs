@@ -31,7 +31,7 @@ import Ohua.Frontend.Lang
     , freeVars
     )
   
-import Ohua.Frontend.SymbolResolution (SymResError(..))
+import Ohua.Frontend.SymbolResolution (SymResError(..), Delta(..), Gamma(..))
 {-
 import qualified Ohua.Frontend.WellTyped as WT
     ( Expr(..)
@@ -65,9 +65,6 @@ Environments:
 Gamma ... associates local variables to a type
 Delta ... associates function literals to a type
 -}
-
-type Gamma varTy ty = HM.HashMap Binding (varTy ty)
-type Delta ty = HM.HashMap QualifiedBinding (Res.FunType ty)
 
 type Delta' ty = ([Import], Delta ty)
 
