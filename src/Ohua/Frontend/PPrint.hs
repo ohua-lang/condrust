@@ -67,6 +67,6 @@ instance Pretty (Expr ty res) where
                              , pretty e2
                              ])]
     pretty (BindE s f xs) = hsep [brackets $ pretty s, pretty f, align (tupled $ NE.toList $ NE.map pretty xs)]
-    pretty (StateFunE me qb args) = hsep [brackets $ pretty qb, pretty me, align (tupled $ NE.toList $ NE.map pretty args)]
+    pretty (StateFunE s qb mCall) = pretty s <+> "." <+> pretty mCall
     pretty (StmtE e c) = vsep $ hsep [pretty e, ";"] : [pretty c]
     pretty (TupE (e:|es)) = hsep [align $ tupled $ map pretty (e:es)]

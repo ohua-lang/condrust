@@ -14,21 +14,13 @@ module Ohua.Frontend.Lang
     , ResolvedPat
     , UnresolvedType
     , ResolvedType
---    , exprType
---    , returnType
---    , funType
     , patType
     , patBnd
     , patTyBnds
---    , setPatType
---    , setExprFunType
---    , PatF(..)
---    , ExprF(..)
---    , patterns
---    , applyToFinal
     , unitArgs
     , unitParams
     , freeVars
+    , preWalkE
     ) where
 
 import Ohua.UResPrelude
@@ -52,9 +44,9 @@ instance Heq (Pat ty res1) (Pat ty res2) where
 
 -- FIXME: There's a problem wtih TupleTy .. on the hand it should be an internal Type i.e. Resolved, on the other hand we use it to represent 
 --        tuples of HostTypes and Unresoved  :-/ .. We might need another representation for Tuples of host types
-patType :: Pat ty 'Resolved -> OhuaType ty 'Resolved
+patType :: Pat ty res -> OhuaType ty res
 patType (VarP _ ty) = ty
-patType (TupP ps) = IType $ TupleTy (map patType ps)
+patType (TupP ps) = TType (map patType ps)
 
 patBnd :: Pat ty res -> NonEmpty Binding
 patBnd = \case
@@ -69,19 +61,79 @@ patTyBnds = \case
 type Expr :: Type -> Resolution -> Type
 data Expr ty res where
   VarE      :: Binding -> OhuaType ty res                                              -> Expr ty res
-  LitE      :: Lit ty reservedNames                                                    -> Expr ty res
+  LitE      :: Lit ty res                                                              -> Expr ty res
   LetE      :: Pat ty res -> Expr ty res -> Expr ty res                                -> Expr ty res
   AppE      :: Expr ty res -> NonEmpty (Expr ty res)                                   -> Expr ty res
   LamE      :: NonEmpty (Pat ty res) -> Expr ty res                                    -> Expr ty res
   IfE       :: Expr ty res -> Expr ty res -> Expr ty res                               -> Expr ty res
   WhileE    :: Expr ty res -> Expr ty res                                              -> Expr ty res
   MapE      :: Expr ty res -> Expr ty res                                              -> Expr ty res
+  -- Before BindE consisted of a state expr (a variable) and a method call (AppE)
+  -- Now we don't have type annotations at binding sites, so the state can become a Binding in the 'Uresovled'
+  -- version
+  -- Also, to allow the typecheck to check that the arg types of method include the state, it makes sense to not nest them 
+  -- in an AppE expression but keep them directly in the BindE
   BindE     :: Expr ty Unresolved -> Binding          -> NonEmpty (Expr ty Unresolved) -> Expr ty Unresolved
-  StateFunE :: Expr ty Resolved   -> QualifiedBinding -> NonEmpty (Expr ty Resolved)   -> Expr ty Resolved
+  -- However I don't see why in StateFunE we should 
+  --     a) keep the QualifiedBinding instead of the VarE the state should be at this point -> maybe to enforce it ... well ok then 
+  --     b) keep the args in the StateFunE Expression instead of nesting it in an AppE again
+  -- StateFunE :: Expr ty Resolved   -> QualifiedBinding -> NonEmpty (Expr ty Resolved)   -> Expr ty Resolved
+  --           State VarE             fullName           method call
+  StateFunE :: Expr ty Resolved   -> QualifiedBinding -> Expr ty Resolved              -> Expr ty Resolved
   StmtE     :: Expr ty res -> Expr ty res                                              -> Expr ty res
   TupE      :: NonEmpty (Expr ty res)                                                  -> Expr ty res
 
+-- ToDo: Make Expr a functor without generics 
+preWalkE :: (Expr ty Unresolved -> Expr ty Unresolved) -> Expr ty Unresolved -> Expr ty Unresolved
+preWalkE f e = case e of 
+      VarE _ _ -> f e
+      LitE _ -> f e 
+      LetE p e1 e2 -> 
+          let e1' = preWalkE  f e1
+              e2' = preWalkE  f e2
+          in f (LetE p e1' e2')
+      AppE fun args -> 
+          let fun' = preWalkE f fun
+              args' = map (preWalkE f) args
+          in f (AppE fun' args')
+      LamE pats body -> 
+          let body' = preWalkE f body
+          in f (LamE pats body')
+      IfE c te fe -> 
+          let c' = preWalkE f c
+              te' = preWalkE f te 
+              fe' = preWalkE f fe
+          in f (IfE c' te' fe')
+      WhileE c body -> 
+          let c' = preWalkE f c
+              body' = preWalkE f body
+          in f (WhileE c' body')
+      MapE e1 e2 -> 
+          let e1' = preWalkE f e1
+              e2' = preWalkE f e2
+          in  f (MapE e1' e2')
+      BindE m sB args -> 
+          let m' = preWalkE f m
+              args' = map (preWalkE f) args
+          in f (BindE m' sB args')
+      {-StateFunE s sb m -> 
+          let m' = preWalkE f m
+              s' = preWalkE f s
+          in f (StateFunE s' sb m')-}
+      StmtE e1 e2 -> 
+          let e1' = preWalkE f e1
+              e2' = preWalkE f e2
+          in  f (StmtE e1' e2')
+      TupE es -> 
+          let es' = map (preWalkE f) es
+          in  f (TupE es')
+           
+      
+
+
+
 deriving instance Show (Expr ty res)
+
 
 type UnresolvedExpr ty = Expr ty Unresolved
 type ResolvedExpr ty = Expr ty Resolved
@@ -115,6 +167,7 @@ freeVars = go HS.empty
     go  ctxt (WhileE e1 e2) = go ctxt e1 ++ go ctxt e2
     go  ctxt (MapE e1 e2) = go ctxt e1 ++ go ctxt e2
     go  ctxt (BindE s _ xs) = go ctxt s ++ foldl (\vs e -> vs ++ go ctxt e) [] xs
-    go  ctxt (StateFunE s _ xs) = go ctxt s ++ foldl (\vs e -> vs ++ go ctxt e) [] xs
+    -- go  ctxt (StateFunE s _ xs) = go ctxt s ++ foldl (\vs e -> vs ++ go ctxt e) [] xs
+    go  ctxt (StateFunE s _ method ) = go ctxt s ++ go ctxt method
     go  ctxt (StmtE e1 e2) = go ctxt e1 ++ go ctxt e2
     go  ctxt (TupE es) = foldl (\vs e -> vs ++ go ctxt e) [] es
