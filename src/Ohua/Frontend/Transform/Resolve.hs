@@ -20,7 +20,7 @@ module Ohua.Frontend.Transform.Resolve where
 
 import Ohua.UResPrelude
 
-import Ohua.Frontend.Lang as FrLang (Expr(LitE, LetE, VarE, LamE), Pat(VarP), ExprF(LitEF))
+import Ohua.Frontend.Lang as FrLang (Expr(LitE, LetE, VarE, LamE), Pat(VarP), preWalkE)
 import Ohua.Frontend.Types
 import Ohua.Frontend.PPrint ()
 
@@ -41,12 +41,12 @@ import qualified Data.Text as T
 
 -- QUESTION :  Am I getting this right?
 resolveNS :: forall ty m anno.(MonadError Error m)
-          => (Namespace (Expr ty)  anno, NamespaceRegistry ty)
-          -> m (Namespace (Expr ty)  anno)
+          => (Namespace (Expr ty Unresolved)  anno, NamespaceRegistry ty)
+          -> m (Namespace (Expr ty Unresolved)  anno)
 resolveNS (ns, registry) =
     return $ over algos (map (\algo -> over algoCode (work $ view algoName algo) algo)) ns
     where
-        work :: Binding -> Expr ty -> Expr ty
+        work :: Binding -> Expr ty Unresolved -> Expr ty Unresolved
         work algoNm algoExpr =
             let
                 calledFunctions = collectAllFunctionRefs algoNm registry algoExpr
@@ -54,7 +54,7 @@ resolveNS (ns, registry) =
                 algoExpr' = resolveExpr expr
             in algoExpr'
 
-        collectAllFunctionRefs :: Binding -> NamespaceRegistry ty -> Expr ty -> HS.HashSet (QualifiedBinding, FunType ty)
+        collectAllFunctionRefs :: Binding -> NamespaceRegistry ty -> Expr ty Unresolved -> HS.HashSet (QualifiedBinding, FunType ty Unresolved)
         collectAllFunctionRefs name available =
             HS.unions .
             HS.toList .
@@ -65,7 +65,7 @@ resolveNS (ns, registry) =
                     $ HM.lookup qb available) .
             HS.filter (\(qb, ty )-> qb /= QualifiedBinding (makeThrow []) name) .  collectFunctionRefs
 
-        collectFunctionRefs :: Expr ty -> HS.HashSet (QualifiedBinding, FunType ty)
+        collectFunctionRefs :: Expr ty Unresolved -> HS.HashSet (QualifiedBinding, FunType ty Unresolved)
         collectFunctionRefs e =
             -- FIXME we need to resolve this reference here against the namespace and the registry (for Globs).
             HS.fromList [(r, fTy) | LitE (FunRefLit (FunRef r _ fTy)) <- universe e]
@@ -74,21 +74,24 @@ resolveNS (ns, registry) =
         pathToVar (QualifiedBinding ns bnd) =
             (makeThrow . T.intercalate ".") $ map unwrap $ unwrap ns ++ [bnd]
 
-        addExpr :: (QualifiedBinding, FunType ty) -> Expr ty -> Expr ty
+        addExpr :: (QualifiedBinding, FunType ty Unresolved) -> Expr ty Unresolved -> Expr ty Unresolved
         -- TODO This is an assumption that fails in Ohua.Compile.Compiler.prepareRootAlgoVars
         --      We should enforce this via the type system rather than a runtime error!
         addExpr (otherAlgo, fTy) (LamE vars body) = LamE vars $ addExpr  (otherAlgo, fTy) body
         addExpr (otherAlgo, fTy) e =
             -- (trace $"Adding Expression. Assign bind : "<> show bnd <> "\n to expression: "<> quickRender e)
             LetE
-                (VarP (pathToVar otherAlgo) (TypeFunction fTy))
+                (VarP (pathToVar otherAlgo) (FType fTy))
                 (fromMaybe
                     (error "impossible") -- the path was originally retrieved from this list
                     $ HM.lookup otherAlgo registry)
                 e
 
         -- turns the function literal into a simple (var) binding
-        resolveExpr :: Expr ty -> Expr ty
-        resolveExpr = cata $ \case
-            LitEF (FunRefLit (FunRef fName _id funTy)) | HM.member fName registry -> VarE (pathToVar fName) (TypeFunction funTy)
-            e -> embed e
+        replaceFunLit :: Expr ty Unresolved -> Expr ty Unresolved
+        replaceFunLit = \case
+            LitE (FunRefLit (FunRef fName _id funTy)) | HM.member fName registry -> VarE (pathToVar fName) (FType funTy)
+            e -> e
+
+        resolveExpr :: Expr ty Unresolved -> Expr ty Unresolved
+        resolveExpr = preWalkE replaceFunLit
