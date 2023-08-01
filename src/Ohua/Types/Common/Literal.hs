@@ -9,18 +9,19 @@ import Ohua.Types.Bindings (Binding)
 import Ohua.Types.Unresolved.Reference ( FunRef(..), OhuaType(..), Heq(..), InternalType(..), Resolution(..) )
 
 -- | Literals of kinds we expect any host language to support
-data Lit ty
+-- FIXME: Do we need resolved and unresolved literals?
+data Lit ty res
     = NumericLit !Integer -- ^ an integer literal
     | BoolLit Bool -- ^ a boolean literal
     | UnitLit -- ^ aka @()@
     | StringLit String
     -- | forall lit. backend -> Hostlit lit (VarType ty) TODO we would need to provide a closure to make sure that the
     --                                                        type stays usable in the backend.
-    | EnvRefLit Binding (OhuaType ty Unresolved) -- ^ a variable bound by the outermost lambda that we compile
-    | FunRefLit (FunRef ty Unresolved) -- ^ Reference to an external function
+    | EnvRefLit Binding (OhuaType ty res) -- ^ a variable bound by the outermost lambda that we compile
+    | FunRefLit (FunRef ty res) -- ^ Reference to an external function
     deriving (Show, Generic)
 
-instance Eq (Lit ty) where
+instance Eq (Lit ty res) where
   (NumericLit i1) == (NumericLit i2) = i1 == i2
   (BoolLit b1) == (BoolLit b2) = b1 == b2
   UnitLit == UnitLit = True
