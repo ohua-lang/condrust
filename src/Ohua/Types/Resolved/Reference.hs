@@ -7,18 +7,21 @@ where
 import Universum
 
 import Ohua.Types.Common.Reference
+import qualified Data.List.NonEmpty as NE
 
 -- f :: OhuaType ty Unresolved -> Bool
 -- f t = case t of
 --         (HType _ _) -> True
 --         -- Error/Warning: non-exhaustive pattern match ... TStar
 
-f' :: OhuaType ty Unresolved -> Bool
-f' t = case t of
+isUnresolved :: OhuaType ty Unresolved -> Bool
+isUnresolved t = case t of
          (HType _ _) -> True
+         (TType tys) -> any isUnresolved tys
+         (FType (FunType ins out)) -> any isUnresolved (out NE.<| ins)
+         (FType (STFunType state ins out)) -> any isUnresolved (state NE.<| (out :| ins ))
          --(IType _) -> False -- Error/Warning: inaccesible code
          TStar -> True
-
 {-
 import Universum hiding (Nat, toList)
 

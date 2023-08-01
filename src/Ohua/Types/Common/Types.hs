@@ -2,16 +2,16 @@ module Ohua.Types.Common.Types
     ( FnId
     , Binding
     , TypedBinding(..)
---    , asBnd, asType
     , NSRef(..)
     , QualifiedBinding(..)
     , HostType(..)
     , OhuaType(..)
     , InternalType(..)
---    , controlSignalType
     , FunType(..)
     , Resolution(..)
     , Heq(..)
+    , resToUnres
+    , unresToRes
 --    , getReturnType
 --    , setReturnType
 --    , setFunType

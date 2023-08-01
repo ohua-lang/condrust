@@ -48,7 +48,6 @@ import Ohua.Types.Error
 import Ohua.Types.Make
 import Ohua.Types.Classes
 import Ohua.Types.Unit (Unit)
--- import Ohua.Types.Vector (Nat(..))
 import Ohua.Types.Bindings
 import Ohua.Types.HostTypes
 
@@ -123,8 +122,20 @@ data Resolution = Unresolved | Resolved
 type OhuaType :: Type -> Resolution -> Type
 data OhuaType ty s where
   HType :: HostType ty -> Maybe (InternalType ty s) -> OhuaType ty s
+  -- TUple and Function types can capture both resolved an unresolved host types
+  -- ToDo: Check if we need to introduce another layer of typing 
+  TType :: NonEmpty (OhuaType ty s)                 -> OhuaType ty s
+  FType :: FunType ty s                             -> OhuaType ty s
   IType :: InternalType ty Resolved                 -> OhuaType ty Resolved
   TStar ::                                             OhuaType ty Unresolved
+
+-- We need hashes for HM 
+instance Hashable (OhuaType ty res) where
+  hashWithSalt s oty = s
+
+-- We need that for hashing
+instance Eq (OhuaType ty res) where
+  (==) = heq 
 
 deriving instance Show (OhuaType ty s)
 instance Heq (OhuaType ty s1) (OhuaType ty s2) where
@@ -140,8 +151,16 @@ data InternalType ty s where
   TypeUnit :: InternalType ty s
   TypeString :: InternalType ty s
   TypeList :: OhuaType ty s -> InternalType ty s
-  TupleTy :: NonEmpty (OhuaType ty s) -> InternalType ty s
-  TypeFunction :: FunType ty s -> InternalType ty s
+  -- TupleTy :: NonEmpty (OhuaType ty s) -> InternalType ty s
+  -- TypeFunction :: FunType ty s -> InternalType ty s
+
+-- We need hashes for HM 
+instance Hashable (InternalType ty res) where
+  hashWithSalt s ity = s
+
+-- We need that for hashing
+instance Eq (InternalType ty res) where
+  (==) = heq 
 
 deriving instance Show (InternalType ty s)
 instance Heq (InternalType ty s1) (InternalType ty s2) where
@@ -150,10 +169,10 @@ instance Heq (InternalType ty s1) (InternalType ty s2) where
   heq TypeUnit TypeUnit = True
   heq TypeString TypeString = True
   heq (TypeList ty1) (TypeList ty2) = heq ty1 ty2
-  heq (TupleTy tys1) (TupleTy tys2) =
-    NE.length tys1 == NE.length tys2 &&
-    (and $ map (uncurry heq) $ NE.zip tys1 tys2)
-  heq (TypeFunction ty1) (TypeFunction ty2) = heq ty1 ty2
+  --heq (TupleTy tys1) (TupleTy tys2) =
+    --NE.length tys1 == NE.length tys2 &&
+    --all (uncurry heq) (NE.zip tys1 tys2)
+  -- heq (TypeFunction ty1) (TypeFunction ty2) = heq ty1 ty2
   heq _ _ = False
 
 type FunType :: Type -> Resolution -> Type
@@ -167,87 +186,51 @@ data FunType ty s where
      STFunType :: OhuaType ty s -> [OhuaType ty s] -> OhuaType ty s -> FunType ty s
 
 deriving instance Show (FunType ty s)
+
+-- We need hashes for HM 
+instance Hashable (FunType ty res) where
+    hashWithSalt s ft = s 
+
+-- We need that for hashing
+instance Eq (FunType ty res) where
+  (==) = heq 
+
+
 instance Heq (FunType ty s1) (FunType ty s2) where
   heq (FunType args1 res1) (FunType args2 res2) =
     NE.length args1 == NE.length args2 &&
-    (and $ map (uncurry heq) $ NE.zip args1 args2) &&
+    all (uncurry heq) (NE.zip args1 args2) &&
     heq res1 res2
   heq (STFunType s1 args1 res1) (STFunType s2 args2 res2) =
     heq s1 s2 &&
     length args1 == length args2 &&
-    (and $ map (uncurry heq) $ zip args1 args2) &&
+    all (uncurry heq) (zip args1 args2) &&
     heq res1 res2
   heq _ _ = False
 
-{-
-data VarType ty
-    = TypeNat (HostType ty)
-    | TypeBool (HostType ty)
-    | TypeUnit (HostType ty)
-    | TypeString (HostType ty)
-    | TypeList (VarType ty) (HostType ty
-    | Type (HostType ty)
-    | TupleTy (NonEmpty (VarType ty)) (HostType ty)
-    | TypeFunction (FunType ty) (HostType ty)
-    | TypeVar
-    deriving (Lift, Generic)
 
-data FunType ty where
-     -- arguments types -> return type -> function type
-     FunType :: NonEmpty (VarType ty) -> VarType ty -> FunType ty
-     -- state/object type -> return type -> function type
-     -- FIXME This is not properly defined.
-     -- STFunType s [] t
-     -- versus
-     -- STFunType s [TypeUnit] t
-     -- Yet formally, STFunType s [] t :: S -> T and that is ok.
-     STFunType :: VarType ty -> [VarType ty] -> VarType ty -> FunType ty
-     deriving (Lift)
+resToUnres :: OhuaType ty Resolved -> Maybe (OhuaType ty Unresolved)
+-- HTpye gets it's resoltuion from Internal Type, which can only be resolved at this point so I can't pass it back
+resToUnres (HType hty miTy)   = Just $ HType hty Nothing
+resToUnres (TType tys) = case mapM resToUnres tys of
+      Just rTys -> Just $ TType rTys
+      Nothing -> Nothing
+-- ToDO: Can/Should we unreoslve function types?
+resToUnres (FType fTy)  = Nothing
+resToUnres (IType _ )         = Nothing
 
--- ToDo: This is just a helper until we get types of control nodes right
-controlSignalType :: VarType ty
-controlSignalType = TupleTy $ TypeBool :| [TypeNat]
--}
-
-{-
-instance EqNoType (VarType ty) where
-    TypeNat ~= TypeNat = True
-    TypeBool ~= TypeBool = True
-    TypeUnit ~= TypeUnit = True
-    TypeString ~= TypeString = True
-    Type (HostType ty1) ~= Type (HostType ty2) = ty1 == ty2
-    (TupleTy ts) ~= (TupleTy ts') = ts == ts' -- turns into ~=, see instance below
-    (TypeList inner1) ~= (TypeList inner2) = inner1 == inner2
-    (TypeFunction fty1) ~= (TypeFunction fty2) = fty1 == fty2
-    _ ~= _ = False
-
-instance Eq (VarType ty) where
-    (==) = (~=)
-
-instance ShowNoType (VarType ty) where
-    showNoType TypeNat = "INat"
-    showNoType TypeBool = "IBool"
-    showNoType TypeUnit = "IUnit"
-    -- Is it internal though?
-    showNoType TypeString = "IString"
-    showNoType (TypeList ts) = "IList [" <> showNoType ts <> "]"
-    showNoType (Type (HostType ty)) = show (pretty ty)
-    showNoType (TupleTy ts) = "(" <>  foldl (\b a -> show a <> ", " <> b) ")" ts
-    showNoType (TypeFunction fTy) = "Fun::" <> show fTy
-    showNoType TypeVar = "TypeVar"
+unresToRes :: OhuaType ty Unresolved -> Maybe (OhuaType ty Resolved)
+-- HTpye gets it's resolution from Internal Type, which can only be resolved at this point so I can't pass it back
+unresToRes (HType hty _miTy)   = Just $ HType hty Nothing
+unresToRes (TType tys) = case mapM unresToRes tys of
+      Just rTys -> Just $ TType rTys
+      Nothing -> Nothing
+-- ToDO: Can/Should we unreoslve function types?
+unresToRes (FType fty) = Nothing
+unresToRes TStar              = Nothing 
 
 
-instance Show (VarType ty) where
-    show = T.unpack . showNoType
 
-instance Hashable (VarType ty) where
-    hashWithSalt s _ = s
-
-deriving instance Show (FunType ty)
-deriving instance Eq (FunType ty)
-deriving instance Generic (FunType ty)
-instance Hashable (FunType ty)
--}
 
 --------------------------------------------------------------
 --               Representation of Variables
@@ -259,7 +242,7 @@ data TypedBinding ty = TBind Binding (OhuaType ty Resolved) deriving (Generic)
 deriving instance Show (TypedBinding ty)
 
 instance Hashable (TypedBinding ty) where
-    hashWithSalt s (TBind b ty) = hashWithSalt s b
+    hashWithSalt s (TBind b _ty) = hashWithSalt s b
 
 instance Ord (TypedBinding ty) where
     (TBind b1 _ty1) <= (TBind b2 _ty2) = b1 <= b2
@@ -270,14 +253,6 @@ instance Ord (TypedBinding ty) where
 -- should only check if something with the same name, not necesarily the same type annotation is used.
 instance Eq (TypedBinding ty) where
     (TBind b1 _ty1) == (TBind b2 _ty2) = b1 == b2
-
-{-
-asBnd :: TypedBinding ty -> Binding
-asBnd (TBind bnd _ty) = bnd
-
-asType :: TypedBinding ty -> VarType ty
-asType (TBind _bnd ty) = ty
--}
 
 --------------------------------------------------------------
 --             Representation of Functions
@@ -322,6 +297,4 @@ data FunRef ty s where
 
 deriving instance Show (FunRef ty s)
 instance Eq (FunRef ty s) where
-  (FunRef qb1 _ ty1) == (FunRef qb2 _ ty2) = qb1 == qb2 -- && heq ty1 ty2
--- deriving instance Generic (FunRef ty s)
--- instance Hashable (FunRef ty s)
+  (FunRef qb1 _ ty1) == (FunRef qb2 _ ty2) = qb1 == qb2 && heq ty1 ty2
