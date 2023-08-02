@@ -6,7 +6,7 @@ import Ohua.Frontend.Lang
 
 
 
-noFinalLiterals :: (ErrAndLogM m) => ResolvedExpr ty -> m ()
+noFinalLiterals :: (ErrAndLogM m) => UnresolvedExpr ty -> m ()
 noFinalLiterals (VarE _ _) = return ()
 noFinalLiterals (LitE _) = return ()
 noFinalLiterals (LetE _p _f l@(LitE FunRefLit{} )) =
@@ -18,8 +18,9 @@ noFinalLiterals (LamE _ e) = noFinalLiterals e
 noFinalLiterals (IfE e1 e2 e3) = noFinalLiterals e1 >> noFinalLiterals e2 >> noFinalLiterals e3
 noFinalLiterals (WhileE e1 e2) = noFinalLiterals e1 >> noFinalLiterals e2
 noFinalLiterals (MapE e1 e2) = noFinalLiterals e1 >> noFinalLiterals e2
+noFinalLiterals (BindE m s args) = mapM_ noFinalLiterals (m: toList args) 
 -- noFinalLiterals (StateFunE e1 _state e2) = noFinalLiterals e1 >> concatMapM noFinalLiterals e2
-noFinalLiterals (StateFunE state _stBnd mCall ) = noFinalLiterals state >> noFinalLiterals mCall
+-- noFinalLiterals (StateFunE state _stBnd mCall ) = noFinalLiterals state >> noFinalLiterals mCall
 noFinalLiterals (StmtE f l@LitE{}) = throwError $ "The literal [" <> show l <> "] does not depend on a previously computed value. In the host program this meant that it depends on the previous statements. This compiler does not yet support creating this dependency implicity. Hence, we kindly ask you to add it explicitly to your code."
 noFinalLiterals (StmtE f cont) = noFinalLiterals f >> noFinalLiterals cont
 noFinalLiterals (TupE es) = mapM_ noFinalLiterals es

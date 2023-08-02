@@ -13,7 +13,7 @@ import qualified Data.Traversable as TR
 
 type Ctxt = HS.HashSet Binding
 
-contextedTraversal :: Monad m => (Ctxt -> ResolvedExpr ty -> m (ResolvedExpr ty)) -> Ctxt -> ResolvedExpr ty -> m (ResolvedExpr ty )
+contextedTraversal :: Monad m => (Ctxt -> UnresolvedExpr ty -> m (UnresolvedExpr ty)) -> Ctxt -> UnresolvedExpr ty -> m (UnresolvedExpr ty )
 contextedTraversal f = go
     where
         --  see example 5 in
@@ -38,8 +38,9 @@ contextedTraversal f = go
         go ctxt (IfE c et ef) = IfE <$> go ctxt c <*> go ctxt et <*> go ctxt ef
         go ctxt (WhileE c body) = WhileE <$> go ctxt c <*> go ctxt body
         go ctxt (MapE fe gen) = MapE <$> go ctxt fe <*> go ctxt gen 
+        go ctxt (BindE m s args) = flip BindE s <$> go ctxt m <*> TR.mapM (go ctxt) args  
         -- go ctxt (StateFunE fe qB args) = flip StateFunE qB <$> go ctxt fe <*> TR.mapM (go ctxt) args
-        go ctxt (StateFunE s qB mCall) = flip StateFunE qB <$> go ctxt s <*> go ctxt mCall
+        -- go ctxt (StateFunE s qB mCall) = flip StateFunE qB <$> go ctxt s <*> go ctxt mCall
         go ctxt (StmtE e1 e2) = StmtE <$> go ctxt e1 <*> go ctxt e2
         go ctxt (TupE es) = TupE <$> TR.mapM (go ctxt) es
 
