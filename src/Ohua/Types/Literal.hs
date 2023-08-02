@@ -20,7 +20,7 @@ data Lit ty
 instance Hashable (Lit ty)
 
 getLitType :: Lit ty -> UnresolvedVarType ty
-getLitType (NumericLit _) = UTypeNat
+getLitType (NumericLit _) = UIType TypeNat
 getLitType (BoolLit _)    = UTypeBool
 getLitType UnitLit        = UTypeUnit
 getLitType (StringLit _)  = UTypeString

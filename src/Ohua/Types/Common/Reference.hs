@@ -54,7 +54,7 @@ import Ohua.Types.HostTypes
 import qualified Text.Show
 
 
--- | Internal type representations. While Type and TupleTy capture types from the
+-- | Internal type representations. While Type and TType capture types from the
 --   host language, the literal types TypeNat and TypeBool etc. are used internaly to construct nodes
 --   They must be mapped to the according types of the host language in the backend.
 
@@ -97,7 +97,7 @@ data InternalType ty s where
   TypeUnit :: InternalType ty s
   TypeString :: InternalType ty s
   TypeList :: OhuaType ty s -> InternalType ty s
-  -- TupleTy :: NonEmpty (OhuaType ty s) -> InternalType ty s
+  -- TType :: NonEmpty (OhuaType ty s) -> InternalType ty s
   -- TypeFunction :: FunType ty s -> InternalType ty s
 
 -- We need hashes for HM 
@@ -115,7 +115,7 @@ instance Heq (InternalType ty s1) (InternalType ty s2) where
   heq TypeUnit TypeUnit = True
   heq TypeString TypeString = True
   heq (TypeList ty1) (TypeList ty2) = heq ty1 ty2
-  --heq (TupleTy tys1) (TupleTy tys2) =
+  --heq (TType tys1) (TType tys2) =
     --NE.length tys1 == NE.length tys2 &&
     --all (uncurry heq) (NE.zip tys1 tys2)
   -- heq (TypeFunction ty1) (TypeFunction ty2) = heq ty1 ty2
@@ -193,6 +193,12 @@ isUnresolved t = case t of
 -- | A typed Binding
 data TypedBinding ty = TBind Binding (OhuaType ty Resolved) deriving (Generic)
 
+asType:: TypedBinding ty -> OhuaType ty Resolved
+asType (TBind _b ty) = ty
+
+asBnd:: TypedBinding ty -> Binding
+asBnd (TBind b _ty) = b
+
 deriving instance Show (TypedBinding ty)
 
 instance Hashable (TypedBinding ty) where
@@ -242,8 +248,8 @@ type FunRef :: Type -> Resolution -> Type
 data FunRef ty s where
     FunRef :: QualifiedBinding -> Maybe FnId -> FunType ty s -> FunRef ty s
 
--- getRefType (FunRef _q _i funTy) = funTy
--- getRefReturnType (FunRef _q _i funTy) = getReturnType funTy
+getRefType (FunRef _q _i funTy) = funTy
+--getRefReturnType (FunRef _q _i funTy) = getReturnType funTy
 
 --------------------------------------------------------------
 --                           Instances
@@ -252,3 +258,7 @@ data FunRef ty s where
 deriving instance Show (FunRef ty s)
 instance Eq (FunRef ty s) where
   (FunRef qb1 _ ty1) == (FunRef qb2 _ ty2) = qb1 == qb2 && heq ty1 ty2
+
+-- Shortcut to generate controle node types
+controlSignalType :: OhuaType ty Resolved
+controlSignalType = TType $ IType TypeBool:| [IType TypeNat]

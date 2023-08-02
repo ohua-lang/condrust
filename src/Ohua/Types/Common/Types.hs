@@ -2,6 +2,9 @@ module Ohua.Types.Common.Types
     ( FnId
     , Binding
     , TypedBinding(..)
+    , asType
+    , asBnd
+    , controlSignalType
     , NSRef(..)
     , QualifiedBinding(..)
     , HostType(..)
@@ -19,10 +22,10 @@ module Ohua.Types.Common.Types
     , toFilePath
     , symbolFromString
     , FunRef(..)
---    , getRefType
+    , getRefType
 --    , getRefReturnType
     , Lit(..)
---    , getLitType
+    , getLitType
     , Unit(..)
     , module Ohua.Types.Computation
     , module Ohua.Types.Classes

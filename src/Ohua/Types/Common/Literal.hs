@@ -6,7 +6,7 @@ module Ohua.Types.Common.Literal where
 
 import Universum
 import Ohua.Types.Bindings (Binding)
-import Ohua.Types.Common.Reference ( FunRef(..), OhuaType(..), Heq(..), InternalType(..), Resolution(..) )
+import Ohua.Types.Common.Reference ( FunRef(..), OhuaType(..), Heq(..), InternalType(..), Resolution(..), getRefType)
 
 -- | Literals of kinds we expect any host language to support
 -- FIXME: Do we need resolved and unresolved literals?
@@ -29,6 +29,14 @@ instance Eq (Lit ty res) where
   (EnvRefLit b1 ty1) == (EnvRefLit b2 ty2) = b1 == b2 && heq ty1 ty2
   (FunRefLit r1) == (FunRefLit r2) = r1 == r2
   _ == _ = False
+
+getLitType :: Lit ty Resolved -> OhuaType ty Resolved 
+getLitType (NumericLit _) = IType TypeNat
+getLitType (BoolLit _)    = IType TypeBool
+getLitType UnitLit        = IType TypeUnit
+getLitType (StringLit _)  = IType TypeString
+getLitType (EnvRefLit _b vTy)  = vTy
+getLitType (FunRefLit fRef)  = FType $ getRefType fRef
 
 
 {-
