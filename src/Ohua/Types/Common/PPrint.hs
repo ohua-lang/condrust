@@ -2,9 +2,9 @@ module Ohua.Types.Common.PPrint where
 
 import Universum
 
-import Ohua.Types.Unresolved.Literal
+import Ohua.Types.Common.Literal
 import Ohua.Types.Bindings
-import Ohua.Types.Unresolved.Reference
+import Ohua.Types.Common.Reference
 import Ohua.PPrint
 import Ohua.Types.Make
 import Ohua.Types.Classes

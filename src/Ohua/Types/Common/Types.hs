@@ -45,9 +45,9 @@ import Ohua.Types.Computation
 import Ohua.Types.Classes
 import Ohua.Types.Error
 import Ohua.Types.Integration
-import Ohua.Types.Unresolved.Literal
+import Ohua.Types.Common.Literal
 import Ohua.Types.Unit
 import Ohua.Types.Make
-import Ohua.Types.Unresolved.Reference
+import Ohua.Types.Common.Reference
 import Ohua.Types.Bindings
 import Ohua.Types.HostTypes

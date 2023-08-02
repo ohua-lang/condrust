@@ -22,9 +22,8 @@ module Ohua.UResPrelude
     , module Control.Lens.Tuple
     , module Data.Generics.Sum
     , module Data.Generics.Product
-    , module Ohua.Types.Unresolved.Types
+    , module Ohua.Types.Common.Types
     , module Ohua.PPrint
-    , module Ohua.Types.Unresolved.PPrint
     , module Ohua.LensClasses
     , module Control.Monad.Error.Class
     , module Control.Monad.Logger
@@ -33,9 +32,8 @@ module Ohua.UResPrelude
     , module Control.Exception.Safe
     ) where
 
-import Ohua.Types.Unresolved.Types
+import Ohua.Types.Common.Types
 import Ohua.PPrint
-import Ohua.Types.Unresolved.PPrint
 
 import Control.Monad.Error.Class (MonadError, catchError, throwError)
 import Control.Monad.Logger

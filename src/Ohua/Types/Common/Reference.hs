@@ -25,7 +25,7 @@ import Universum hiding (Nat, toList)
 import Data.Kind
 import Data.Type.Equality
 
-import qualified Data.List.NonEmpty as NE (length, zip)
+import qualified Data.List.NonEmpty as NE (length, zip, (<|))
 
 import GHC.Generics
 import Control.Lens.TH
@@ -57,60 +57,6 @@ import qualified Text.Show
 -- | Internal type representations. While Type and TupleTy capture types from the
 --   host language, the literal types TypeNat and TypeBool etc. are used internaly to construct nodes
 --   They must be mapped to the according types of the host language in the backend.
-
-
-{-
-I'm really tired of dependent types in Haskell.
-Let's just move on and use Coq already!
-
-data Resolution = Resolved | Unresolved deriving (Eq, Show, Lift)
-
-type family ResMin (l::Resolution) (r::Resolution) :: Resolution where
-  ResMin 'Resolved   'Resolved   = 'Resolved
-  ResMin 'Unresolved _           = 'Unresolved
-  ResMin _           'Unresolved = 'Unresolved
-
-data RList f ty :: Nat -> Resolution -> * where
-  RNil  ::                               RList f ty  'Zero    'Resolved
-  RCons :: f ty r1 -> RList f ty s r2 -> RList f ty ('Succ s) (ResMin r1 r2)
-
-instance IsList (RList f ty s r) where
-  type Item (RList f ty s r) = f ty r
-
-  --fromList :: [f ty] -> RList f ty s r
-  fromList l =
-    case l of
-      [] -> RNil
-      (x:xs) -> case fromList xs of
-                  RNil -> RCons x RNil :: RList f ty ('Succ 'Zero) 'Resolved
-                  xs' -> RCons x xs'
-
-  toList RNil = []
-  toList (RCons x xs) = x : toList xs
-
-
-data FType ty :: Resolution -> * where
-   -- arguments types -> return type -> function type
-   FunType   ::                RList VType ty s r1 -> VType ty r2 -> FType ty (ResMin r1 r2)
-   -- state/object type -> return type -> function type
-   STFunType :: VType ty r1 -> RList VType ty s r2 -> VType ty r3 -> FType ty (ResMin r1 (ResMin r2 r3))
-
-data VType ty :: Resolution -> * where
-  TypeVar      :: VType ty 'Unresolved
-  TypeNat      :: VType ty 'Resolved
-  TypeBool     :: VType ty 'Resolved
-  TypeUnit     :: VType ty 'Resolved
-  TypeString   :: VType ty 'Resolved
-  TypeHost     :: HostType ty -> VType ty 'Resolved
-  TypeList     :: VType ty r -> VType ty r
-  TypeTuple    :: RList VType ty ('Succ n) r -> VType ty r
-  TypeFunction :: FType ty r -> VType ty r
-
-type VarType ty = VType ty 'Resolved
-type FunType ty = FType ty 'Resolved
--}
-
--- Because dependent types in Haskell suck, I have to replicate the data structure
 
 -- | Heterogeneous equality taken from here:
 -- https://github.com/sweirich/dth/blob/master/nested-datatypes/Nested.lhs
@@ -230,6 +176,14 @@ unresToRes (FType fty) = Nothing
 unresToRes TStar              = Nothing 
 
 
+isUnresolved :: OhuaType ty Unresolved -> Bool
+isUnresolved t = case t of
+         (HType _ _) -> True
+         (TType tys) -> any isUnresolved tys
+         (FType (FunType ins out)) -> any isUnresolved (out NE.<| ins)
+         (FType (STFunType state ins out)) -> any isUnresolved (state NE.<| (out :| ins ))
+         --(IType _) -> False -- Error/Warning: inaccesible code
+         TStar -> True
 
 
 --------------------------------------------------------------
