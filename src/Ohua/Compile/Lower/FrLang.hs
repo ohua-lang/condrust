@@ -9,7 +9,6 @@ import Data.Functor.Foldable (cata)
 import qualified Data.HashSet as HS
 import GHC.Exts
 
-import Ohua.Frontend.WellTyped as FR
 import Ohua.Frontend.PPrint ()
 import Ohua.Core.ALang.Lang hiding (Expr, ExprF)
 import qualified Ohua.Core.ALang.Lang as ALang
@@ -44,12 +43,12 @@ removeDestructuring =
     rewriteM $ \case
         LetE (TupP pats) e1 e2 -> do
             valBnd <- generateBinding
-            let tupleTy = (tupTypeFrom pats)
-            pure $ Just $ LetE (VarP valBnd tupleTy) e1 $ unstructure (valBnd, tupleTy) pats e2
+            let TType = (tupTypeFrom pats)
+            pure $ Just $ LetE (VarP valBnd TType) e1 $ unstructure (valBnd, TType) pats e2
         LamE (TupP pats :| []) e -> do
             valBnd <- generateBinding
-            let tupleTy = (tupTypeFrom pats)
-            pure $ Just $ LamE (VarP valBnd tupleTy :| []) $ unstructure (valBnd, tupleTy) pats e
+            let TType = (tupTypeFrom pats)
+            pure $ Just $ LamE (VarP valBnd TType :| []) $ unstructure (valBnd, TType) pats e
         _ -> pure Nothing
 
 -- | The idea here is, that we transform a while loop to a recursive call
@@ -193,7 +192,7 @@ trans =
         BindEF ref e -> BindState ref e
         StmtEF e1 cont -> Let (TBind "_" TypeUnit) e1 cont
         TupEF (e:|es) ->
-            foldl Apply (pureFunction IFuns.mkTuple Nothing (FunType (map ALang.exprType (e :| es)) (TupleTy (ALang.exprType e :| map ALang.exprType es)))) (e:es)
+            foldl Apply (pureFunction IFuns.mkTuple Nothing (FunType (map ALang.exprType (e :| es)) (TType (ALang.exprType e :| map ALang.exprType es)))) (e:es)
         WhileEF cond _body ->  error "While loop has not been replaced. Please file a bug"
   where
     patToTBind =
@@ -222,13 +221,13 @@ definedBindings olang =
     [v | VarP v _ty <- universeOn (cosmos . patterns) olang]
 
 tupTypeFrom :: NonEmpty (Pat ty) -> (VarType ty)
-tupTypeFrom pats = TupleTy $ NE.map getPType pats
+tupTypeFrom pats = TType $ NE.map getPType pats
     where
         getPType (VarP _b ty) = ty
         -- Actually we could probably support it. Also we should have cought that case before
         -- FIXME correct!
         -- steps:
-        -- 1) adapt TupleTy (in Resolved.Types)
+        -- 1) adapt TType (in Resolved.Types)
         -- 2) adapt TupP (in WellTyped)
         getPType (TupP _ ) = error $ "Encountered a nested tuple pattern, like \"let (a, (b, c)) = ...\". This is currently not supported"
 
