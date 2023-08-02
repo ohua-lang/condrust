@@ -153,7 +153,7 @@ instance Integration (Language 'Rust) where
     ErrAndLogM m =>
     Language 'Rust ->
     Module ->
-    Namespace (FrLang.Expr RustVarType) (Item Span) ->
+    Namespace (FrLang.Expr RustVarType Unresolved) (Item Span) ->
     m (Delta RustVarType)
   loadTypes _ (Module ownFile _) ohuaNs = do
     filesAndPaths <- concat <$> mapM funsForAlgo (ohuaNs ^. algos)

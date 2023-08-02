@@ -297,7 +297,7 @@ lowerTaskPar _ arch = go
 takeN :: QualifiedBinding
 takeN = "ohua.lang/takeN"
 
-takeNLit ty = Lit $ FunRefLit $ FunRef takeN Nothing $ FunType  (ty :| [TypeNat]) ty
+takeNLit ty = Lit $ FunRefLit $ FunRef takeN Nothing $ FunType  (ty :| [IType TypeNat]) ty
 
 concat :: QualifiedBinding
 concat = "ohua.lang/concat"
@@ -497,7 +497,7 @@ amorphous numRetries = transformM go
         )
         -- We cut the 'n' next elements from the container, so inner and container types remain the same
         | smapF == IFuns.smap && loopIn == loopInp' = do
-          taken <- flip TBind TypeNat <$> generateBindingWith "n_taken"
+          taken <- flip TBind IType IType TypeNat <$> generateBindingWith "n_taken"
           takenInp <- flip TBind liTy <$> generateBindingWith (loopInBnd <> "_n")
           rest <- flip TBind liTy <$> generateBindingWith "rest"
           nResults <- DataBinding . flip TBind liTy <$> generateBindingWith "n_results"

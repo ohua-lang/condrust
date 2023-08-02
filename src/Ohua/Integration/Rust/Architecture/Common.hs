@@ -43,13 +43,13 @@ serialize (TH.Module path (SourceFile modName atts items)) ns createProgram plac
 toRustTy :: VarType TH.RustVarType -> Maybe (Rust.Ty ())
 toRustTy ty = case ty of
     TypeUnit -> Just $ Rust.TupTy [] ()
-    TypeNat -> Just $  Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "usize" Nothing ()] ()) ()
+    IType TypeNat -> Just $  Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "usize" Nothing ()] ()) ()
     TypeBool ->  Just $ Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "bool" Nothing ()] ()) ()
 
     (Type (HostType (TH.Self ty _ _ ))) ->  Just $ ty
     (Type (HostType (TH.Normal ty))) -> Just $  ty
 
-    (TupleTy types) ->  do
+    (TType types) ->  do
       types' <- mapM toRustTy types
       return $ Rust.TupTy (toList types') ()
 
