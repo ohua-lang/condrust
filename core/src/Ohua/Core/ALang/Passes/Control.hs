@@ -193,8 +193,8 @@ liftIntoCtrlCtxt ctrlIn e0 = do
       let actuals' = Var ctrlIn :| actuals
       let actualsTypes = map exprType actuals
       let retTy = case actualsTypes of 
-            [] -> TypeUnit -- Question: Should this error? 
-            (t:tys) -> TupleTy (t :| tys)
+            [] -> IType TypeUnit -- Question: Should this error? 
+            (t:tys) -> TType (t :| tys)
       let ie = mkDestructured formals (TBind ctrlOut controlSignalType) e
       return $
         mkLambda originalFormals $

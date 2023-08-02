@@ -48,7 +48,7 @@ destructure source bnds =
     map (\(idx, tbnd) -> Let tbnd $ mkNthExpr idx source (asType tbnd)) (zip [0 ..] bnds)
   where
     mkNthExpr idx source0 bTy =
-        pureFunction IFuns.nth Nothing (FunType (TypeNat :| [TypeNat, bTy]) bTy) `Apply` (Lit $ NumericLit idx) `Apply`
+        pureFunction IFuns.nth Nothing (FunType (IType TypeNat :| [IType TypeNat, bTy]) bTy) `Apply` (Lit $ NumericLit idx) `Apply`
         (Lit $ NumericLit $ toInteger $ length bnds) `Apply`
         source0
 
@@ -86,17 +86,18 @@ lambdaLifting e = do
 --                 if expression == from
 --                     then Just to
 --                     else Nothing
+
     bindingFromAny (Var (TBind v ty) ) = fmap (\bnd -> TBind bnd ty) (generateBindingWith v)
-    bindingFromAny (Lit l) = fmap (\bnd -> TBind bnd litTy) (generateBindingWith $ "lit_" <> litRepr) 
+    bindingFromAny (Lit l) = fmap (\bnd -> TBind bnd (getLitType l)) (generateBindingWith $ "lit_" <> fromString litRepr) 
       where
-        (litRepr, litTy) =
+        litRepr =
             case l of
-                NumericLit li -> (show li, TypeNat)
-                UnitLit -> ("unit", TypeUnit)
-                BoolLit b -> (show b, TypeBool)
-                StringLit str -> (show str, TypeString)
+                NumericLit li -> show li
+                UnitLit -> "unit"
+                BoolLit b -> show b
+                StringLit str -> show str
                 FunRefLit _ref -> error "Unsupported transformation of fun_ref literal" -- FIXME
-                EnvRefLit li ty -> ("env_" <> show li, ty)
+                EnvRefLit li _ty -> "env_" <> show li
     bindingFromAny anyE = error $ "Sorry, we forgott to implement bindingFromAny for " <> show anyE
 
 
@@ -235,7 +236,7 @@ mkApply f args = go $ reverse args
     go (v:vs) = Apply (go vs) v
     go [] = f
 
-fromListToApply :: FunRef ty -> [Expr ty] -> Expr ty
+fromListToApply :: FunRef ty Resolved -> [Expr ty] -> Expr ty
 fromListToApply f = mkApply $ Lit $ FunRefLit f
 
 getFunctionArgs :: HasCallStack => Expr ty -> [Expr ty]
@@ -246,7 +247,7 @@ getFunctionArgs e = args
 -- FIXME The errors in these functions should not be here. Either we enforce these things
 --       via other means in the type system or we should change the return type to Maybe.
 -- FIXME Using this function always creates more warnings because the type is not expressive enough.
-fromApplyToList :: HasCallStack => Expr ty -> (FunRef ty, [Expr ty])
+fromApplyToList :: HasCallStack => Expr ty -> (FunRef ty Resolved , [Expr ty])
 fromApplyToList e =
     case stateExpr of
         Just s ->
@@ -255,7 +256,7 @@ fromApplyToList e =
   where
     (f, stateExpr, args) = fromApplyToList' e
 
-fromApplyToList' :: HasCallStack => Expr ty -> (FunRef ty, Maybe (Expr ty), [Expr ty])
+fromApplyToList' :: HasCallStack => Expr ty -> (FunRef ty Resolved , Maybe (Expr ty), [Expr ty])
 fromApplyToList' =
     para $ \case
         ApplyF (extract -> (f, s, args)) (arg, _) -> (f, s, args ++ [arg])

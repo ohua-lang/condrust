@@ -113,16 +113,16 @@ import Ohua.Core.ALang.Util (mkDestructured)
 -- import Control.Category ((>>>))
 import qualified Data.Text as T
 
-selectSf :: VarType ty -> Expr ty
-selectSf vty = Lit $ FunRefLit $ FunRef IFuns.select Nothing $ FunType (TypeBool :| [vty, vty]) vty
+selectSf :: OhuaType ty Resolved -> Expr ty
+selectSf vty = Lit $ FunRefLit $ FunRef IFuns.select Nothing $ FunType (IType TypeBool :| [vty, vty]) vty
 
 -- | The controle node that triggers either the then or the else branch, depending on the input bool
 ifFunSf :: Expr ty
-ifFunSf = Lit $ FunRefLit $ FunRef IFuns.ifFun Nothing $ FunType ( TypeBool :| []) (TupleTy $ controlSignalType:|[controlSignalType])
+ifFunSf = Lit $ FunRefLit $ FunRef IFuns.ifFun Nothing $ FunType (IType TypeBool :| []) (TType $ controlSignalType:|[controlSignalType])
 
 -- | Just a literal representing an if-function i.e. \con t1 t2 : if cond then t1 else t2
-ifSf :: VarType ty -> Expr ty
-ifSf vty = Lit $ FunRefLit $ FunRef IFuns.ifThenElse Nothing $ FunType (TypeBool :| [vty, vty]) vty
+ifSf :: OhuaType ty Resolved -> Expr ty
+ifSf vty = Lit $ FunRefLit $ FunRef IFuns.ifThenElse Nothing $ FunType (IType TypeBool :| [vty, vty]) vty
 
 
 -- This is a proposal for `ifRewrite` that uses plated to make sure the
@@ -149,7 +149,7 @@ ifRewrite = transformM $ \case
                         " controle nodes collecting from branchtypes "<> show typeTrue <> " and " <> show typeFalse
                 let ctrlTrue = (TBind ctrlTrueBnd controlSignalType)
                     ctrlFalse= (TBind ctrlFalseBnd controlSignalType)
-                    ctrls = (TBind ctrlsBnd (TupleTy $ controlSignalType:|[controlSignalType]))
+                    ctrls = (TBind ctrlsBnd (TType $ controlSignalType:|[controlSignalType]))
                     trueResult = (TBind trueResultBnd typeTrue)
                     falseResult = (TBind falseResultBnd typeFalse)
                     -- We can take either true or false type for the result
@@ -171,5 +171,5 @@ ifRewrite = transformM $ \case
                     Var result
               _ -> throwError $ "Found if with unexpected, non-unit-lambda branch(es)\ntrue:\n " <> show trueBranch <> "\nfalse:\n" <> show falseBranch
       where
-        isUnit (TBind bnd ty) = ty == TypeUnit
+        isUnit (TBind bnd ty) = ty == IType TypeUnit
     e -> pure e

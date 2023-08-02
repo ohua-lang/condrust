@@ -199,14 +199,14 @@ handleDefinitionalExpr' assign l@(Apply _ _) cont = do
   where
     st ::
       (MonadState (HS.HashSet (TypedBinding ty)) m) =>
-      FunRef ty ->
+      FunRef ty Resolved ->
       ATypedBinding 'State ty ->
       NonEmpty (DFVar 'Data ty) ->
       m (App 'ST ty)
     st fn stateATBnd args' =
       (\outs -> StateFun outs fn (DFVar stateATBnd) args')
         <$> findSTOuts assign
-    fun :: FunRef ty -> TypedBinding ty -> NonEmpty (DFVar 'Data ty) -> App 'Fun ty
+    fun :: FunRef ty Resolved -> TypedBinding ty -> NonEmpty (DFVar 'Data ty) -> App 'Fun ty
     fun fn tbnd args' = PureFun (DFVar $ DataBinding tbnd) fn args'
     findSTOuts ::
       (MonadState (HS.HashSet (TypedBinding ty)) m) =>
@@ -235,7 +235,7 @@ handleDefinitionalExpr' _ e _ =
                     let j:i32 = h(two);
                     let k:i32 = h4(i, j);
                     if check(k) {
-                        rec(i,j)
+                        rec(i,j)FunRef ty  Resolved
                     } else {
                         k
                     }
@@ -251,7 +251,7 @@ handleApplyExpr ::
   forall m ty.
   (MonadOhua m) =>
   ALang.Expr ty ->
-  m (FunRef ty, Maybe (ATypedBinding 'State ty), NonEmpty (VarType ty, ALang.Expr ty))
+  m (FunRef ty Resolved, Maybe (ATypedBinding 'State ty), NonEmpty (OhuaType ty Resolved, ALang.Expr ty))
 handleApplyExpr (Apply fn a) = go (a :| []) fn
   where
     go args e =
@@ -290,9 +290,9 @@ handleApplyExpr (Apply fn a) = go (a :| []) fn
     length' types = if null types
                       then 1
                       else length types
-
-    zip' :: [VarType ty] -> NonEmpty b -> NonEmpty (VarType ty, b)
-    zip' [] bs = NE.zip (TypeUnit :| []) bs
+  
+    zip' :: [OhuaType ty Resolved] -> NonEmpty b -> NonEmpty (OhuaType ty Resolved, b)
+    zip' [] bs = NE.zip (IType TypeUnit :| []) bs
     zip' (a:as) bs = NE.zip (a:|as) bs
 handleApplyExpr g = failWith $ "Expected apply but got: " <> show g
 
@@ -301,7 +301,7 @@ handleApplyExpr g = failWith $ "Expected apply but got: " <> show g
 -- | Inspect an expression expecting something which can be captured
 -- in a DFVar otherwise throws appropriate errors.
 -- ToDo: This should go away because a) We carry the types of vars (and literals?!) from the frontend and b) at this point there shouldn't be syntax errors any more
-expectVar :: (HasCallStack, MonadError Error m) => VarType ty -> ALang.Expr ty -> m (DFVar 'Data ty)
+expectVar :: (HasCallStack, MonadError Error m) => OhuaType ty Resolved -> ALang.Expr ty -> m (DFVar 'Data ty)
 expectVar _ (ALang.Var tBnd) = pure $ DFVar $ DataBinding tBnd
 -- TODO currently only allowed for the unitFn function
 -- expectVar r@PureFunction {} =

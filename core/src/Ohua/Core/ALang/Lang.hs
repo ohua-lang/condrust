@@ -65,7 +65,7 @@ import Control.Lens.Plated
 -- | An expression in the algorithm language.
 data Expr ty
     = Var (TypedBinding ty)  -- ^ Reference to a value via binding: @x@ -> @Var "x"@
-    | Lit (Lit ty) -- ^ A literal: @2@, @ns/func@ etc -> @Lit (NumericLit 2)@
+    | Lit (Lit ty Resolved) -- ^ A literal: @2@, @ns/func@ etc -> @Lit (NumericLit 2)@
     | Let (TypedBinding ty) (Expr ty) (Expr ty) -- ^ Create and assign a binding: @let bnd = val in expr@ -> @Let "bnd" val expr@
     | Apply (Expr ty) (Expr ty) -- ^ Function application: @function arg@ -> @Apply function arg@
     | Lambda (TypedBinding ty) (Expr ty) -- ^ A lambda function: @\\arg -> body@ -> @Lambda "arg" body@
@@ -75,7 +75,7 @@ data Expr ty
 type AExpr = Expr
 
 
-exprType :: Expr ty -> VarType ty
+exprType :: Expr ty -> OhuaType ty Resolved
 exprType e = case e of
     Var (TBind _bnd varTy) -> varTy
     -- We aim for "return types" here so if the literal is a function, this will evaluate to the functions return type
@@ -93,7 +93,7 @@ exprType e = case e of
     -- explicitely evaluate to in the host language so it is T2
     BindState _objE methodcallE -> exprType methodcallE
 
-returnType :: Expr ty -> VarType ty
+returnType :: Expr ty -> OhuaType ty Resolved
 returnType e = case funType e of
     Just (FunType _ out) -> out
     Just (STFunType _ _ out) -> out
@@ -103,9 +103,9 @@ returnType e = case funType e of
 --       Lambda Expression, while in others we only care about the type the term will evaluate to.
 --       I'm currently not sure, what the best way to handle this would be?!
 
-funType :: Expr ty -> Maybe (FunType ty)
+funType :: Expr ty -> Maybe (FunType ty Resolved)
 funType e = case e of
-        (Var (TBind _bnd (TypeFunction fTy)))   -> Just fTy
+        (Var (TBind _bnd (FType fTy)))          -> Just fTy
         (Lit (FunRefLit fRef))                  -> Just $ getRefType fRef
         (Lambda tBnd term)                      -> Just $ FunType (asType tBnd :| []) (exprType term)
         (BindState _state method)               -> funType method
@@ -116,30 +116,30 @@ funType e = case e of
 
 -------------------- Convenience functions ------------------------------
 
-pureFunction :: QualifiedBinding -> Maybe FnId -> FunType ty -> Expr ty
+pureFunction :: QualifiedBinding -> Maybe FnId -> FunType ty Resolved-> Expr ty
 pureFunction bnd ident ty = Lit (FunRefLit (FunRef bnd ident ty))
 
-mkFunLit :: QualifiedBinding -> FunType ty -> Expr ty
+mkFunLit :: QualifiedBinding -> FunType ty Resolved-> Expr ty
 mkFunLit qBnd = pureFunction qBnd Nothing
 
 
 -- Specific Functions, that should become part of the language ---------
 
-idBuiltin :: VarType ty -> Expr ty
+idBuiltin :: OhuaType ty Resolved -> Expr ty
 idBuiltin vTy = pureFunction IFuns.id Nothing (FunType (vTy :| []) vTy)
 
 
-ifBuiltin :: VarType ty -> Expr ty
-ifBuiltin vTy = mkFunLit IFuns.ifThenElse (FunType (TypeBool :| [vTy ,vTy]) vTy)
+ifBuiltin :: OhuaType ty Resolved -> Expr ty
+ifBuiltin vTy = mkFunLit IFuns.ifThenElse (FunType (IType TypeBool :| [vTy ,vTy]) vTy)
 
 {-
-seqBuiltin :: VarType ty ->  VarType ty ->  Expr ty
+seqBuiltin :: OhuaType ty Resolved ->  OhuaType ty Resolved ->  Expr ty
 -- Operator to sequence statements igrnoring the result of the first one
 -- ToDo: check if we still need that anywhere
 seqBuiltin fstTy scndTy =  mkFunLit IFuns.seq (FunType [fstTy, scndTy] scndTy)
 --}
 
-smapBuiltin :: VarType ty ->  VarType ty -> VarType ty -> Expr ty
+smapBuiltin :: OhuaType ty Resolved ->  OhuaType ty Resolved -> OhuaType ty Resolved -> Expr ty
 -- HO for-loop: function -> collection to apply function to -> typeOfCollection ( return Type function)
 smapBuiltin fnTy collTy resTy = mkFunLit IFuns.smap (FunType (fnTy :| [collTy]) resTy )
 
@@ -155,7 +155,7 @@ instance Container (ExprF ty a)
 pattern PureFunction :: QualifiedBinding -> Maybe FnId -> Expr ty
 pattern PureFunction bnd ident <- Lit (FunRefLit (FunRef bnd ident _))
 
-pattern PureFunctionTy :: QualifiedBinding -> Maybe FnId -> FunType ty -> Expr ty
+pattern PureFunctionTy :: QualifiedBinding -> Maybe FnId -> FunType ty Resolved-> Expr ty
 pattern PureFunctionTy bnd ident ty <- Lit (FunRefLit (FunRef bnd ident ty))
 
 pattern PureFunctionF :: QualifiedBinding -> Maybe FnId -> ExprF ty a
@@ -164,7 +164,7 @@ pattern PureFunctionF bnd ident <- LitF (FunRefLit (FunRef bnd ident _))
 pattern StatefulFunction :: QualifiedBinding -> Maybe FnId -> Expr ty -> Expr ty
 pattern StatefulFunction bnd ident expr <- BindState expr (Lit (FunRefLit (FunRef bnd ident _)))
 
-pattern StatefulFunctionTy :: QualifiedBinding -> Maybe FnId ->FunType ty -> Expr ty -> Expr ty
+pattern StatefulFunctionTy :: QualifiedBinding -> Maybe FnId ->FunType ty Resolved-> Expr ty -> Expr ty
 pattern StatefulFunctionTy bnd ident ty expr <- BindState expr (Lit (FunRefLit (FunRef bnd ident ty)))
 
 pattern StatefulFunctionF :: QualifiedBinding -> Maybe FnId -> Expr ty -> ExprF ty (Expr ty)
@@ -186,11 +186,11 @@ instance Plated (Expr ty) where plate = gplate
 --     embedE = embedE . fromIntegral @Int @Integer
 -- instance Embed (Expr ty) Integer where
 --     embedE = embedE . NumericLit 
-instance Embed (Expr ty) (Lit ty) where
+instance Embed (Expr ty) (Lit ty Resolved) where
     embedE = Lit
 instance Embed (Expr ty) (TypedBinding ty) where
     embedE = Var
-instance Embed (Expr ty) (FunRef ty) where
+instance Embed (Expr ty) (FunRef ty Resolved) where
     embedE = embedE . FunRefLit
 -- instance Embed (Expr ty) QualifiedBinding where
 --     embedE = embedE . (\qb -> FunRef qb Nothing Untyped)

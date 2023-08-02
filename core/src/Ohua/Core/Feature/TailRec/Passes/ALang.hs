@@ -231,7 +231,7 @@ recurHof = "ohua.lang/recur_hof"
 
 -- Wraps a function a and "returns" it's evaluation type so it's type should be
 -- exprType a -> exprType a
-recurSf :: VarType ty -> Expr ty
+recurSf :: OhuaType ty Resolved -> Expr ty
 recurSf ty = pureFunction recur Nothing $ FunType (ty :| []) ty
 
 recurStartMarker :: QualifiedBinding
@@ -245,11 +245,11 @@ y :: QualifiedBinding
 y = "ohua.lang/Y"
 
 -- Just as recurSF this is a marker for a an execution contex -> its type is ty-> ty
-ySf :: VarType ty -> Expr ty
+ySf :: OhuaType ty Resolved -> Expr ty
 ySf ty = pureFunction y Nothing $ FunType (ty :| []) ty
 
 -- see above 
-recurFunPureFunction :: VarType ty -> Expr ty
+recurFunPureFunction :: OhuaType ty Resolved -> Expr ty
 recurFunPureFunction ty = pureFunction IFuns.recurFun Nothing $ FunType (ty :| []) ty
 
 
@@ -412,7 +412,7 @@ rewriteCallExpr e = do
 
   -- Question: Correct?
     inputsBnd <- generateBindingWith "rec_inputs"
-    let inputsType = (TupleTy $ controlSignalType :| map asType recurVars)
+    let inputsType = (TType $ controlSignalType :| map asType recurVars)
         inputs = TBind inputsBnd inputsType
         funTy = case callArgs of
             -- Question is this a problem/error? Why? 
@@ -449,7 +449,7 @@ rewriteCallExpr e = do
                     (Right bnds, Left f) -> (f, bnds)
                     _ -> error "invariant broken"
             callArgs = cond :| fixRef : recurVars
-            returnTy = TupleTy $ exprType cond :| (exprType fixRef : (map exprType recurVars))
+            returnTy = TType $ exprType cond :| (exprType fixRef : (map exprType recurVars))
             finalExpr = fromListToApply (FunRef recurEndMarker Nothing $ genFunType callArgs returnTy) $ toList callArgs
         in finalExpr
 

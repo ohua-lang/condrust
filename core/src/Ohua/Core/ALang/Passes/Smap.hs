@@ -35,14 +35,14 @@ import Ohua.Core.Prelude
 import Ohua.Core.ALang.PPrint ()
 
 
-smapSfFun :: VarType ty -> VarType ty -> Expr ty
+smapSfFun :: OhuaType ty Resolved -> OhuaType ty Resolved -> Expr ty
 -- Takes a collection and returns (contained Dt, control signal, Nat)
 -- I can get the data type from the input type of the function
-smapSfFun collTy elemTy = Lit $ FunRefLit $ FunRef IFuns.smapFun Nothing $ FunType (collTy :| []) (TupleTy (elemTy :| [controlSignalType, TypeNat]))
+smapSfFun collTy elemTy = Lit $ FunRefLit $ FunRef IFuns.smapFun Nothing $ FunType (collTy :| []) (TType (elemTy :| [controlSignalType, IType TypeNat]))
 
-collectSf :: VarType ty -> Expr ty
+collectSf :: OhuaType ty Resolved -> Expr ty
 -- Takes a nat and the return type t of the function and returns [t]
-collectSf outTy = Lit $ FunRefLit $ FunRef IFuns.collect Nothing $ FunType (TypeNat :| [outTy]) (TypeList outTy)
+collectSf outTy = Lit $ FunRefLit $ FunRef IFuns.collect Nothing $ FunType (IType TypeNat :| [outTy]) (IType $ TypeList outTy)
 
 smapRewrite :: (Monad m, MonadGenBnd m) => Expr ty -> m (Expr ty)
 smapRewrite =
@@ -57,7 +57,7 @@ smapRewrite =
                     -- ToDo: get input type from lambda term
                     innerFunInput = case funType lamExpr of
                         Just (FunType (inTy :| [] ) out) -> inTy
-                        Just (FunType (it   :| its) out) -> TupleTy (it:|its)
+                        Just (FunType (it   :| its) out) -> TType (it:|its)
                         _ -> error $ "I expected a function with at least one input in an smapRewrite, but got: "
                                             <> quickRender lamExpr
                                             <> ".Please report this error."
@@ -77,13 +77,13 @@ smapRewrite =
   --          resultList
   -- (this breaks haddock) |]
                 sizeB <- generateBindingWith "size"
-                let size = TBind sizeB TypeNat
+                let size = TBind sizeB (IType TypeNat)
                 ctrlsB <- generateBindingWith "ctrls"
-                let ctrls = TBind ctrlsB (TupleTy $ controlSignalType:|[controlSignalType])
+                let ctrls = TBind ctrlsB (TType $ controlSignalType:|[controlSignalType])
                 resultB <- generateBindingWith "result"
                 let result = TBind resultB innerFunRet
                 resultListB <- generateBindingWith "resultList"
-                let resultList = TBind resultListB (TypeList TypeUnit)
+                let resultList = TBind resultListB (IType $ TypeList (IType TypeUnit))
 
                 return $
                     Let ctrls (Apply (smapSfFun collectionType innerFunInput) dataGen) $

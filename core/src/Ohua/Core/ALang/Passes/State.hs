@@ -50,19 +50,19 @@ postControlPasses :: Expr ty -> Expr ty
 postControlPasses = transformCtxtExits -- . traceShow "transforming ctxt exists!" -- TODO assert here that no more ctxt exits remain in the code
 
 
-runSTCLangSMapFun :: VarType ty -> Expr ty
-runSTCLangSMapFun stateTy = Lit $ FunRefLit $ FunRef IFuns.runSTCLangSMap Nothing $ FunType (TypeNat :| [stateTy]) stateTy -- size and the state, i.e., there is one per state
+runSTCLangSMapFun :: OhuaType ty Resolved -> Expr ty
+runSTCLangSMapFun stateTy = Lit $ FunRefLit $ FunRef IFuns.runSTCLangSMap Nothing $ FunType (IType TypeNat :| [stateTy]) stateTy -- size and the state, i.e., there is one per state
 
 
-runSTCLangIfFun :: VarType ty -> Expr ty
-runSTCLangIfFun stateTy = Lit $ FunRefLit $ FunRef IFuns.runSTCLangIf Nothing $ FunType (TypeBool :| [stateTy, stateTy]) stateTy
+runSTCLangIfFun :: OhuaType ty Resolved -> Expr ty
+runSTCLangIfFun stateTy = Lit $ FunRefLit $ FunRef IFuns.runSTCLangIf Nothing $ FunType (IType TypeBool :| [stateTy, stateTy]) stateTy
 
 -- invariant: this type of node has at least one var as input (the computation result)
 ctxtExit :: QualifiedBinding
 ctxtExit = "ohua.lang/ctxtExit"
 
 -- To type-encode the assumption of at least one input a Nonempty is sufficient. We don't need a 'Nat for this.
-ctxtExitFunRef :: NE.NonEmpty (VarType ty)  -> VarType ty -> Expr ty
+ctxtExitFunRef :: NE.NonEmpty (OhuaType ty Resolved)  -> OhuaType ty Resolved -> Expr ty
 ctxtExitFunRef  inputTys retTy = Lit $ FunRefLit $ FunRef ctxtExit Nothing $ FunType inputTys retTy
 
 -- | Transforms every stateful function into a fundamental state thread.
@@ -99,7 +99,7 @@ transformFundamentalStateThreads = transformM f
 
     g result app cont (TBind stateIn sty, stateOut) = do
       xBnd <- generateBinding
-      let x = TBind xBnd (TupleTy (sty:|[ asType result]))
+      let x = TBind xBnd (TType (sty:|[ asType result]))
       return $
         Let x app $
         destructure (Var x) [stateOut, result] $
@@ -187,7 +187,7 @@ transformControlStateThreads = transformM f
             trueBranch' = applyToBody (`addMissing` trueBranchStatesMissing) trueBranch
             falseBranch' = applyToBody (`addMissing` falseBranchStatesMissing) falseBranch
             allStates = HS.toList $ HS.union trueBranchStates falseBranchStates
-            stateThreadingReTy = TupleTy (exprType trueBranch :| map asType allStates)
+            stateThreadingReTy = TType (exprType trueBranch :| map asType allStates)
           in do
             trueBranch'' <- mkST (map Var allStates) trueBranch'
             falseBranch'' <- mkST (map Var allStates) falseBranch'
@@ -207,7 +207,7 @@ transformControlStateThreads = transformM f
             -- ToDo: See description above, ctxt_out is (result, state')
             ctxtOutBnd <- generateBindingWith "ctxt_out"
             let resAndStatesTys = exprType lam :| map asType states
-                ctxtOut = TBind ctxtOutBnd (TupleTy resAndStatesTys)
+                ctxtOut = TBind ctxtOutBnd (TType resAndStatesTys)
                 lam' = mkLambda args expr'
             return $
               Let ctxtOut (fun `Apply` lam' `Apply` ds) $
@@ -327,6 +327,6 @@ mkST states = \case
         return $
             -- allOut contains the result an ALL states from the inner scope
             -- ctxtExitFun is a function that collects the result and all states and returns the tuple for 'allOut'
-            Let (TBind allOut (TupleTy types))
-                (mkApply (ctxtExitFunRef types (TupleTy types)) $ e : states)
-                (Var (TBind allOut (TupleTy types)))
+            Let (TBind allOut (TType types))
+                (mkApply (ctxtExitFunRef types (TType types)) $ e : states)
+                (Var (TBind allOut (TType types)))

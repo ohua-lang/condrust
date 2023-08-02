@@ -34,9 +34,9 @@ data OutData (bType :: BindingType) (ty :: Type) :: Type  where
 -- ToDo : I think we should remove the indirection via the ATypedBinding and instead use an extended binding type
 -- i.e. BindingType = State | Data | Env to directly type DFVar
 data DFVar (semType :: BindingType) (ty :: Type) :: Type where
-  DFEnvVar :: VarType ty -> Lit ty -> DFVar 'Data ty
+  DFEnvVar :: OhuaType ty Resolved-> Lit ty Resolved -> DFVar 'Data ty
   DFVar :: ATypedBinding a ty -> DFVar a ty
-  -- DFNatVar :: ATypedBinding a -> DFVar a (TypeNat ty) 
+  -- DFNatVar :: ATypedBinding a -> DFVar a (IType TypeNat ty) 
   -- DFBoolVar ::  ATypedBinding a -> DFVar a 'TypeBool
   -- DFStateVar :: ATypedBinding 'State ty -> DFVar 'State ty
 
@@ -67,10 +67,10 @@ data App (f :: FunANF) (ty :: Type) :: Type where
   --      Then this should propagate through the type system an make sure that this state is used only
   --      as a state. Currently, we really only tag the types of an app with almost no implication on the
   --      whole expression. This would then immediately remove the unwrapABnd function.
-  PureFun :: DFVar bTy ty -> FunRef ty -> NonEmpty (DFVar 'Data ty) -> App 'Fun ty
+  PureFun :: DFVar bTy ty -> FunRef ty  Resolved-> NonEmpty (DFVar 'Data ty) -> App 'Fun ty
   StateFun ::
     (Maybe (ATypedBinding 'State ty), ATypedBinding 'Data ty) ->
-    FunRef ty ->
+    FunRef ty  Resolved->
     DFVar 'State ty ->
     NonEmpty (DFVar 'Data ty) ->
     App 'ST ty
@@ -78,10 +78,10 @@ data App (f :: FunANF) (ty :: Type) :: Type where
 -- | The applicative normal form with the ops resolved.
 --   (a function with output destructuring and dispatched result)
 data DFApp (f :: FunANF) (ty :: Type) :: Type where
-  PureDFFun :: OutData b ty -> FunRef ty -> NonEmpty (DFVar 'Data ty) -> DFApp 'Fun ty
+  PureDFFun :: OutData b ty -> FunRef ty  Resolved-> NonEmpty (DFVar 'Data ty) -> DFApp 'Fun ty
   StateDFFun ::
     (Maybe (OutData 'State ty ), Maybe (OutData 'Data ty)) ->
-    FunRef ty ->
+    FunRef ty  Resolved->
     DFVar 'State ty ->
     NonEmpty (DFVar 'Data ty) ->
     DFApp 'ST ty
@@ -263,7 +263,7 @@ unwrapABnd :: ATypedBinding bty ty -> Binding
 unwrapABnd (DataBinding tbnd) = asBnd tbnd
 unwrapABnd (StateBinding tbnd) = asBnd tbnd
 
-unwrapVarType :: DFVar b ty -> VarType ty
+unwrapVarType :: DFVar b ty -> OhuaType ty Resolved
 unwrapVarType  (DFVar atBnd) = asType . unwrapTB $ atBnd
 -- unwrapVarType  (DFStateVar atBnd) = asType . unwrapTB $ atBnd
 unwrapVarType  (DFEnvVar ty _lit) = ty
@@ -279,7 +279,7 @@ unwrapVarTB (DFVar atBnd) = unwrapTB atBnd
 unwrapVarTB (DFEnvVar _ty _lit) = error "Tried to unwrap a binding from a literat in DFLang. Please report this error"
 
 --ToDo: Remove when TypePropagation is gone!
-replaceType ::  ATypedBinding bty ty -> VarType ty ->  ATypedBinding bty ty
+replaceType ::  ATypedBinding bty ty -> OhuaType ty Resolved ->  ATypedBinding bty ty
 replaceType (DataBinding tbnd) newTy = DataBinding (TBind (asBnd tbnd) newTy)
 replaceType (StateBinding tbnd) newTy = StateBinding (TBind (asBnd tbnd) newTy)
 
