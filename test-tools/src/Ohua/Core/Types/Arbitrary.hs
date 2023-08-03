@@ -89,7 +89,7 @@ instance Arbitrary FnId where
 instance Arbitrary HostExpr where
     arbitrary = genFromMake
 
-instance Arbitrary (FunRef ty) where
+instance Arbitrary (FunRef ty Resolve) where
     arbitrary = liftM2 (\a b -> FunRef a b Untyped) arbitrary arbitrary
 
 instance Arbitrary (Lit ty) where
