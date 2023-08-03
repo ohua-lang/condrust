@@ -28,7 +28,7 @@ data Ctrl (anno::CtrlAnno) (ty::Type) :: Type where
     -- This is what `merge` establishes.
     -- Is this again something that can be created with LiquidHaskell?
     FunCtrl ::  CtrlInput ty -> NonEmpty (OutputChannel ty, Com 'Recv ty) -> Ctrl 'Fun ty
-    LitCtrl ::  CtrlInput ty -> (OutputChannel ty, Lit ty) -> Ctrl 'CtxtLit ty
+    LitCtrl ::  CtrlInput ty -> (OutputChannel ty, Lit ty Resolved) -> Ctrl 'CtxtLit ty
 
 deriving instance Eq (Ctrl semTy ty)
 deriving instance Show (Ctrl semTy ty)
@@ -54,7 +54,7 @@ data FusedCtrl (anno::FusedCtrlAnno) (ty::Type) :: Type where
     -- there is another assumption here that needs to be enforced:
     -- state inputs in NonEmpty VarReceive map to state outputs in [Send]!
     FusedFunCtrl ::  CtrlInput ty -> [VarReceive ty] -> TaskExpr ty -> [Com 'Send ty] -> FusedCtrl 'Function ty
-    FusedLitCtrl ::  CtrlInput ty -> (OutputChannel ty, Lit ty) -> Either (FusedFunCtrl ty) (F.FusableFunction ty) -> FusedCtrl 'Literal ty
+    FusedLitCtrl ::  CtrlInput ty -> (OutputChannel ty, Lit ty Resolved) -> Either (FusedFunCtrl ty) (F.FusableFunction ty) -> FusedCtrl 'Literal ty
 
 deriving instance Eq (FusedCtrl semTy ty)
 
@@ -355,7 +355,7 @@ genCtrl' ctrlInput initVars comp cont =
 
 -- | A context control marks the end of a fusion chain. It is the very last control
 --   and therefore can only be fused into.
-mkLittedCtrl :: Com 'Recv ty -> Lit ty -> Com 'Channel ty -> LitCtrl ty
+mkLittedCtrl :: Com 'Recv ty -> Lit ty Resolved -> Com 'Channel ty -> LitCtrl ty
 mkLittedCtrl ctrl lit out =
     LitCtrl (CtrlInput ctrl) (OutputChannel out, lit)
 

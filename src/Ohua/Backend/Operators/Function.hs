@@ -26,7 +26,7 @@ data Result ty
 
 instance Hashable (Result ty)
 
-data FunCall ty = Call (FunRef ty) | Tup (FunType ty) deriving (Eq, Generic, Show, Hashable)
+data FunCall ty = Call (FunRef ty Resolved) | Tup (FunType ty Resolved) deriving (Eq, Generic, Show, Hashable)
 
 -- TODO:
 --   1) no functions in data type -> done
@@ -44,7 +44,7 @@ data FusFunction sin ty
     | STFusable
         (sin ty) -- state receive
         [CallArg ty]  -- data receive
-        (FunRef ty)
+        (FunRef ty Resolved)
         [Result ty] -- send result
         (Maybe (Com 'Channel ty)) -- send state
     | IdFusable
@@ -151,7 +151,7 @@ genFun' ct = \case
         in flip letReceives [varAndReceive]
            $ callWithResult (NE.toList o) (Var v) ct
     where
-        getCallArgs p (FunType (TypeUnit :| []) _ ) _ = []
+        getCallArgs p (FunType (IType TypeUnit :| []) _ ) _ = []
         getCallArgs p (STFunType _ [] _retTy) _ = []
         getCallArgs p _ vrs =
           map (\(_,v,_) -> p v) $

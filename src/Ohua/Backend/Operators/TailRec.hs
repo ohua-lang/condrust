@@ -14,7 +14,7 @@ data RecFun ty where
     Maybe (Com 'Channel ty) ->
     -- I'm loosing the type info here because getting the instances below is a pain otherwise :(
     [Com 'Channel ty] ->
-    [Either (Com 'Recv ty) (Lit ty)] ->
+    [Either (Com 'Recv ty) (Lit ty Resolved)] ->
     [Com 'Recv ty] ->
     Com 'Recv ty ->
     Com 'Recv ty ->

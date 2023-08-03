@@ -23,8 +23,8 @@ data ComType = Channel | Recv | Send deriving (Show, Eq, Generic)
 
 data Com (f::ComType) (t::Type) :: Type where
   SChan :: Binding -> Com 'Channel t
-  SRecv :: VarType t -> Com 'Channel t -> Com 'Recv t
-  SSend :: Com 'Channel t -> Either Binding (Lit t) -> Com 'Send t
+  SRecv :: OhuaType ty Resolved -> Com 'Channel t -> Com 'Recv t
+  SSend :: Com 'Channel t -> Either Binding (Lit t Resolved) -> Com 'Send t
 
 instance Eq (Com semTy ty) where
   SChan bnd0 == SChan bnd1 = bnd0 == bnd1
@@ -51,7 +51,7 @@ instance (Hashable expr) => Hashable (List expr)
 -- TODO this expression language should be typed, probably using a GADT
 data TaskExpr ty
   = Var Binding
-  | Lit (Lit ty) -- true, false  etc.
+  | Lit (Lit ty Resolved) -- true, false  etc.
   | Apply (App (TaskExpr ty))
   | Let Binding
         (TaskExpr ty)
@@ -78,7 +78,7 @@ data TaskExpr ty
 
   | ListOp (List (TaskExpr ty))
 
-  | Tuple ( NonEmpty (Either Binding (Lit ty)))
+  | Tuple ( NonEmpty (Either Binding (Lit ty Resolved)))
   | Indexing Binding Integer
 
   | Increment Binding -- a + 1;
@@ -128,7 +128,7 @@ containsBinding (Increment bnd) b = bnd == b
 containsBinding (Decrement bnd) b = bnd == b
 containsBinding (Not expr) b = containsBinding expr b
 
-containsB:: Either Binding (Lit ty)-> Binding -> Bool
+containsB:: Either Binding (Lit ty Resolved)-> Binding -> Bool
 containsB v b = case v of
   Left bnd -> bnd == b
   Right _ -> False
