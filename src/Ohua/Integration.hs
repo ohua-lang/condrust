@@ -18,7 +18,8 @@ import Ohua.Integration.Rust.Architecture.SharedMemory.Transform.DataPar (liftCo
 import Ohua.Integration.Rust.Architecture.M3 ()
 import Ohua.Integration.Rust.Frontend ()
 import Ohua.Integration.Rust.Backend ()
-import Ohua.Integration.Rust.Types.Definition (macro_support)
+-- FIXME: tomland requires a lower verison of base which messes up dependencies -> Find a solution/replacement
+-- import Ohua.Integration.Rust.Types.Definition (macro_support)
 
 import qualified Ohua.Integration.Python.Backend.Passes as PyPasses
 import Ohua.Integration.Python.MultiProcessing ()
@@ -82,6 +83,7 @@ runIntegration ext (Config arch options) comp = do
   apply integration comp
 
 langInfo :: Text -> IO ()
-langInfo lang | (T.toLower lang) == "rust" || (T.toLower lang) == "condrust" = macro_support
+-- ToDo: See import FIXME
+langInfo lang | (T.toLower lang) == "rust" || (T.toLower lang) == "condrust" = putStrLn "No further information for the Rust integration available" -- = macro_support
 langInfo lang | (T.toLower lang) == "python" = putStrLn "No further information for the Python integration available"
 langInfo lang = putStrLn $ "Language not supported: " <> show lang
