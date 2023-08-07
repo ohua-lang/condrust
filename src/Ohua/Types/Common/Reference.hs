@@ -121,6 +121,7 @@ instance Heq (InternalType ty s1) (InternalType ty s2) where
   -- heq (TypeFunction ty1) (TypeFunction ty2) = heq ty1 ty2
   heq _ _ = False
 
+
 type FunType :: Type -> Resolution -> Type
 data FunType ty s where
      FunType :: NonEmpty (OhuaType ty s) -> OhuaType ty s -> FunType ty s
@@ -247,6 +248,9 @@ setFunType intys outty (STFunType s _ins _out) = STFunType s intys outty
 type FunRef :: Type -> Resolution -> Type
 data FunRef ty s where
     FunRef :: QualifiedBinding -> Maybe FnId -> FunType ty s -> FunRef ty s
+
+instance Hashable (FunRef ty s) where 
+  hashWithSalt s (FunRef qbnd _ _ ) = hashWithSalt s qbnd 
 
 getRefType (FunRef _q _i funTy) = funTy
 --getRefReturnType (FunRef _q _i funTy) = getReturnType funTy

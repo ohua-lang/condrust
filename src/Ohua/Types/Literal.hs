@@ -14,7 +14,7 @@ data Lit ty
     -- We would need to require however, that any of the possible literals can be turned  into/recovered from a string
     --  | Hostlit String (VarType ty)
     | EnvRefLit Binding (UnresolvedVarType ty)-- ^ a variable bound by the outermost lambda that we compile
-    | FunRefLit (FunRef ty) -- ^ Reference to an external function
+    | FunRefLit (FunRef ty Resolve) -- ^ Reference to an external function
     deriving (Show, Eq, Generic)
 
 instance Hashable (Lit ty)

@@ -38,6 +38,9 @@ getLitType (StringLit _)  = IType TypeString
 getLitType (EnvRefLit _b vTy)  = vTy
 getLitType (FunRefLit fRef)  = FType $ getRefType fRef
 
+instance Hashable (Lit ty res)
+
+
 
 {-
 instance Heq (Lit ty s1) (Lit ty s2) where
