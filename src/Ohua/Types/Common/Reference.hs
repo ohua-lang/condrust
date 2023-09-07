@@ -68,11 +68,15 @@ data Resolution = Unresolved | Resolved
 type OhuaType :: Type -> Resolution -> Type
 data OhuaType ty s where
   HType :: HostType ty -> Maybe (InternalType ty s) -> OhuaType ty s
-  -- TUple and Function types can capture both resolved an unresolved host types
+  -- Tuple and Function types can capture both resolved an unresolved host types
   -- ToDo: Check if we need to introduce another layer of typing 
   TType :: NonEmpty (OhuaType ty s)                 -> OhuaType ty s
   FType :: FunType ty s                             -> OhuaType ty s
   IType :: InternalType ty Resolved                 -> OhuaType ty Resolved
+  -- Every function abstr/appl. should have at least a unit argument
+  -- To gurantee this after the typeSystem, while not adding those args in the typeSystem
+  -- we need to have a UnitType accessible in Unresolved ... this is it:
+  UType ::                                             OhuaType ty Unresolved
   TStar ::                                             OhuaType ty Unresolved
 
 -- We need hashes for HM 
@@ -174,7 +178,8 @@ unresToRes (TType tys) = case mapM unresToRes tys of
       Nothing -> Nothing
 -- ToDO: Can/Should we unreoslve function types?
 unresToRes (FType fty) = Nothing
-unresToRes TStar              = Nothing 
+unresToRes UType       = Just $ IType TypeUnit
+unresToRes TStar       = Nothing 
 
 
 isUnresolved :: OhuaType ty Unresolved -> Bool
@@ -184,6 +189,7 @@ isUnresolved t = case t of
          (FType (FunType ins out)) -> any isUnresolved (out NE.<| ins)
          (FType (STFunType state ins out)) -> any isUnresolved (state NE.<| (out :| ins ))
          --(IType _) -> False -- Error/Warning: inaccesible code
+         UType -> True
          TStar -> True
 
 
