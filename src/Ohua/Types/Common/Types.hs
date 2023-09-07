@@ -8,6 +8,7 @@ module Ohua.Types.Common.Types
     , NSRef(..)
     , QualifiedBinding(..)
     , HostType(..)
+    , Pathable(..)
     , OhuaType(..)
     , InternalType(..)
     , FunType(..)
