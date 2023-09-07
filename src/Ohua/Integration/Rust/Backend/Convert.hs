@@ -11,6 +11,7 @@ import qualified Ohua.Integration.Rust.Backend.Subset as Sub
 import Ohua.Integration.Rust.Common.Convert
 import Ohua.Prelude
 import Ohua.Types.Vector (natToInt)
+import GHC.Base (undefined)
 
 convertExp :: Sub.Expr -> Rust.Expr ()
 convertExp (Sub.Var bnd) =
@@ -140,8 +141,11 @@ convertTyRef (Sub.TyRef f ty) =
    PathTy Nothing (convertRef f ty) noSpan
 
 convertGenericArgs :: Sub.GenericArgs -> GenericArgs ()
-convertGenericArgs (Sub.AngleBracketed args) =
+convertGenericArgs (Sub.AngleBracketed args) = 
   AngleBracketed (map convertGenericArg args) [] noSpan
+-- The optional type reference is an output type
+convertGenericArgs (Sub.Parenthesized tyRefs (Just tRef)) = Parenthesized (map convertToTy tyRefs) (Just $ convertToTy tRef) noSpan
+convertGenericArgs (Sub.Parenthesized tyRefs Nothing ) = Parenthesized (map convertToTy tyRefs) Nothing noSpan
 
 convertGenericArg :: Sub.GenericArg -> GenericArg ()
 convertGenericArg (Sub.TypeArg (Sub.RustType ty)) = TypeArg ty
@@ -163,3 +167,7 @@ convertUnary Sub.Not = Rust.Not
 convertUnary Sub.Neg = Rust.Neg
 convertUnary Sub.Deref = Rust.Deref
 
+convertToTy :: Sub.TyRef -> Ty ()
+--FIXME: Must not be unfdefined
+convertToTy (Sub.TyRef qb Nothing) = error "Conversion of generic parameters is not fully implemented. Please file a bug"
+convertToTy (Sub.TyRef qb (Just gPs)) = error "Conversion of generic parameters is not fully implemented. Please file a bug"

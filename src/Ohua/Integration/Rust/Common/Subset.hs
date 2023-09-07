@@ -2,8 +2,12 @@
 module Ohua.Integration.Rust.Common.Subset where
 
 import Ohua.Prelude
+import Ohua.Types
+import Ohua.Integration.Rust.Util (toBinding)
 
-import Language.Rust.Syntax (Ty)
+import Language.Rust.Data.Ident (Ident(..))
+import Language.Rust.Syntax (Ty(..), Path(..), PathSegment(..))
+
 
 import Data.Functor.Foldable.TH (makeBaseFunctor)
 import Language.Haskell.TH.Syntax (Lift)
@@ -53,11 +57,11 @@ instance Plated (Block e) where plate = gplate
 instance Pathable RustType where
   toPath =
     \case
-      (RustType (PathTy Nothing (Path _ (p:ps) _) _) ->
-         let (p':|ps') = map convertSegment (p:|ps)
-         in case ps' of
-             [] -> Just $ Left $ Binding p'
-             _ -> Just $ Right $ QualifiedBinding (NSRef ps') p'
-      _ -> Nohting
+          (RustType (PathTy Nothing (Path _ (p:ps) _) _)) ->
+            let (p':|ps') = map convertSegment (p:|ps)
+            in case ps' of
+                [] -> Just $ Left p'
+                _ -> Just $ Right $ QualifiedBinding (NSRef ps') p'
+          any -> Nothing
     where
-      convertSegment (PathSegment Ident {name = n} _ _) = n
+      convertSegment (PathSegment ident _ _) = toBinding ident

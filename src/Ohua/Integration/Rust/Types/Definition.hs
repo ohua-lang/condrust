@@ -1,7 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE QuasiQuotes #-}
 module Ohua.Integration.Rust.Types.Definition where
-
+{-
 import Ohua.Prelude hiding ((=:))
 
 import Language.Rust.Quote hiding ((=:))
@@ -61,3 +61,4 @@ macro_support = do
         . renderLazy
         . layoutSmart defaultLayoutOptions
         . pretty'
+-}

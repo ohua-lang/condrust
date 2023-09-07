@@ -173,7 +173,7 @@ instance Architecture (Architectures 'SharedMemory) where
          in Rust.Block (program ++ [Rust.NoSemi resultHandling noSpan]) Rust.Normal noSpan
       createProgram (Program chans expr tasks) = error $ "Compilations resulted in a result expression: " <> show expr <> "This is probably a bug, please report."
 
-convertToRustType :: VarType TH.RustVarType -> Maybe Sub.RustType 
+convertToRustType :: OhuaType TH.RustVarType Resolved -> Maybe Sub.RustType 
 convertToRustType rTy =  Sub.RustType <$> toRustTy rTy
 
 

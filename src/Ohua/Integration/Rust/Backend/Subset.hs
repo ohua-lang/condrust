@@ -25,7 +25,7 @@ type Block = CSTypes.Block Expr
 type Stmt = CSTypes.Stmt Expr
 
 data Expr
-  = Lit (Lit RustVarType)
+  = Lit (Lit RustVarType Resolved)
   | Var Binding
   | MethodCall Expr CallRef [Expr]
   | Call CallRef [Expr]

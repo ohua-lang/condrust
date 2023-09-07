@@ -15,7 +15,6 @@ import Language.Rust.Syntax as Rust hiding (Rust)
 
 import Ohua.UResPrelude hiding (getVarType)
 import qualified Ohua.Prelude as Res (FunType)
-import Ohua.Types.Casts (fromResType)
 import Ohua.Frontend.Types
 import Ohua.Frontend.TypeSystem (Delta(..))
 import Ohua.Frontend.PPrint ()
@@ -32,14 +31,14 @@ import qualified Ohua.Integration.Rust.Frontend.Subset as Sub
 import qualified Ohua.Integration.Rust.Frontend.Convert as SubC
 
 
-asHostNormalURes :: Ty a -> VarType RustVarType
+asHostNormalURes :: Ty a -> OhuaType RustVarType Unresolved
 asHostNormalURes = fromResType . asHostNormal
 
 class ConvertExpr a where
-  convertExpr :: SubC.ConvertM m => a -> m (FrLang.Expr RustVarType)
+  convertExpr :: SubC.ConvertM m => a -> m (FrLang.Expr RustVarType Unresolved) 
 
 class ConvertPat a where
-  convertPat :: SubC.ConvertM m => a -> m (FrLang.Pat RustVarType)
+  convertPat :: SubC.ConvertM m => a -> m (FrLang.Pat RustVarType Unresolved)
 
 instance Integration (Language 'Rust) where
   type HostModule (Language 'Rust) = Module
@@ -240,10 +239,10 @@ instance Integration (Language 'Rust) where
       globs = mapMaybe (\case (Glob n) -> Just n; _ -> Nothing) (ohuaNs ^. imports)
 
 {-
-argTypesFromContext :: SubC.ConvertM m => [Sub.Expr] -> m [VarType RustVarType]
+argTypesFromContext :: SubC.ConvertM m => [Sub.Expr] -> m [OhuaType RustVarType Unresolved]
 argTypesFromContext = mapM getVarType
 
-getVarType' :: SubC.ConvertM m => Either Sub.VarRef Sub.Lit -> m (VarType RustVarType)
+getVarType' :: SubC.ConvertM m => Either Sub.VarRef Sub.Lit -> m (OhuaType RustVarType Unresolved)
 getVarType' (Left bnd) = return TypeVar
 -- FIXME: Actually literal should just carry through the value and the type of the literal
 getVarType' (Right lit) = case lit of
@@ -253,7 +252,7 @@ getVarType' (Right lit) = case lit of
   -- ToDo: Add other literals
 -}
 
-getVarType :: SubC.ConvertM m => Sub.Expr -> m (VarType RustVarType)
+getVarType :: SubC.ConvertM m => Sub.Expr -> m (OhuaType RustVarType Unresolved)
 getVarType (Sub.Var bnd (Just (Sub.RustType ty))) = return $ asHostNormalURes ty
 getVarType (Sub.Var bnd Nothing) = getVarType' $ Left bnd
 getVarType (Sub.Lit l) = getVarType' $ Right l
@@ -308,7 +307,7 @@ instance ConvertExpr Sub.Expr where
       MapE
         (LamE (pat' :| []) body')
         dataExpr'
-  convertExpr (Sub.EndlessLoop body) = convertExpr $ Sub.WhileE (Sub.Lit $ BoolLit True) body
+  convertExpr (Sub.EndlessLoop body) = convertExpr $ Sub.While (Sub.Lit $ BoolLit True) body
   convertExpr (Sub.Closure _ _ _ args _retTy body) = do
     args' <- unitParams <$> mapM convertPat args
     body' <- convertExpr body
@@ -370,7 +369,7 @@ instance ConvertPat Sub.Pat where
   -- It is possible to bind: let () = e1; in Rust, iff e1 evaluates to ()
   -- The pattern in this case would be TupP [], because language-rust has no Unit pattern
   -- However we do so we distinguish cases here
-  convertPat (Sub.TupP []) = throwError $ "Error: empty tuple pattern detected. This is currently not supported."
+  convertPat (Sub.TupP []) = throwError "Error: empty tuple pattern detected. This is currently not supported."
   convertPat (Sub.TupP (pt : pts)) = do
     pt' <- convertPat pt
     pts' <- mapM convertPat pts
@@ -381,13 +380,15 @@ instance ConvertPat Sub.IdentPat where
     return $ VarP bnd TypeVar
 
 instance ConvertPat Sub.Arg where
-  convertPat (Sub.Arg pat ty) = do
+  convertPat (Sub.Arg pat ty) = convertPat pat 
+  {- do
     pat' <- convertPat pat
     case pat' of
       VarP bnd TypeVar -> return $ VarP bnd TypeVar
       p -> return p
+      -}
 
-binOpInfo :: Sub.BinOp -> (Binding, VarType RustVarType)
+binOpInfo :: Sub.BinOp -> (Binding, OhuaType RustVarType Unresolved)
 -- ToDo: It seems infering the type of binary ops should be easy given the input. However
 --       we might need to incorparate Rusts coercion rules if the two arguments differ in type
   -- Check if that applicable and if it would be a problem after all since when somethigncan be coerced for this binary op, it can also be coerced downstream probably, if we just take one of the types.
@@ -402,13 +403,13 @@ binOpInfo Sub.Gt =  (">", asHostNormalURes rustBool)
 binOpInfo Sub.EqOp =  ("==", asHostNormalURes rustBool)
 binOpInfo Sub.OrOp =  ("||", asHostNormalURes rustBool)
 
-unOpInfo :: Sub.UnOp -> (Binding, VarType RustVarType)
+unOpInfo :: Sub.UnOp -> (Binding, OhuaType RustVarType Unresolved)
 unOpInfo Sub.Deref =  ("*",  TypeVar)
 -- ToDo: negation is a trait and returns whatever the input type implemented it to return i.e. not necessarily of the same type
 unOpInfo Sub.Not =  ("!",  TypeVar)
 unOpInfo Sub.Neg =  ("-",  TypeVar)
 
-asFunRef :: Monad m => Binding -> NonEmpty (VarType RustVarType) -> VarType RustVarType -> m (FrLang.Expr RustVarType)
+asFunRef :: Monad m => Binding -> NonEmpty (OhuaType RustVarType Unresolved) -> OhuaType RustVarType Unresolved -> m (FrLang.Expr RustVarType Unresolved)
 asFunRef op tys retTy = return $
       LitE $ FunRefLit $
         FunRef (QualifiedBinding (makeThrow []) op) Nothing (FunType tys retTy)

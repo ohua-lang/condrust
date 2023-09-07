@@ -26,12 +26,17 @@ data Module = Module FilePath (SourceFile Span)
 
 data RustVarType = Self (Ty ()) (Maybe (Lifetime ())) Mutability | Normal (Ty ()) deriving (Show, Eq)
 type RustHostType = HostType RustVarType
-type FunTypes = HM.HashMap QualifiedBinding (FunType RustVarType)
+type FunTypes = HM.HashMap QualifiedBinding (FunType RustVarType Resolved)
 
 
 instance Doc.Pretty RustVarType where
-    pretty (Self ty lT  mut) = RustP.pretty' ty
+    pretty (Self ty lT mut) = RustP.pretty' ty
     pretty (Normal ty) = RustP.pretty' ty
+
+instance Pathable RustVarType where 
+-- FIXME: IF we actually need this replace by a real implementation
+    toPath (Normal ty) = Just $ Left (fromString "Placeholder")
+    toPath (Self ty lT mut) = Just $ Right (QualifiedBinding (NSRef ["PlaceholderNamespace"]) "Placeholder")
 
 rustUnitReturn :: Ty ()
 rustUnitReturn = Rust.TupTy [] () -- Nothing (Rust.Path False [Rust.PathSegment "()" Nothing ()] ()) ()
@@ -42,17 +47,17 @@ rustBool = Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "bool" Nothing
 rustI32 :: Ty ()
 rustI32 = PathTy Nothing (Path False [PathSegment "i32" Nothing ()] ()) ()
 
-hostReturnSelf :: VarType RustVarType
-hostReturnSelf = Type $ HostType $ Normal $ PathTy Nothing (Path False [PathSegment "Self" Nothing ()] ()) ()
+hostReturnSelf :: OhuaType RustVarType Resolved
+hostReturnSelf = HType (HostType $ Normal $ PathTy Nothing (Path False [PathSegment "Self" Nothing ()] ()) ()) Nothing
 
 rustInfer :: Ty ()
 rustInfer = Infer ()
 
-asHostNormal :: Ty a -> VarType RustVarType
-asHostNormal ty = Type $ HostType $ Normal (deSpan ty)
+asHostNormal :: Ty a -> OhuaType RustVarType Resolved 
+asHostNormal ty = HType (HostType $ Normal (deSpan ty)) Nothing
 
-asHostSelf :: Ty a -> (Maybe (Lifetime a)) -> Mutability-> VarType RustVarType
-asHostSelf ty lt mut = Type $ HostType $ Self (deSpan ty) (map deSpan lt) mut
+asHostSelf :: Ty a -> (Maybe (Lifetime a)) -> Mutability-> OhuaType RustVarType Resolved 
+asHostSelf ty lt mut = HType ((HostType $ Self (deSpan ty) (map deSpan lt) mut)) Nothing 
 
 
 -- | Load the given file as AST, pattern match on the content and collect
@@ -62,10 +67,10 @@ asHostSelf ty lt mut = Type $ HostType $ Self (deSpan ty) (map deSpan lt) mut
 extractFromFile :: ErrAndLogM m => FilePath -> m FunTypes
 extractFromFile srcFile = extract srcFile =<< liftIO (loadRustFile srcFile)
 
-extract :: forall m.ErrAndLogM m => FilePath -> SourceFile Span -> m (HM.HashMap QualifiedBinding (FunType RustVarType))
+extract :: forall m.ErrAndLogM m => FilePath -> SourceFile Span -> m (HM.HashMap QualifiedBinding (FunType RustVarType Resolved))
 extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
     where
-        extractTypes :: [Item Span] -> m [(QualifiedBinding, FunType RustVarType)]
+        extractTypes :: [Item Span] -> m [(QualifiedBinding, FunType RustVarType Resolved)]
         extractTypes items =
             catMaybes . concat <$>
             mapM
@@ -132,51 +137,51 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
         createRef :: NSRef -> Ident -> QualifiedBinding
         createRef path funIdent = QualifiedBinding path $ toBinding funIdent
 
-        getTypes :: FnDecl Span -> m (NonEmpty (VarType RustVarType), VarType RustVarType)
+        getTypes :: FnDecl Span -> m (NonEmpty (OhuaType RustVarType Resolved), OhuaType RustVarType Resolved)
         getTypes f@(FnDecl _ _ True _) = throwError $ "Currently, we do not support variadic arguments." <> show f
-        getTypes (FnDecl [] retType _ _) = return (TypeUnit :| [], fromMaybeRet retType)
+        getTypes (FnDecl [] retType _ _) = return (IType TypeUnit :| [], fromMaybeRet retType)
         getTypes (FnDecl (a:args) retType _ _) = return (map toVarType (a:|args), fromMaybeRet retType)
 
-        fromMaybeRet:: Maybe (Ty Span) -> VarType RustVarType
+        fromMaybeRet:: Maybe (Ty Span) -> OhuaType RustVarType Resolved
         fromMaybeRet (Just retTy) = asHostNormal retTy
         fromMaybeRet Nothing = asHostNormal rustUnitReturn
 
         extractFunType ::
-            (Arg Span -> [VarType RustVarType] -> VarType RustVarType -> m (FunType RustVarType)) ->
+            (Arg Span -> [OhuaType RustVarType Resolved] -> OhuaType RustVarType Resolved -> m (FunType RustVarType Resolved)) ->
             FnDecl Span ->
-            m (FunType RustVarType)
+            m (FunType RustVarType Resolved)
         extractFunType _ f@(FnDecl _ _ True _) = throwError $ "Currently, we do not support variadic arguments." <> show f
         extractFunType f (FnDecl args retType _ _) =
             case args of
-                [] -> return $ FunType (TypeUnit :| []) (fromMaybeRet retType)
+                [] -> return $ FunType (IType TypeUnit :| []) (fromMaybeRet retType)
                 (fstArg : args) -> f fstArg (map toVarType args) (fromMaybeRet retType)
 
-        convertImplArg :: Ty Span -> Arg Span -> VarType RustVarType
+        convertImplArg :: Ty Span -> Arg Span -> OhuaType RustVarType Resolved 
         convertImplArg selfType (SelfValue _ mut _) = asHostSelf selfType Nothing mut
         convertImplArg selfType (SelfRegion _ lifeTime mut _) = asHostSelf selfType lifeTime mut -- Type $ Self (void selfType) (void <$>lifeTime) mut
         convertImplArg selfType (SelfExplicit _ _ty mut _) = asHostSelf selfType Nothing mut
         convertImplArg _ (Arg _ _ typ _) = asHostNormal typ
 
-        toVarType :: Arg Span -> VarType RustVarType
+        toVarType :: Arg Span -> OhuaType RustVarType Resolved
         toVarType (Arg _ _ typ _) = asHostNormal typ
         toVarType a = error $ "The impossible happened. Self Type outside of struct of trait discovered: " <> show a
 
-        extractFromImplItem :: NSRef -> Ty Span -> ImplItem Span -> m (Maybe (QualifiedBinding, FunType RustVarType))
+        extractFromImplItem :: NSRef -> Ty Span -> ImplItem Span -> m (Maybe (QualifiedBinding, FunType RustVarType Resolved))
         extractFromImplItem path selfType (MethodI _ _ _ ident _ (MethodSig _ decl) _ _) =
             Just . (createRef path ident, ) <$> extractFunType (extractFirstArg selfType) decl
         extractFromImplItem _ _ _ = return Nothing
 
-        extractFromTraitItem :: NSRef -> Ty Span -> TraitItem Span -> m (Maybe (QualifiedBinding, FunType RustVarType ))
+        extractFromTraitItem :: NSRef -> Ty Span -> TraitItem Span -> m (Maybe (QualifiedBinding, FunType RustVarType Resolved))
         extractFromTraitItem path selfType (MethodT _ ident _ (MethodSig _ decl) _ _) =
             Just . (createRef path ident, ) <$> extractFunType (extractFirstArg selfType) decl
         extractFromTraitItem _ _ _ = return Nothing
 
-        extractFirstArg :: Ty Span -> Arg Span -> [VarType RustVarType] -> VarType RustVarType -> m (FunType RustVarType)
+        extractFirstArg :: Ty Span -> Arg Span -> [OhuaType RustVarType Resolved] -> OhuaType RustVarType Resolved -> m (FunType RustVarType Resolved)
         extractFirstArg selfType fstArg args retTy =
             -- Replace a return type Self with the actual name of the struct
             let actualReturnType = if retTy == hostReturnSelf then asHostNormal selfType else retTy
                 funType x0 = case x0 of
-                              (Type (HostType Self{})) -> STFunType x0 args actualReturnType
+                              (HType (HostType Self{}) Nothing) -> STFunType x0 args actualReturnType
                               _ -> FunType (x0 :| args) actualReturnType
             in return $ funType $ convertImplArg selfType fstArg
 

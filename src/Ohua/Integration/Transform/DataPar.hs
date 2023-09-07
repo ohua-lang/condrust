@@ -204,8 +204,8 @@ rewrite liftCollectTy (SMap smapF body collectF) = do
     rewriteBody e = pure e
     
     -- Question: Can we get rid of this having the type annotation of the bound variable
-    -- Yes just pattern match on the function type FunType :: [VarType ty] -> VarType ty -> FunType ty
-    findOutTy :: DFApp 'Fun ty -> NormalizedDFExpr ty -> OhuaM (VarType ty)
+    -- Yes just pattern match on the function type FunType :: [OhuaType ty Resolved] -> OhuaType ty Resolved -> FunType ty
+    findOutTy :: DFApp 'Fun ty -> NormalizedDFExpr ty -> OhuaM (OhuaType ty Resolved)
     findOutTy fun cont = 
         case DFL.outsDFApp fun of
             -- make this a mathc on ty being 'TypeVar' which should error or any type which is the type we want
@@ -214,12 +214,13 @@ rewrite liftCollectTy (SMap smapF body collectF) = do
                         (t:_) -> return t
             _ -> unsupported "Multiple outputs to pure fun."
     
-    findOutTy' :: Binding -> NormalizedDFExpr ty -> [VarType ty]
+    findOutTy' :: Binding -> NormalizedDFExpr ty -> [OhuaType ty Resolved]
     findOutTy' bnd cont = [ ty | DFL.Let app c <- universe' cont
                               , (TBind b ty) <- insAndTypesDFApp app
                               , b == bnd] 
 
-    liftOutTy (Type (HostType t)) = Type $ HostType $ liftCollectTy t
+    liftOutTy :: OhuaType ty Resolved -> OhuaType ty Resolved
+    liftOutTy (HType (HostType t) Nothing ) = HType (HostType (liftCollectTy t)) Nothing
     liftOutTy t = t
 
 appendExpr ::
@@ -234,8 +235,8 @@ isIgnorable (QualifiedBinding (NSRef ["ohua", "lang"]) _) = True
 isIgnorable _ = False
 
 liftFunction :: forall ty.
-                VarType ty
-             -> VarType ty
+                OhuaType ty Resolved
+             -> OhuaType ty Resolved
              -> DFApp 'Fun ty
              -> NormalizedDFExpr ty 
              -> OhuaM (NormalizedDFExpr ty)
@@ -257,17 +258,17 @@ liftFunction collectTy retTy (PureDFFun out fun inp) cont = do
         )
         cont
 
-    handleFun :: ATypedBinding 'Data ty -> FunType ty -> DFApp 'Fun ty
+    handleFun :: ATypedBinding 'Data ty -> FunType ty Resolved -> DFApp 'Fun ty
     handleFun futuresBnd funTy =
       PureDFFun
         (Direct futuresBnd)
         (FunRef spawnFuture Nothing $ getSpawnFunType fun funTy)
 
-        (DFEnvVar (TypeFunction funTy) (FunRefLit fun) NE.<| inp)
+        (DFEnvVar (FType funTy) (FunRefLit fun) NE.<| inp)
 
 
-    getSpawnFunType (FunRef _ _ (FunType (TypeUnit :| []) rty)) funTy = FunType (TypeFunction funTy :| []) rty
-    getSpawnFunType (FunRef _ _ (FunType xs               rty)) funTy = FunType (TypeFunction funTy <| xs) rty
+    getSpawnFunType (FunRef _ _ (FunType (IType TypeUnit :| []) rty)) funTy = FunType (FType funTy :| []) rty
+    getSpawnFunType (FunRef _ _ (FunType xs               rty)) funTy = FunType (FType funTy <| xs) rty
 
 -- |
 -- All that the language and backend requires to support this transformations are
@@ -497,7 +498,7 @@ amorphous numRetries = transformM go
         )
         -- We cut the 'n' next elements from the container, so inner and container types remain the same
         | smapF == IFuns.smap && loopIn == loopInp' = do
-          taken <- flip TBind IType IType TypeNat <$> generateBindingWith "n_taken"
+          taken <- flip TBind (IType TypeNat) <$> generateBindingWith "n_taken"
           takenInp <- flip TBind liTy <$> generateBindingWith (loopInBnd <> "_n")
           rest <- flip TBind liTy <$> generateBindingWith "rest"
           nResults <- DataBinding . flip TBind liTy <$> generateBindingWith "n_results"
@@ -530,7 +531,7 @@ amorphous numRetries = transformM go
           cont
         )
         | smapF == IFuns.smap && loopIn == loopInp' = do
-          taken <- flip TBind TypeNat <$> generateBindingWith "n_taken"
+          taken <- flip TBind (IType TypeNat) <$> generateBindingWith "n_taken"
           takenInp <- flip TBind liTy <$> generateBindingWith (loopInBnd <> "_n")
           nResults <- flip TBind liTy <$> generateBindingWith "n_results"
           return $
@@ -570,7 +571,7 @@ typeAmorphous :: NormalizedDFExpr ty -> OhuaM (NormalizedDFExpr ty)
 typeAmorphous = return . mapFuns go
     where
         go (PureDFFun outs (FunRef f id (FunType (a:|b:c) retTy) ) ins) | f == concat =
-            PureDFFun outs (FunRef f id (FunType (TypeList a :| TypeList b : c ) retTy)) ins
+            PureDFFun outs (FunRef f id (FunType ((IType $ TypeList a) :| (IType $ TypeList b) : c ) retTy)) ins
         go (PureDFFun outs (FunRef f id (FunType (a :| b) retTy ) ) ins) | f == takeN =
-            PureDFFun outs (FunRef f id (FunType (TypeList a :| b) retTy) ) ins
+            PureDFFun outs (FunRef f id (FunType ((IType $ TypeList a ) :| b) retTy) ) ins
         go a = a

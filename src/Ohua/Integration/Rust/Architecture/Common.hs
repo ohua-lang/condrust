@@ -40,20 +40,21 @@ serialize (TH.Module path (SourceFile modName atts items)) ns createProgram plac
       i -> i
 
 
-toRustTy :: VarType TH.RustVarType -> Maybe (Rust.Ty ())
+toRustTy :: OhuaType TH.RustVarType Resolved -> Maybe (Rust.Ty ())
 toRustTy ty = case ty of
-    TypeUnit -> Just $ Rust.TupTy [] ()
+    IType TypeUnit -> Just $ Rust.TupTy [] ()
     IType TypeNat -> Just $  Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "usize" Nothing ()] ()) ()
-    TypeBool ->  Just $ Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "bool" Nothing ()] ()) ()
+    IType TypeBool ->  Just $ Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "bool" Nothing ()] ()) ()
+    IType TypeString ->  Just $ Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "String" Nothing ()] ()) ()
 
-    (Type (HostType (TH.Self ty _ _ ))) ->  Just $ ty
-    (Type (HostType (TH.Normal ty))) -> Just $  ty
+    (HType (HostType (TH.Self ty _ _ )) _ ) ->  Just $ ty
+    (HType (HostType (TH.Normal ty)) _ ) -> Just $  ty
 
     (TType types) ->  do
       types' <- mapM toRustTy types
       return $ Rust.TupTy (toList types') ()
 
-    (TypeList itemType) ->  do
+    (IType (TypeList itemType)) ->  do
       itemTy <- toRustTy itemType
       return $ PathTy Nothing (Path False [PathSegment "Vec" (Just (AngleBracketed [TypeArg itemTy] [] ())) ()] ()) ()
-    TypeFunction (fty) -> Nothing
+    FType fty -> Nothing
