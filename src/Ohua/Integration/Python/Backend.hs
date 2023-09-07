@@ -22,8 +22,8 @@ import Data.Functor.Foldable (cata, embed)
 import Data.Maybe
 import Data.List.NonEmpty ((<|))
 
-defaultType :: VarType PythonVarType
-defaultType = Type $ HostType PythonObject
+defaultType :: OhuaType PythonVarType Resolved
+defaultType = HType (HostType PythonObject) Nothing
 
 {-| Convert a task to a function block of the
     subset Language.
