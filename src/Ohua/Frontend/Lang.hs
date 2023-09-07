@@ -65,17 +65,22 @@ data Expr ty res where
   VarE      :: Binding -> OhuaType ty res                                              -> Expr ty res
   LitE      :: Lit ty res                                                              -> Expr ty res
   LetE      :: Pat ty res -> Expr ty res -> Expr ty res                                -> Expr ty res
-  AppE      :: Expr ty res -> NonEmpty (Expr ty res)                                   -> Expr ty res
-  LamE      :: NonEmpty (Pat ty res) -> Expr ty res                                    -> Expr ty res
+  -- We need to add unit arguments and unit parameters to applications and abstractions without args or 
+  -- parameters. However, internal types (unit) should only appear in resolved expressions
+  -- So there is a unresolved and a resolved version of App and Lam now 
+  AppEU     :: Expr ty Unresolved -> [Expr ty Unresolved]                              -> Expr ty Unresolved
+  AppE      :: Expr ty Resolved -> NonEmpty (Expr ty Resolved)                         -> Expr ty Resolved
+  LamEU     :: [Pat ty Unresolved] -> Expr ty Unresolved                               -> Expr ty Unresolved
+  LamE      :: NonEmpty (Pat ty Resolved) -> Expr ty Resolved                          -> Expr ty Resolved
   IfE       :: Expr ty res -> Expr ty res -> Expr ty res                               -> Expr ty res
   WhileE    :: Expr ty res -> Expr ty res                                              -> Expr ty res
   MapE      :: Expr ty res -> Expr ty res                                              -> Expr ty res
   -- Before BindE consisted of a state expr (a variable) and a method call (AppE)
-  -- Now we don't have type annotations at binding sites, so the state can become a Binding in the 'Uresovled'
+  -- Now we don't have type annotations at binding sites, so the state can become a Binding in the 'Uresolved'
   -- version
   -- Also, to allow the typecheck to check that the arg types of method include the state, it makes sense to not nest them 
   -- in an AppE expression but keep them directly in the BindE
-  BindE     :: Expr ty Unresolved -> Binding          -> NonEmpty (Expr ty Unresolved) -> Expr ty Unresolved
+  BindE     :: Expr ty Unresolved -> Binding          -> [Expr ty Unresolved] -> Expr ty Unresolved
   -- However I don't see why in StateFunE we should 
   --     a) keep the QualifiedBinding instead of the VarE the state should be at this point -> maybe to enforce it ... well ok then 
   --     b) keep the args in the StateFunE Expression instead of nesting it in an AppE again
@@ -95,13 +100,13 @@ preWalkE f e = case e of
           let e1' = preWalkE  f e1
               e2' = preWalkE  f e2
           in f (LetE p e1' e2')
-      AppE fun args -> 
+      AppEU fun args -> 
           let fun' = preWalkE f fun
               args' = map (preWalkE f) args
-          in f (AppE fun' args')
-      LamE pats body -> 
+          in f (AppEU fun' args')
+      LamEU pats body -> 
           let body' = preWalkE f body
-          in f (LamE pats body')
+          in f (LamEU pats body')
       IfE c te fe -> 
           let c' = preWalkE f c
               te' = preWalkE f te 
@@ -142,13 +147,13 @@ preWalkM f e = case e of
           e1' <- preWalkM  f e1
           e2' <- preWalkM  f e2
           f (LetE p e1' e2')
-      AppE fun args ->  do
+      AppEU fun args ->  do
           fun' <- preWalkM f fun
           args' <- mapM (preWalkM f) args
-          f (AppE fun' args')
-      LamE pats body ->  do
+          f (AppEU fun' args')
+      LamEU pats body ->  do
           body' <- preWalkM f body
-          f (LamE pats body')
+          f (LamEU pats body')
       IfE c te fe ->  do
           c' <- preWalkM f c
           te' <- preWalkM f te 
@@ -276,7 +281,9 @@ freeVars = go HS.empty
     go  ctxt (LitE _) = []
     go  ctxt (LetE p e1 e2) = go ctxt e1 ++ (go (foldl (flip HS.insert) ctxt $ patBnd p) e2)
     go  ctxt (AppE f xs) = go ctxt f ++ foldl (\vs e -> vs ++ go ctxt e) [] xs
+    go  ctxt (AppEU f xs) = go ctxt f ++ foldl (\vs e -> vs ++ go ctxt e) [] xs
     go  ctxt (LamE ps e) = go (foldl (flip HS.insert) ctxt $ neConcat $ map patBnd ps) e
+    go  ctxt (LamEU ps e) =  go (foldl (flip HS.insert) ctxt $ concat $ map (NE.toList . patBnd) ps) e
     go  ctxt (IfE e1 e2 e3) = go ctxt e1 ++ go ctxt e2 ++ go ctxt e3
     go  ctxt (WhileE e1 e2) = go ctxt e1 ++ go ctxt e2
     go  ctxt (MapE e1 e2) = go ctxt e1 ++ go ctxt e2

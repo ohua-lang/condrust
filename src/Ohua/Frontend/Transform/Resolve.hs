@@ -20,7 +20,7 @@ module Ohua.Frontend.Transform.Resolve where
 
 import Ohua.UResPrelude
 
-import Ohua.Frontend.Lang as FrLang (Expr(LitE, LetE, VarE, LamE), Pat(VarP), preWalkE, universeReplace)
+import Ohua.Frontend.Lang as FrLang (Expr(..), Pat(VarP), preWalkE, universeReplace)
 import Ohua.Frontend.Types
 import Ohua.Frontend.PPrint ()
 
@@ -77,7 +77,7 @@ resolveNS (ns, registry) =
         addExpr :: (QualifiedBinding, FunType ty Unresolved) -> Expr ty Unresolved -> Expr ty Unresolved
         -- TODO This is an assumption that fails in Ohua.Compile.Compiler.prepareRootAlgoVars
         --      We should enforce this via the type system rather than a runtime error!
-        addExpr (otherAlgo, fTy) (LamE vars body) = LamE vars $ addExpr  (otherAlgo, fTy) body
+        addExpr (otherAlgo, fTy) (LamEU vars body) = LamEU vars $ addExpr  (otherAlgo, fTy) body
         addExpr (otherAlgo, fTy) e =
             -- (trace $"Adding Expression. Assign bind : "<> show bnd <> "\n to expression: "<> quickRender e)
             LetE

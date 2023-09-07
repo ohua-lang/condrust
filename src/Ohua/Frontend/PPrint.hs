@@ -44,8 +44,14 @@ instance Pretty (Expr ty res) where
         , align (pretty cont)
         ]
 
-    pretty (AppE x xs) = pretty x <> align (tupled $ NE.toList $ NE.map pretty xs)
+    pretty (AppEU x xs) = pretty x <> align (tupled $ map pretty xs)
+    pretty (AppE x xs) = pretty x <> align (tupled $ NE.toList $  NE.map pretty xs)
     pretty (LamE ps b) = sep ["λ" <+>
+                    align
+                        (sep [ sep (map pretty (toList ps) <> ["->"])
+                             , pretty b
+                             ])]
+    pretty (LamEU ps b) = sep ["λ" <+>
                     align
                         (sep [ sep (map pretty (toList ps) <> ["->"])
                              , pretty b
@@ -66,7 +72,7 @@ instance Pretty (Expr ty res) where
                         (sep [ pretty e1 <> ":"
                              , pretty e2
                              ])]
-    pretty (BindE s f xs) = hsep [brackets $ pretty s, pretty f, align (tupled $ NE.toList $ NE.map pretty xs)]
-    pretty (StateFunE s qb mCall) = pretty s <+> "." <+> pretty mCall
+    pretty (BindE s f xs) = hsep [brackets $ pretty s, pretty f, align (tupled $ map pretty xs)]
+    pretty (StateFunE s _qb mCall) = pretty s <+> "." <+> pretty mCall
     pretty (StmtE e c) = vsep $ hsep [pretty e, ";"] : [pretty c]
     pretty (TupE (e:|es)) = hsep [align $ tupled $ map pretty (e:es)]

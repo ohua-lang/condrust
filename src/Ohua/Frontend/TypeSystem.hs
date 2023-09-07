@@ -29,6 +29,7 @@ import Ohua.Frontend.Lang
     , patTyBnds
     , patType
     , freeVars
+    , unitParams
     )
   
 import Ohua.Frontend.SymbolResolution (SymResError(..), Delta, Gamma(..), resolveSymbols)
@@ -143,13 +144,13 @@ typeSystem delta gamma = \case
   ===================================================================================
                   Delta, Gamma |– fun t1 t2 ... tn : Tf
   -}
-  (AppE fun args) ->
+  (AppEU fun args) ->
     let
       -- This accounts for partial application i.e. if the number of args
       -- matches the number of types in the declation the return type is the return type of the 
       -- function ... otherwise it returns a partially applied function
       assocArgWithType [] (_:_) =
-        wfError "Too many argumemts in function application."
+        wfError "Too many arguments in function application."
       -- Question: How is it ok to have more argTypes than args?
       assocArgWithType l [] = return ([], l)
       assocArgWithType (t:ts) (arg:args) = do
@@ -168,8 +169,13 @@ typeSystem delta gamma = \case
             (_, pendingArgsTy) <- assocArgWithType ins $ toList args
             return $ FType  (STFunType sin pendingArgsTy out)
         t -> typeError $ "First argument of function application is not a function, but has type: " <> show t
+
+      -- if args are empty, we need to pass an explicit unit argument
+      args' <- case args of
+        [] -> invariantBroken $ "Applications need to have at least one argument. The function " <> show fun <> " did not. This is a compiler error. Please file a bug"
+        (a:as) -> (neUnzip3 <$> mapM (typeExpr delta gamma) (a:|as)) >>= (\ (_, argsT, _ ) -> return argsT)
       -- Question: Shouldn't we check derived argTys against function input types?
-      (_, args', _argsTy) <- neUnzip3 <$> mapM (typeExpr delta gamma) args
+      -- (_, args', _argsTy) <- neUnzip3 <$> mapM (typeExpr delta gamma) args
 
       return (gamma', AppE fun' args', resTy)
 
@@ -178,7 +184,7 @@ typeSystem delta gamma = \case
   =================================================================
       Delta, Gamma |- Lambda p1 p2 .. pn. e : T1 -> T2 -> ... -> Tn -> Te
   -}
-  (LamE pats expr) ->
+  e@(LamEU pats expr) ->
     let
       invariantGetGamma :: Binding -> StateT (Gamma ty Resolved) m (OhuaType ty Resolved)
       invariantGetGamma bnd = do
@@ -191,11 +197,15 @@ typeSystem delta gamma = \case
       typePatFromGamma (VarP bnd t) = (\ t' -> VarP bnd <$> maxType t t') =<< invariantGetGamma bnd
       typePatFromGamma (TupP ps) = TupP <$> mapM typePatFromGamma ps
     in do
-      let bndsAndTypes = map patTyBnds pats
-      let gamma' = foldl (\ g (b, t) -> HM.insert b t g) gamma $ neConcat bndsAndTypes
+      patsNE <- case pats of 
+            [] -> invariantBroken $ "Abstractions need to have at least one argument. The function " <> show e <> " did not. This is a compiler error. Please file a bug"
+            (p:ps) -> return (p:|ps)
+      let gamma' = foldl (\ g (b, t) -> HM.insert b t g) gamma $ join $ NE.map patTyBnds patsNE
       (gamma'', expr', tyE) <- typeExpr delta gamma' expr
-      (pats', gamma''') <- runStateT (mapM typePatFromGamma pats) gamma''
-      let ty = FunType (map patType pats') tyE
+      (pats', gamma''') <- runStateT (mapM typePatFromGamma patsNE) gamma''
+      return (pats', gamma''', tyE, expr')
+      
+      let ty = FunType (NE.map patType pats') tyE
 
       return (gamma''', LamE pats' expr', FType ty)
   {-
@@ -215,9 +225,13 @@ typeSystem delta gamma = \case
             -- Question: Why don't we do the partial application type check here?
             FType (STFunType sTy _ resTy) | heq sTy stateTy -> return resTy
             _ -> typeError $ "State types do not match."
+    -- if args are empty, we need to pass an explicit unit argument
+    args' <- case args of
+      [] -> return (LitE UnitLit:|[]) 
+      (a:as) -> (neUnzip3 <$> mapM (typeExpr delta gamma) (a:| as)) >>= (\ (_, argsT, _ ) -> return argsT)
 
     -- gamma doesn't change (at least in the current system) as args are only usage sites
-    (_, args', _argsTy) <- neUnzip3 <$> mapM (typeExpr delta gamma) args
+    --(_, args', _argsTy) <- neUnzip3 <$> mapM (typeExpr delta gamma) args
     -- ToDO: ArgTys should match function tys
 
     return (gamma', StateFunE (VarE stateB stateTy) qb method', ty)
@@ -372,6 +386,8 @@ maxType (FType fty1) (FType fty2) = do
     mTy <- maxFunType fty1 fty2
     return (FType mTy)
 maxType TStar t2 = return t2
+maxType UType (IType TypeUnit) = return (IType TypeUnit)
+maxType UType t = typeError $ "Comparing in compatible types UType and " <> show t
 maxType t1@(HType _ _)  t2@(TType _)        = typeError $ "Comparing in compatible types " <> show t1 <> " and " <> show t2
 maxType t1@(HType t _)  t2@(IType _)        = typeError $ "Comparing in compatible types " <> show t1 <> " and " <> show t2
 maxType t1@(TType _)    t2@(HType _ _ )     = typeError $ "Comparing in compatible types " <> show t1 <> " and " <> show t2

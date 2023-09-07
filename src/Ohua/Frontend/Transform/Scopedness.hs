@@ -23,9 +23,10 @@ contextedTraversal f = go
             let ctxt' = HS.union ctxt $ HS.fromList $ goPat v
             in LetE v <$> go ctxt' a -- take recursive calls into account
                       <*> go ctxt' b
-        go ctxt (LamE vs b) =
+        go ctxt (LamEU vs b) =
             let ctxt' = HS.union ctxt $ HS.fromList $ join $ Ohua.Prelude.map goPat $ Ohua.Prelude.toList vs
-            in LamE vs <$> go ctxt' b
+            in LamEU vs <$> go ctxt' b
+
         go ctxt v@(VarE bdg ty) | not (HS.member bdg ctxt) = f ctxt v
         -- Question: Would we ever expect this to happen?
         go _ctxt v@(VarE _ _) = return v
@@ -34,7 +35,7 @@ contextedTraversal f = go
         -- Recurse one level into a structure with a monadic effect. (a.k.a composOpM from Björn Bringert's compos) 
         -- So replace decendM with bacially further decending because go intself is recursive
         -- ToDo: Make Expr Functor/Applicative again ? -> Different for 'Resolved/'Unresolved
-        go ctxt (AppE fe args) = AppE <$> go ctxt fe <*> TR.mapM (go ctxt) args  
+        go ctxt (AppEU fe args) = AppEU <$> go ctxt fe <*> mapM (go ctxt) args  
         go ctxt (IfE c et ef) = IfE <$> go ctxt c <*> go ctxt et <*> go ctxt ef
         go ctxt (WhileE c body) = WhileE <$> go ctxt c <*> go ctxt body
         go ctxt (MapE fe gen) = MapE <$> go ctxt fe <*> go ctxt gen 
