@@ -63,7 +63,7 @@ dependencies:
 - filepath
 - directory
 - bytestring
-- language-rust == 0.2.0.27
+- language-rust
 - language-python
 - unordered-containers
 - text
