@@ -1,3 +1,4 @@
+{-# LANGUAGE InstanceSigs#-}
 {-# LANGUAGE QuasiQuotes #-}
 
 module Ohua.Integration.Rust.Architecture.SharedMemory where
@@ -6,7 +7,7 @@ import qualified Data.List as LS
 import Language.Rust.Data.Ident (mkIdent)
 import Language.Rust.Quote
 import qualified Language.Rust.Syntax as Rust hiding (Rust)
-import Ohua.Backend.Lang (Com (..))
+import Ohua.Backend.Lang (Com (..), Channel)
 import Ohua.Backend.Types hiding (convertExpr)
 import Ohua.Integration.Architecture
 import Ohua.Integration.Options
@@ -31,6 +32,7 @@ instance Architecture (Architectures 'SharedMemory) where
   type Chan (Architectures 'SharedMemory) = Sub.Stmt
   type ATask (Architectures 'SharedMemory) = [Rust.Stmt ()]
 
+  convertChannel :: Architectures 'SharedMemory -> Channel TH.RustVarType -> Chan (Architectures 'SharedMemory)
   convertChannel SSharedMemory{} (SRecv argTy (SChan bnd)) =
     let chanTy =
           case convertToRustType argTy of
@@ -148,7 +150,7 @@ instance Architecture (Architectures 'SharedMemory) where
                     }
                 }
                 }|]
-            taskStmts = concat $ map taskExpression tasks
+            taskStmts = concatMap taskExpression tasks
             (Rust.Block taskRunStmt _ _) =
               void
                 [block|{
@@ -173,7 +175,7 @@ instance Architecture (Architectures 'SharedMemory) where
          in Rust.Block (program ++ [Rust.NoSemi resultHandling noSpan]) Rust.Normal noSpan
       createProgram (Program chans expr tasks) = error $ "Compilations resulted in a result expression: " <> show expr <> "This is probably a bug, please report."
 
-convertToRustType :: OhuaType TH.RustVarType Resolved -> Maybe Sub.RustType 
+-- convertToRustType :: OhuaType TH.RustVarType Resolved -> Maybe Sub.RustType
 convertToRustType rTy =  Sub.RustType <$> toRustTy rTy
 
 

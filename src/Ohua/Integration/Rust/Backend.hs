@@ -1,3 +1,4 @@
+{-# LANGUAGE InstanceSigs #-}
 module Ohua.Integration.Rust.Backend where
 
 import Data.Functor.Foldable (cata, embed)
@@ -35,6 +36,14 @@ instance Integration (Language 'Rust) where
   type Expr (Language 'Rust) = Sub.Expr
   type Task (Language 'Rust) = Sub.Block
 
+  lower ::
+      ( ErrAndLogM m
+      , Architecture arch
+      , Lang arch ~ Language 'Rust)
+      => HostModule (Language 'Rust)
+      -> arch
+      -> Namespace (Program (Channel RustVarType) (Com 'Recv RustVarType) (TaskExpr RustVarType) RustVarType) (AlgoSrc (Language 'Rust)) 
+      -> m (Namespace (Program (Channel RustVarType) (Com 'Recv RustVarType) (Task (Language 'Rust)) RustVarType) (AlgoSrc (Language 'Rust))) 
   lower (Module _path (SourceFile _ _ items)) arch ns =
     return $
       ns & algos %~ map (\algo -> algo & algoCode %~ convertTasks (algo ^. algoInputCode))
@@ -51,6 +60,7 @@ instance Integration (Language 'Rust) where
         LitF (EnvRefLit arg _ty) -> Var arg
         e -> embed e
 
+  convertExpr :: (Architecture arch, Lang arch ~ Language 'Rust) => arch -> TCLang.TaskExpr RustVarType -> Sub.Expr
   convertExpr _ (TCLang.Var b) = Sub.Var b
   convertExpr _ (TCLang.Lit l) = Sub.Lit l
   convertExpr arch (Apply (Stateless bnd args)) = convertFunCall arch bnd args
@@ -136,7 +146,7 @@ mkFunRefUnqual = QualifiedBinding (makeThrow [])
 
 -- TODO we probably want a Literal for common operations
 convertFunCall ::
-  (Architecture arch, Lang arch ~ Language 'Rust, ty ~ B.Type (Lang arch)) =>
+  (Architecture arch, Lang arch ~ Language 'Rust) =>
   arch ->
   QualifiedBinding ->
   [TCLang.TaskExpr RustVarType] ->
