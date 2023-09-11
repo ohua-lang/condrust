@@ -56,6 +56,9 @@ rustInfer = Infer ()
 asHostNormal :: Ty a -> OhuaType RustVarType Resolved 
 asHostNormal ty = HType (HostType $ Normal (deSpan ty)) Nothing
 
+asHostNormalU :: Ty a -> OhuaType RustVarType Unresolved 
+asHostNormalU ty = HType (HostType $ Normal (deSpan ty)) Nothing
+
 asHostSelf :: Ty a -> (Maybe (Lifetime a)) -> Mutability-> OhuaType RustVarType Resolved 
 asHostSelf ty lt mut = HType ((HostType $ Self (deSpan ty) (map deSpan lt) mut)) Nothing 
 

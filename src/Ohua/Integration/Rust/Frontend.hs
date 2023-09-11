@@ -22,7 +22,8 @@ import Ohua.Frontend.Lang as FrLang
     ( Expr(..),
       Pat(TupP, VarP),
       unitParams,
-      unitArgs)
+      unitArgs,
+      universeReplace)
 
 import Ohua.Integration.Lang
 import Ohua.Integration.Rust.Util
@@ -31,11 +32,8 @@ import qualified Ohua.Integration.Rust.Frontend.Subset as Sub
 import qualified Ohua.Integration.Rust.Frontend.Convert as SubC
 
 
-asHostNormalURes :: Ty a -> OhuaType RustVarType Unresolved
-asHostNormalURes = fromResType . asHostNormal
-
 class ConvertExpr a where
-  convertExpr :: SubC.ConvertM m => a -> m (FrLang.Expr RustVarType Unresolved) 
+  convertExpr :: SubC.ConvertM m => a -> m (FrLang.Expr RustVarType Unresolved)
 
 class ConvertPat a where
   convertPat :: SubC.ConvertM m => a -> m (FrLang.Pat RustVarType Unresolved)
@@ -49,7 +47,7 @@ instance Integration (Language 'Rust) where
     ErrAndLogM m =>
     Language 'Rust ->
     FilePath ->
-    m (Module, Namespace (FrLang.Expr RustVarType) (Item Span), Module)
+    m (Module, Namespace (FrLang.Expr RustVarType Unresolved) (Item Span), Module)
   loadNs _ srcFile = do
     mod <- liftIO $ loadRustFile srcFile
     ns <- extractNs mod
@@ -58,7 +56,7 @@ instance Integration (Language 'Rust) where
       extractNs ::
         ErrAndLogM m =>
         SourceFile Span ->
-        m (Namespace (FrLang.Expr RustVarType) (Item Span))
+        m (Namespace (FrLang.Expr RustVarType Unresolved) (Item Span))
       extractNs input = do
         globalDefs <- collectGlobals input
         extractWithGlobals globalDefs input
@@ -118,20 +116,18 @@ instance Integration (Language 'Rust) where
         Ident ->
         FnDecl Span ->
         Block Span ->
-        m (FrLang.Expr RustVarType)
+        m (FrLang.Expr RustVarType Unresolved)
       extractAlgo _algoName (FnDecl _ _ True _) _block = error "We do not support compilation of variadic functions for the moment"
       extractAlgo algoName  (FnDecl args mReturnTy _ _) block = do
         -- implGlobalArgs <- fromGlobals
         -- traceM $ "Implicit Arguments:" <> show implGlobalArgs
-        args' <- unitParams <$> mapM (convertPat <=< SubC.convertArg) args
+        args' <- mapM (convertPat <=< SubC.convertArg) args
         block' <- convertIntoFrExpr block
-        let returnType = case mReturnTy of
-                           Nothing -> TypeUnit
-                           Just t  -> asHostNormalURes t
+        let returnType = maybe UType asHostNormalU mReturnTy
         let wrappedBlock = LetE (VarP "result" returnType) block' (VarE "result" returnType)
-        return $ LamE ({- implGlobalArgs ++ -} args') wrappedBlock
+        return $ LamEU {- implGlobalArgs ++ -} args' wrappedBlock
 
-      convertIntoFrExpr :: SubC.ConvertM m => Block Span -> m (FrLang.Expr RustVarType)
+      convertIntoFrExpr :: SubC.ConvertM m => Block Span -> m (FrLang.Expr RustVarType Unresolved)
       convertIntoFrExpr rustBlock = do
         subsetExpr <- SubC.convertBlock rustBlock
         convertExpr subsetExpr
@@ -145,7 +141,7 @@ instance Integration (Language 'Rust) where
 {-
       fromGlobals :: SubC.ConvertM m => m [FrLang.Pat RustVarType]
       fromGlobals = do
-        map (\(bnd, Sub.RustType ty) -> VarP bnd (asHostNormalURes ty)) . HM.toList <$> get
+        map (\(bnd, Sub.RustType ty) -> VarP bnd (asHostNormalU ty)) . HM.toList <$> get
 -}
 
   loadTypes ::
@@ -153,20 +149,20 @@ instance Integration (Language 'Rust) where
     Language 'Rust ->
     Module ->
     Namespace (FrLang.Expr RustVarType Unresolved) (Item Span) ->
-    m (Delta RustVarType)
+    m (Delta RustVarType Resolved)
   loadTypes _ (Module ownFile _) ohuaNs = do
     filesAndPaths <- concat <$> mapM funsForAlgo (ohuaNs ^. algos)
     let filesAndPaths' = map (first convertOwn) filesAndPaths
-    functionTypes <- fnTypesFromFiles $ concatMap fst filesAndPaths'
+    fnTypesFromFiles $ concatMap fst filesAndPaths'
     -- usedFunctionTypes <- HM.fromList . catMaybes <$> mapM (verifyAndRegister functionTypes) filesAndPaths'
-    return functionTypes -- usedFunctionTypes
+    -- return functionTypes -- usedFunctionTypes
     where
-      funsForAlgo :: ErrAndLogM m => Algo (FrLang.Expr RustVarType) (Item Span) -> m [([NSRef], QualifiedBinding)]
+      funsForAlgo :: ErrAndLogM m => Algo (FrLang.Expr RustVarType Unresolved) (Item Span) -> m [([NSRef], QualifiedBinding)]
       funsForAlgo (Algo _name code _inputCode ) = do
         mapM
           lookupFunTypes
-          $ [f                 | LitE (FunRefLit (FunRef f _ _)) <- universe code] ++
-            [toQualBinding bnd | VarE bnd _                      <- universe code]
+          $ [f                 | LitE (FunRefLit (FunRef f _ _)) <- universeReplace code] ++
+            [toQualBinding bnd | VarE bnd _                      <- universeReplace code]
 
       convertOwn :: [NSRef] -> [NSRef]
       convertOwn [] = [filePathToNsRef ownFile]
@@ -180,7 +176,7 @@ instance Integration (Language 'Rust) where
       verifyAndRegister :: ErrAndLogM m
                         => FunTypes
                         -> ([NSRef], QualifiedBinding)
-                        -> m (Maybe (QualifiedBinding, Res.FunType RustVarType))
+                        -> m (Maybe (QualifiedBinding, Res.FunType RustVarType Resolved))
       verifyAndRegister typez ([candidate], qp@(QualifiedBinding (NSRef nsRef) nam)) = do
         let ref = case nsRef of
                     [] -> QualifiedBinding candidate nam
@@ -189,7 +185,7 @@ instance Integration (Language 'Rust) where
           Just t -> return $ Just (qp, t)
           Nothing -> do
             traceM $ "Function `" <> show ref <> "` not found in module `" <> show candidate <> "`."
-            traceM $ "Extracted: \n" <> (quickRender $ HM.toList typez)
+            traceM $ "Extracted: \n" <> quickRender (HM.toList typez)
             return Nothing
       verifyAndRegister typez (globs', qp@(QualifiedBinding _ nam)) = do
         case mapMaybe ((`HM.lookup` typez) . (`QualifiedBinding` nam)) globs' of
@@ -238,41 +234,24 @@ instance Integration (Language 'Rust) where
       globs :: [NSRef]
       globs = mapMaybe (\case (Glob n) -> Just n; _ -> Nothing) (ohuaNs ^. imports)
 
-{-
-argTypesFromContext :: SubC.ConvertM m => [Sub.Expr] -> m [OhuaType RustVarType Unresolved]
-argTypesFromContext = mapM getVarType
 
-getVarType' :: SubC.ConvertM m => Either Sub.VarRef Sub.Lit -> m (OhuaType RustVarType Unresolved)
-getVarType' (Left bnd) = return TypeVar
--- FIXME: Actually literal should just carry through the value and the type of the literal
-getVarType' (Right lit) = case lit of
-  Sub.Bool b -> return $ asHostNormalURes rustBool
-  Sub.Int i ->  return $ asHostNormalURes rustI32
-  -- Sub.String s ->  return $ asHostNormalURes PathTy Nothing (Path False [PathSegment "String" Nothing ()] ()) ()
-  -- ToDo: Add other literals
--}
-
-getVarType :: SubC.ConvertM m => Sub.Expr -> m (OhuaType RustVarType Unresolved)
-getVarType (Sub.Var bnd (Just (Sub.RustType ty))) = return $ asHostNormalURes ty
-getVarType (Sub.Var bnd Nothing) = getVarType' $ Left bnd
-getVarType (Sub.Lit l) = getVarType' $ Right l
-getVarType e = return TypeVar
-
--- ISSUE: I thought we could support Assignments as we actually just need to replcae them with ssa let bindings.
+-- ISSUE: I thought we could support Assignments as we actually just need to replace them with ssa let bindings.
 --        However the compiler does constant propagation so a `mut i:i32 = 1` will be replaced by `1` 
 --        before we reach the point were it is reassigned -> I need to check if/how this can work out
 
 instance ConvertExpr Sub.Expr where
   convertExpr (Sub.Call fun args) = do
     fun' <- convertExpr fun
-    args' <- unitArgs <$> mapM convertExpr args
-    return $ fun' `AppE` args'
-  convertExpr (Sub.MethodCall receiver (Sub.CallRef method _) args) = do
-    receiver' <- convertExpr receiver
-    -- receiverTy <- getVarType receiver
-    let method' = LitE (FunRefLit (FunRef method Nothing $ STFunType TypeVar [TypeVar] TypeVar))
-    args' <- unitArgs <$> mapM convertExpr args
-    return $ BindE receiver' method' `AppE` args'
+    args' <- mapM convertExpr args
+    return $ fun' `AppEU` args'
+  -- ToDo: I don't think we should pass the receiver just as a binding, losing potential type information and
+  convertExpr (Sub.MethodCall (Sub.Var bnd _mTy) (Sub.CallRef method _) args) = do
+    -- receiver' <- convertExpr receiver
+    let method' = LitE (FunRefLit (FunRef method Nothing $ STFunType TStar [TStar] TStar))
+    args' <- mapM convertExpr args
+    return $ BindE method' bnd args'
+  -- FIXME: This belongs into subset conversion
+  convertExpr (Sub.MethodCall obj _ _ ) = error $ "A method call on something other than a struct variable, namely "<> show obj <>" was found but we only support variables."
   convertExpr (Sub.Tuple []) = return (LitE UnitLit)
   convertExpr (Sub.Tuple (v:vars)) = do
     v'<- convertExpr v
@@ -282,13 +261,13 @@ instance ConvertExpr Sub.Expr where
     left' <- convertExpr left
     right' <- convertExpr right
     let (symbol, retTy) = binOpInfo op
-    funref <- asFunRef symbol (TypeVar :| [TypeVar]) retTy
-    return $  AppE funref (left' :| [right'])
+    funref <- asFunRef symbol (TStar :| [TStar]) retTy
+    return $  AppEU funref [left',right']
   convertExpr (Sub.Unary op arg) = do
     arg' <- convertExpr arg
     let (symbol, retTy) = unOpInfo op
-    funref <- asFunRef symbol (TypeVar :| []) retTy
-    return $ AppE funref (arg' :| [])
+    funref <- asFunRef symbol (TStar :| []) retTy
+    return $ AppEU funref [arg']
   convertExpr (Sub.Lit l) = convertExpr l
   convertExpr (Sub.If expr trueBlock falseBlock) = do
     expr' <- convertExpr expr
@@ -305,18 +284,18 @@ instance ConvertExpr Sub.Expr where
     body' <- convertExpr body
     return $
       MapE
-        (LamE (pat' :| []) body')
+        (LamEU [pat'] body')
         dataExpr'
-  convertExpr (Sub.EndlessLoop body) = convertExpr $ Sub.While (Sub.Lit $ BoolLit True) body
+  convertExpr (Sub.EndlessLoop body) = convertExpr $ Sub.While (Sub.Lit $ Sub.Bool True) body
   convertExpr (Sub.Closure _ _ _ args _retTy body) = do
-    args' <- unitParams <$> mapM convertPat args
+    args' <- mapM convertPat args
     body' <- convertExpr body
-    return $ LamE args' body'
+    return $ LamEU args' body'
   convertExpr (Sub.BlockExpr block) = convertExpr block
   convertExpr (Sub.PathExpr (Sub.CallRef ref tyInfo)) = do
-    return $ LitE $ FunRefLit $ FunRef ref Nothing $ FunType (TypeVar :| []) TypeVar
-  convertExpr (Sub.Var bnd (Just (Sub.RustType ty))) = return $ VarE bnd (asHostNormalURes ty)
-  convertExpr (Sub.Var bnd Nothing) = return $ VarE bnd TypeVar
+    return $ LitE $ FunRefLit $ FunRef ref Nothing $ FunType (TStar :| []) TStar
+  convertExpr (Sub.Var bnd (Just (Sub.RustType ty))) = return $ VarE bnd (asHostNormalU ty)
+  convertExpr (Sub.Var bnd Nothing) = return $ VarE bnd TStar
 
 instance ConvertExpr Sub.Block where
   convertExpr (Sub.RustBlock Sub.Normal stmts) =
@@ -334,7 +313,7 @@ instance ConvertExpr Sub.Block where
                   (\stmt cont -> stmt cont)
                   convertedLast
                   convertedHeads
-      convertStmt :: SubC.ConvertM m => Sub.Stmt -> m (FrLang.Expr RustVarType -> FrLang.Expr RustVarType)
+      convertStmt :: SubC.ConvertM m => Sub.Stmt -> m (FrLang.Expr RustVarType Unresolved -> FrLang.Expr RustVarType Unresolved)
       convertStmt s@(Sub.Local pat ty e) = do
         {-
         case (pat, ty) of
@@ -364,7 +343,7 @@ fromIdent :: Sub.IdentPat -> Binding
 fromIdent (Sub.IdentPat _mode bnd) =  bnd
 
 instance ConvertPat Sub.Pat where
-  convertPat Sub.WildP   = return $ VarP (fromString "_") (asHostNormalURes rustInfer)
+  convertPat Sub.WildP   = return $ VarP (fromString "_") (asHostNormalU rustInfer)
   convertPat (Sub.IdentP ip) = convertPat ip
   -- It is possible to bind: let () = e1; in Rust, iff e1 evaluates to ()
   -- The pattern in this case would be TupP [], because language-rust has no Unit pattern
@@ -377,14 +356,14 @@ instance ConvertPat Sub.Pat where
 
 instance ConvertPat Sub.IdentPat where
   convertPat (Sub.IdentPat _mutability bnd) = do
-    return $ VarP bnd TypeVar
+    return $ VarP bnd TStar
 
 instance ConvertPat Sub.Arg where
-  convertPat (Sub.Arg pat ty) = convertPat pat 
+  convertPat (Sub.Arg pat ty) = convertPat pat
   {- do
     pat' <- convertPat pat
     case pat' of
-      VarP bnd TypeVar -> return $ VarP bnd TypeVar
+      VarP bnd TStar -> return $ VarP bnd TStar
       p -> return p
       -}
 
@@ -392,22 +371,22 @@ binOpInfo :: Sub.BinOp -> (Binding, OhuaType RustVarType Unresolved)
 -- ToDo: It seems infering the type of binary ops should be easy given the input. However
 --       we might need to incorparate Rusts coercion rules if the two arguments differ in type
   -- Check if that applicable and if it would be a problem after all since when somethigncan be coerced for this binary op, it can also be coerced downstream probably, if we just take one of the types.
-binOpInfo Sub.Add =  ("+", TypeVar)
-binOpInfo Sub.Sub =  ("-", TypeVar)
-binOpInfo Sub.Mul =  ("*", TypeVar)
-binOpInfo Sub.Div =  ("/", TypeVar)
-binOpInfo Sub.Lt =  ("<", TypeVar)
-binOpInfo Sub.Lte =  ("<=", asHostNormalURes rustBool)
-binOpInfo Sub.Gte =  (">=", asHostNormalURes rustBool)
-binOpInfo Sub.Gt =  (">", asHostNormalURes rustBool)
-binOpInfo Sub.EqOp =  ("==", asHostNormalURes rustBool)
-binOpInfo Sub.OrOp =  ("||", asHostNormalURes rustBool)
+binOpInfo Sub.Add =  ("+", TStar)
+binOpInfo Sub.Sub =  ("-", TStar)
+binOpInfo Sub.Mul =  ("*", TStar)
+binOpInfo Sub.Div =  ("/", TStar)
+binOpInfo Sub.Lt =  ("<", TStar)
+binOpInfo Sub.Lte =  ("<=", asHostNormalU rustBool)
+binOpInfo Sub.Gte =  (">=", asHostNormalU rustBool)
+binOpInfo Sub.Gt =  (">", asHostNormalU rustBool)
+binOpInfo Sub.EqOp =  ("==", asHostNormalU rustBool)
+binOpInfo Sub.OrOp =  ("||", asHostNormalU rustBool)
 
 unOpInfo :: Sub.UnOp -> (Binding, OhuaType RustVarType Unresolved)
-unOpInfo Sub.Deref =  ("*",  TypeVar)
+unOpInfo Sub.Deref =  ("*",  TStar)
 -- ToDo: negation is a trait and returns whatever the input type implemented it to return i.e. not necessarily of the same type
-unOpInfo Sub.Not =  ("!",  TypeVar)
-unOpInfo Sub.Neg =  ("-",  TypeVar)
+unOpInfo Sub.Not =  ("!",  TStar)
+unOpInfo Sub.Neg =  ("-",  TStar)
 
 asFunRef :: Monad m => Binding -> NonEmpty (OhuaType RustVarType Unresolved) -> OhuaType RustVarType Unresolved -> m (FrLang.Expr RustVarType Unresolved)
 asFunRef op tys retTy = return $
