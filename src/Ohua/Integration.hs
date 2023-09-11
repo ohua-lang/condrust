@@ -1,3 +1,4 @@
+{-# LANGUAGE  TypeOperators #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
@@ -38,7 +39,6 @@ type FullIntegration lang arch =
   , B.Integration (Language lang)
   , F.HostModule (Language lang) ~ B.HostModule (Language lang)
   , F.Type (Language lang) ~ B.Type (Language lang)
-  , F.Type (Language lang) ~ B.LType (Language lang)
   , F.AlgoSrc (Language lang) ~ B.AlgoSrc (Language lang)
   , B.Architecture (Architectures arch)
   , B.Lang (Architectures arch) ~ Language lang

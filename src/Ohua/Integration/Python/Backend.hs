@@ -1,3 +1,4 @@
+{-#LANGUAGE  TypeOperators #-}
 module Ohua.Integration.Python.Backend where
 
 import Ohua.Prelude
@@ -54,7 +55,7 @@ instance Integration (Language 'Python) where
         return $
             nameSpace & algos %~ map (\algo -> algo & algoCode %~ convertTasks (algo^.algoInputCode))
         where
-            convertTasks (Py.Fun _id _params _opt_anno _body _anno) (Program chans (SRecv argType channel) tasks) =
+            convertTasks (Py.Fun _id _params _opt_anno _body _anno) (Program chans (SRecv _argType channel) tasks) =
                 Program
                     chans
                     (SRecv (defaultType) channel)
@@ -66,8 +67,8 @@ instance Integration (Language 'Python) where
                 LitF (EnvRefLit arg _ty) -> Var arg
                 e -> embed e
 
-            argToVar :: Py.Parameter a -> TCLang.TaskExpr PythonVarType
-            argToVar param = Var $ toBinding $ Py.param_name param
+            -- argToVar :: Py.Parameter a -> TCLang.TaskExpr PythonVarType
+            -- argToVar param = Var $ toBinding $ Py.param_name param
 
     convertExpr _ (TCLang.Var bnd) = wrapSubExpr $ Sub.Var bnd
     convertExpr _ (TCLang.Lit (NumericLit i)) = wrapSubExpr $ Sub.Int i
@@ -77,7 +78,7 @@ instance Integration (Language 'Python) where
     -- Question: Why is it an error?
     convertExpr _ (TCLang.Lit (EnvRefLit _hostExpr _ty)) = error "Host expression encountered! This is a compiler error. Please report!"
 
-    convertExpr _ (TCLang.Lit (FunRefLit (FunRef qBnd mFunID _type))) = case qBnd of
+    convertExpr _ (TCLang.Lit (FunRefLit (FunRef qBnd _mFunID _type))) = case qBnd of
         (QualifiedBinding (NSRef []) bnd) -> wrapSubExpr (Sub.Var bnd)
         (QualifiedBinding refNames bnd)  -> wrapSubExpr $ Sub.Var $ dotConcat refNames bnd
 
@@ -85,14 +86,14 @@ instance Integration (Language 'Python) where
     convertExpr arch (Apply sOp@(Stateful stateBnd funBnd args)) = case funBnd of
         SF.SetItemFunction -> transformToSubscript arch sOp
         SF.GetItemFunction -> transformToSubscript arch sOp
-        any_statefull_function ->  wrapSubExpr $
+        _any_statefull_function ->  wrapSubExpr $
              Sub.Call
                 (Sub.DotExpr (unwrapSubStmt $ convertExpr arch stateBnd) funBnd)
                 (map (convertArgument arch) args)
 
-    convertExpr arch (TCLang.Let varName valExpr inExpr) =
+    convertExpr _arch (TCLang.Let varName _valExpr _inExpr) =
        error $ "Todo: I thought I could handle this elsewhere but 'Let "<> show varName <> "' came accross"
-    convertExpr _ (TCLang.Stmt expr1 expr2) = error "Todo: Stmt conversion should be handled elsewhere. Please file a bug"
+    convertExpr _ (TCLang.Stmt _expr1 _expr2) = error "Todo: Stmt conversion should be handled elsewhere. Please file a bug"
 
     convertExpr arch (TCLang.Assign bnd expr) =
         Sub.Assign
@@ -139,7 +140,7 @@ instance Integration (Language 'Python) where
 
     -- TODO: hasSize = True if hasattr(bnd, '__len__') 
         -- Current solution has some pros and cons... check and change if required
-    convertExpr arch (TCLang.HasSize bnd) =
+    convertExpr _arch (TCLang.HasSize bnd) =
         let args = hasAttrArgs bnd
         in wrapSubExpr $
             Sub.CondExpr
@@ -160,7 +161,7 @@ instance Integration (Language 'Python) where
         let conv =  unwrapSubStmt . convertExpr arch . either TCLang.Var TCLang.Lit
         in  wrapSubExpr $ Sub.Tuple $ toList (map conv itms)
 
-    convertExpr arch (TCLang.Indexing bnd num) = wrapSubExpr $
+    convertExpr _arch (TCLang.Indexing bnd num) = wrapSubExpr $
         Sub.Subscript  (Sub.Var bnd) (Sub.Int num)
 {-
     convertExpr arch (TCLang.First bnd) =  wrapSubExpr $
@@ -194,7 +195,7 @@ transformToSubscript arch (Stateful stateBnd SF.SetItemFunction [indexArg, itemE
         index = unwrapSubStmt $ convertExpr arch indexArg
         assignedExpr = unwrapSubStmt $ convertExpr arch itemExpr
     in Sub.Assign [Sub.Subscript subscriptee index] assignedExpr
-transformToSubscript arch _ = error "Try to transform a function other than __getitem__ , or __setitem__ to subscripting operation"
+transformToSubscript _arch _ = error "Try to transform a function other than __getitem__ , or __setitem__ to subscripting operation"
 
 
 
@@ -293,12 +294,12 @@ convertDictItem arch item =
     in
         case item' of
             Sub.Var bnd -> (Sub.Subscript (Sub.Var bnd) (Sub.Int 0), Sub.Subscript (Sub.Var bnd) (Sub.Int 1))
-            any -> error $ "dict item was not received variable but" <> show any
+            anyI -> error $ "dict item was not received variable but" <> show anyI
 
 
 dotConcat :: NSRef -> Binding -> Binding
 dotConcat (NSRef refs) bind =
-    let concatName = foldr (\ref name -> bndToStr ref ++ "." ++ name) (bndToStr bind) refs
+    let concatName = foldr (\ref rname -> bndToStr ref ++ "." ++ rname) (bndToStr bind) refs
     in fromString concatName
 
 asFunctionLiteral :: QualifiedBinding -> SNat ('Succ n) -> TaskExpr PythonVarType
@@ -313,9 +314,12 @@ hasAttrArgs bnd = [Sub.Arg (Sub.Var bnd) , Sub.Arg (Sub.Strings ["'__len__'"] )]
 -- | To be complient with the Integration class, 'convertExpr' has to return terms of type
 --  'Expr (Language 'Python)'. As the function needs to translate Statements, as well as Expressions
 --  from the python AST, the later ones are wraped into and unwraped from Statements using this helpers
+wrapSubExpr :: Sub.Expr -> Sub.Stmt 
 wrapSubExpr = Sub.StmtExpr
+
+unwrapSubStmt :: Sub.Stmt -> Sub.Expr
 unwrapSubStmt (Sub.StmtExpr expr) = expr
-unwrapSubStmt any = error $ "Tried to unwrap a statment other than StmtExpr " <> show any
+unwrapSubStmt anyS = error $ "Tried to unwrap a statment other than StmtExpr " <> show anyS
 
 
 
