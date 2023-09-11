@@ -21,10 +21,10 @@ instance (Hashable expr) => Hashable (App expr)
 
 data ComType = Channel | Recv | Send deriving (Show, Eq, Generic)
 
-data Com (f::ComType) (t::Type) :: Type where
-  SChan :: Binding -> Com 'Channel t
-  SRecv :: OhuaType ty Resolved -> Com 'Channel t -> Com 'Recv t
-  SSend :: Com 'Channel t -> Either Binding (Lit t Resolved) -> Com 'Send t
+data Com (f::ComType) (ty::Type) :: Type where
+  SChan :: Binding -> Com 'Channel ty
+  SRecv :: OhuaType ty Resolved -> Com 'Channel ty -> Com 'Recv ty
+  SSend :: Com 'Channel ty -> Either Binding (Lit ty Resolved) -> Com 'Send ty
 
 instance Eq (Com semTy ty) where
   SChan bnd0 == SChan bnd1 = bnd0 == bnd1
