@@ -47,14 +47,14 @@ toRustTy ty = case ty of
     IType TypeBool ->  Just $ Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "bool" Nothing ()] ()) ()
     IType TypeString ->  Just $ Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "String" Nothing ()] ()) ()
 
-    (HType (HostType (TH.Self ty _ _ )) _ ) ->  Just $ ty
-    (HType (HostType (TH.Normal ty)) _ ) -> Just $  ty
+    (HType (HostType (TH.Self rty _ _ )) _ ) ->  Just rty
+    (HType (HostType (TH.Normal rty)) _ ) -> Just rty
 
-    (TType types) ->  do
-      types' <- mapM toRustTy types
+    (TType typez) ->  do
+      types' <- mapM toRustTy typez
       return $ Rust.TupTy (toList types') ()
 
     (IType (TypeList itemType)) ->  do
       itemTy <- toRustTy itemType
       return $ PathTy Nothing (Path False [PathSegment "Vec" (Just (AngleBracketed [TypeArg itemTy] [] ())) ()] ()) ()
-    FType fty -> Nothing
+    FType _fty -> Nothing
