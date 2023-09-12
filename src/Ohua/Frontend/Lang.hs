@@ -8,8 +8,8 @@
 module Ohua.Frontend.Lang
     ( Pat(..)
     , Expr(..)
-    , UnresolvedExpr(..)
-    , ResolvedExpr(..)
+    , UnresolvedExpr
+    , ResolvedExpr
     , UnresolvedPat
     , ResolvedPat
     , UnresolvedType
@@ -21,7 +21,11 @@ module Ohua.Frontend.Lang
     , unitParams
     , freeVars
     , preWalkE
+    , preWalkER
+    , preWalkMR
     , universeReplace
+    , universeReplaceRes
+    , universePats
     --- , postWalkE
     ) where
 
@@ -91,7 +95,7 @@ data Expr ty res where
   TupE      :: NonEmpty (Expr ty res)                                                  -> Expr ty res
 
 -- ToDo: Make Expr a functor without generics 
-
+-- ToDo: Replace clumsy/repetitive traversals
 preWalkE :: (Expr ty Unresolved -> Expr ty Unresolved) -> Expr ty Unresolved -> Expr ty Unresolved
 preWalkE f e = case e of 
       VarE _ _ -> f e
@@ -124,10 +128,6 @@ preWalkE f e = case e of
           let m' = preWalkE f m
               args' = map (preWalkE f) args
           in f (BindE m' sB args')
-      {-StateFunE s sb m -> 
-          let m' = preWalkE f m
-              s' = preWalkE f s
-          in f (StateFunE s' sb m')-}
       StmtE e1 e2 -> 
           let e1' = preWalkE f e1
               e2' = preWalkE f e2
@@ -135,52 +135,133 @@ preWalkE f e = case e of
       TupE es -> 
           let es' = map (preWalkE f) es
           in  f (TupE es')
-           
-      
+
+preWalkER :: (Expr ty Resolved -> Expr ty Resolved) -> Expr ty Resolved -> Expr ty Resolved
+preWalkER f e = case e of 
+      VarE _ _ -> f e
+      LitE _ -> f e 
+      LetE p e1 e2 -> 
+          let e1' = preWalkER  f e1
+              e2' = preWalkER  f e2
+          in f (LetE p e1' e2')
+      AppE fun args -> 
+          let fun' = preWalkER f fun
+              args' = map (preWalkER f) args
+          in f (AppE fun' args')
+      LamE pats body -> 
+          let body' = preWalkER f body
+          in f (LamE pats body')
+      IfE c te fe -> 
+          let c' = preWalkER f c
+              te' = preWalkER f te 
+              fe' = preWalkER f fe
+          in f (IfE c' te' fe')
+      WhileE c body -> 
+          let c' = preWalkER f c
+              body' = preWalkER f body
+          in f (WhileE c' body')
+      MapE e1 e2 -> 
+          let e1' = preWalkER f e1
+              e2' = preWalkER f e2
+          in  f (MapE e1' e2')
+      StateFunE s sb m ->  
+          let m' = preWalkER f m
+              s' = preWalkER f s
+          in f (StateFunE s' sb m')
+      StmtE e1 e2 -> 
+          let e1' = preWalkER f e1
+              e2' = preWalkER f e2
+          in  f (StmtE e1' e2')
+      TupE es -> 
+          let es' = map (preWalkER f) es
+          in  f (TupE es')
 
 
-preWalkM :: Monad m =>  (Expr ty Unresolved -> m (Expr ty Unresolved)) -> Expr ty Unresolved -> m (Expr ty Unresolved)
-preWalkM f e = case e of 
+preWalkMU :: Monad m =>  (Expr ty Unresolved -> m (Expr ty Unresolved)) -> Expr ty Unresolved -> m (Expr ty Unresolved)
+preWalkMU f e = case e of 
       VarE _ _ -> f e
       LitE _ -> f e 
       LetE p e1 e2 ->  do
-          e1' <- preWalkM  f e1
-          e2' <- preWalkM  f e2
+          e1' <- preWalkMU  f e1
+          e2' <- preWalkMU  f e2
           f (LetE p e1' e2')
       AppEU fun args ->  do
-          fun' <- preWalkM f fun
-          args' <- mapM (preWalkM f) args
+          fun' <- preWalkMU f fun
+          args' <- mapM (preWalkMU f) args
           f (AppEU fun' args')
       LamEU pats body ->  do
-          body' <- preWalkM f body
+          body' <- preWalkMU f body
           f (LamEU pats body')
       IfE c te fe ->  do
-          c' <- preWalkM f c
-          te' <- preWalkM f te 
-          fe' <- preWalkM f fe
+          c' <- preWalkMU f c
+          te' <- preWalkMU f te 
+          fe' <- preWalkMU f fe
           f (IfE c' te' fe')
       WhileE c body ->  do
-          c' <- preWalkM f c
-          body' <- preWalkM f body
+          c' <- preWalkMU f c
+          body' <- preWalkMU f body
           f (WhileE c' body')
       MapE e1 e2 ->  do
-          e1' <- preWalkM f e1
-          e2' <- preWalkM f e2
+          e1' <- preWalkMU f e1
+          e2' <- preWalkMU f e2
           f (MapE e1' e2')
       BindE m sB args ->  do
-          m' <- preWalkM f m
-          args' <- mapM (preWalkM f) args
+          m' <- preWalkMU f m
+          args' <- mapM (preWalkMU f) args
           f (BindE m' sB args')
       {-StateFunE s sb m ->  do
-          m' <- preWalkM f m
-              s' <- preWalkM f s
+          m' <- preWalkMU f m
+              s' <- preWalkMU f s
           in f (StateFunE s' sb m')-}
       StmtE e1 e2 ->  do
-          e1' <- preWalkM f e1
-          e2' <- preWalkM f e2
+          e1' <- preWalkMU f e1
+          e2' <- preWalkMU f e2
           f (StmtE e1' e2')
       TupE es ->  do
-          es' <- mapM (preWalkM f) es
+          es' <- mapM (preWalkMU f) es
+          f (TupE es')
+
+preWalkMR :: Monad m =>  
+    (Expr ty Resolved -> m (Expr ty Resolved)) 
+    -> Expr ty Resolved 
+    -> m (Expr ty Resolved)
+preWalkMR f e = case e of 
+      VarE _ _ -> f e
+      LitE _ -> f e 
+      LetE p e1 e2 ->  do
+          e1' <- preWalkMR  f e1
+          e2' <- preWalkMR  f e2
+          f (LetE p e1' e2')
+      AppE fun args ->  do
+          fun' <- preWalkMR f fun
+          args' <- mapM (preWalkMR f) args
+          f (AppE fun' args')
+      LamE pats body ->  do
+          body' <- preWalkMR f body
+          f (LamE pats body')
+      IfE c te fe ->  do
+          c' <- preWalkMR f c
+          te' <- preWalkMR f te 
+          fe' <- preWalkMR f fe
+          f (IfE c' te' fe')
+      WhileE c body ->  do
+          c' <- preWalkMR f c
+          body' <- preWalkMR f body
+          f (WhileE c' body')
+      MapE e1 e2 ->  do
+          e1' <- preWalkMR f e1
+          e2' <- preWalkMR f e2
+          f (MapE e1' e2')
+      StateFunE s sb m ->  do
+          m' <- preWalkMR f m
+          s' <- preWalkMR f s
+          f (StateFunE s' sb m')
+      StmtE e1 e2 ->  do
+          e1' <- preWalkMR f e1
+          e2' <- preWalkMR f e2
+          f (StmtE e1' e2')
+      TupE es ->  do
+          es' <- mapM (preWalkMR f) es
           f (TupE es')
 
 {-postwalk can fail if f is not structure preserving -> how to? 
@@ -246,10 +327,21 @@ postWalkE f e = case e of
 accu :: [a] -> a -> [a]
 accu l e = l ++ [e] 
 
+patternFromExpr :: Expr ty Resolved -> [Pat ty Resolved]
+patternFromExpr e = case e of 
+    LamE lPats _body -> NE.toList lPats
+    LetE p _e1 _e2 -> [p]
+    _e -> [] 
 
 -- preorder list expressions
 universeReplace ::  Expr ty Unresolved -> [Expr ty Unresolved]
-universeReplace expr =  preWalkM (accu []) expr
+universeReplace expr =  preWalkMU (accu []) expr
+
+universeReplaceRes ::  Expr ty Resolved -> [Expr ty Resolved]
+universeReplaceRes expr =  preWalkMR (accu []) expr
+
+universePats :: Expr ty Resolved -> [Pat ty Resolved]
+universePats expr = concatMap patternFromExpr (universeReplaceRes expr) 
 
 deriving instance Show (Expr ty res)
 
@@ -278,7 +370,7 @@ freeVars = go HS.empty
   where
     go  ctxt (VarE bnd _) | HS.member bnd ctxt = []
     go _ctxt (VarE bnd ty) = [(bnd, ty)]
-    go  ctxt (LitE _) = []
+    go _ctxt (LitE _) = []
     go  ctxt (LetE p e1 e2) = go ctxt e1 ++ (go (foldl (flip HS.insert) ctxt $ patBnd p) e2)
     go  ctxt (AppE f xs) = go ctxt f ++ foldl (\vs e -> vs ++ go ctxt e) [] xs
     go  ctxt (AppEU f xs) = go ctxt f ++ foldl (\vs e -> vs ++ go ctxt e) [] xs
