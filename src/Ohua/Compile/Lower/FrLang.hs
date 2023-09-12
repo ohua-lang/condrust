@@ -1,13 +1,9 @@
 module Ohua.Compile.Lower.FrLang where
 
 import Ohua.Prelude
-import GHC.Exts
 
 import Control.Category ((>>>))
-import Control.Lens.Plated (Plated, cosmos, gplate, plate, universeOn)
-import Data.Functor.Foldable (cata)
 import qualified Data.HashSet as HS
-import GHC.Exts
 
 import Ohua.Frontend.Lang as FR 
 import Ohua.Frontend.PPrint ()
@@ -197,7 +193,7 @@ trans =
             in  case ALang.funType function' of
                 Just fTy -> (ALang.smapBuiltin (FType fTy) (ALang.exprType coll') (IType $ TypeList (IType TypeUnit))) `Apply` function' `Apply` coll'
                 Nothing -> error $ "Function type is not available for expression:\n "<> show function <> "\n Please report this error."
-        StateFunE state _fqName methodC -> BindState (trans state) (trans methodC)
+        StateFunE stt _fqName methodC -> BindState (trans stt) (trans methodC)
         StmtE e1 cont -> Let (TBind "_" $ IType TypeUnit) (trans e1) (trans cont)
         TupE exprs -> 
             let alExprs = NE.map trans exprs
@@ -208,7 +204,7 @@ trans =
                     alExprs
                  
                 
-        WhileE cond _body ->  error "While loop has not been replaced. Please file a bug"
+        WhileE _cond _body ->  error "While loop has not been replaced. Please file a bug"
   where
     patToTBind =
         \case
@@ -219,9 +215,9 @@ trans =
              "is not. Please file a bug."
 
 toAlang' :: ErrAndLogM m => HS.HashSet Binding -> Expr ty 'Resolved -> m (ALang.Expr ty)
-toAlang' taken expr = runGenBndT taken $ transform expr
+toAlang' taken expr = runGenBndT taken $ transfrm expr
     where
-        transform =
+        transfrm =
             whileToRecursion >=>
             mkLamSingleArgument >>>
             removeDestructuring >=> pure . trans
