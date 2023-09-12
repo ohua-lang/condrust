@@ -5,15 +5,16 @@ import Ohua.UResPrelude hiding (Type)
 import Ohua.Frontend.Lang
 import Ohua.Frontend.TypeSystem (Delta)
 import qualified Data.HashMap.Lazy as HM
+import qualified Data.Kind as DK
 
 -- TODO: What is the proper type constellation here, so that the first parameter of
 --       both functions in the interface become unnecessary/obsolete.
 -- ToDo: Might work if we use associated data types 'data HostModule lang' instead of 'type HostModule lang'. See example below 
 
 class (Show (Type lang)) => Integration lang where
-    type HostModule lang :: *
-    type Type lang :: *
-    type AlgoSrc lang :: *
+    type HostModule lang :: DK.Type
+    type Type lang :: DK.Type
+    type AlgoSrc lang :: DK.Type
 
     loadNs :: ErrAndLogM m
            => lang

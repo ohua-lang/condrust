@@ -3,7 +3,7 @@ module Ohua.Frontend.Transform.State  where
 import Ohua.Prelude hiding (Nat)
 import Ohua.Types.Vector
 
-import Ohua.Frontend.Lang
+-- import Ohua.Frontend.Lang
 import Ohua.Frontend.PPrint
 import Data.HashMap.Lazy as HM
 

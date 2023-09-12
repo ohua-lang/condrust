@@ -1,7 +1,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Ohua.Frontend.TypeSystem
-  (Delta(..), toWellTyped)
+  (Delta, toWellTyped)
 where
 
 
@@ -14,12 +14,12 @@ import Ohua.UResPrelude hiding (Nat)
 import qualified Ohua.Prelude as Res
   ( Lit(..), FunType(..), FunRef(..))
 
-import Ohua.PPrint
+-- import Ohua.PPrint
 
 import Ohua.Frontend.PPrint (prettyExpr)
 import Ohua.Frontend.Lang
-    ( UnresolvedExpr(..)
-    , ResolvedExpr(..)
+    ( UnresolvedExpr
+    , ResolvedExpr
     , Expr(..)
     , UnresolvedPat(..)
     , ResolvedPat(..)
@@ -32,11 +32,11 @@ import Ohua.Frontend.Lang
     , unitParams
     )
   
-import Ohua.Frontend.SymbolResolution (SymResError(..), Delta, Gamma(..), resolveSymbols)
+import Ohua.Frontend.SymbolResolution (SymResError(..), Delta, Gamma, resolveSymbols)
 
 import Ohua.Types.Vector (Nat(..))
 
-import Control.Exception (assert, throw)
+-- import Control.Exception (assert, throw)
 
 
 -- TODO config param
@@ -62,14 +62,14 @@ Delta ... associates function literals to a type
 type Delta' ty res = ([Import], Delta ty res)
 
 toWellTyped :: forall ty m. ErrAndLogM m => Delta ty 'Resolved -> [Import] -> UnresolvedExpr ty -> m (ResolvedExpr ty)
-toWellTyped delta imports e =
+toWellTyped delta modImports e =
   let
     gamma = HM.fromList $ freeVars e
   in do
     traceM "delta (pretty):"
     traceM $ renderStrict $ layoutSmart defaultLayoutOptions $ pretty $ HM.toList delta
     traceM ""
-    (_gamma', e', _ty) <- flip runReaderT (e :| []) $ typeSystem (imports, delta) gamma e
+    (_gamma', e', _ty) <- flip runReaderT (e :| []) $ typeSystem (modImports, delta) gamma e
     return e'
 
 type TypeErrorM m ty = MonadReader (NonEmpty (UnresolvedExpr ty)) m
@@ -153,8 +153,8 @@ typeSystem delta gamma = \case
         wfError "Too many arguments in function application."
       -- Question: How is it ok to have more argTypes than args?
       assocArgWithType l [] = return ([], l)
-      assocArgWithType (t:ts) (arg:args) = do
-        (argsAndTy, pendingTy) <- assocArgWithType ts args
+      assocArgWithType (t:ts) (arg:args') = do
+        (argsAndTy, pendingTy) <- assocArgWithType ts args'
         return ((arg,t) : argsAndTy, pendingTy)
     in do
       (gamma', fun', funTy) <- typeExpr delta gamma fun
@@ -203,6 +203,7 @@ typeSystem delta gamma = \case
       let gamma' = foldl (\ g (b, t) -> HM.insert b t g) gamma $ join $ NE.map patTyBnds patsNE
       (gamma'', expr', tyE) <- typeExpr delta gamma' expr
       (pats', gamma''') <- runStateT (mapM typePatFromGamma patsNE) gamma''
+      --FIXME: What is going on whith this double return here?! 
       return (pats', gamma''', tyE, expr')
       
       let ty = FunType (NE.map patType pats') tyE
@@ -319,7 +320,7 @@ typeSystem delta gamma = \case
     Delta, Gamma |- l : T
   -}
   (LitE (FunRefLit (FunRef qbnd id ty))) -> do
-      let (imports,delta') = delta
+      let (modImports,delta') = delta
       case HM.lookup qbnd delta' of
         Just ty' ->
           ((\ty'' ->
@@ -337,8 +338,8 @@ typeSystem delta gamma = \case
   (LitE (StringLit s))  -> return (HM.empty, LitE $ StringLit s , IType TypeString)
   where
     handleRef bnd ty = do 
-      let (imports,delta') = delta
-      case resolveSymbols delta' imports Nothing bnd of 
+      let (modImports,delta') = delta
+      case resolveSymbols delta' modImports Nothing bnd of 
           Left (qBnd,ty1) ->
                           (\ty' ->
                             (HM.empty, LitE $ FunRefLit $ FunRef qBnd Nothing ty1, ty'))

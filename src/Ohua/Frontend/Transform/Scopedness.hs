@@ -27,7 +27,7 @@ contextedTraversal f = go
             let ctxt' = HS.union ctxt $ HS.fromList $ join $ Ohua.Prelude.map goPat $ Ohua.Prelude.toList vs
             in LamEU vs <$> go ctxt' b
 
-        go ctxt v@(VarE bdg ty) | not (HS.member bdg ctxt) = f ctxt v
+        go ctxt v@(VarE bdg _ty) | not (HS.member bdg ctxt) = f ctxt v
         -- Question: Would we ever expect this to happen?
         go _ctxt v@(VarE _ _) = return v
         go _ctxt l@(LitE _ ) = return l

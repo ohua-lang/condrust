@@ -1,7 +1,7 @@
 module Ohua.Frontend.PPrint where
 
 import Ohua.Prelude
-import qualified Ohua.Types.Vector as V
+-- import qualified Ohua.Types.Vector as V
 
 import Ohua.Frontend.Lang
 
