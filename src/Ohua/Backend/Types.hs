@@ -1,3 +1,4 @@
+{-# LANGUAGE  TypeOperators #-}
 module Ohua.Backend.Types where
 
 import Ohua.Prelude hiding (Type)
