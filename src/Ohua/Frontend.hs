@@ -10,6 +10,7 @@ import Ohua.Frontend.Transform.Resolve ( resolveNS )
 -- import Ohua.Frontend.Transform.Envs ( prepareRootAlgoVars )
 import Ohua.Frontend.Transform.TailRec ( isRecAlgo )
 import Ohua.Frontend.Transform.FinalLiterals ( noFinalLiterals )
+import Ohua.Frontend.Transform.UnitArgs ( noEmptyArgs )
 import Ohua.Frontend.TypeSystem ( toWellTyped )
 
 import Control.Lens.Combinators ( over )
@@ -33,4 +34,4 @@ frontend lang compScope inFile = do
         return ((langNs, ns''''), placeholder)
     where
         trans :: ErrAndLogM m => FrLang.Expr ty Unresolved -> m (FrLang.Expr ty Unresolved)
-        trans e = noFinalLiterals e >> return e -- prepareRootAlgoVars e
+        trans e = noFinalLiterals e >> noEmptyArgs e -- prepareRootAlgoVars e

@@ -8,7 +8,6 @@ import Ohua.Frontend.Lang
 -- | Transform argument patterns to let bindings i.e. @\ x y -> function_body@ becomes @let x = $x in let y = $ y in function_body@
 --   for all algos
 
--- FIXME: Change res to 'Resolved probably
 prepareRootAlgoVars :: ErrAndLogM m => ResolvedExpr ty -> m (ResolvedExpr ty)
 prepareRootAlgoVars (LamE vars body) =  go (toList vars) body
   where
