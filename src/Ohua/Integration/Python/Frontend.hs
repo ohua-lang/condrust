@@ -8,25 +8,25 @@
 module Ohua.Integration.Python.Frontend where
 
 import Ohua.UResPrelude
-import GHC.Exts
+-- import GHC.Exts
 import Ohua.Frontend.Types
 import Ohua.Frontend.Lang as FrLang
-import Ohua.Frontend.TypeSystem (Delta(..))
+import Ohua.Frontend.TypeSystem (Delta)
 
 import Ohua.Integration.Lang
 
 import Ohua.Integration.Python.Util
-import Ohua.Integration.Python.TypeHandling
+import Ohua.Integration.Python.TypeHandling 
 import Ohua.Integration.Python.Frontend.Convert (suiteToSub, paramToSub)
 import qualified Ohua.Integration.Python.Frontend.Subset as Sub
 import qualified Ohua.Integration.Python.SpecialFunctions as SF
 
-import Language.Python.Common (SrcSpan (SpanEmpty), Pretty (pretty))
+import Language.Python.Common (SrcSpan)
 import qualified Language.Python.Common.AST as Py
 
 import qualified Data.HashMap.Lazy as HM
-import qualified Data.HashSet as HS
-import Data.List.NonEmpty ((<|))
+-- import qualified Data.HashSet as HS
+-- import Data.List.NonEmpty ((<|))
 import qualified Data.List.NonEmpty as NE
 
 -- | Contexts keeps track of names and types 
@@ -53,30 +53,30 @@ instance Integration (Language 'Python) where
     -- REMINDER: Type of placeholder needs to be adapted here
     loadNs :: ErrAndLogM m => Language 'Python -> FilePath -> m (Module, PythonNamespace, Module)
     loadNs _ srcFile = do
-            mod <- liftIO $ load srcFile
-            ns <- extractNs mod
+            pyMod <- liftIO $ load srcFile
+            modNS <- extractNs pyMod
             -- REMINDER: Next Steps replace True by
             --  a) an empty Python module and 
             --  b) the python module consisting of the extracted functions
-            return (Module srcFile mod, ns, Module "placeholderlib.py" placeholderModule)
+            return (Module srcFile pyMod, modNS, Module "placeholderlib.py" placeholderModule)
             where
                 extractNs :: ErrAndLogM m => Py.Module SrcSpan -> m PythonNamespace
                 extractNs (Py.Module statements) = do
-                    imports <- concat . catMaybes <$>
+                    pyImports <- concat . catMaybes <$>
                             mapM
                                 (\case
-                                    imp@Py.Import{import_items= impts} -> Just <$> extractImports impts
-                                    frImp@Py.FromImport{from_module = modName,
+                                    Py.Import{import_items= impts} -> Just <$> extractImports impts
+                                    Py.FromImport{from_module = modName,
                                                         from_items= items} -> Just <$> extractRelativeImports modName items
                                     _ -> return Nothing)
                                 statements
                     -- ToDo: add proper extraction of gloabl assignments
-                    globals <- return []
+                    modGlobals <- return []
                     -- ISSUE: Algo extraction needs a State Monad
                     -- During extraction we want to encapsulate non-compilable code into functions, move those to a library
                     -- and replace the code by a call to that library function. So the State of the monad needs to be of
                     -- type HostModule lang
-                    algos <- catMaybes <$>
+                    pyAlgos <- catMaybes <$>
                             mapM
                                 (\case
                                     fun@Py.Fun{} ->
@@ -84,14 +84,14 @@ instance Integration (Language 'Python) where
                                             Algo
                                                 (toBinding$ Py.fun_name fun)
                                                 e
-                                                fun) <$> extractAlgo fun globals
+                                                fun) <$> extractAlgo fun modGlobals
                                     _ -> return Nothing)
                                 statements
-                    return $ Namespace (filePathToNsRef srcFile) imports globals algos
+                    return $ Namespace (filePathToNsRef srcFile) pyImports modGlobals pyAlgos
 
                 extractAlgo :: ErrAndLogM m => Py.Statement SrcSpan -> [Global] -> m (FrLang.Expr PythonVarType Unresolved )
-                extractAlgo function globals = do
-                    let globArgs = map (\(Global bnd) -> VarP bnd defaultType) globals
+                extractAlgo function globs = do
+                    let _globArgs = map (\(Global bnd) -> VarP bnd defaultType) globs
                     -- ToDo: replace empty context with globals filled context if needed
                     args' <- mapM ((`evalStateT` HM.empty) . subParamToIR <=< paramToSub) (Py.fun_args function)
                     block' <- ((`evalStateT` HM.empty) . subSuiteToIR <=< suiteToSub) (Py.fun_body function)
@@ -103,17 +103,17 @@ instance Integration (Language 'Python) where
 
                 extractImports::ErrAndLogM m => [Py.ImportItem SrcSpan] -> m [Import]
                 extractImports [] = throwError "Invalid: Empty import should not have passed the python parser"
-                extractImports imports  = return $ map globOrAlias imports
+                extractImports pyImports  = return $ map globOrAlias pyImports
 
                 extractRelativeImports::ErrAndLogM m => Py.ImportRelative SrcSpan -> Py.FromItems SrcSpan -> m [Import]
-                extractRelativeImports imp@(Py.ImportRelative numDots mDottedName annot) fromItems =
+                extractRelativeImports (Py.ImportRelative _numDots mDottedName _annot) fromItems =
                     case mDottedName of
                         Just names -> case fromItems of
-                            Py.ImportEverything annot -> return [Glob . makeThrow $ toBindings names]
+                            Py.ImportEverything _annot -> return [Glob . makeThrow $ toBindings names]
                             -- Todo: Objects can also be imported by their 'real binding' or by alias
                             -- Which one should be the 'binding' in the Full Import?
                             -- Or can we introduce an alias also for Full Imports?
-                            Py.FromItems items annot -> return $ map (fullByNameOrAlias names) items
+                            Py.FromItems items _annot -> return $ map (fullByNameOrAlias names) items
                         -- Question: Can we solve this by resolving the path or will this inevitably cause problems in distrb. scenario?
                         -- TODO: I realy think we need this as I've literally seen absolut import failing in 'the cloud' cause of
                             -- incompatible python paths (or dark magic :-/)
@@ -128,7 +128,7 @@ instance Integration (Language 'Python) where
                     Module ->
                     PythonNamespace ->
                     m (Delta PythonVarType Resolved)
-    loadTypes lang (Module filepath pymodule) ohuaNS = do
+    loadTypes lang (Module _filepath _pymodule) _ohuaNS = do
         {-filesAndPaths <- concat <$> mapM funsForAlgo (ohuaNS^.algos)
         let filesAndPaths' = map (first convertOwn) filesAndPaths
         fun_types <- typesFromNS $ concatMap fst filesAndPaths'
@@ -139,7 +139,7 @@ instance Integration (Language 'Python) where
         where
             funsForAlgo :: ErrAndLogM m => Algo (FrLang.Expr PythonVarType Unresolved) (Py.Statement SrcSpan)
                     -> m [([NSRef], QualifiedBinding)]
-            funsForAlgo (Algo _name code annotation) = do
+            funsForAlgo (Algo _name code _annotation) = do
                 return []
 
 
@@ -181,12 +181,12 @@ instance Integration (Language 'Python) where
 -}
 
 fullByNameOrAlias :: Py.DottedName SrcSpan -> Py.FromItem SrcSpan -> Import
-fullByNameOrAlias dotted (Py.FromItem  ident Nothing annot) = flip Full (toBinding ident) . makeThrow $ toBindings dotted
-fullByNameOrAlias dotted (Py.FromItem ident (Just alias) annot) = flip Alias (toBinding alias) . makeThrow $ toBindings dotted ++ [toBinding ident]
+fullByNameOrAlias dotted (Py.FromItem  ident Nothing _annot) = flip Full (toBinding ident) . makeThrow $ toBindings dotted
+fullByNameOrAlias dotted (Py.FromItem ident (Just pyAlias) _annot) = flip Alias (toBinding pyAlias) . makeThrow $ toBindings dotted ++ [toBinding ident]
 
 globOrAlias :: Py.ImportItem SrcSpan -> Import
-globOrAlias  (Py.ImportItem dotted Nothing  annot) = Glob . makeThrow $ toBindings dotted
-globOrAlias  (Py.ImportItem dotted (Just alias) annot) = flip Alias (toBinding alias) . makeThrow $ toBindings dotted
+globOrAlias  (Py.ImportItem dotted Nothing  _annot) = Glob . makeThrow $ toBindings dotted
+globOrAlias  (Py.ImportItem dotted (Just pyAlias) _annot) = flip Alias (toBinding  pyAlias) . makeThrow $ toBindings dotted
 
 subSuiteToIR :: ConvertM m => Sub.Suite -> m (FrLang.Expr PythonVarType Unresolved)
 subSuiteToIR (Sub.PySuite stmts) =
@@ -194,11 +194,11 @@ subSuiteToIR (Sub.PySuite stmts) =
     where
         convertStmts [] = return $ LitE UnitLit -- actually empty function blocks are not valid syntax and this should never be called
         convertStmts (sm:sms) =
-            let last = NE.last (sm:|sms)
+            let lastS = NE.last (sm:|sms)
                 heads = NE.init  (sm:|sms)
             in do
                 irHeads <- mapM stmtToIR heads
-                irLast <- lastStmtToIR last
+                irLast <- lastStmtToIR lastS
                 return $
                     foldr
                         (\stmt suite -> stmt suite) irLast irHeads
@@ -208,20 +208,21 @@ subSuiteToIR (Sub.PySuite stmts) =
                 (Sub.Single bnd) -> modify (HM.insert bnd Sub.PythonType)
                 _ ->return ()
             case target of
-                (Sub.Subscr expr) -> stmtToIR (subscriptToCall assign)
+                (Sub.Subscr _expr) -> stmtToIR (subscriptToCall assign)
                 _ -> do
                         pat' <- subTargetToIR target
                         expr' <- subExprToIR expr
                         let pat'' =  case (expr', pat')  of
                             -- FIXME: We explicitely add the unit parameter to the function type in the language integration here
                             --        But unit typ args should be handled internally
-                                    (LamEU tars expr, VarP bnd ty) -> VarP bnd (FType (FunType (neOfPyType tars) defaultType))
+                                    (LamEU tars _expr, VarP bnd _ty) -> VarP bnd (FType (FunType (neOfPyType tars) defaultType))
                                     _ -> pat'
                         return $ LetE pat'' expr'
 
         stmtToIR stmt = StmtE <$> subStmtToIR stmt
+
         lastStmtToIR :: (ConvertM m) => Sub.Stmt -> m (FrLang.Expr PythonVarType Unresolved)
-        lastStmtToIR ret@(Sub.Return maybeExpr) =
+        lastStmtToIR (Sub.Return maybeExpr) =
             case maybeExpr of
                     Just expr -> subExprToIR expr
                     Nothing -> return $ LitE UnitLit
@@ -241,7 +242,7 @@ subscriptToCall (Sub.StmtExpr (Sub.Subscript bnd keyExpr)) =
 
 
 subStmtToIR :: ConvertM m=> Sub.Stmt -> m (FrLang.Expr PythonVarType Unresolved)
-subStmtToIR (Sub.WhileStmt expr suite) = error "Currently we do not support while-loops. Please use a recursion while we implement it."
+subStmtToIR (Sub.WhileStmt _expr _suite) = error "Currently we do not support while-loops. Please use a recursion while we implement it."
     {-do
     cond <- subExprToIR expr
     suite' <- subSuiteToIR (Sub.PySuite suite)
@@ -253,8 +254,8 @@ subStmtToIR (Sub.WhileStmt expr suite) = error "Currently we do not support whil
 subStmtToIR (Sub.ForStmt target generator suite) = do
     target' <- subTargetToIR target
     generator' <- subExprToIR generator
-    suite <- subSuiteToIR (Sub.PySuite suite)
-    return $ MapE (LamEU [target'] suite) generator'
+    suite' <- subSuiteToIR (Sub.PySuite suite)
+    return $ MapE (LamEU [target'] suite') generator'
 
 subStmtToIR (Sub.CondStmt [(cond, suite)] elseSuite) = do
     cond' <- subExprToIR cond
@@ -265,6 +266,8 @@ subStmtToIR (Sub.CondStmt [(cond, suite)] elseSuite) = do
             Just block -> subSuiteToIR (Sub.PySuite block)
     return $ IfE cond' suite' elseSuite'
 
+-- FIXME patterns are non exhaaustive here because CondStmt is not specific enough 
+--       it has to be a NonEmpt of ifsAndSuits
 subStmtToIR (Sub.CondStmt ifsAndSuits elseSuite) = do
     let ((ifE, suite):elifs) = ifsAndSuits
     condE <- subExprToIR ifE
@@ -279,7 +282,7 @@ subStmtToIR Sub.Pass = return $ LitE UnitLit
 subExprToIR :: ConvertM m => Sub.Expr -> m (FrLang.Expr PythonVarType Unresolved)
 subExprToIR (Sub.Var bnd) = return $ VarE bnd defaultType
 subExprToIR (Sub.Int int) = return $ LitE $ NumericLit int
-subExprToIR (Sub.Bool bool) = return $ LitE $ BoolLit bool
+subExprToIR (Sub.Bool bl) = return $ LitE $ BoolLit bl
 subExprToIR Sub.None = return $  LitE  UnitLit
 
 subExprToIR (Sub.Call (Sub.Pure bnd) args) = do
@@ -345,14 +348,16 @@ subExprToIR (Sub.Set  exprs) = do
     exprs' <-  mapM subExprToIR exprs
     setCall <- toFunRefLit SF.setConstructor (neOfPyType exprs', defaultType)
     return $ AppEU setCall exprs'
-subExprToIR subExpr@(Sub.Subscript bnd expr) = do
+subExprToIR subExpr@(Sub.Subscript _bnd _expr) = do
+    -- FIXME: This is to unspecific. We can only get a StmtExpr here (because its the only Python Statement jsut wrapping and expression),
+    --        yet we get a warning for incomplete patterns -> introduce a separate wrapper in the subset instead of using a StmtExpr?
     let (Sub.StmtExpr call) = subscriptToCall (Sub.StmtExpr subExpr)
     subExprToIR call
 
 mappingToTuple ::ConvertM m => (Sub.Expr, Sub.Expr) -> m (FrLang.Expr PythonVarType Unresolved)
-mappingToTuple (key, value) = do
+mappingToTuple (key, val) = do
     key' <- subExprToIR key
-    val' <- subExprToIR value
+    val' <- subExprToIR val
     return $ FrLang.TupE (key' :|[val'])
 
 subArgToIR :: ConvertM m => Sub.Argument -> m ( FrLang.Expr PythonVarType Unresolved)
@@ -412,7 +417,7 @@ listOfPyType args = map (const defaultType) args
 
 neOfPyType ::  [a] -> NonEmpty (OhuaType PythonVarType Unresolved)
 neOfPyType [] = defaultType :| []
-neOfPyType args@(x:xs) = (defaultType :| map (const defaultType) xs)
+neOfPyType (_:xs) = (defaultType :| map (const defaultType) xs)
 
 
 
@@ -431,4 +436,5 @@ simpleBinarySignature = (defaultType :| [defaultType], defaultType)
 simpleUnarySignature :: (NonEmpty (OhuaType PythonVarType Unresolved), OhuaType PythonVarType Unresolved)
 simpleUnarySignature = (defaultType :| [], defaultType)
 
+toBindings:: [Py.Ident a] -> [Binding]
 toBindings = map toBinding

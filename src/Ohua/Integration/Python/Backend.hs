@@ -17,11 +17,11 @@ import qualified Ohua.Integration.Python.SpecialFunctions as SF
 import qualified Language.Python.Common.AST as Py
 import Language.Python.Common (SrcSpan)
 
-import Data.Text (unpack)
+-- import Data.Text (unpack)
 import Data.Functor.Foldable (cata, embed)
 
 import Data.Maybe
-import Data.List.NonEmpty ((<|))
+-- import Data.List.NonEmpty ((<|))
 
 defaultType :: OhuaType PythonVarType Resolved
 defaultType = HType (HostType PythonObject) Nothing
@@ -51,7 +51,7 @@ instance Integration (Language 'Python) where
     {- | Lower basically turns a Programm (Backend.Types) of taskExpressions
          into a task as defined for the Backend (in this case a subset Suite).
     -}
-    lower (Module filePath (Py.Module statements)) arch nameSpace = do
+    lower (Module _filePath (Py.Module _stmts)) arch nameSpace = do
         return $
             nameSpace & algos %~ map (\algo -> algo & algoCode %~ convertTasks (algo^.algoInputCode))
         where

@@ -35,8 +35,8 @@ propagateMut block =
       block' <- goBlock block
       return $ If e0 block' e1'
     go (Loop block) = Loop <$> goBlock block
-    go (ForLoop p r block) = ForLoop p r <$> goBlock block
-    go (While e block) = While e <$> goBlock block
+    go (ForLoop p r lBlock) = ForLoop p r <$> goBlock lBlock
+    go (While e wBlock) = While e <$> goBlock wBlock
     go e = pure e
 
     goBlock (RustBlock unsafety stmts) =

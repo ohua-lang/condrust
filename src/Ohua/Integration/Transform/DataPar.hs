@@ -1,3 +1,4 @@
+{-# LANGUAGE  TypeOperators #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 
@@ -7,16 +8,16 @@ module Ohua.Integration.Transform.DataPar where
 
 import qualified Ohua.Integration.Options as IOpt
 
-import Data.Functor.Foldable (cata, embed, cataA)
+import Data.Functor.Foldable (embed, cataA)
 import qualified Data.HashSet as HS
 import Data.List.NonEmpty ((<|))
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Text.Prettyprint.Doc as PP
 import qualified Ohua.Backend.Lang as B
-import Ohua.Backend.Types as BT (FullTask(..), Architecture, Lang, Type)
+import Ohua.Backend.Types as BT (FullTask(..), Lang, Type)
 import Ohua.Core.ALang.Lang as AL
 import Ohua.Core.InternalFunctions as IFuns
-import Ohua.Core.ALang.Util (destructure, findFreeBindings, findFreeVariables, lambdaArgsAndBody, substitute)
+import Ohua.Core.ALang.Util (destructure, findFreeBindings, lambdaArgsAndBody, substitute)
 import Ohua.Core.Compile.Configuration
 import Ohua.Core.DFLang.Lang as DFL hiding (length, substitute)
 import qualified Ohua.Core.DFLang.Lang as DFL (length)
@@ -155,11 +156,11 @@ liftPureFunctions liftCollectTy = rewriteSMap
     rewriteSMap (DFL.Let app cont) =
       case app of
         SMapFun{} ->
-            let rewriteIt smap@(SMap _ smapBody _) = do
-                  smap'@(SMap app' smapBody' coll') <- rewrite liftCollectTy smap
+            let rewriteIt sMap@(SMap _ smapBody _) = do
+                  sMap'@(SMap app' smapBody' coll') <- rewrite liftCollectTy sMap
                   case DFL.length smapBody of
                     -- TODO a stronger termination metric would be better
-                    l | l /= DFL.length smapBody' -> rewriteIt smap'
+                    l | l /= DFL.length smapBody' -> rewriteIt sMap'
                     _ -> pure $ \c -> DFL.Let app' $ appendExpr smapBody' $ DFL.Let coll' c
              in do
                   (smapBody, coll, cont') <- collectSMap cont
@@ -178,7 +179,7 @@ liftPureFunctions liftCollectTy = rewriteSMap
     collectSMap (DFL.Let app cont) =
       case app of
         -- loop body has ended
-        (PureDFFun _ (FunRef fn _ _) (_ :| [DFVar atb@(DataBinding (TBind result rty))]))
+        (PureDFFun _ (FunRef fn _ _) (_ :| [DFVar atb@(DataBinding (TBind result _rty))]))
           | fn == IFuns.collect ->
             pure (DFL.Var atb, app, cont)
             -- I don't know if this should happen and if we should learn anything from the parameter being a state here but
@@ -209,13 +210,13 @@ rewrite liftCollectTy (SMap smapF body collectF) = do
     findOutTy fun cont = 
         case DFL.outsDFApp fun of
             -- make this a mathc on ty being 'TypeVar' which should error or any type which is the type we want
-            [TBind bnd ty] -> case findOutTy' bnd cont of
+            [TBind bnd _ty] -> case findOutTy' bnd cont of
                         [] -> invariantBroken $ "found unused output:" <> show bnd <> " for function: " <> show fun
                         (t:_) -> return t
             _ -> unsupported "Multiple outputs to pure fun."
     
     findOutTy' :: Binding -> NormalizedDFExpr ty -> [OhuaType ty Resolved]
-    findOutTy' bnd cont = [ ty | DFL.Let app c <- universe' cont
+    findOutTy' bnd cont = [ ty | DFL.Let app _c <- universe' cont
                               , (TBind b ty) <- insAndTypesDFApp app
                               , b == bnd] 
 
@@ -275,7 +276,7 @@ liftFunction collectTy retTy (PureDFFun out fun inp) cont = do
 -- the implementations of the below functions.
 lowerTaskPar :: forall lang arch ty. (ty ~ BT.Type (BT.Lang arch))
              => lang -> arch -> FullTask ty (B.TaskExpr ty) -> B.TaskExpr ty
-lowerTaskPar _ arch = go
+lowerTaskPar _ _arch = go
     where
         go (FullTask _sends _recvs taskE) =
             case  go' taskE of
@@ -298,11 +299,13 @@ lowerTaskPar _ arch = go
 takeN :: QualifiedBinding
 takeN = "ohua.lang/takeN"
 
+takeNLit :: OhuaType ty 'Resolved -> AL.Expr ty
 takeNLit ty = Lit $ FunRefLit $ FunRef takeN Nothing $ FunType  (ty :| [IType TypeNat]) ty
 
 concat :: QualifiedBinding
 concat = "ohua.lang/concat"
 
+concatLit :: OhuaType ty 'Resolved -> AL.Expr ty
 concatLit ty = Lit $ FunRefLit $ FunRef concat Nothing $ FunType (ty :| [ty]) ty
 
 -- | This transformation adds a limit on the tries per round and therewith provides
@@ -393,7 +396,7 @@ amorphous numRetries = transformM go
                                            -- traceM $ "Detected State usage in loop over: " <> show loopInp
                                            --recCallArgs <- findRecursionCallArgs body
                                            -- traceM $ "Recursion call args':" <> show recCallArgs
-                                           wlRec <- case map snd $ filter (\(p,a) -> p == loopInp) $ zip ctxt recCallArgs of
+                                           wlRec <- case map snd $ filter (\(p, _a) -> p == loopInp) $ zip ctxt recCallArgs of
                                                       [i] -> pure i
                                                       _ -> throwError "invariant broken" -- we detected that already above!
                                            let loopResults = findFreeStateVars loopBody
@@ -445,7 +448,7 @@ amorphous numRetries = transformM go
       let calls =
             [ recursion
               | (AL.Let _ cond (AL.Var _)) <- universe body,
-                (Apply (Apply (PureFunction ifTE Nothing) t) recursion) <- universe cond,
+                (Apply (Apply (PureFunction ifTE Nothing) _t) recursion) <- universe cond,
                 ifTE == IFuns.ifThenElse
             ]
       in case calls of
@@ -467,11 +470,11 @@ amorphous numRetries = transformM go
           [ s | (Apply (StatefulFunction _ _ (AL.Var s)) (AL.Var _)) <- universe body, s == bnd
           ]
 
-    isUsedState bnd body =
+    {-isUsedState bnd body =
       not $
         null
           [ s | BindState (AL.Var s) _ <- universe body, s == bnd
-          ]
+          ]-}
 
     isUsedStateAnywhere bnd body =
       not $
@@ -487,11 +490,11 @@ amorphous numRetries = transformM go
 
     rewriteAfterLoop
       loopIn@(TBind loopInBnd liTy)
-      w@(TBind wl' wty)
+      w@(TBind wl' _wty)
       ( AL.Let
           v
           (Apply f@(Apply
-                    (PureFunctionTy smapF _ (FunType (inpTy :| _) retTy ) )
+                    (PureFunctionTy smapF _ (FunType (inpTy :| _) _retTy ) )
                     _)
                  (AL.Var loopInp'))
           cont
@@ -501,7 +504,7 @@ amorphous numRetries = transformM go
           taken <- flip TBind (IType TypeNat) <$> generateBindingWith "n_taken"
           takenInp <- flip TBind liTy <$> generateBindingWith (loopInBnd <> "_n")
           rest <- flip TBind liTy <$> generateBindingWith "rest"
-          nResults <- DataBinding . flip TBind liTy <$> generateBindingWith "n_results"
+          -- nResults <- DataBinding . flip TBind liTy <$> generateBindingWith "n_results"
           pendingWork <- flip TBind liTy <$> generateBindingWith wl'
           return $
             AL.Let
@@ -525,7 +528,7 @@ amorphous numRetries = transformM go
       ( AL.Let
           v
            (Apply f@(Apply
-                    (PureFunctionTy smapF _ (FunType (inpTy :| _) retTy ))
+                    (PureFunctionTy smapF _ (FunType (inpTy :| _) _retTy ))
                     _)
                  (AL.Var loopInp'))
           cont
@@ -533,7 +536,7 @@ amorphous numRetries = transformM go
         | smapF == IFuns.smap && loopIn == loopInp' = do
           taken <- flip TBind (IType TypeNat) <$> generateBindingWith "n_taken"
           takenInp <- flip TBind liTy <$> generateBindingWith (loopInBnd <> "_n")
-          nResults <- flip TBind liTy <$> generateBindingWith "n_results"
+          -- nResults <- flip TBind liTy <$> generateBindingWith "n_results"
           return $
             AL.Let
               taken
@@ -563,15 +566,20 @@ amorphous numRetries = transformM go
         (Apply (Apply (concatLit workedTy ) $ AL.Var worked) $ AL.Var rest)
         (substitute workedB (AL.Var pendingWork) cont)
 
+fst3 :: (a, b, c) -> a 
 fst3   (a,_,_) = a
+
+snd3 :: (a, b, c) -> b
 snd3   (_,b,_) = b
+
+third3 :: (a, b, c) -> c
 third3 (_,_,c) = c
 
 typeAmorphous :: NormalizedDFExpr ty -> OhuaM (NormalizedDFExpr ty)
 typeAmorphous = return . mapFuns go
     where
-        go (PureDFFun outs (FunRef f id (FunType (a:|b:c) retTy) ) ins) | f == concat =
-            PureDFFun outs (FunRef f id (FunType ((IType $ TypeList a) :| (IType $ TypeList b) : c ) retTy)) ins
-        go (PureDFFun outs (FunRef f id (FunType (a :| b) retTy ) ) ins) | f == takeN =
-            PureDFFun outs (FunRef f id (FunType ((IType $ TypeList a ) :| b) retTy) ) ins
+        go (PureDFFun outs (FunRef f fID (FunType (a:|b:c) retTy) ) ins) | f == concat =
+            PureDFFun outs (FunRef f fID (FunType ((IType $ TypeList a) :| (IType $ TypeList b) : c ) retTy)) ins
+        go (PureDFFun outs (FunRef f fID (FunType (a :| b) retTy ) ) ins) | f == takeN =
+            PureDFFun outs (FunRef f fID (FunType ((IType $ TypeList a ) :| b) retTy) ) ins
         go a = a
