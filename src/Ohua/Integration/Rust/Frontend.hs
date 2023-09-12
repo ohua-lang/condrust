@@ -5,7 +5,6 @@
 
 module Ohua.Integration.Rust.Frontend where
 
-import Data.Text.Lazy.IO as T
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.List.NonEmpty as NE
 
@@ -13,7 +12,7 @@ import Language.Rust.Data.Ident
 import Language.Rust.Parser (Span)
 import Language.Rust.Syntax as Rust hiding (Rust)
 
-import Ohua.UResPrelude hiding (getVarType)
+import Ohua.UResPrelude
 import qualified Ohua.Prelude as Res (FunType)
 import Ohua.Frontend.Types
 import Ohua.Frontend.TypeSystem (Delta(..))
@@ -49,9 +48,9 @@ instance Integration (Language 'Rust) where
     FilePath ->
     m (Module, Namespace (FrLang.Expr RustVarType Unresolved) (Item Span), Module)
   loadNs _ srcFile = do
-    mod <- liftIO $ loadRustFile srcFile
-    ns <- extractNs mod
-    return (Module srcFile mod, ns, Module "placeholderlib.rs" placeholderModule)
+    rustMod <- liftIO $ loadRustFile srcFile
+    rustNS <- extractNs rustMod
+    return (Module srcFile rustMod, rustNS, Module "placeholderlib.rs" placeholderModule)
     where
       extractNs ::
         ErrAndLogM m =>
@@ -64,30 +63,30 @@ instance Integration (Language 'Rust) where
           -- FIXME globals are in the wrong place here.
           --       they belong into the delta because their only purpose is to deliver the type for
           --       free vars in the algos
-          collectGlobals input@(SourceFile _ _ items) = do
+          collectGlobals (SourceFile _ _ items) = do
             return $
               foldl (\hm (k, v) -> HM.insert k v hm) HM.empty
                     $ mapMaybe
                     (\case
-                        (ConstItem _attr _pub ident ty expr _ )-> Just (toBinding ident, Sub.RustType (deSpan ty))
-                        (Static _ _ ident ty Immutable expr span) -> Just (toBinding ident, Sub.RustType (deSpan ty))
-                        (Static _ _ ident ty Mutable expr span) ->
+                        (ConstItem _attr _pub ident ty _expr _span )-> Just (toBinding ident, Sub.RustType (deSpan ty))
+                        (Static _ _ ident ty Immutable _expr _span) -> Just (toBinding ident, Sub.RustType (deSpan ty))
+                        (Static _ _ ident _ty Mutable _expr _span) ->
                           error $ "You are trying to use a global mutable object "<> show ident <>" in a concurrent program ... DON'T"
                         _ -> Nothing
                     )
                     items
 
       extractWithGlobals globs (SourceFile _ _ items) = do
-        imports <-
+        rustImports <-
           concat . catMaybes <$> mapM (\case
                                           (Use _ _ t _) -> Just . toList <$> extractImports [] t
                                           _             -> return Nothing) items
-        algos <-
+        rustAlgos <-
           catMaybes <$> mapM (\case
                                  f@(Fn _ _ ident decl _ _ block _) ->
                                    Just . (\e -> Algo (toBinding ident) e f) <$> extractAlgo ident decl block
                                  _ -> return Nothing) items
-        return $ Namespace (filePathToNsRef srcFile) imports (map Global $ HM.keys globs) algos
+        return $ Namespace (filePathToNsRef srcFile) rustImports (map Global $ HM.keys globs) rustAlgos
 
       -- FIXME: Paths inside a crate would be use crate::something. Actually we'd need proper name resolution for this i.e. accoding to
       -- how cargo works. For now I'll assume crate imports to just live in the same directory, replacing 'crate' with './'
@@ -118,12 +117,15 @@ instance Integration (Language 'Rust) where
         Block Span ->
         m (FrLang.Expr RustVarType Unresolved)
       extractAlgo _algoName (FnDecl _ _ True _) _block = error "We do not support compilation of variadic functions for the moment"
-      extractAlgo algoName  (FnDecl args mReturnTy _ _) block = do
+      extractAlgo _algoName  (FnDecl args mReturnTy _ _) block = do
         -- implGlobalArgs <- fromGlobals
         -- traceM $ "Implicit Arguments:" <> show implGlobalArgs
         args' <- mapM (convertPat <=< SubC.convertArg) args
         block' <- convertIntoFrExpr block
         let returnType = maybe UType asHostNormalU mReturnTy
+        -- FIXME: We use dto do this as a transformation in the Frontend i.e. Transform.Env (prepareRootAlgoVars)
+        --        I really think that this is the way we should do it instead of expecting the integrations to do this quirk for us.
+        --        We need this transformation to have the return type of the algo inside the algo i.e. for type checking.
         let wrappedBlock = LetE (VarP "result" returnType) block' (VarE "result" returnType)
         return $ LamEU {- implGlobalArgs ++ -} args' wrappedBlock
 
@@ -173,6 +175,7 @@ instance Integration (Language 'Rust) where
       fnTypesFromFiles nsRefs = HM.unions <$> mapM (extractFromFile . toFilePath . (,".rs")) nsRefs
 
       -- | Deal with Globs here.
+      {- 
       verifyAndRegister :: ErrAndLogM m
                         => FunTypes
                         -> ([NSRef], QualifiedBinding)
@@ -194,7 +197,7 @@ instance Integration (Language 'Rust) where
             return Nothing
           [t] -> return $ Just (qp, t)
           _ -> throwError $ "Multiple definitions of function `" <> show (unwrap nam) <> "` in modules " <> show globs' <> " detected!\nPlease verify again that your code compiles properly by running `rustc`. If the problem persists then please file a bug. (See issue sertel/ohua-frontend#1)"
-
+      -}
       lookupFunTypes :: ErrAndLogM m => QualifiedBinding -> m ([NSRef], QualifiedBinding)
       lookupFunTypes q@(QualifiedBinding (NSRef []) nam) =
         return $ (,q) $ maybe globs (: []) $ HM.lookup nam fullyResolvedImports
