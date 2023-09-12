@@ -199,6 +199,7 @@ instance Integration (Language 'Rust) where
       lookupFunTypes q@(QualifiedBinding (NSRef []) nam) =
         return $ (,q) $ maybe globs (: []) $ HM.lookup nam fullyResolvedImports
       lookupFunTypes q@(QualifiedBinding nsRef _name) =
+        -- FIXME: This doesn't consider empty NSRefs, if there should be none we need to make it NonEmpty
         let (aliaz : rest) = unwrap nsRef
          in case HM.lookup aliaz aliasImports of
               Just a -> return ([NSRef $ unwrap a ++ rest], q)
@@ -292,7 +293,7 @@ instance ConvertExpr Sub.Expr where
     body' <- convertExpr body
     return $ LamEU args' body'
   convertExpr (Sub.BlockExpr block) = convertExpr block
-  convertExpr (Sub.PathExpr (Sub.CallRef ref tyInfo)) = do
+  convertExpr (Sub.PathExpr (Sub.CallRef ref _tyInfo)) = do
     return $ LitE $ FunRefLit $ FunRef ref Nothing $ FunType (TStar :| []) TStar
   convertExpr (Sub.Var bnd (Just (Sub.RustType ty))) = return $ VarE bnd (asHostNormalU ty)
   convertExpr (Sub.Var bnd Nothing) = return $ VarE bnd TStar
@@ -303,18 +304,18 @@ instance ConvertExpr Sub.Block where
     where
       convertStmts [] = return $ LitE UnitLit
       convertStmts (x : xs) =
-        let last = NE.last (x :| xs)
+        let lastS = NE.last (x :| xs)
             heads = NE.init (x :| xs)
          in do
               convertedHeads <- mapM convertStmt heads
-              convertedLast <- convertLastStmt last
+              convertedLast <- convertLastStmt lastS
               return $
                 foldr
                   (\stmt cont -> stmt cont)
                   convertedLast
                   convertedHeads
       convertStmt :: SubC.ConvertM m => Sub.Stmt -> m (FrLang.Expr RustVarType Unresolved -> FrLang.Expr RustVarType Unresolved)
-      convertStmt s@(Sub.Local pat ty e) = do
+      convertStmt (Sub.Local pat _ty e) = do
         {-
         case (pat, ty) of
           -- ToDo: We should move this to Rust -> Sub Conversion and set it automatically if the RHS is a literal
@@ -335,9 +336,9 @@ instance ConvertExpr Sub.Block where
 
       convertLastStmt e@(Sub.NoSemi expr) =
         case expr of
-          Sub.ForLoop {} -> (\e -> e $ LitE UnitLit) <$> convertStmt e
+          Sub.ForLoop {} -> (\e' -> e' $ LitE UnitLit) <$> convertStmt e
           _ -> convertExpr expr
-      convertLastStmt e = (\e -> e $ LitE UnitLit) <$> convertStmt e
+      convertLastStmt e = (\e' -> e' $ LitE UnitLit) <$> convertStmt e
 
 fromIdent :: Sub.IdentPat -> Binding
 fromIdent (Sub.IdentPat _mode bnd) =  bnd
@@ -359,7 +360,7 @@ instance ConvertPat Sub.IdentPat where
     return $ VarP bnd TStar
 
 instance ConvertPat Sub.Arg where
-  convertPat (Sub.Arg pat ty) = convertPat pat
+  convertPat (Sub.Arg pat _ty) = convertPat pat
   {- do
     pat' <- convertPat pat
     case pat' of
