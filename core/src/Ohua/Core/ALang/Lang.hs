@@ -110,7 +110,7 @@ funType e = case e of
         (Lambda tBnd term)                      -> Just $ FunType (asType tBnd :| []) (exprType term)
         (BindState _state method)               -> funType method
         -- Question: What's the type of BindState at this point?
-        other                                   -> Nothing
+        _other                                   -> Nothing
 
 
 
@@ -124,9 +124,6 @@ mkFunLit qBnd = pureFunction qBnd Nothing
 
 
 -- Specific Functions, that should become part of the language ---------
-
-idBuiltin :: OhuaType ty Resolved -> Expr ty
-idBuiltin vTy = pureFunction IFuns.id Nothing (FunType (vTy :| []) vTy)
 
 
 ifBuiltin :: OhuaType ty Resolved -> Expr ty

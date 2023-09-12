@@ -15,7 +15,7 @@ module Ohua.Core.ALang.Passes.State where
 
 import Ohua.Core.Prelude
 
-import Ohua.Types.Vector hiding (map, zip, zip3, unzip, unzip3, filter, toList)
+-- import Ohua.Types.Vector hiding (map, zip, zip3, unzip, unzip3, filter, toList)
 import Ohua.Core.ALang.Lang
 import Ohua.Core.ALang.Util
 import Ohua.Core.ALang.Passes.SSA
@@ -87,7 +87,7 @@ transformFundamentalStateThreads = transformM f
     f expr = return expr
 
     usedIn cont b@(bnd, _) =
-      case [b | Var b <- universe cont, b == bnd] of
+      case [b' | Var b' <- universe cont, b' == bnd] of
         [] -> Nothing
         _ -> Just b
 
@@ -296,7 +296,7 @@ transformCtxtExits = evictOrphanedDestructured . f
                         if compound == trueBranch
                         then (compOut, stateOuts, compOut', stateOuts')
                         else (compOut', stateOuts', compOut, stateOuts)
-                    (compOut'':stateOuts'') = findDestructured cont v
+                    (compOut'': stateOuts'') = findDestructured cont v
                     stateExits ct =
                         foldr
                             (\(s', (ts,fs)) c ->
@@ -323,10 +323,10 @@ mkST states = \case
     Let v e res -> Let v e <$> mkST states res
     e -> do
         allOut <- generateBindingWith "all_out"
-        let types =  exprType e :| map exprType states
+        let etypes =  exprType e :| map exprType states
         return $
             -- allOut contains the result an ALL states from the inner scope
             -- ctxtExitFun is a function that collects the result and all states and returns the tuple for 'allOut'
-            Let (TBind allOut (TType types))
-                (mkApply (ctxtExitFunRef types (TType types)) $ e : states)
-                (Var (TBind allOut (TType types)))
+            Let (TBind allOut (TType etypes))
+                (mkApply (ctxtExitFunRef etypes (TType etypes)) $ e : states)
+                (Var (TBind allOut (TType etypes)))

@@ -296,7 +296,7 @@ findRecCall (Apply (Var tbnd) a) algosInScope
                 "Detected recursion although tail recursion support is not enabled!"
         return (HS.insert tbnd HS.empty, Apply (recurSf $ exprType a) a)
             -- else error $ "Detected recursion (" ++ (show binding) ++ ") although tail recursion support is not enabled!"
-findRecCall e@(Apply a b) algosInScope =  do
+findRecCall (Apply a b) algosInScope =  do
     (aFound, aExpr) <- findRecCall a algosInScope
     (bFound, bExpr) <- findRecCall b algosInScope
     return (HS.union aFound bFound, Apply aExpr bExpr)

@@ -28,7 +28,7 @@ Here, f has side-effects to a and we sequence further execution.
 literalsToFunctions :: MonadOhua m => Expr ty -> m (Expr ty)
 literalsToFunctions e =
     flip transformM e $ \case
-        Let v u@(Lit lit) ie ->
+        Let v (Lit lit) ie ->
             case lit of
                 UnitLit      -> mkFun v lit ie
                 NumericLit _ -> mkFun v lit ie

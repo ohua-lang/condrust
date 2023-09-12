@@ -171,5 +171,5 @@ ifRewrite = transformM $ \case
                     Var result
               _ -> throwError $ "Found if with unexpected, non-unit-lambda branch(es)\ntrue:\n " <> show trueBranch <> "\nfalse:\n" <> show falseBranch
       where
-        isUnit (TBind bnd ty) = ty == IType TypeUnit
+        isUnit (TBind _bnd ty) = ty == IType TypeUnit
     e -> pure e

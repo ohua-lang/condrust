@@ -92,6 +92,7 @@ instance Pretty (DFApp a ty) where
             , "ifFun"
             ] <>
             [align $ tupled [pretty dIn]]
+    -- ToDo: Add pretty fpr builtIns CollectFun, CtrlFun, SelectFun
             
 instance Pretty (OutData b ty) where
     pretty (Direct b) = pretty b

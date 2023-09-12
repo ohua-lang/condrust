@@ -192,7 +192,7 @@ ensureFinalLetInLambdas =
         a -> embed <$> sequence a
 
 ensureAtLeastOneCall :: (Monad m, MonadGenBnd m) => Expr ty -> m (Expr ty)
-ensureAtLeastOneCall e@(Var (TBind bnd ety)) = do
+ensureAtLeastOneCall e@(Var (TBind _bnd ety)) = do
     newBnd <- generateBinding
     pure $ Let (TBind newBnd ety) (pureFunction IFuns.id Nothing (FunType (ety :| []) ety )`Apply` e) $ Var (TBind newBnd ety)
 ensureAtLeastOneCall e = cata f e
