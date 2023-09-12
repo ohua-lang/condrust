@@ -209,6 +209,7 @@ typeSystem delta gamma = \case
       let ty = FunType (NE.map patType pats') tyE
 
       return (gamma''', LamE pats' expr', FType ty)
+      
   {-
       Delta, Gamma |- state : S     Delta, Gamma |- method : S -> Tm
   ========================================================================
@@ -320,13 +321,21 @@ typeSystem delta gamma = \case
     Delta, Gamma |- l : T
   -}
   (LitE (FunRefLit (FunRef qbnd id ty))) -> do
-      let (modImports,delta') = delta
+      let (modImports, delta') = delta
       case HM.lookup qbnd delta' of
         Just ty' ->
-          ((\ty'' ->
-            (HM.empty, LitE $ FunRefLit $ FunRef qbnd id ty', ty'')) .
-          FType) <$> maxFunType ty ty'
-        Nothing -> typeError $ "Missing type information for function literal: " <> (quickRender qbnd)
+          ((\ty'' -> 
+              (HM.empty, LitE $ FunRefLit $ FunRef qbnd id ty', ty'')) . FType
+          ) <$> maxFunType ty ty'
+        -- ToDo: We have a problem here.
+        --  1. The python integration does not extract function types and delta is always empty and
+        --  2. Using delta we will get conflicts with generic functions i.e. f<G>(i:G) -> G with G being i32 or String or ... will be in the same delta?!
+        -- either we give local type assignment precedence, and/or accept a lookup miss in Delta, and/or put functions including call side identifiers the
+        -- for the last option we'd also need to able to identify generics in HostTypes to know when alternatives are valid
+        -- I'll go with accepting lookup miss first if we can convert ty to a resolved function type   
+        Nothing -> case unresToRes (FType ty) of
+          Just ty'@(FType fty)  -> return (HM.empty, LitE (FunRefLit (FunRef qbnd id fty)), ty')
+          _ -> typeError $ "Missing type information for function literal: " <> (quickRender qbnd)
 
   {-
   ==================
@@ -403,3 +412,4 @@ maxFunType (FunType ins out) (FunType rins rout) =
 maxFunType (STFunType sin ins out) (STFunType rsin rins rout) =
   STFunType <$> maxType sin rsin <*> mapM (uncurry maxType) (zip ins rins) <*> maxType out rout
 maxFunType fun otherfun = typeError $ "Comparing stateful to stateless function type " <> show fun <> " with " <> show otherfun
+
