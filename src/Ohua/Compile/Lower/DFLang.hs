@@ -42,7 +42,7 @@ generateNodesCode = go
 generateFunctionCode :: forall ty a m. ErrAndLogM m => DFApp a ty -> LoweringM m (FusableExpr ty)
 generateFunctionCode = \case
     
-    (PureDFFun out fn (DFEnvVar TypeUnit UnitLit:|[]) )-> do
+    (PureDFFun out fn (DFEnvVar (IType TypeUnit) UnitLit:|[]) )-> do
         out' <- pureOut fn out
         return $ Fusion.Fun $ Ops.PureFusable [] (Ops.Call fn) out'
      -- Question: UnitLits can sneak in, in different forms but we never want them to appear in the output
@@ -295,7 +295,7 @@ generateNodeCode e@(PureDFFun out (FunRef funName _fID _fType) (inp:|[])) | funN
       Fusion.Fun $
       Ops.IdFusable (Ops.Arg $ asRecv atbnd) out'
 
-generateNodeCode e@(PureDFFun out fn@(FunRef funName _funID funTy) inp) | funName == IFuns.tupleFun = do
+generateNodeCode (PureDFFun out fn@(FunRef funName _funID funTy) inp) | funName == IFuns.tupleFun = do
   let args = toList $ map generateReceive inp
   out' <- pureOut fn out
   return $ Fusion.Fun $ Ops.PureFusable args (Ops.Tup funTy) out'
@@ -342,7 +342,7 @@ generateNodeCode e@(RecurFun resultOut ctrlOut recArgsOuts recInitArgsIns recArg
                         Direct x' -> return $ SChan $ unwrapABnd x'
                         _ -> invariantBroken $ "Control outputs don't match:\n" <> show e
         -- directOut' Nothing = pure Nothing
-        varToChanOrLit :: DFVar bty ty -> Either (Com 'Recv ty) (Lit ty)
+        varToChanOrLit :: DFVar bty ty -> Either (Com 'Recv ty) (Lit ty 'Resolved)
         varToChanOrLit (DFVar atbnd) = Left $ asRecv atbnd
         varToChanOrLit (DFEnvVar _ l) = Right l
 
@@ -361,5 +361,5 @@ asRecv  atBnd =
 
 asSend :: ATypedBinding bty ty -> Com 'Send ty
 asSend  atBnd = 
-  let (TBind bnd ty) = unwrapTB atBnd
+  let (TBind bnd _ty) = unwrapTB atBnd
   in SSend (SChan bnd) (Left bnd) 
