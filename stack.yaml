@@ -1,4 +1,4 @@
-resolver:  lts-16.23 # lts-14.22 # ghc-8.6.5
+resolver:  lts-21.4 # lts-14.22 # ghc-8.6.5
 
 packages:
 - .
@@ -23,10 +23,9 @@ extra-deps:
 
   # for reproducibility reasons, stack requires me to specify this again here.
   # TODO Is there a way that I can tell stack that it should use the version specified in ohuac-integrations?
-  - github: harpocrates/language-rust
+  - github: Pagolin/language-rust #GaloisInc/language-rust
     #commit: 9d509c450d009cc99f1180b3f2f30247dfb1cfce # master
-    commit: 625eb5ee26f46045effcbc8f924598d26ee25c2a # branch for rust 1.39
-
+    commit: 131b7d1 # branch for rust 1.39
 
   - language-python-0.5.8@sha256:527615d39d4240ca45ed8cb7fe44cbcb28a07732cc98dff0380d04de8b55f59d,2473
 

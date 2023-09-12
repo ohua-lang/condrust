@@ -6,8 +6,17 @@ maintainer: sebastian.ertel@gmail.com
 copyright: © 2020 Sebastian Ertel
 license: OtherLicense
 github: sertel/ohuac
+
+
 extra-source-files:
 - README.md
+
+ghc-options:
+- -Wall
+- -Werror=inaccessible-code
+- -Werror=incomplete-patterns
+
+
 default-extensions:
 - OverloadedStrings
 - MultiParamTypeClasses
