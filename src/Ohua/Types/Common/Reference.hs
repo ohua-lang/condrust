@@ -162,12 +162,12 @@ instance Heq (FunType ty s1) (FunType ty s2) where
 
 resToUnres :: OhuaType ty Resolved -> Maybe (OhuaType ty Unresolved)
 -- HTpye gets it's resoltuion from Internal Type, which can only be resolved at this point so I can't pass it back
-resToUnres (HType hty miTy)   = Just $ HType hty Nothing
+resToUnres (HType hty _miTy)   = Just $ HType hty Nothing
 resToUnres (TType tys) = case mapM resToUnres tys of
       Just rTys -> Just $ TType rTys
       Nothing -> Nothing
 -- ToDO: Can/Should we unreoslve function types?
-resToUnres (FType fTy)  = Nothing
+resToUnres (FType _fTy)  = Nothing
 resToUnres (IType _ )         = Nothing
 
 unresToRes :: OhuaType ty Unresolved -> Maybe (OhuaType ty Resolved)
@@ -177,7 +177,7 @@ unresToRes (TType tys) = case mapM unresToRes tys of
       Just rTys -> Just $ TType rTys
       Nothing -> Nothing
 -- ToDO: Can/Should we unreoslve function types?
-unresToRes (FType fty) = Nothing
+unresToRes (FType _fty) = Nothing
 unresToRes UType       = Just $ IType TypeUnit
 unresToRes TStar       = Nothing 
 
@@ -258,6 +258,7 @@ data FunRef ty s where
 instance Hashable (FunRef ty s) where 
   hashWithSalt s (FunRef qbnd _ _ ) = hashWithSalt s qbnd 
 
+getRefType :: FunRef ty s -> FunType ty s
 getRefType (FunRef _q _i funTy) = funTy
 --getRefReturnType (FunRef _q _i funTy) = getReturnType funTy
 
