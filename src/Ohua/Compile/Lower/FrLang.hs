@@ -228,7 +228,7 @@ toAlang expr =  toAlang' (definedBindings expr) expr
 definedBindings :: FR.Expr ty 'Resolved -> HS.HashSet Binding
 definedBindings olang =
     HS.fromList $
-    [v | VarE v _ty <- universeReplaceRes olang] <>
+    [v | VarE v _ty <- FR.flatten olang] <>
     [v | VarP v _ty <- universePats olang]
 
 tupTypeFrom :: NonEmpty (Pat ty 'Resolved) -> (OhuaType ty 'Resolved)
