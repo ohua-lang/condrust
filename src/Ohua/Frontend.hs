@@ -29,8 +29,7 @@ frontend lang compScope inFile = do
 
         -- we exclude recursive functions from stand-alone compilation.
         let ns'''                      =  over algos (filter (not . isRecAlgo)) ns''
-        -- FIXME: Where are the imports in `toWellTyped  delta imports` are supposed to come from 
-        ns''''                         <- updateExprs ns''' (toWellTyped delta [] )
+        ns''''                         <- updateExprs ns''' (toWellTyped delta (ns'''^.imports) )
         return ((langNs, ns''''), placeholder)
     where
         trans :: ErrAndLogM m => FrLang.Expr ty Unresolved -> m (FrLang.Expr ty Unresolved)
