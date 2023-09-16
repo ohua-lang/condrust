@@ -52,6 +52,7 @@ import Ohua.Types.Bindings
 import Ohua.Types.HostTypes
 
 import qualified Text.Show
+import qualified GHC.TypeLits as Bool
 
 
 -- | Internal type representations. While Type and TType capture types from the
@@ -67,6 +68,9 @@ data Resolution = Unresolved | Resolved
 
 type OhuaType :: Type -> Resolution -> Type
 data OhuaType ty s where
+  -- Why does HostType have a Maybe Internal Type: We usually don't want to convert any types form the
+  -- host language to the interanl types. The only exception is, when we need to type check that conditions are really Bool.
+  -- Therefor we can add an internal type that allows the type system to check this.
   HType :: HostType ty -> Maybe (InternalType ty s) -> OhuaType ty s
   -- Tuple and Function types can capture both resolved an unresolved host types
   -- ToDo: Check if we need to introduce another layer of typing 
@@ -166,7 +170,7 @@ resToUnres (HType hty _miTy)   = Just $ HType hty Nothing
 resToUnres (TType tys) = case mapM resToUnres tys of
       Just rTys -> Just $ TType rTys
       Nothing -> Nothing
--- ToDO: Can/Should we unreoslve function types?
+-- ToDO: Can/Should we unresolve function types?
 resToUnres (FType _fTy)  = Nothing
 resToUnres (IType _ )         = Nothing
 
@@ -176,8 +180,17 @@ unresToRes (HType hty _miTy)   = Just $ HType hty Nothing
 unresToRes (TType tys) = case mapM unresToRes tys of
       Just rTys -> Just $ TType rTys
       Nothing -> Nothing
--- ToDO: Can/Should we unreoslve function types?
-unresToRes (FType _fty) = Nothing
+
+unresToRes (FType (STFunType sin ins out)) = do 
+      sin' <- unresToRes sin
+      ins' <- mapM unresToRes ins 
+      out' <- unresToRes out
+      return (FType (STFunType sin' ins' out'))
+unresToRes (FType (FunType ins out)) = do 
+      ins' <- mapM unresToRes ins 
+      out' <- unresToRes out
+      return (FType (FunType ins' out'))
+
 unresToRes UType       = Just $ IType TypeUnit
 unresToRes TStar       = Nothing 
 
