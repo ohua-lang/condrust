@@ -26,6 +26,7 @@ module Ohua.Frontend.Lang
     , universeReplace
     , universeReplaceRes
     , universePats
+    , flatten
     --- , postWalkE
     ) where
 
@@ -141,8 +142,8 @@ preWalkER f e = case e of
       VarE _ _ -> f e
       LitE _ -> f e 
       LetE p e1 e2 -> 
-          let e1' = preWalkER  f e1
-              e2' = preWalkER  f e2
+          let e1' = preWalkER f e1
+              e2' = preWalkER f e2
           in f (LetE p e1' e2')
       AppE fun args -> 
           let fun' = preWalkER f fun
@@ -209,10 +210,6 @@ preWalkMU f e = case e of
           m' <- preWalkMU f m
           args' <- mapM (preWalkMU f) args
           f (BindE m' sB args')
-      {-StateFunE s sb m ->  do
-          m' <- preWalkMU f m
-              s' <- preWalkMU f s
-          in f (StateFunE s' sb m')-}
       StmtE e1 e2 ->  do
           e1' <- preWalkMU f e1
           e2' <- preWalkMU f e2
@@ -264,67 +261,9 @@ preWalkMR f e = case e of
           es' <- mapM (preWalkMR f) es
           f (TupE es')
 
-{-postwalk can fail if f is not structure preserving -> how to? 
 
--> get a subExpr and compose function for exprs 
--> handle expr 
--> get and handle subexprs
--> compose -> return 
-postWalkE ::Monad m =>  (Expr ty Unresolved -> m (Expr ty Unresolved)) -> Expr ty Unresolved -> m (Expr ty Unresolved)
-postWalkE f e = case e of 
-      VarE _ _ -> f e
-      LitE _ -> f e 
-      LetE p e1 e2 -> do
-           (LetE p' e1' e2') <- f e
-           e1'' <- postWalkE f e1'
-           e2'' <- postWalkE  f e2'
-           return (LetE p' e1'' e2'')
-      AppE fun args ->  do
-            (AppE fun' args') <- f e
-            fun'' <- postWalkE f fun'
-            args'' <- mapM (postWalkE f) args'
-            return (AppE fun'' args'')
-      LamE pats body -> do
-            (LamE pats' body') <- f e 
-            body'' <- postWalkE f body'
-            return (LamE pats' body'')
-      IfE c te fe ->  do
-            (IfE c' te' fe') <- f e 
-            c'' <- postWalkE f c'
-            te'' <- postWalkE f te' 
-            fe'' <- postWalkE f fe'
-            return (IfE c'' te'' fe'')
-      WhileE c body ->  do
-            (WhileE c' body') <- f e
-            c'' <- postWalkE f c'
-            body'' <- postWalkE f body'
-            return (WhileE c'' body'')
-      MapE e1 e2 ->  do
-            (MapE e1' e2') <- f e 
-            e1'' <- postWalkE f e1'
-            e2'' <- postWalkE f e2'
-            return (MapE e1'' e2'')
-      BindE m sB args ->  do
-            (BindE m' sB' args') <- f e 
-            m'' <- postWalkE f m'
-            args'' <- mapM (postWalkE f) args'
-            return (BindE m'' sB' args'')
-      {-StateFunE s sb m ->  do
-          m' <- postWalkE f m
-              s' <- postWalkE f s
-          in f (StateFunE s' sb m')-}
-      StmtE e1 e2 ->  do
-           (StmtE e1' e2') <- f e 
-           e1'' <- postWalkE f e1'
-           e2'' <- postWalkE f e2'
-           return  (StmtE e1'' e2'')
-      TupE es ->  do
-            (TupE es') <- f e 
-            es'' <- mapM (postWalkE f) es'
-            return (TupE es'')
--}
 
-accu :: [a] -> a -> [a]
+accu :: Show a => [a] -> a -> [a]
 accu l e = l ++ [e] 
 
 patternFromExpr :: Expr ty Resolved -> [Pat ty Resolved]
@@ -341,7 +280,7 @@ universeReplaceRes ::  Expr ty Resolved -> [Expr ty Resolved]
 universeReplaceRes expr =  preWalkMR (accu []) expr
 
 universePats :: Expr ty Resolved -> [Pat ty Resolved]
-universePats expr = concatMap patternFromExpr (universeReplaceRes expr) 
+universePats expr = concatMap patternFromExpr (flatten expr) 
 
 deriving instance Show (Expr ty res)
 
@@ -384,3 +323,20 @@ freeVars = go HS.empty
     go  ctxt (StateFunE s _ method ) = go ctxt s ++ go ctxt method
     go  ctxt (StmtE e1 e2) = go ctxt e1 ++ go ctxt e2
     go  ctxt (TupE es) = foldl (\vs e -> vs ++ go ctxt e) [] es
+
+flatten :: Expr ty res -> [Expr ty res]
+flatten e = case e of 
+        (VarE _ _ ) -> [e]
+        (LitE _) -> [e]
+        (LetE p e1 e2) -> [e] ++ flatten e1 ++ flatten e2 
+        (AppE f xs)-> [e] ++ flatten f ++ concatMap flatten (NE.toList xs)  
+        (AppEU f xs)-> [e] ++ flatten f ++ concatMap flatten  xs  
+        (LamE ps lbody)-> [e] ++ flatten lbody  
+        (LamEU ps lbody )->  [e] ++ flatten lbody
+        (IfE e1 e2 e3)-> [e] ++ flatten e1 ++ flatten e2 ++ flatten e3
+        (WhileE e1 e2)-> [e] ++ flatten e1 ++ flatten e2
+        (MapE e1 e2)-> [e] ++ flatten e1 ++ flatten e2
+        (BindE s _ xs)-> [e] ++ flatten s ++ concatMap flatten xs 
+        (StateFunE s _ method )-> [e] ++ flatten s ++ flatten method
+        (StmtE e1 e2)-> [e] ++ flatten e1 ++ flatten e2
+        (TupE es)-> [e] ++ concatMap flatten es

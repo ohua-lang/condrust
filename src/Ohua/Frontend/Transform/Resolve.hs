@@ -20,7 +20,7 @@ module Ohua.Frontend.Transform.Resolve where
 
 import Ohua.UResPrelude
 
-import Ohua.Frontend.Lang as FrLang (Expr(..), Pat(VarP), preWalkE, universeReplace)
+import Ohua.Frontend.Lang as FrLang (Expr(..), Pat(VarP), preWalkE, universeReplace, flatten)
 import Ohua.Frontend.Types
 import Ohua.Frontend.PPrint ()
 
@@ -68,7 +68,7 @@ resolveNS (ns, registry) =
         collectFunctionRefs :: Expr ty Unresolved -> HS.HashSet (QualifiedBinding, FunType ty Unresolved)
         collectFunctionRefs e =
             -- FIXME we need to resolve this reference here against the namespace and the registry (for Globs).
-            HS.fromList [(r, fTy) | LitE (FunRefLit (FunRef r _ fTy)) <- universeReplace e]
+            HS.fromList [(r, fTy) | LitE (FunRefLit (FunRef r _ fTy)) <- flatten e]
 
         pathToVar :: QualifiedBinding -> Binding
         pathToVar (QualifiedBinding ns bnd) =
