@@ -15,14 +15,12 @@ import Language.Rust.Syntax as Rust hiding (Rust)
 import Ohua.UResPrelude
 import qualified Ohua.Prelude as Res (FunType)
 import Ohua.Frontend.Types
-import Ohua.Frontend.TypeSystem (Delta(..))
+import Ohua.Frontend.TypeSystem (Delta)
 import Ohua.Frontend.PPrint ()
 import Ohua.Frontend.Lang as FrLang
     ( Expr(..),
       Pat(TupP, VarP),
-      unitParams,
-      unitArgs,
-      universeReplace)
+      flatten)
 
 import Ohua.Integration.Lang
 import Ohua.Integration.Rust.Util
@@ -161,10 +159,10 @@ instance Integration (Language 'Rust) where
     where
       funsForAlgo :: ErrAndLogM m => Algo (FrLang.Expr RustVarType Unresolved) (Item Span) -> m [([NSRef], QualifiedBinding)]
       funsForAlgo (Algo _name code _inputCode ) = do
-        mapM
-          lookupFunTypes
-          $ [f                 | LitE (FunRefLit (FunRef f _ _)) <- universeReplace code] ++
-            [toQualBinding bnd | VarE bnd _                      <- universeReplace code]
+          mapM
+            lookupFunTypes
+            $ [f                 | LitE (FunRefLit (FunRef f _ _)) <- flatten code] ++
+              [toQualBinding bnd | VarE bnd _                      <- flatten code]
 
       convertOwn :: [NSRef] -> [NSRef]
       convertOwn [] = [filePathToNsRef ownFile]

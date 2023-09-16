@@ -120,7 +120,7 @@ convertExpr e@Yield {} = error $ "Currently, we do not support generator/yield e
 
 convertBlock :: ConvertM m => Rust.Block Span -> m Sub.Block
 convertBlock b@(Block _ Unsafe _) = error $ "Currently, we do not support unsafe blocks.\n" <> show b
-convertBlock (Block stmts Rust.Normal _) = (Sub.RustBlock Sub.Normal) <$> mapM convertStmt stmts
+convertBlock (Block stmts Rust.Normal _) = Sub.RustBlock Sub.Normal <$> mapM convertStmt stmts
 
 convertStmt :: ConvertM m => Stmt Span -> m Sub.Stmt
 convertStmt (Local pat ty (Just e) [] _) = do
