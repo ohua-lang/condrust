@@ -1,7 +1,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Ohua.Frontend.TypeSystem
-  (Delta, toWellTyped)
+  (Delta, toWellTyped, NSMap)
 where
 
 
@@ -32,7 +32,7 @@ import Ohua.Frontend.Lang
     , unitParams
     )
   
-import Ohua.Frontend.SymbolResolution (SymResError(..), Delta, Gamma, resolveSymbols)
+import Ohua.Frontend.SymbolResolution (SymResError(..), Delta, Gamma, resolveSymbols, NSMap(..))
 
 import Ohua.Types.Vector (Nat(..))
 
@@ -66,9 +66,9 @@ toWellTyped delta modImports e =
   let
     gamma = HM.fromList $ freeVars e
   in do
-    traceM "delta (pretty):"
+    {-traceM "delta (pretty):"
     traceM $ renderStrict $ layoutSmart defaultLayoutOptions $ pretty $ HM.toList delta
-    traceM ""
+    traceM ""-}
     (_gamma', e', _ty) <- flip runReaderT (e :| []) $ typeSystem (modImports, delta) gamma e
     return e'
 
@@ -123,7 +123,7 @@ typeSystem delta gamma = \case
   (LetE pat e1 e2) -> do
     (_, e1', tyT1') <- typeExpr delta gamma e1
     pat' <- typePat pat tyT1'
-    -- ToDo: We currently can't allways get unresolved types from resolved ones alothogh I think this should be possible.
+    -- ToDo: We currently can't allways get unresolved types from resolved ones although I think this should be possible.
     let mResTypes = mapM 
           (\(bnd, tyR) ->  case resToUnres tyR of 
               Just tyU -> Just (bnd, tyU)
@@ -209,25 +209,43 @@ typeSystem delta gamma = \case
       let ty = FunType (NE.map patType pats') tyE
 
       return (gamma''', LamE pats' expr', FType ty)
-      
+
   {-
       Delta, Gamma |- state : S     Delta, Gamma |- method : S -> Tm
   ========================================================================
                 Delta, Gamma |- Bind state method : Tm
   -}
   (BindE method stateB args) -> do
-    -- (gamma',  state' , stateTy ) <- typeExpr delta gamma state
-    (gamma', method', methodTy) <- typeExpr delta gamma method
-    -- TODO get type prefix from stateTy via Pathable ????
+    -- We need to get the state type before the mothod type, because the type of the method depends on the
+    -- type of the state i.e. obj.clone() -->  Arc::clone ? String::clone ? 
     let qb = QualifiedBinding (makeThrow []) stateB
     -- ToDo: Should use the qualified binding
     (_gamma, _stateVar, stateTy) <- handleVar gamma stateB TStar
+
+    let maybeMethodNS = case stateTy of
+            HType hty _  -> toPath hty
+            _ -> Nothing 
+
+    traceM $ "State ty is" <> show stateTy <> "State binding is " <> show stateB
+    traceM $ " Path of state type is " <> show maybeMethodNS
+    -- Now we need to add the name of the state type to the namespace of the method
+    
+    method' <- case maybeMethodNS of 
+      Just method_ns -> addStateToNS method_ns method
+      Nothing -> return method
+    traceM $ "Now trying to resolve method " <> show method'
+    -- (gamma',  state' , stateTy ) <- typeExpr delta gamma state
+    (gamma', method'', methodTy) <- typeExpr delta gamma method'
+    
     
     ty <- case methodTy of
             -- Question: Why don't we do the partial application type check here?
             FType (STFunType sTy _ resTy) | heq sTy stateTy -> return resTy
             _ -> typeError $ "State types do not match."
+
+
     -- if args are empty, we need to pass an explicit unit argument
+    -- FIXME: That shouldn't happen any more so we should error here. 
     args' <- case args of
       [] -> return (LitE UnitLit:|[]) 
       (a:as) -> (neUnzip3 <$> mapM (typeExpr delta gamma) (a:| as)) >>= (\ (_, argsT, _ ) -> return argsT)
@@ -236,7 +254,7 @@ typeSystem delta gamma = \case
     --(_, args', _argsTy) <- neUnzip3 <$> mapM (typeExpr delta gamma) args
     -- ToDO: ArgTys should match function tys
 
-    return (gamma', StateFunE (VarE stateB stateTy) qb method', ty)
+    return (gamma', StateFunE (VarE stateB stateTy) qb method'', ty)
 
   {-
       Delta, Gamma |- cond : Bool    Delta, Gamma |- tTrue : T   Delta, Gamma |- tFalse : T
@@ -312,7 +330,7 @@ typeSystem delta gamma = \case
   ========================
     Delta, Gamma |– x: T
   -}
-  (VarE bnd ty) -> handleVar gamma bnd ty
+  (VarE bnd ty) ->  handleVar gamma bnd ty
   (LitE (EnvRefLit bnd ty)) -> (\(g, _, ty') -> (g, LitE $ EnvRefLit bnd ty', ty')) <$> handleVar gamma bnd ty
 
   {-
@@ -320,23 +338,30 @@ typeSystem delta gamma = \case
   ========================
     Delta, Gamma |- l : T
   -}
-  (LitE (FunRefLit (FunRef qbnd id ty))) -> do
+  (LitE (FunRefLit (FunRef qBnd@(QualifiedBinding ns bnd) id ty))) -> do
+    -- Currently we get function literals mostly/only from the context of method calls, because when we translate (pure) call expressions
+    -- the call can be different things (closures, variables, list indices ...) and will mostly be a variable
+    -- So the qualified binding should contain the object type the method is called on and we need to do a name resolution i.e. cannot
+    -- expect to be e.g. Arc::new() in the context directly, instead there will be std::Arc::new().
+    -- ToDo: We have a problem here.
+        --  1. The python integration does not extract function types and delta is always empty and
+        --  2. Using delta we will get conflicts with generic functions i.e. f<G>(i:G) -> G with G being i32 or String or ... will be in the same delta?!
+        -- either we give local type assignment precedence, and/or accept a lookup miss in Delta, and/or put functions including call side identifiers the
+        -- for the last option we'd also need to able to identify generics in HostTypes to know when alternatives are valid
+        -- I'll go with accepting lookup miss first if we can convert ty to a resolved function type
+      case unresToRes (FType ty) of
+          Just ty'@(FType fty)  -> return (HM.empty, LitE (FunRefLit (FunRef qBnd id fty)), ty')
+          _ -> handleRef bnd (Just ns) (FType ty)
+{-
       let (modImports, delta') = delta
       case HM.lookup qbnd delta' of
         Just ty' ->
           ((\ty'' -> 
               (HM.empty, LitE $ FunRefLit $ FunRef qbnd id ty', ty'')) . FType
           ) <$> maxFunType ty ty'
-        -- ToDo: We have a problem here.
-        --  1. The python integration does not extract function types and delta is always empty and
-        --  2. Using delta we will get conflicts with generic functions i.e. f<G>(i:G) -> G with G being i32 or String or ... will be in the same delta?!
-        -- either we give local type assignment precedence, and/or accept a lookup miss in Delta, and/or put functions including call side identifiers the
-        -- for the last option we'd also need to able to identify generics in HostTypes to know when alternatives are valid
-        -- I'll go with accepting lookup miss first if we can convert ty to a resolved function type   
-        Nothing -> case unresToRes (FType ty) of
-          Just ty'@(FType fty)  -> return (HM.empty, LitE (FunRefLit (FunRef qbnd id fty)), ty')
-          _ -> typeError $ "Missing type information for function literal: " <> (quickRender qbnd)
-
+        
+        Nothing -> 
+-}
   {-
   ==================
     Gamma |- l : HostType
@@ -346,9 +371,21 @@ typeSystem delta gamma = \case
   (LitE UnitLit)        -> return (HM.empty, LitE UnitLit       , IType TypeUnit)
   (LitE (StringLit s))  -> return (HM.empty, LitE $ StringLit s , IType TypeString)
   where
-    handleRef bnd ty = do 
+    -- When we encounter a variable, we first try to get it's type from 
+    -- the local context Gamma. 
+    -- If we can't find it's name there, we check if it's a reference to the global (function type) context Delta
+    -- passing it to handleRef
+    handleVar gamma bnd ty = do
+      case HM.lookup bnd gamma of
+        Just ty1 ->
+          case unresToRes ty1 of
+            Just ty1' -> (\ty' -> (HM.singleton bnd ty', VarE bnd ty', ty')) <$> maxType ty ty1'
+            Nothing -> handleRef bnd Nothing ty
+        _ -> handleRef bnd Nothing ty
+
+    handleRef bnd nSpace ty = do 
       let (modImports,delta') = delta
-      case resolveSymbols delta' modImports Nothing bnd of 
+      case resolveSymbols delta' modImports nSpace bnd of 
           Left (qBnd,ty1) ->
                           (\ty' ->
                             (HM.empty, LitE $ FunRefLit $ FunRef qBnd Nothing ty1, ty'))
@@ -358,13 +395,19 @@ typeSystem delta gamma = \case
           Right (NoTypeFound qb) -> wfError $ "No type in environment found for qualified symbol: " <> quickRender qb
           Right (Ambiguity qb1 qb2) -> symResError $ "Symbol ambiguity detected.\n" <> quickRender qb1 <> "\n vs.\n" <> quickRender qb2
 
-    handleVar gamma bnd ty = do
-      case HM.lookup bnd gamma of
-        Just ty1 ->
-          case unresToRes ty1 of
-            Just ty1' -> (\ty' -> (HM.singleton bnd ty', VarE bnd ty', ty')) <$> maxType ty ty1'
-            Nothing -> handleRef bnd ty
-        _ -> handleRef bnd ty
+-- ToDo: This is really unelegant i.e. we expect methods to be function literals (or anything else??), 
+-- so we shouldn't make this a transformation on all exprs.
+addStateToNS ::(ErrAndLogM m, TypeErrorM m ty) => Either Binding QualifiedBinding -> Expr ty 'Unresolved -> m (Expr ty 'Unresolved)
+addStateToNS stateTyBnd (LitE (FunRefLit (FunRef (QualifiedBinding (NSRef bnds) bnd) id ty))) = do
+    let new_ns = case stateTyBnd of 
+            -- This will give a path like std::something ++ Arc
+            Left sbnd -> NSRef (bnds ++ [sbnd])
+            Right (QualifiedBinding (NSRef sbnds) sbnd) -> NSRef ( bnds ++ sbnds ++ [sbnd])
+    return (LitE (FunRefLit (FunRef (QualifiedBinding new_ns bnd) id ty)))
+addStateToNS _ e = throwErrorWithTrace $ 
+  "The compiler didn't expect a method to be anything else than a function literal but it was:\n " 
+  <> show e 
+  <> "\nThis might still be legitimate so please file a bug."
 
 typePat :: (ErrAndLogM m, TypeErrorM m ty) => UnresolvedPat ty -> OhuaType ty Resolved -> m (ResolvedPat ty)
 typePat pat newTy = do
