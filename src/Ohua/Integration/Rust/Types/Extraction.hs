@@ -6,13 +6,13 @@ module Ohua.Integration.Rust.Types.Extraction where
 import Ohua.Prelude
 
 import Ohua.Integration.Rust.Util
-import Ohua.Integration.Rust.Common.Subset as Sub (TyRef (..), CallRef (..), GenericArgs ( Parenthesized ) )
+import Ohua.Integration.Rust.Common.Subset as Sub (TyRef (..), CallRef (..), GenericArgs ( Parenthesized ), RustType(..) )
 import Ohua.Integration.Rust.Frontend.Convert (convertTy, convertPath)
 
 import Ohua.Types.Unit (Unit)
 
 import Language.Rust.Syntax as Rust hiding (Normal, Type)
-import Language.Rust.Data.Ident (Ident)
+import Language.Rust.Data.Ident (Ident(..))
 import Language.Rust.Parser (Span, parse, inputStreamFromString)
 import Language.Rust.Pretty as RustP
 
@@ -33,10 +33,12 @@ instance Doc.Pretty RustVarType where
     pretty (Self ty lT mut) = RustP.pretty' ty
     pretty (Normal ty) = RustP.pretty' ty
 
-instance Pathable RustVarType where 
--- FIXME: IF we actually need this replace by a real implementation
-    toPath (Normal ty) = Just $ Left (fromString "Placeholder")
-    toPath (Self ty lT mut) = Just $ Right (QualifiedBinding (NSRef ["PlaceholderNamespace"]) "Placeholder")
+instance Pathable RustVarType where
+    -- ToDo: Extend patterns if we need something else than PathTy types 
+    toPath (Normal rTy) = toPath (RustType rTy) 
+    toPath (Self ty _lT _mut) = toPath (RustType ty)
+    toPath other = error $ "Compiler is traing to transform the Rust type "<> show other <> " to a path. This hasn't been implemented. Please file a bug."
+    
 
 rustUnitReturn :: Ty ()
 rustUnitReturn = Rust.TupTy [] () -- Nothing (Rust.Path False [Rust.PathSegment "()" Nothing ()] ()) ()
