@@ -30,7 +30,7 @@ module Ohua.Frontend.Lang
     --- , postWalkE
     ) where
 
-import Ohua.UResPrelude
+import Ohua.Prelude
 
 import qualified Data.List.NonEmpty as NE
 import qualified Data.HashSet as HS

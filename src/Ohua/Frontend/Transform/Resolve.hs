@@ -18,7 +18,7 @@ a function. That is, this transformation does not deal with namespaces or such.
 {-# LANGUAGE ScopedTypeVariables #-}
 module Ohua.Frontend.Transform.Resolve where
 
-import Ohua.UResPrelude
+import Ohua.Prelude
 
 import Ohua.Frontend.Lang as FrLang (Expr(..), Pat(VarP), preWalkE, universeReplace, flatten)
 import Ohua.Frontend.Types

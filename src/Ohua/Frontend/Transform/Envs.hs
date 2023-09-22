@@ -1,6 +1,6 @@
 module Ohua.Frontend.Transform.Envs where
 
-import Ohua.UResPrelude
+import Ohua.Prelude
 
 import Ohua.Frontend.Lang
 

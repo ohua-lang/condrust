@@ -1,6 +1,6 @@
 module Ohua.Frontend.Transform.FinalLiterals where
 
-import Ohua.UResPrelude
+import Ohua.Prelude
 
 import Ohua.Frontend.Lang
 

@@ -1,7 +1,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Ohua.Frontend.Transform.Load (loadAlgosAndImports) where
 
-import Ohua.UResPrelude hiding (Type)
+import Ohua.Prelude hiding (Type)
 
 import Ohua.Frontend.Lang
 import Ohua.Frontend.Types

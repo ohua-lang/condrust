@@ -1,6 +1,6 @@
 module Ohua.Frontend.Types where
 
-import Ohua.UResPrelude hiding (Type)
+import Ohua.Prelude hiding (Type)
 
 import Ohua.Frontend.Lang
 import Ohua.Frontend.TypeSystem (Delta)
