@@ -1,24 +1,26 @@
-module Ohua.Types
-{-
-  ( FnId
+module Ohua.Types.Types
+    ( FnId
     , Binding
     , TypedBinding(..)
-    , asBnd, asType
+    , asType
+    , asBnd
+    , controlSignalType
     , NSRef(..)
     , QualifiedBinding(..)
     , HostType(..)
-    , VarType(..)
-    , controlSignalType
+    , Pathable(..)
+    , OhuaType(..)
+    , InternalType(..)
     , FunType(..)
+    , Resolution(..)
+    , Heq(..)
+    , resToUnres
+    , unresToRes
     , getReturnType
-    , setReturnType
-    , setFunType
-    , pureArgTypes
     , toFilePath
     , symbolFromString
     , FunRef(..)
     , getRefType
-    , getRefReturnType
     , Lit(..)
     , getLitType
     , Unit(..)
@@ -37,10 +39,8 @@ module Ohua.Types
     , Embed(embedE)
     -- ** Unsafely creating values
     , UnsafeMake(unsafeMake)
-    )
--}
-where
-{-
+    ) where
+
 import Ohua.Types.Computation
 import Ohua.Types.Classes
 import Ohua.Types.Error
@@ -49,4 +49,5 @@ import Ohua.Types.Literal
 import Ohua.Types.Unit
 import Ohua.Types.Make
 import Ohua.Types.Reference
--}
+import Ohua.Types.Bindings
+import Ohua.Types.HostTypes

@@ -1,21 +1,12 @@
-module Ohua.Types.Common.PPrint where
+module Ohua.Types.PPrint where
 
 import Universum
 
-import Ohua.Types.Common.Literal
--- import Ohua.Types.Bindings
-import Ohua.Types.Common.Reference
+import Ohua.Types.Literal
+import Ohua.Types.Reference
 import Ohua.PPrint
--- import Ohua.Types.Make
--- import Ohua.Types.Classes
--- import Ohua.LensClasses
-
--- import Data.Text as T hiding (map)
 import Prettyprinter as PP
--- import Prettyprinter.Render.Text as PP
 
--- import qualified Data.Text.IO as LT
--- import Data.List.NonEmpty ( (<|) )
 
 prettyFunRef :: FunRef ty res -> Doc ann
 prettyFunRef (FunRef sf fid ty) = pretty sf <> angles (pretty ty)  <> maybe emptyDoc (angles . pretty) fid
