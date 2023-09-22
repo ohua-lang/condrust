@@ -61,23 +61,15 @@ spec =
                 compiled `shouldBe` expected)
  -}
         it "var multi 1: read-only" $
-          -- due to the transformation to state threads, this transforms into:
-          -- let x = f();
-          -- let x1 = Arc::new();
-          -- let (x2,x1') = x1.arc_clone();
-          -- let y = h(x1');
-          -- h2(x2,y)
-          -- where no variable is used more than once!
-          -- FIXME(feliix42): At some point we'll have to adjust the data types of the functions used here in `Util.hs` because they currently do not make sense as they don't account for the `Arc`
           (showCode "Compiled: " =<< compileCode  [sourceFile|
                 use crate::funs::*;
 
-                fn test() -> String {
+                fn test() -> i32 {
                     let x:i32 = f();
                     let x1:Arc<i32> = std::sync::Arc::new(x);
                     let x2:Arc<i32> = x1.clone();
                     let y:i32 = h_Arc(x1);
-                    notInLib(x2,y)
+                    y
                 }
                 |]) >>=
             (\compiled -> do

@@ -108,7 +108,7 @@ spec =
                         x                     
                     }
             |]) >>=  (\compiled -> do
-                       expected <- showCode "Expected:" return_state
+                       expected <- showCode "Expected:" returnState
                        compiled `shouldBe` expected)
 
         it "States can be used multiple times - return State-Call" $
@@ -121,7 +121,7 @@ spec =
                         x.make()                   
                     }
             |]) >>= (\compiled -> do
-                        expected <- showCode "Expected:" return_state_call
+                        expected <- showCode "Expected:" returnStateCall
                         compiled `shouldBe` expected)
 
         it "States can be used multiple times - return Output of State-Call" $
@@ -136,7 +136,7 @@ spec =
                     }
             |]) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" return_state_call_out
+                expected <- showCode "Expected:" returnStateCallOut
                 compiled `shouldBe` expected)
 
         it "States can be used once in loops" $
@@ -154,7 +154,7 @@ spec =
                     }
             |]) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" loop_uses_state
+                expected <- showCode "Expected:" loopUsesState
                 compiled `shouldBe` expected)
 
         it "States can be used multiple times but NOT in loops" $
@@ -173,12 +173,13 @@ spec =
                     }
             |] )>>=
             (\compiled -> do
-                expected <- showCode "Expected:" loop_uses_state
+                expected <- showCode "Expected:" loopUsesState
                 compiled `shouldBe` expected)
 
 
 ----------- Testoutput ------------------------------------------
 
+placeholder :: SourceFile Span
 placeholder = [sourceFile|
 
 pub fn hello() -> i32 {
@@ -188,7 +189,8 @@ pub fn hello() -> i32 {
 
 |]
 
-return_state = [sourceFile|
+returnState :: SourceFile Span
+returnState = [sourceFile|
 fn test(i: i32) -> String {
   #[derive(Debug)]
   enum RunError {
@@ -249,7 +251,8 @@ fn test(i: i32) -> String {
 }
 |]
 
-return_state_call = [sourceFile|
+returnStateCall :: SourceFile Span
+returnStateCall = [sourceFile|
 fn test(i: i32) -> String {
   #[derive(Debug)]
   enum RunError {
@@ -311,7 +314,9 @@ fn test(i: i32) -> String {
 
 }
 |]
-return_state_call_out = [sourceFile|
+
+returnStateCallOut :: SourceFile Span
+returnStateCallOut = [sourceFile|
 fn test(i: i32) -> String {
   #[derive(Debug)]
   enum RunError {
@@ -373,7 +378,8 @@ fn test(i: i32) -> String {
 }
 |]
 
-loop_uses_state = [sourceFile|
+loopUsesState :: SourceFile Span
+loopUsesState = [sourceFile|
 fn test(i: i32) -> String {
   #[derive(Debug)]
   enum RunError {

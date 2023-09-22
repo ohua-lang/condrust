@@ -90,10 +90,10 @@ compileModule inCode opts cty = do
       withSystemTempDirectory "output" $
         \outDir -> do
           let compScope = HM.empty
-          let options = if debug then withDebug opts else opts
+          let cOptions = if debug then withDebug opts else opts
           runErrAndLogM
             LevelWarn
-            $ compile inFile compScope options backendOptions integrationOptions outDir
+            $ compile inFile compScope cOptions backendOptions integrationOptions outDir
           let outFile = outDir </> takeFileName inFile
           -- producedCode <- readFile outFile
           -- putStr ("\n PRODUCED MODULE: \n"::String)

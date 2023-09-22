@@ -2,7 +2,10 @@
 module Integrations.Rust.SharedMemory.TailRec where
 
 import Ohua.Prelude ( ($), Monad((>>=)), (=<<) )
+
 import Integrations.Rust.SharedMemory.Setup
+import Language.Rust.Syntax (SourceFile)
+import Language.Rust.Data.Position (Span)
 
 
 spec :: Spec
@@ -227,6 +230,7 @@ spec =
 
 
 ----- Expected Outputs -------------------------------
+simpleOneArgument :: SourceFile Span
 simpleOneArgument = [sourceFile|
 use crate::funs::*;
 
@@ -303,6 +307,7 @@ fn test() -> i32 {
 }
 |]
 
+multiArgument :: SourceFile Span
 multiArgument = [sourceFile|
 use crate::funs::*;
 
@@ -409,7 +414,7 @@ fn test() -> i32 {
 }
                     |]
 
-
+contextFunction :: SourceFile Span
 contextFunction = [sourceFile|
 use crate::funs::*;
 
@@ -526,6 +531,7 @@ fn test() -> i32 {
 }
                     |]
 
+returnUnit :: SourceFile Span
 returnUnit = [sourceFile|
 use crate::funs::*;
 
@@ -615,6 +621,8 @@ fn test() -> () {
 }
 |]
 
+
+reuseLocal :: SourceFile Span
 reuseLocal = [sourceFile|
 use crate::funs::*;
 
@@ -704,6 +712,7 @@ pub fn test() -> () {
 }
 |]
 
+endlessLoopsWithState :: SourceFile Span
 endlessLoopsWithState = [sourceFile|
 use crate::funs::*;
 

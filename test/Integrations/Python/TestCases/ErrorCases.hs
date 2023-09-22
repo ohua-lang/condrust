@@ -2,7 +2,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 module Integrations.Python.TestCases.ErrorCases where
 
-import Ohua.Prelude ( ($), Monad((>>=)), (=<<), Either(..))
+import Ohua.Prelude ( ($), Monad((>>=)), (=<<))
 
 import Integrations.TestSetup
 import Integrations.Python.Setup
@@ -19,26 +19,26 @@ spec =
         it "FAIL: Unintilalized literals used in output code" $
             (showCode "Compiled: " =<< compileCode ifElseLoop) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" ifElseLoop
+                _expected <- showCode "Expected:" ifElseLoop
                 compiled `shouldBe` compiled) 
 
         it "FAIL: Double used channel in output code" $ 
             (showCode "Compiled: " =<< compileCode ifElseLoop') >>=
             (\compiled -> do
-                expected <- showCode "Expected:" ifElseLoop'
+                _expected <- showCode "Expected:" ifElseLoop'
                 compiled `shouldBe` compiled) 
 
         it "FAIL: double channel use, inefficient/interesting pattern deconstruction" $ 
             (showCode "Compiled: " =<< compileCode ifElseLoop'') >>=
             (\compiled -> do
-                expected <- showCode "Expected:" ifElseLoop''
+                _expected <- showCode "Expected:" ifElseLoop''
                 compiled `shouldBe` compiled)
 
 
         it "FAIL: Object channels are not initialized " $
             (showCode "Compiled: " =<< compileCode ifElseLoopState) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" ifElseLoopState
+                _expected <- showCode "Expected:" ifElseLoopState
                 compiled `shouldBe` compiled) 
 
         it "ERROR: No support for destructuring for loop data " $ 
@@ -51,7 +51,7 @@ spec =
         it "return variable" $
             (showCode "Compiled" =<< compileCode ifElseLikeTailRec) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" ifElseLikeTailRecExpected
+                _expected <- showCode "Expected:" ifElseLikeTailRecExpected
                 compiled `shouldBe` compiled)
 
         it "ERROR: Host expression encountered ... 'This is a compiler error please report'" $

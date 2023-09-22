@@ -4,7 +4,7 @@
 module Integrations.Python.TestCases.Loops where
 
 
-import Ohua.Prelude ( ($), Monad((>>=)), (=<<), Either(..))
+import Ohua.Prelude ( ($), Monad((>>=)), (=<<))
 
 import Integrations.Python.Setup
 
@@ -36,13 +36,13 @@ spec =
         it "For loop over EnvVar" $
             (showCode "Compiled" =<< compileCode loopEnvVar) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" Expect.loopEnvVar_out
+                _expected <- showCode "Expected:" Expect.loopEnvVar_out
                 compiled `shouldBe` compiled)
 
         it " For loop over EnvVar + Branching" $
             (showCode "Compiled" =<< compileCode ifElseLoopEnvVar) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" Expect.ifElseLoopEnvVar_out
+                _expected <- showCode "Expected:" Expect.ifElseLoopEnvVar_out
                 compiled `shouldBe` compiled)
 
 
@@ -58,7 +58,7 @@ spec =
         it "FAIL: ForLoop with tuple pattern - Tuple not send to looping task " $
             (showCode "Compiled: " =<< compileCode loopTuplePattern) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" Expect.loopTuplePattern
+                _expected <- showCode "Expected:" Expect.loopTuplePattern
                 compiled `shouldBe` compiled)
 
 

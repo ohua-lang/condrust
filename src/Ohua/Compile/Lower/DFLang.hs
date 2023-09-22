@@ -173,7 +173,7 @@ generateNodeCode e@(IfFun out inp) = do
             (Direct t, Direct fa) -> return $ (SChan $ unwrapABnd t, SChan $ unwrapABnd fa) :| []
             (Dispatch tr, Dispatch fa) ->
               if NE.length tr == NE.length fa
-              then return $ NE.map (\(t,f) -> (SChan $ unwrapABnd t, SChan $ unwrapABnd t)) $ NE.zip tr fa
+              then return $ NE.map (\(t,_f) -> (SChan $ unwrapABnd t, SChan $ unwrapABnd t)) $ NE.zip tr fa
               else invariantBroken $ "unbalanced control signal dispatch:\n " <> (toStrict $ prettyExpr e)
             _ -> invariantBroken $ "conditional controls are never destructed but got:\n" <> (toStrict $ prettyExpr e)
     return $ Unfusable $
@@ -274,7 +274,7 @@ generateNodeCode e@(PureDFFun out (FunRef funName _fID _fType) inp) | funName ==
    DFEnvVar _t (FunRefLit f@(FunRef p _ _)) :| [v] | p == IFuns.id ->
      generateNodeCode $ PureDFFun out f (v:|[])
 
-   (DFEnvVar _t (FunRefLit pr@(FunRef n i ty)) :| [v]) -> -- FIXME this feels like a bug to me. why do we take this detour via unitFun???
+   (DFEnvVar _t (FunRefLit pr@(FunRef _n _i _ty)) :| [v]) -> -- FIXME this feels like a bug to me. why do we take this detour via unitFun???
      -- For some reason the added UnitLit argument might arive here as DFVar or DFEnvVar 
      -- so we can either repace both by one of theme here to catch only one case in 'generateFunctionCode', or catch both patterns later 
      -- I prefer the second option, since I Don't know if there's any other way a UnitLit can sneak in as an argument and it is always wrong to
@@ -283,7 +283,7 @@ generateNodeCode e@(PureDFFun out (FunRef funName _fID _fType) inp) | funName ==
      
    _ -> invariantBroken $ "unknown function as first argument or wrong number of arguments (expected 2) to unitFun:\n" <> show e
 
-generateNodeCode e@(PureDFFun out (FunRef funName _fID _fType) (inp:|[])) | funName == IFuns.id = do
+generateNodeCode (PureDFFun out (FunRef funName _fID _fType) (inp:|[])) | funName == IFuns.id = do
   out' <- pureOut funName out
   case inp of
     DFEnvVar _t l ->

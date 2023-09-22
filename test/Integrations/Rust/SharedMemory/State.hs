@@ -932,6 +932,7 @@ fn test(i: i32) -> State {
   }
 } |]
 
+minimal :: SourceFile Span
 minimal = [sourceFile|
 use crate::funs::*;
 

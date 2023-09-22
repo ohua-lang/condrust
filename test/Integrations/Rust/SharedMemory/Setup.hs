@@ -14,9 +14,9 @@ where
 
 import qualified Data.ByteString.Lazy.Char8 as L
 import qualified Data.HashMap.Lazy as HM
-import Data.Text.Lazy as T (Text, concat)
+import Data.Text.Lazy as T (Text)
 import Data.Text.Prettyprint.Doc
-import Data.Text.Prettyprint.Doc.Render.Text
+--import Data.Text.Prettyprint.Doc.Render.Text
 import Language.Rust.Parser (Span, parse', readInputStream)
 import Language.Rust.Pretty ( pretty')
 import Language.Rust.Quote
@@ -48,7 +48,8 @@ instance Testable (SourceFile Span) where
   renderFormat = toStrict . renderRust
 
 renderRust :: SourceFile Span -> T.Text
-renderRust = Util.renderText
+-- FIXME: There should be a renderText in Util, however in the lates version I have there's only 'render' and 'renderStr'
+renderRust = fromString . Util.renderStr
 
 renderRustCode :: SourceFile Span -> L.ByteString
 renderRustCode = Util.render
@@ -68,7 +69,7 @@ compileModule inCode opts cty = do
     $ \testDir -> do
       setCurrentDirectory testDir
       let inFile = testDir </> "test.rs"
-      mapM
+      _ <- mapM
         (\(f,c) -> L.writeFile (testDir </> f) $ renderRustCode c)
         [ ("funs.rs"  , funs)
         , ("benchs.rs", benchs)
@@ -105,11 +106,11 @@ compileModule inCode opts cty = do
 
 
 runTargetCompiler :: FilePath -> FilePath -> FilePath -> IO ()
-runTargetCompiler inDir outDir outFile = do
+runTargetCompiler _inDir outDir outFile = do
   let srcDir = outDir </> "src"
   createDirectory srcDir
   setCurrentDirectory outDir
-  mapM
+  _ <- mapM
     (\(f,c) -> L.writeFile (srcDir </> f) $ renderRustCode c)
     [ ("funs.rs"  , funs)
     , ("benchs.rs", benchs)
@@ -122,7 +123,7 @@ runTargetCompiler inDir outDir outFile = do
   compilationResult <- readProcessWithExitCode "cargo" ["check"] ""
   case compilationResult of
     (ExitSuccess, _, _) -> return ()
-    (ExitFailure exitCode, stdOut, stdErr) -> error $ toText $ "Target Compiler Compilation Failed: " <> stdErr
+    (ExitFailure _exitCode, _stdOut, stdErr) -> error $ toText $ "Target Compiler Compilation Failed: " <> stdErr
 
 cargoFile :: Text
 cargoFile =

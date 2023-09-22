@@ -7,7 +7,7 @@ module ConfigSpec (spec) where
 import Ohua.Prelude
 
 import Ohua.Compile.Config as C
-import Ohua.Compile.Compiler as Comp
+-- import Ohua.Compile.Compiler as Comp
 
 import Ohua.Integration.Config as IC
 import Ohua.Backend.Config as BC

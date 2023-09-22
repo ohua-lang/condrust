@@ -3,7 +3,7 @@
 
 
 module Integrations.Python.TestCases.State where
-import Ohua.Prelude ( ($), Monad((>>=)), (=<<), Either(..))
+import Ohua.Prelude ( ($), Monad((>>=)), (=<<))
 
 import Integrations.Python.Setup
 
@@ -35,14 +35,14 @@ spec =
         it "FAIL: side effect on stream of objects - code sends uninit. variable" $
             (showCode "Compiled: " =<< compileCode loop) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" Expect.loop
+                _expected <- showCode "Expected:" Expect.loop
                 compiled `shouldBe` compiled)-- expected)
 
 
         it "FAIL: single IO - side effect on object in loop - code sends uninit. variable" $
             (showCode "Compiled: " =<< compileCode singleIO) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" Expect.singleIO
+                _expected <- showCode "Expected:" Expect.singleIO
                 compiled `shouldBe` compiled)--expected)
         -- Drop problem
         it "single state - like IO, but return method call" $

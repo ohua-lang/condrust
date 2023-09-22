@@ -30,7 +30,7 @@ import Ohua.Compile.Lower.FrLang (toAlang)
 import Ohua.Compile.Lower.DFLang (toTCLang)
 
 import Ohua.Integration (FullIntegration, runIntegration, langInfo)
-import Ohua.Integration.Config as IConfig hiding (Options(..))
+import Ohua.Integration.Config as IConfig
 import Ohua.Integration.Lang (Lang, Language)
 import Ohua.Integration.Architecture (Arch, Architectures)
 

@@ -26,8 +26,7 @@ import qualified Ohua.Integration.Architecture as Arch
 
 import Language.Python.Common.AST
 import Language.Python.Version3 as V3
-import Language.Python.Common (prettyText, Token)
-import Language.Python.Common.ParserMonad (ParseError)
+import Language.Python.Common (prettyText)
 import Language.Python.Common.SrcLocation (SrcSpan)
 import qualified Language.Python.Common.Pretty as PyPretty
 
@@ -41,11 +40,9 @@ import System.Exit (ExitCode (..))
 import System.Process.Extra (readProcessWithExitCode)
 import System.Directory (setCurrentDirectory, listDirectory, getCurrentDirectory)
 
-import Data.Text as T (Text, pack, unpack)
+import Data.Text as T (pack, unpack)
 import qualified Data.HashMap.Lazy as HM
 
-
-type ParseResult = Either ParseError (ModuleSpan, [Token])
 
 instance Testable (Module SrcSpan) where
     type CodeFormat (Module SrcSpan) = (Module SrcSpan)
@@ -84,7 +81,7 @@ compileModule inCode opts compType = do
                     runErrAndLogM
                         LevelWarn
                         $ compile inFile compScope options backendOptions integrationOptions outDir
-                    (caller:modules) <- listDirectory outDir
+                    (_caller:_modules) <- listDirectory outDir
                     -- putStr filesHint
                     -- mapM_ putStr (caller:modules)
                     -- files <- mapM (\name -> readFile (outDir </> name)) (caller:modules)
@@ -128,7 +125,7 @@ runCode testDir outDir = do
     compiledResult <- readProcessWithExitCode "timeout" ["5s", "python", outDir </> "test.py"] ""
 
     case compiledResult of
-        (ExitFailure exitCode, stdOut, stdErr) -> error $ toText $ "Running compiled code failed with" <> stdErr
+        (ExitFailure _exitCode, _stdOut, stdErr) -> error $ toText $ "Running compiled code failed with" <> stdErr
         (ExitSuccess , stdOut, _ ) -> 
             if stdOut == seqStdOut 
                 then putStr successMsg
@@ -138,7 +135,11 @@ runCode testDir outDir = do
 
 
 
+successMsg::String
+successMsg = "running works, results are equal"
 
+
+{-
 newMainStr :: String
 newMainStr = "\nNew__MainModule_____________\n"
 
@@ -148,9 +149,6 @@ algoModStr = "\nAlgo__Module_____________\n"
 filesHint :: String
 filesHint = "\n\nPRODUCED THE FOLLOWING FILES _______________:\n\n"
 
-successMsg::String
-successMsg = "running works, results are equal"
-
 cd::String
 cd = "current Dir\n"
-
+-}

@@ -177,7 +177,7 @@ validateConfig :: (MonadIO m, MonadError Error m) => CompilerOptions -> m ()
 validateConfig conf =
     mapM_
         (\pathAndSuffix -> do
-            let file = toFilePath pathAndSuffix
+            let file = toFPath pathAndSuffix
             fileExists <- liftIO $ doesFileExist file
             if fileExists
             then return ()
@@ -185,5 +185,5 @@ validateConfig conf =
         $ HM.toList $ compilationScope conf
     where
         nsToFilePath = joinPath . map (T.unpack . unwrap) . unwrap
-        toFilePath (nsRef, suffix) = addExtension (nsToFilePath nsRef) $ T.unpack suffix
+        toFPath (nsRef, suffix) = addExtension (nsToFilePath nsRef) $ T.unpack suffix
 
