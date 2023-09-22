@@ -24,7 +24,18 @@ import Data.Text (pack)
 
 data Module = Module FilePath (SourceFile Span)
 
-data RustVarType = Self (Ty ()) (Maybe (Lifetime ())) Mutability | Normal (Ty ()) deriving (Show, Eq)
+data RustVarType = Self (Ty ()) (Maybe (Lifetime ())) Mutability | Normal (Ty ()) deriving (Show)
+
+-- In the type system we need to compare types of states to input types of methods.
+-- The former will be something like `Normal Arc` while the later will be `Self Arc`, but we want them to be equal
+-- because the self qualifier only occurs in the context of method arguments. 
+instance Eq RustVarType where
+    (Self tyS _ _) == (Normal tyN)      =  tyS == tyN
+    (Normal tyN  ) == (Self tyS _ _ )   =  tyN == tyS
+    (Normal tyN  ) == (Normal tyN'  )   =  tyN == tyN'
+    (Self tyS _ _ ) == (Self tyS' _ _ ) =  tyS == tyS'
+
+
 type RustHostType = HostType RustVarType
 type FunTypes = HM.HashMap QualifiedBinding (FunType RustVarType Resolved)
 
