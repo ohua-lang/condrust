@@ -56,8 +56,8 @@ smapRewrite =
                 let innerFunRet = exprType lamExpr
                     -- ToDo: get input type from lambda term
                     innerFunInput = case funType lamExpr of
-                        Just (FunType (inTy :| [] ) out) -> inTy
-                        Just (FunType (it   :| its) out) -> TType (it:|its)
+                        Just (FunType (inTy :| [] ) _out) -> inTy
+                        Just (FunType (it   :| its) _out) -> TType (it:|its)
                         _ -> error $ "I expected a function with at least one input in an smapRewrite, but got: "
                                             <> quickRender lamExpr
                                             <> ".Please report this error."

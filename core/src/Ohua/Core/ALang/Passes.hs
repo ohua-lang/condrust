@@ -199,7 +199,7 @@ ensureAtLeastOneCall e = cata f e
   where
     f (LambdaF tbnd body) =
         body >>= \case
-            v@(Var (TBind bnd vty)) -> do
+            v@(Var (TBind _bnd vty)) -> do
                 newBnd <- generateBinding
                 pure $
                     Lambda tbnd $
