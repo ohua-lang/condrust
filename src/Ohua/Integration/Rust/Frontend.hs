@@ -12,7 +12,7 @@ import Language.Rust.Data.Ident
 import Language.Rust.Parser (Span)
 import Language.Rust.Syntax as Rust hiding (Rust)
 
-import Ohua.UResPrelude
+import Ohua.Prelude
 import qualified Ohua.Prelude as Res (FunType)
 import Ohua.Frontend.Types
 import Ohua.Frontend.TypeSystem (Delta)

@@ -7,7 +7,7 @@
 
 module Ohua.Integration.Python.Frontend where
 
-import Ohua.UResPrelude
+import Ohua.Prelude
 -- import GHC.Exts
 import Ohua.Frontend.Types
 import Ohua.Frontend.Lang as FrLang
