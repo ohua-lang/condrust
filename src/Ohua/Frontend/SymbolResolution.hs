@@ -40,7 +40,6 @@ resolveSymbols delta mod_imports (Just nspace) bnd =
        Just t -> Left (qb, t)
        Nothing -> Right $ QBndError qb
 resolveSymbols delta mod_imports Nothing bnd =
-  trace ("Will resolve " <> show bnd <> "with imports " <> show mod_imports)$
   case resolveBnd mod_imports bnd of
     Left qbs -> check delta qbs
     Right r -> Right r
@@ -69,7 +68,7 @@ resolveQBnd :: [Import] -> QualifiedBinding -> QualifiedBinding
 --      [Glob (some::path) Arc : imps] -> in case of some::path::Arc::clone we expect the full import of the namespace Arc
 --      [Alias (some::path::ActualNameOfArc) Arc : imps] -> in case of some::path::ActualNameOfArc::clone
 -- we do not expect a full import because that would mean an `use some::path::Arc::clone` and a call `Arc::clone`
-resolveQBnd [] qb = trace ("Just return qbind " <> show qb) qb
+resolveQBnd [] qb = qb
 resolveQBnd (Alias nspace alias: _imps) qb@(QualifiedBinding nspace' b) | NSRef [alias] == nspace' = QualifiedBinding nspace b
 resolveQBnd (Glob (NSRef impSpaces) : _imps) qb@(QualifiedBinding (NSRef funSpaces) b) | last impSpaces  == head funSpaces = QualifiedBinding (NSRef $ impSpaces ++ tail funSpaces) b
 resolveQBnd (_:imps) qb = resolveQBnd imps qb
@@ -77,12 +76,10 @@ resolveQBnd (_:imps) qb = resolveQBnd imps qb
 resolveBnd :: [Import] -> Binding -> Either (NonEmpty QualifiedBinding) SymResError
 resolveBnd [] bnd = Right $ BndError bnd
 resolveBnd ((Full nspace bnd') : is) bnd | bnd' == bnd = 
-                                     trace ("resolving bnd " <> show bnd <> " with full namespace") $
                                      case resolveBnd is bnd of
-                                       Left other -> trace ("Resolved Binding " <> show bnd <> " to " <> show (QualifiedBinding nspace bnd NE.<| other)) Left ( QualifiedBinding nspace bnd NE.<| other)
+                                       Left other ->  Left ( QualifiedBinding nspace bnd NE.<| other)
                                        Right _ -> Left (QualifiedBinding nspace bnd :| [])
 resolveBnd ((Glob nspace):is) bnd =
-  trace ("resolving bnd " <> show bnd <> " with glob") $
   case resolveBnd is bnd of
     Left other -> Left (QualifiedBinding nspace bnd NE.<| other)
     Right _ -> Left (QualifiedBinding nspace bnd :| [])

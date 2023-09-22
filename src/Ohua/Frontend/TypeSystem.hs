@@ -216,7 +216,7 @@ typeSystem delta imports gamma = \case
                 Delta, Gamma |- Bind state method : Tm
   -}
   (BindE method stateB args) -> do
-    -- We need to get the state type before the mothod type, because the type of the method depends on the
+    -- We need to get the state type before the method type, because the type of the method depends on the
     -- type of the state i.e. obj.clone() -->  Arc::clone ? String::clone ? 
     let qb = QualifiedBinding (makeThrow []) stateB
     -- ToDo: Should use the qualified binding
@@ -226,15 +226,12 @@ typeSystem delta imports gamma = \case
             HType hty _  -> toPath hty
             _ -> Nothing 
 
-    traceM $ "State ty is" <> show stateTy <> "State binding is " <> show stateB
-    traceM $ " Path of state type is " <> show maybeMethodNS
     -- Now we need to add the name of the state type to the namespace of the method
-    
     method' <- case maybeMethodNS of 
       Just method_ns -> addStateToNS method_ns method
       Nothing -> return method
     traceM $ "Now trying to resolve method " <> show method'
-    
+
     (gamma', method'', methodTy, imports'' ) <- typeExpr delta imports' gamma method'
     
     
@@ -251,7 +248,6 @@ typeSystem delta imports gamma = \case
       (a:as) -> (neUnzip4 <$> mapM (typeExpr delta imports'' gamma) (a:| as)) >>= (\ (_, argsT, _ , _ ) -> return argsT)
 
     -- gamma doesn't change (at least in the current system) as args are only usage sites
-    --(_, args', _argsTy) <- neUnzip3 <$> mapM (typeExpr delta imports gamma) args
     -- ToDO: ArgTys should match function tys
 
     return (gamma', StateFunE (VarE stateB stateTy) qb method'', ty, imports'' )
