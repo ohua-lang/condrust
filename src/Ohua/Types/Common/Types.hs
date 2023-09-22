@@ -16,7 +16,7 @@ module Ohua.Types.Common.Types
     , Heq(..)
     , resToUnres
     , unresToRes
---    , getReturnType
+    , getReturnType
 --    , setReturnType
 --    , setFunType
 --    , pureArgTypes

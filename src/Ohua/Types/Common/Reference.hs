@@ -238,14 +238,18 @@ instance Eq (TypedBinding ty) where
 --             Representation of Functions
 --------------------------------------------------------------
 
+
+-- This is not very elegant but saves me a ton of pattern matching in the TypeSystem
+getReturnType :: OhuaType ty res -> Maybe (OhuaType ty res)
+getReturnType (FType (FunType _ins out)) = Just out
+getReturnType (FType (STFunType _s _ins out)) = Just out
+getReturnType _ = Nothing
 {-
 -- Actually we can only do it this way, i.e. without involving the argument type
 -- at each call side because we assume that either generics are not allowed or
 -- are also allowed in the backend such that we can consider a generic return type 
 -- as fully resolved.
-getReturnType :: FunType ty -> VarType ty
-getReturnType (FunType _ins out) = out
-getReturnType (STFunType _s _ins out) = out
+
 
 pureArgTypes :: FunType ty -> NonEmpty (VarType ty)
 pureArgTypes (FunType ins _out) = ins

@@ -2,11 +2,12 @@ module Ohua.Util
     ( runExceptM
     , neUnzip
     , neUnzip3
+    , neUnzip4
     , neConcat
     ) where
 
 import Universum
-import Data.List.NonEmpty ((<|))
+import Data.List.NonEmpty ((<|), NonEmpty)
 import Ohua.Types.Error
 
 
@@ -24,6 +25,12 @@ neUnzip3 ((x,y,z) :| [] ) = (x:|[], y:|[], z:|[])
 neUnzip3 ((x,y,z) :| (xyz : xyzs)) =
   let (xs, ys, zs) = neUnzip3 (xyz :| xyzs)
   in (x<|xs , y<|ys, z<|zs)
+
+neUnzip4 :: NonEmpty (a,b,c, d) -> (NonEmpty a, NonEmpty b, NonEmpty c, NonEmpty d)
+neUnzip4 ((w,x,y,z) :| [] ) = (w:|[], x:|[], y:|[], z:|[])
+neUnzip4 ((w,x,y,z) :| (wxyz : wxyzs)) =
+  let (ws, xs, ys, zs) = neUnzip4 (wxyz :| wxyzs)
+  in (w<| ws, x<|xs , y<|ys, z<|zs)
 
 neConcat :: (NonEmpty (NonEmpty a)) -> NonEmpty a
 neConcat (x :| []) = x
