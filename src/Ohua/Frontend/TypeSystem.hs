@@ -1,20 +1,19 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Ohua.Frontend.TypeSystem
-  (Delta, toWellTyped, NSMap)
+  (Delta, toWellTyped)
 where
 
 
 import qualified Data.HashMap.Lazy as HM
-import qualified Data.List.NonEmpty as NE
+import qualified Data.List.NonEmpty as NE 
+import Data.List (nub, last)
 import Data.Text.Prettyprint.Doc
 import Data.Text.Prettyprint.Doc.Render.Text
 
-import Ohua.UResPrelude hiding (Nat)
+import Ohua.Prelude hiding (Nat, last)
 import qualified Ohua.Prelude as Res
   ( Lit(..), FunType(..), FunRef(..))
-
--- import Ohua.PPrint
 
 import Ohua.Frontend.PPrint (prettyExpr)
 import Ohua.Frontend.Lang
@@ -32,11 +31,9 @@ import Ohua.Frontend.Lang
     , unitParams
     )
   
-import Ohua.Frontend.SymbolResolution (SymResError(..), Delta, Gamma, resolveSymbols, NSMap(..))
+import Ohua.Frontend.SymbolResolution (SymResError(..), Delta, Gamma, resolveSymbols)
 
 import Ohua.Types.Vector (Nat(..))
-
--- import Control.Exception (assert, throw)
 
 
 -- TODO config param
@@ -66,10 +63,10 @@ toWellTyped delta modImports e =
   let
     gamma = HM.fromList $ freeVars e
   in do
-    {-traceM "delta (pretty):"
+    traceM "delta (pretty):"
     traceM $ renderStrict $ layoutSmart defaultLayoutOptions $ pretty $ HM.toList delta
-    traceM ""-}
-    (_gamma', e', _ty) <- flip runReaderT (e :| []) $ typeSystem (modImports, delta) gamma e
+    traceM ""
+    (_gamma', e', _ty, imports') <- flip runReaderT (e :| []) $ typeSystem  delta modImports gamma e
     return e'
 
 type TypeErrorM m ty = MonadReader (NonEmpty (UnresolvedExpr ty)) m
@@ -100,28 +97,30 @@ symResError :: (ErrAndLogM m, TypeErrorM m ty) => Text -> m a
 symResError m = throwErrorWithTrace $ "Symbol resolution error: " <> m
 
 typeExpr :: (ErrAndLogM m, TypeErrorM m ty)
-            => Delta' ty Resolved
+            => Delta ty Resolved
+            -> [Import]
             -> Gamma ty Unresolved
             -> UnresolvedExpr ty
-            -> m (Gamma ty Resolved , ResolvedExpr ty, OhuaType ty Resolved)
-typeExpr delta gamma e = local ( <> (e:|[])) $ typeSystem delta gamma e
+            -> m (Gamma ty Resolved , ResolvedExpr ty, OhuaType ty Resolved, [Import])
+typeExpr delta imports gamma e = local ( <> (e:|[])) $ typeSystem delta imports gamma e
 
 
 
 typeSystem :: forall ty m
            .  (ErrAndLogM m, TypeErrorM m ty)
-           => Delta' ty Resolved
+           => Delta ty Resolved
+           -> [Import]
            -> Gamma ty Unresolved
            -> UnresolvedExpr ty
-           -> m (Gamma ty Resolved, ResolvedExpr ty, OhuaType ty Resolved)
-typeSystem delta gamma = \case
+           -> m (Gamma ty Resolved, ResolvedExpr ty, OhuaType ty Resolved, [Import])
+typeSystem delta imports gamma = \case
   {-
     Delta, Gamma |– e1: T1     Delta, Gamma, x:(max X T1) |– e2: T2
   ==================================================================
              Delta, Gamma |– let (x:X) e1 e2 : T2
   -}
   (LetE pat e1 e2) -> do
-    (_, e1', tyT1') <- typeExpr delta gamma e1
+    (_, e1', tyT1', imports' ) <- typeExpr delta imports gamma e1
     pat' <- typePat pat tyT1'
     -- ToDo: We currently can't allways get unresolved types from resolved ones although I think this should be possible.
     let mResTypes = mapM 
@@ -131,12 +130,12 @@ typeSystem delta gamma = \case
           $ patTyBnds pat'
     -- let patTys = mapM (second resToUnres) $ patTyBnds pat'
     let gamma' = case mResTypes of 
-            Just tys -> foldl (\ g (b, t) -> HM.insert b t g) gamma tys
+            Just tys -> foldl (\ g (b, t) -> HM.insert b t g) gamma tys 
             Nothing -> error $ "Implementation Error. I should be probably be possible to convert " <> show mResTypes <> " to unresolved tpyes but we didn't implement it"
 
-    (gamma'', e2', tyT2) <- typeExpr delta gamma' e2
+    (gamma'', e2', tyT2, imports'' ) <- typeExpr delta imports' gamma' e2
 
-    return (gamma'', LetE pat' e1' e2', tyT2)
+    return (gamma'', LetE pat' e1' e2', tyT2, imports'' )
 
   {-
                Delta, Gamma |– fun: T1 -> T2 -> ... Tm -> Tf  n<=m
@@ -157,7 +156,7 @@ typeSystem delta gamma = \case
         (argsAndTy, pendingTy) <- assocArgWithType ts args'
         return ((arg,t) : argsAndTy, pendingTy)
     in do
-      (gamma', fun', funTy) <- typeExpr delta gamma fun
+      (gamma', fun', funTy, imports' ) <- typeExpr delta imports gamma fun
 
       resTy <- case funTy of
         FType (FunType ins out) -> do
@@ -172,12 +171,13 @@ typeSystem delta gamma = \case
 
       -- if args are empty, we need to pass an explicit unit argument
       args' <- case args of
+        -- FIXME: Do we expect import changes from args?
         [] -> invariantBroken $ "Applications need to have at least one argument. The function " <> show fun <> " did not. This is a compiler error. Please file a bug"
-        (a:as) -> (neUnzip3 <$> mapM (typeExpr delta gamma) (a:|as)) >>= (\ (_, argsT, _ ) -> return argsT)
+        (a:as) -> (neUnzip4 <$> mapM (typeExpr delta imports gamma) (a:|as)) >>= (\ (_, argsT, _ , _ ) -> return argsT)
       -- Question: Shouldn't we check derived argTys against function input types?
-      -- (_, args', _argsTy) <- neUnzip3 <$> mapM (typeExpr delta gamma) args
+      -- (_, args', _argsTy) <- neUnzip3 <$> mapM (typeExpr delta imports gamma) args
 
-      return (gamma', AppE fun' args', resTy)
+      return (gamma', AppE fun' args', resTy, imports')
 
   {-
               Delta, Gamma, p1:T1, p2:T2, ..., pn:Tn |- e:Te
@@ -201,14 +201,14 @@ typeSystem delta gamma = \case
             [] -> invariantBroken $ "Abstractions need to have at least one argument. The function " <> show e <> " did not. This is a compiler error. Please file a bug"
             (p:ps) -> return (p:|ps)
       let gamma' = foldl (\ g (b, t) -> HM.insert b t g) gamma $ join $ NE.map patTyBnds patsNE
-      (gamma'', expr', tyE) <- typeExpr delta gamma' expr
+      (gamma'', expr', tyE, imports' ) <- typeExpr delta imports gamma' expr
       (pats', gamma''') <- runStateT (mapM typePatFromGamma patsNE) gamma''
       --FIXME: What is going on whith this double return here?! 
-      return (pats', gamma''', tyE, expr')
+      return (pats', gamma''', tyE, expr', imports' )
       
       let ty = FunType (NE.map patType pats') tyE
 
-      return (gamma''', LamE pats' expr', FType ty)
+      return (gamma''', LamE pats' expr', FType ty, imports' )
 
   {-
       Delta, Gamma |- state : S     Delta, Gamma |- method : S -> Tm
@@ -220,7 +220,7 @@ typeSystem delta gamma = \case
     -- type of the state i.e. obj.clone() -->  Arc::clone ? String::clone ? 
     let qb = QualifiedBinding (makeThrow []) stateB
     -- ToDo: Should use the qualified binding
-    (_gamma, _stateVar, stateTy) <- handleVar gamma stateB TStar
+    (_gamma, _stateVar, stateTy, imports' ) <- handleVar gamma stateB TStar
 
     let maybeMethodNS = case stateTy of
             HType hty _  -> toPath hty
@@ -234,8 +234,8 @@ typeSystem delta gamma = \case
       Just method_ns -> addStateToNS method_ns method
       Nothing -> return method
     traceM $ "Now trying to resolve method " <> show method'
-    -- (gamma',  state' , stateTy ) <- typeExpr delta gamma state
-    (gamma', method'', methodTy) <- typeExpr delta gamma method'
+    
+    (gamma', method'', methodTy, imports'' ) <- typeExpr delta imports' gamma method'
     
     
     ty <- case methodTy of
@@ -248,13 +248,13 @@ typeSystem delta gamma = \case
     -- FIXME: That shouldn't happen any more so we should error here. 
     args' <- case args of
       [] -> return (LitE UnitLit:|[]) 
-      (a:as) -> (neUnzip3 <$> mapM (typeExpr delta gamma) (a:| as)) >>= (\ (_, argsT, _ ) -> return argsT)
+      (a:as) -> (neUnzip4 <$> mapM (typeExpr delta imports'' gamma) (a:| as)) >>= (\ (_, argsT, _ , _ ) -> return argsT)
 
     -- gamma doesn't change (at least in the current system) as args are only usage sites
-    --(_, args', _argsTy) <- neUnzip3 <$> mapM (typeExpr delta gamma) args
+    --(_, args', _argsTy) <- neUnzip3 <$> mapM (typeExpr delta imports gamma) args
     -- ToDO: ArgTys should match function tys
 
-    return (gamma', StateFunE (VarE stateB stateTy) qb method'', ty)
+    return (gamma', StateFunE (VarE stateB stateTy) qb method'', ty, imports'' )
 
   {-
       Delta, Gamma |- cond : Bool    Delta, Gamma |- tTrue : T   Delta, Gamma |- tFalse : T
@@ -262,18 +262,18 @@ typeSystem delta gamma = \case
                   Delta, Gamma |- If cond tTrue tFalse : T
   -}
   (IfE cond tTrue tFalse) -> do
-    (_, cond', condTy) <- typeExpr delta gamma cond
+    (_, cond', condTy, imports') <- typeExpr delta imports gamma cond
     if (heq condTy ((IType TypeBool)::OhuaType ty Resolved))
     then return ()
     else typeError "Condition input does not have type bool."
 
-    (_, tTrue', tTrueTy) <- typeExpr delta gamma tTrue
-    (gamma', tFalse', tFalseTy) <- typeExpr delta gamma tFalse
+    (_, tTrue', tTrueTy, imports'') <- typeExpr delta imports' gamma tTrue
+    (gamma', tFalse', tFalseTy, imports''' ) <- typeExpr delta imports'' gamma tFalse
     if (heq tTrueTy tFalseTy)
     then return ()
     else typeError "Conditional branches have different types."
 
-    return (gamma', IfE cond' tTrue' tFalse', tTrueTy)
+    return (gamma', IfE cond' tTrue' tFalse', tTrueTy, imports''')
 
   {-
    Delta, Gamma |- cond : Bool       Delta, Gamma |- body : T
@@ -282,14 +282,14 @@ typeSystem delta gamma = \case
 
   -}
   (WhileE cond body) -> do
-    (_, cond', condTy) <- typeSystem delta gamma cond
+    (_, cond', condTy, imports' ) <- typeSystem delta imports gamma cond
     if (heq condTy (IType TypeBool:: OhuaType ty Resolved))
     then return ()
     else typeError "Condition input for while loop does not have type bool."
 
-    (gamma', body', _bodyTy) <- typeExpr delta gamma body
+    (gamma', body', _bodyTy, imports'' ) <- typeExpr delta imports' gamma body
 
-    return (gamma', WhileE cond' body', IType TypeUnit)
+    return (gamma', WhileE cond' body', IType TypeUnit, imports'')
 
   {-
       Delta, Gamma |- generator : T1<T2>     Delta, Gamma, x:T2 |- loopFun : T3
@@ -297,14 +297,14 @@ typeSystem delta gamma = \case
           Delta, Gamma |- MapE loopFun generator : T1<T3>
   -}
   (MapE loopFun gen) ->  do
-    (_, gen', genTy) <- typeExpr delta gamma gen
+    (_, gen', genTy, imports') <- typeExpr delta imports gamma gen
     elemTy <- case genTy of
                 IType (TypeList eTy) -> return eTy
                 _ -> typeError "Loop generator is not a list!"
 
-    (gamma', loopFun', loopFunTy) <- typeExpr delta gamma loopFun
+    (gamma', loopFun', loopFunTy, imports'' ) <- typeExpr delta imports' gamma loopFun
 
-    return (gamma', MapE loopFun' gen', IType $ TypeList loopFunTy)
+    return (gamma', MapE loopFun' gen', IType $ TypeList loopFunTy, imports'')
 
   {-
       Delta, Gamma |- e1:T1    Delta, Gamma |- cont : T2
@@ -312,9 +312,9 @@ typeSystem delta gamma = \case
           Delta, Gamma |- Stmt e1 cont : T2
   -}
   (StmtE e1 cont) -> do
-    (_, e1', _e1Ty) <- typeExpr delta gamma e1
-    (gamma', cont', contTy) <- typeExpr delta gamma cont
-    return (gamma', StmtE e1' cont', contTy)
+    (_, e1', _e1Ty, imports' ) <- typeExpr delta imports gamma e1
+    (gamma', cont', contTy, imports'' ) <- typeExpr delta imports' gamma cont
+    return (gamma', StmtE e1' cont', contTy, imports'' )
 
   {-
       Delta, Gamma |- e1:T1  Delta, Gamma |- e2:T2   ...   Delta, Gamma |- en: Tn
@@ -322,8 +322,10 @@ typeSystem delta gamma = \case
         Delta, Gamma |- TupE [e1, e2 ... , en] : TupleTy [T1, T2, .. , Tn]
   -}
   (TupE exprs) -> do
-    (gamma' :| _, exprs',exprsTy ) <- neUnzip3 <$> mapM (typeExpr delta gamma) exprs
-    return (gamma', TupE exprs', TType exprsTy)
+    -- FIXME: How to handle imports here?
+    (gamma' :| _, exprs',exprsTy, importss') <- neUnzip4 <$> mapM (typeExpr delta imports gamma) exprs
+    let imports' = nub . concat $ NE.toList importss'
+    return (gamma', TupE exprs', TType exprsTy, imports')
 
   {-
        x:T in Gamma
@@ -331,7 +333,7 @@ typeSystem delta gamma = \case
     Delta, Gamma |– x: T
   -}
   (VarE bnd ty) ->  handleVar gamma bnd ty
-  (LitE (EnvRefLit bnd ty)) -> (\(g, _, ty') -> (g, LitE $ EnvRefLit bnd ty', ty')) <$> handleVar gamma bnd ty
+  (LitE (EnvRefLit bnd ty)) -> (\(g, _, ty', imports') -> (g, LitE $ EnvRefLit bnd ty', ty', imports')) <$> handleVar gamma bnd ty
 
   {-
      l:T in Delta
@@ -350,26 +352,21 @@ typeSystem delta gamma = \case
         -- for the last option we'd also need to able to identify generics in HostTypes to know when alternatives are valid
         -- I'll go with accepting lookup miss first if we can convert ty to a resolved function type
       case unresToRes (FType ty) of
-          Just ty'@(FType fty)  -> return (HM.empty, LitE (FunRefLit (FunRef qBnd id fty)), ty')
-          _ -> handleRef bnd (Just ns) (FType ty)
-{-
-      let (modImports, delta') = delta
-      case HM.lookup qbnd delta' of
-        Just ty' ->
-          ((\ty'' -> 
-              (HM.empty, LitE $ FunRefLit $ FunRef qbnd id ty', ty'')) . FType
-          ) <$> maxFunType ty ty'
-        
-        Nothing -> 
--}
+          Just ty'@(FType fty)  -> return (HM.empty, LitE (FunRefLit (FunRef qBnd id fty)), ty', imports)
+          _ -> do 
+            (g, e, t, i) <- handleRef bnd (Just ns) (FType ty)
+            traceM $ "Resolved to "  <> show e <> " with type "
+            traceM $ show . pretty $ t
+            return (g,e,t,i)
+
   {-
   ==================
     Gamma |- l : HostType
   -}
-  (LitE (NumericLit n)) -> return (HM.empty, LitE $ NumericLit n, IType TypeNat) -- FIXME incorrect. we should not have this in this language!
-  (LitE (BoolLit b))    -> return (HM.empty, LitE $ BoolLit b   , IType TypeBool)
-  (LitE UnitLit)        -> return (HM.empty, LitE UnitLit       , IType TypeUnit)
-  (LitE (StringLit s))  -> return (HM.empty, LitE $ StringLit s , IType TypeString)
+  (LitE (NumericLit n)) -> return (HM.empty, LitE $ NumericLit n, IType TypeNat, imports) -- FIXME incorrect. we should not have this in this language!
+  (LitE (BoolLit b))    -> return (HM.empty, LitE $ BoolLit b   , IType TypeBool, imports)
+  (LitE UnitLit)        -> return (HM.empty, LitE UnitLit       , IType TypeUnit, imports)
+  (LitE (StringLit s))  -> return (HM.empty, LitE $ StringLit s , IType TypeString, imports)
   where
     -- When we encounter a variable, we first try to get it's type from 
     -- the local context Gamma. 
@@ -379,17 +376,31 @@ typeSystem delta gamma = \case
       case HM.lookup bnd gamma of
         Just ty1 ->
           case unresToRes ty1 of
-            Just ty1' -> (\ty' -> (HM.singleton bnd ty', VarE bnd ty', ty')) <$> maxType ty ty1'
+            Just ty1' -> (\ty' -> (HM.singleton bnd ty', VarE bnd ty', ty', imports)) <$> maxType ty ty1'
             Nothing -> handleRef bnd Nothing ty
         _ -> handleRef bnd Nothing ty
 
     handleRef bnd nSpace ty = do 
-      let (modImports,delta') = delta
-      case resolveSymbols delta' modImports nSpace bnd of 
-          Left (qBnd,ty1) ->
-                          (\ty' ->
-                            (HM.empty, LitE $ FunRefLit $ FunRef qBnd Nothing ty1, ty'))
-                          <$> maxType ty (FType  ty1)
+      -- We might get references like std::sync::Arc::new here. 
+      -- Such references i.e. constructor functions with namespace bring that namespace into scope i.e.
+      -- iff there's a namespace on a function (std::sync::Arc) AND the return type of the function corresponds to the last
+      -- element of that namespace (new()-> Arc) then this actually is like an import of the namespace (std::sync::Arc)
+      -- and we need to add it to the imports 
+      -- traceM ("Resolving symbol " <> show bnd <> " with nSpace " <> show nSpace)
+      case resolveSymbols delta imports nSpace bnd of 
+          Left (qBnd,ty1) -> do 
+                new_ty <- maxType ty (FType ty1)
+
+                -- now check if the function has a namespace
+                let imports' = case nSpace of
+                      -- now check if that namespace is "imported", because the function returns the last part of it
+                      Just (NSRef spaces)  -> 
+                        case getReturnType new_ty of 
+                          Just (HType hTy _) | (Just (last spaces)) == (getBinding . toPath $ hTy) -> imports ++ [Glob (NSRef spaces)]
+                          _ -> imports
+                      Nothing -> imports
+                return  (HM.empty, LitE $ FunRefLit $ FunRef qBnd Nothing ty1, new_ty, imports')
+
           Right (BndError b) -> symResError $ "Unresolved symbol: " <> quickRender b
           Right (QBndError qb) -> symResError $ "Unresolved qualified symbol: " <> quickRender qb
           Right (NoTypeFound qb) -> wfError $ "No type in environment found for qualified symbol: " <> quickRender qb
@@ -442,7 +453,7 @@ maxType TStar t2 = return t2
 maxType UType (IType TypeUnit) = return (IType TypeUnit)
 maxType UType t = typeError $ "Comparing in compatible types UType and " <> show t
 maxType t1@(HType _ _)  t2@(TType _)        = typeError $ "Comparing in compatible types " <> show t1 <> " and " <> show t2
-maxType t1@(HType t _)  t2@(IType _)        = typeError $ "Comparing in compatible types " <> show t1 <> " and " <> show t2
+maxType t1@(HType _t _)  t2@(IType _)        = typeError $ "Comparing in compatible types " <> show t1 <> " and " <> show t2
 maxType t1@(TType _)    t2@(HType _ _ )     = typeError $ "Comparing in compatible types " <> show t1 <> " and " <> show t2
 maxType t1@(TType _)    t2@(IType _)        = typeError $ "Comparing in compatible types " <> show t1 <> " and " <> show t2
 maxType t1@(FType _)    t2                  = typeError $ "Comparing in compatible types " <> show t1 <> " and " <> show t2
@@ -456,3 +467,9 @@ maxFunType (STFunType sin ins out) (STFunType rsin rins rout) =
   STFunType <$> maxType sin rsin <*> mapM (uncurry maxType) (zip ins rins) <*> maxType out rout
 maxFunType fun otherfun = typeError $ "Comparing stateful to stateless function type " <> show fun <> " with " <> show otherfun
 
+
+getBinding:: Maybe (Either Binding QualifiedBinding) -> Maybe Binding
+getBinding = \case
+    Nothing -> Nothing 
+    Just (Left bnd) -> Just bnd
+    Just (Right (QualifiedBinding _ bnd)) -> Just bnd
