@@ -7,7 +7,7 @@ import Ohua.Frontend.Types
 import qualified Ohua.Frontend.Lang as FrLang
 import Ohua.Frontend.Transform.Load ( loadAlgosAndImports  )
 import Ohua.Frontend.Transform.Resolve ( resolveNS )
--- import Ohua.Frontend.Transform.Envs ( prepareRootAlgoVars )
+import Ohua.Frontend.Transform.Envs ( prepareRootAlgoVars )
 import Ohua.Frontend.Transform.TailRec ( isRecAlgo )
 import Ohua.Frontend.Transform.FinalLiterals ( noFinalLiterals )
 import Ohua.Frontend.Transform.UnitArgs ( noEmptyArgs )
@@ -23,14 +23,15 @@ frontend :: forall m lang. (ErrAndLogM m, Integration lang)
          -> m ((HostModule lang, Namespace (FrLang.Expr (Type lang) Resolved) (AlgoSrc lang)), HostModule lang)
 frontend lang compScope inFile = do
         (langNs, ns, reg, placeholder) <- loadAlgosAndImports lang compScope inFile
-        ns'                            <- updateExprs ns trans
-        ns''                           <- resolveNS (ns',reg)
-        delta                          <- loadTypes lang langNs ns''
+        nsTransf                       <- updateExprs ns trans
+        nsReslvd                       <- resolveNS (nsTransf,reg)
+        delta                          <- loadTypes lang langNs nsReslvd
 
         -- we exclude recursive functions from stand-alone compilation.
-        let ns'''                      =  over algos (filter (not . isRecAlgo)) ns''
-        ns''''                         <- updateExprs ns''' (toWellTyped delta (ns'''^.imports) )
-        return ((langNs, ns''''), placeholder)
+        let nsNoRecs                      =  over algos (filter (not . isRecAlgo)) nsReslvd
+        nsWellTypd                        <- updateExprs nsNoRecs (toWellTyped delta (nsNoRecs^.imports))
+        nsLetRoot                         <- updateExprs nsWellTypd prepareRootAlgoVars
+        return ((langNs, nsLetRoot ), placeholder)
     where
         trans :: ErrAndLogM m => FrLang.Expr ty Unresolved -> m (FrLang.Expr ty Unresolved)
-        trans e = noFinalLiterals e >> noEmptyArgs e -- prepareRootAlgoVars e
+        trans e = noFinalLiterals e >> noEmptyArgs e
