@@ -95,6 +95,8 @@ deriving instance Show (OhuaType ty s)
 instance Heq (OhuaType ty s1) (OhuaType ty s2) where
   heq (HType ty1 _) (HType ty2 _) = ty1 == ty2
   heq (IType ty1) (IType ty2) = heq ty1 ty2
+  heq (FType fTy1)(FType fTy2) = heq fTy1 fTy2
+  heq UType UType = True 
   heq TStar TStar = True
   heq _ _ = False
 
@@ -222,17 +224,17 @@ asBnd (TBind b _ty) = b
 deriving instance Show (TypedBinding ty)
 
 instance Hashable (TypedBinding ty) where
-    hashWithSalt s (TBind b _ty) = hashWithSalt s b
+    hashWithSalt s (TBind b ty) = hashWithSalt s b
 
 instance Ord (TypedBinding ty) where
-    (TBind b1 _ty1) <= (TBind b2 _ty2) = b1 <= b2
+    (TBind b1 ty1) <= (TBind b2 ty2) = b1 <= b2
 
 -- FIXME: This is just a hack until we get everything typed correctly
 -- currently 'reduceLambdas' in ALang Passes will loop forever if types dont match
 -- As long as we can not make sure, that every binding and usage side is correctly typed, tranformations, in particular the ones that determine if something is used
 -- should only check if something with the same name, not necesarily the same type annotation is used.
 instance Eq (TypedBinding ty) where
-    (TBind b1 _ty1) == (TBind b2 _ty2) = b1 == b2
+    (TBind b1 ty1) == (TBind b2 ty2) = b1 == b2
 
 --------------------------------------------------------------
 --             Representation of Functions
