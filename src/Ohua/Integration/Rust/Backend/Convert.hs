@@ -116,7 +116,11 @@ convertQualBnd (QualifiedBinding ns bnd) =
   Path
     False
     ( map
-        (\p -> PathSegment (mkIdent $ unpack $ unwrap p) Nothing noSpan)
+        (\p ->
+            if p == "." 
+              then   PathSegment (mkIdent "crate") Nothing noSpan
+              else   PathSegment (mkIdent $ unpack $ unwrap p) Nothing noSpan)
+            
         $ unwrap ns ++ [bnd]
     )
     noSpan
