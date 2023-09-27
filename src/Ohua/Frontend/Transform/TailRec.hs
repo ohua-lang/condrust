@@ -13,7 +13,7 @@ import Data.HashSet as HS
 isRec :: Binding -> UnresolvedExpr ty -> Bool
 isRec currentFun expr = execState (contextedTraversal check HS.empty expr) False
   where
-    check _ v@(VarE bdg ty) = modify (\c -> c || bdg == currentFun) >> return v
+    check _ v@(VarE bdg _ty) = modify (\c -> c || bdg == currentFun) >> return v
     check _ e = return e
 
 isRecAlgo :: Algo (UnresolvedExpr ty) a -> Bool

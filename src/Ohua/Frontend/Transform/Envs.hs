@@ -11,8 +11,7 @@ import Ohua.Frontend.Lang
 prepareRootAlgoVars :: ErrAndLogM m => ResolvedExpr ty -> m (ResolvedExpr ty)
 prepareRootAlgoVars (LamE vars body) =  go (toList vars) body
   where
-    --go :: [ResolvedPat ty] -> ResolvedExpr ty -> m (ResolvedExpr ty)
-    go ((VarP x xty):xs) body' =
+    go ((VarP x xty): xs) body' =
         go xs $ LetE (VarP x xty) (LitE $ EnvRefLit x xty) body'
     go [] body' = return body'
     go _nested _body = throwError "Error: Algo arguments contain tuple pattern. Those should have been resolved already. Please file a bug"

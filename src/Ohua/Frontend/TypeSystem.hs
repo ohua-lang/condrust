@@ -28,7 +28,6 @@ import Ohua.Frontend.Lang
     , patTyBnds
     , patType
     , freeVars
-    , unitParams
     )
   
 import Ohua.Frontend.SymbolResolution (SymResError(..), Delta, Gamma, resolveSymbols)
@@ -56,16 +55,17 @@ Gamma ... associates local variables to a type
 Delta ... associates function literals to a type
 -}
 
-type Delta' ty res = ([Import], Delta ty res)
 
 toWellTyped :: forall ty m. ErrAndLogM m => Delta ty 'Resolved -> [Import] -> UnresolvedExpr ty -> m (ResolvedExpr ty)
 toWellTyped delta modImports e =
   let
     gamma = HM.fromList $ freeVars e
   in do
+    {-
     traceM "delta (pretty):"
     traceM $ renderStrict $ layoutSmart defaultLayoutOptions $ pretty $ HM.toList delta
     traceM ""
+    -}
     (_gamma', e', _ty, imports') <- flip runReaderT (e :| []) $ typeSystem  delta modImports gamma e
     return e'
 
@@ -186,7 +186,10 @@ typeSystem delta imports gamma = \case
   -}
   e@(LamEU pats expr) ->
     let
+      -- FIXME: Replace the check for "_" binding here. We currently introduce it when 
+      -- as unit arg representation, but we should have somethign not stringly typed for that purpose 
       invariantGetGamma :: Binding -> StateT (Gamma ty Resolved) m (OhuaType ty Resolved)
+      invariantGetGamma bnd | bnd == fromString "_" = return (IType TypeUnit)
       invariantGetGamma bnd = do
         gam <- get
         case HM.lookup bnd gam of
@@ -294,7 +297,7 @@ typeSystem delta imports gamma = \case
   -}
   (MapE loopFun gen) ->  do
     (_, gen', genTy, imports') <- typeExpr delta imports gamma gen
-    elemTy <- case genTy of
+    _elemTy <- case genTy of
                 IType (TypeList eTy) -> return eTy
                 _ -> typeError "Loop generator is not a list!"
 
@@ -351,8 +354,6 @@ typeSystem delta imports gamma = \case
           Just ty'@(FType fty)  -> return (HM.empty, LitE (FunRefLit (FunRef qBnd id fty)), ty', imports)
           _ -> do 
             (g, e, t, i) <- handleRef bnd (Just ns) (FType ty)
-            traceM $ "Resolved to "  <> show e <> " with type "
-            traceM $ show . pretty $ t
             return (g,e,t,i)
 
   {-
@@ -459,8 +460,8 @@ maxType t1              t2@(FType _)        = typeError $ "Comparing in compatib
 maxFunType :: (ErrAndLogM m, TypeErrorM m ty) => FunType ty Unresolved -> FunType ty Resolved-> m (FunType ty Resolved)
 maxFunType (FunType ins out) (FunType rins rout) =
   FunType <$> mapM (uncurry maxType) (NE.zip ins rins) <*> maxType out rout
-maxFunType (STFunType sin ins out) (STFunType rsin rins rout) =
-  STFunType <$> maxType sin rsin <*> mapM (uncurry maxType) (zip ins rins) <*> maxType out rout
+maxFunType (STFunType sIn ins out) (STFunType rsIn rIns rout) =
+  STFunType <$> maxType sIn rsIn <*> mapM (uncurry maxType) (zip ins rIns) <*> maxType out rout
 maxFunType fun otherfun = typeError $ "Comparing stateful to stateless function type " <> show fun <> " with " <> show otherfun
 
 

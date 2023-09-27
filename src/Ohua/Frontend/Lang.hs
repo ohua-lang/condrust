@@ -17,8 +17,6 @@ module Ohua.Frontend.Lang
     , patType
     , patBnd
     , patTyBnds
-    , unitArgs
-    , unitParams
     , freeVars
     , preWalkE
     , preWalkER
@@ -294,16 +292,6 @@ type ResolvedType ty = OhuaType ty Resolved
 type UnresolvedPat ty = Pat ty Unresolved
 type ResolvedPat ty = Pat ty Resolved
 
-unitArgs :: [Expr ty res] -> NonEmpty (Expr ty res)
-unitArgs []     = LitE UnitLit :| []
-unitArgs (x:xs) = x :| xs
-
-
-unitParams :: [Pat ty Resolved] -> NonEmpty (Pat ty Resolved)
-unitParams []     = (VarP "_" $ IType TypeUnit) :| []
-unitParams (x:xs) = x :| xs
-
-
 freeVars :: Expr ty res -> [(Binding, OhuaType ty res)]
 freeVars = go HS.empty
   where
@@ -328,11 +316,11 @@ flatten :: Expr ty res -> [Expr ty res]
 flatten e = case e of 
         (VarE _ _ ) -> [e]
         (LitE _) -> [e]
-        (LetE p e1 e2) -> [e] ++ flatten e1 ++ flatten e2 
+        (LetE _p e1 e2) -> [e] ++ flatten e1 ++ flatten e2 
         (AppE f xs)-> [e] ++ flatten f ++ concatMap flatten (NE.toList xs)  
         (AppEU f xs)-> [e] ++ flatten f ++ concatMap flatten  xs  
-        (LamE ps lbody)-> [e] ++ flatten lbody  
-        (LamEU ps lbody )->  [e] ++ flatten lbody
+        (LamE _ps lbody)-> [e] ++ flatten lbody  
+        (LamEU _ps lbody )->  [e] ++ flatten lbody
         (IfE e1 e2 e3)-> [e] ++ flatten e1 ++ flatten e2 ++ flatten e3
         (WhileE e1 e2)-> [e] ++ flatten e1 ++ flatten e2
         (MapE e1 e2)-> [e] ++ flatten e1 ++ flatten e2
