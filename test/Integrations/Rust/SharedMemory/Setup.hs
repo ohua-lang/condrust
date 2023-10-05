@@ -187,6 +187,12 @@ impl State {
        self.val
    }
 
+   pub fn clone(&self) -> State { }
+
+   pub fn use_arc(&self, arc:Arc<i32>) -> String {
+        "works for me".into()
+   }
+
 }
 
 pub fn hello_world() -> String {
@@ -205,8 +211,8 @@ pub fn f() -> i32 { 1 }
 
 #[extern_spec(std::sync)]
 impl Arc {
-  pub fn new() -> Arc { }
-  pub fn clone(&self) -> Arc { }
+  pub fn new(i:i32) -> Arc{ }
+  pub fn clone(&self) -> Arc{ }
 }
 
 pub fn g() -> String {
