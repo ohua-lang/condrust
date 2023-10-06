@@ -271,7 +271,7 @@ typeSystem delta imports gamma = \case
     -- gamma doesn't change (at least in the current system) as args are only usage sites
     -- ToDO: ArgTys should match function tys
 
-    return (gamma', StateFunE (VarE stateB stateTy) qb method'', ty, imports'' )
+    return (gamma', StateFunE (VarE stateB stateTy) qb (AppE method'' args'), ty, imports'' )
 
   {-
       Delta, Gamma |- cond : Bool    Delta, Gamma |- tTrue : T   Delta, Gamma |- tFalse : T
