@@ -161,41 +161,42 @@ typeSystem delta imports gamma = \case
   ===================================================================================
                   Delta, Gamma |– fun t1 t2 ... tn : Tf
   -}
-  (AppEU fun args) ->
-    let
-      -- This accounts for partial application i.e. if the number of args
-      -- matches the number of types in the declation the return type is the return type of the 
-      -- function ... otherwise it returns a partially applied function
-      assocArgWithType [] (_:_) =
-        wfError "Too many arguments in function application."
-      -- Question: How is it ok to have more argTypes than args?
-      assocArgWithType l [] = return ([], l)
-      assocArgWithType (t:ts) (arg:args') = do
-        (argsAndTy, pendingTy) <- assocArgWithType ts args'
-        return ((arg,t) : argsAndTy, pendingTy)
-    in do
+  (AppEU fun args) -> do
+      -- First we type the function
       (gamma', fun', funTy, imports' ) <- typeExpr delta imports gamma fun
 
+      -- Then we type it's args
+      (args', argTypesR) <- case args of
+        [] -> invariantBroken $ "Applications need to have at least one argument. The function " <> show fun <> " did not. This is a compiler error. Please file a bug"
+        (a:as) -> (neUnzip4 <$> mapM (typeExpr delta imports gamma) (a:|as)) >>= (\ (_, argsT, argTypes , _ ) -> return (argsT, argTypes))
+      
+      -- Then we check if function decalaration and arg types match
       resTy <- case funTy of
         FType (FunType ins out) -> do
-            (_, pendingArgsTy) <- assocArgWithType (toList ins) $ toList args
+            (_, pendingArgsTy) <- assocArgWithType (toList ins) $ toList argTypesR
             case pendingArgsTy of
               [] -> return out
               (x:xs)  -> return $ FType  (FunType (x:|xs) out)
         FType (STFunType sin ins out) -> do
-            (_, pendingArgsTy) <- assocArgWithType ins $ toList args
+            (_, pendingArgsTy) <- assocArgWithType ins $ toList argTypesR
             return $ FType  (STFunType sin pendingArgsTy out)
         t -> typeError $ "First argument of function application is not a function, but has type: " <> show t
 
-      -- if args are empty, we need to pass an explicit unit argument
-      args' <- case args of
-        -- FIXME: Do we expect import changes from args?
-        [] -> invariantBroken $ "Applications need to have at least one argument. The function " <> show fun <> " did not. This is a compiler error. Please file a bug"
-        (a:as) -> (neUnzip4 <$> mapM (typeExpr delta imports gamma) (a:|as)) >>= (\ (_, argsT, _ , _ ) -> return argsT)
-      -- Question: Shouldn't we check derived argTys against function input types?
-      -- (_, args', _argsTy) <- neUnzip3 <$> mapM (typeExpr delta imports gamma) args
-
       return (gamma', AppE fun' args', resTy, imports')
+      where  
+        -- We must not have more arguments than argument types in the declaration
+        assocArgWithType [] (_:_) =  wfError "Too many arguments in function application."
+        -- We can have less arguments than types because function application can be partial (e.g. through previous transformation) 
+        assocArgWithType l [] = return ([], l)
+        -- Argument type and type of argument have to match
+        -- FIXME: Actually the given argument type has to be a subtype/specialization of the declared argument type acutally. ie. we have to 
+        --        add (>=) to the constraints of HostType
+        assocArgWithType (t:ts) (argT:argTs') 
+          | t == argT = do
+            (argsAndTy, pendingTy) <- assocArgWithType ts argTs'
+            return ((argT,t) : argsAndTy, pendingTy)
+          | otherwise = typeError $ "Declared argument type "<> show t <> " and type of given argument " <> show argT <> " do not match."
+
 
   {-
               Delta, Gamma, p1:T1, p2:T2, ..., pn:Tn |- e:Te
