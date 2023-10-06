@@ -57,17 +57,28 @@ Delta ... associates function literals to a type
 
 
 toWellTyped :: forall ty m. ErrAndLogM m => Delta ty 'Resolved -> [Import] -> UnresolvedExpr ty -> m (ResolvedExpr ty)
-toWellTyped delta modImports e =
+toWellTyped delta modImports e@(LamEU pats@(p:ps) expr) =
   let
     gamma = HM.fromList $ freeVars e
+    -- FIXME: Remove this when algos are Functions of typed inputs, output and body.
+    patBndsAndTypes =  (concatMap (NE.toList . patTyBnds) pats) 
+    replaceTy = (\(bnd, ty) -> case unresToRes ty of 
+                        Just tyR -> Just (bnd, tyR)
+                        Nothing -> Nothing)
+    resolvedPats = case mapM replaceTy patBndsAndTypes of 
+      Just (rp:rps) -> NE.map (\(b, t) -> VarP b t) (rp:|rps)
+      _ -> error $ "Could not resolve the types of function arguments in " <> show e
+    gamma_with_inpts = foldl (\ g (b, ty) -> HM.insert b ty g) gamma patBndsAndTypes
   in do
-    {-
-    traceM "delta (pretty):"
-    traceM $ renderStrict $ layoutSmart defaultLayoutOptions $ pretty $ HM.toList delta
+    traceM "Gamma (pretty):"
+    traceM $ renderStrict $ layoutSmart defaultLayoutOptions $ pretty $ HM.toList gamma_with_inpts
     traceM ""
-    -}
-    (_gamma', e', _ty, imports') <- flip runReaderT (e :| []) $ typeSystem  delta modImports gamma e
-    return e'
+    traceM "Algo :"
+    traceM $ renderStrict $ layoutSmart defaultLayoutOptions $ pretty e
+    traceM ""
+    (_gamma', e', _ty, imports') <- flip runReaderT (e :| []) $ typeSystem  delta modImports gamma_with_inpts expr
+    return (LamE resolvedPats e')
+toWellTyped _ _ e = throwError $ "Algorithm was not a lambda expression. Please file a bug. " <> show e
 
 type TypeErrorM m ty = MonadReader (NonEmpty (UnresolvedExpr ty)) m
 
@@ -102,6 +113,13 @@ typeExpr :: (ErrAndLogM m, TypeErrorM m ty)
             -> Gamma ty Unresolved
             -> UnresolvedExpr ty
             -> m (Gamma ty Resolved , ResolvedExpr ty, OhuaType ty Resolved, [Import])
+-- typeExpr delta imports gamma e = local ( <> (e:|[])) $ typeSystem delta imports gamma e
+-- We need to solve the following problem here:
+-- We get a Lambda expression representing an algorithm. Because it's a Lamda, it doesn't have a function reference attached
+-- so we cannot get the parameter types from Delta.
+-- Also Type Checking of Lambda expressions will not add parameter types to the context Gamma.
+-- That means for any parameter x of an algo, we won't be able to resolve it's type unless we make an exception about
+-- adding Lambda parameters to Gamma during type checking ... That's why we do it here.
 typeExpr delta imports gamma e = local ( <> (e:|[])) $ typeSystem delta imports gamma e
 
 
