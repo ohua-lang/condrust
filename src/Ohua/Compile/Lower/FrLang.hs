@@ -172,7 +172,7 @@ trans =
         -- ToDo: Should args be normalized here?
             (a:| []) ->  Apply (trans e1)  (trans a)
             _ -> error $ 
-                "Invariant broken. During lowering to Alang the application expressions should be normalized to one argument " 
+                "Invariant broken. During lowering to Alang the application expressions should be normalized to one argument" 
                 <> show app <> " is not. Please report this bug."
             {-| null e2 -> e1 `Apply` Lit UnitLit
               | otherwise -> foldl Apply e1 e2 -}
@@ -193,7 +193,14 @@ trans =
             in  case ALang.funType function' of
                 Just fTy -> (ALang.smapBuiltin (FType fTy) (ALang.exprType coll') (IType $ TypeList (IType TypeUnit))) `Apply` function' `Apply` coll'
                 Nothing -> error $ "Function type is not available for expression:\n "<> show function <> "\n Please report this error."
-        StateFunE stt _fqName methodC -> BindState (trans stt) (trans methodC)
+        -- It look superfluose to do this Apply conversion twice, but this should be adressed by a rewrite of ALang, not by a refactoring FLang
+        StateFunE stateE methodE args -> 
+            let method' = BindState (trans stateE) (trans methodE)
+            in case args of
+                (a:| []) ->  Apply method' (trans a)
+                _ -> error $ 
+                    "Invariant broken. During lowering to Alang the application expressions should be normalized to one argument" 
+                    <> show methodE <> " is not. Please report this bug."
         StmtE e1 cont -> Let (TBind "_" $ IType TypeUnit) (trans e1) (trans cont)
         TupE exprs -> 
             let alExprs = NE.map trans exprs
