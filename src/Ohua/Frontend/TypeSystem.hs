@@ -191,11 +191,13 @@ typeSystem delta imports gamma = \case
         -- Argument type and type of argument have to match
         -- FIXME: Actually the given argument type has to be a subtype/specialization of the declared argument type acutally. ie. we have to 
         --        add (>=) to the constraints of HostType
-        assocArgWithType (t:ts) (argT:argTs') 
-          | t == argT = do
+        assocArgWithType (t:ts) (argT:argTs') = do
             (argsAndTy, pendingTy) <- assocArgWithType ts argTs'
             return ((argT,t) : argsAndTy, pendingTy)
-          | otherwise = typeError $ "Declared argument type "<> show t <> " and type of given argument " <> show argT <> " do not match."
+          {-| t == argT = do
+            (argsAndTy, pendingTy) <- assocArgWithType ts argTs'
+            return ((argT,t) : argsAndTy, pendingTy)
+          | otherwise = typeError $ "Declared argument type "<> show t <> " and type of given argument " <> show argT <> " do not match."-}
 
 
   {-
@@ -237,30 +239,33 @@ typeSystem delta imports gamma = \case
   ========================================================================
                 Delta, Gamma |- Bind state method : Tm
   -}
-  (BindE method stateB args) -> do
+  (BindE stateVar methodB args) -> do
     -- We need to get the state type before the method type, because the type of the method depends on the
     -- type of the state i.e. obj.clone() -->  Arc::clone ? String::clone ? 
-    let qb = QualifiedBinding (makeThrow []) stateB
-    -- ToDo: Should use the qualified binding
-    (_gamma, _stateVar, stateTy, imports' ) <- handleVar gamma stateB TStar
+    (gamma', stateVar', stateTy, imports') <- typeExpr delta imports gamma stateVar
 
     let maybeMethodNS = case stateTy of
             HType hty _  -> toPath hty
             _ -> Nothing 
 
     -- Now we need to add the name of the state type to the namespace of the method
-    method' <- case maybeMethodNS of 
-      Just method_ns -> addStateToNS method_ns method
-      Nothing -> return method
-    traceM $ "Now trying to resolve method " <> show method'
+    methodQB <- case maybeMethodNS of 
+      Just method_ns -> addStateToNS method_ns methodB
+      Nothing -> return (QualifiedBinding (NSRef []) methodB)
+    traceM $ "Now trying to resolve method " <> show methodQB
 
-    (gamma', method'', methodTy, imports'' ) <- typeExpr delta imports' gamma method'
+    -- At this point we need to make the method an epression, 
+    -- because a) it is an expression in ALang and b) therefore we need to attach it's type to it, which we cannot do with a qualified binding
+    -- FIXME: What's supposed to happen with gamma here?
+    -- FIXME: Ho to properly construct an unresolved stateful function (type)?
+    (gamma'', methodE , methodTy, imports'') <- typeExpr delta imports' gamma (LitE (FunRefLit (FunRef methodQB Nothing (STFunType TStar [] TStar))))
     
     
     ty <- case methodTy of
             -- Question: Why don't we do the partial application type check here?
             FType (STFunType sTy _ resTy) | heq sTy stateTy -> return resTy
-            _ -> typeError $ "State types do not match."
+            FType (STFunType sTy _ resTy) -> typeError $ "State types "<> show sTy <>" and "<> show stateTy <> " do not match."
+            _ -> typeError $ "Method type "<> show methodTy <>" is not a stateful function type."
 
 
     -- if args are empty, we need to pass an explicit unit argument
@@ -272,7 +277,7 @@ typeSystem delta imports gamma = \case
     -- gamma doesn't change (at least in the current system) as args are only usage sites
     -- ToDO: ArgTys should match function tys
 
-    return (gamma', StateFunE (VarE stateB stateTy) qb (AppE method'' args'), ty, imports'' )
+    return (gamma', StateFunE stateVar' methodE args', ty, imports'')
 
   {-
       Delta, Gamma |- cond : Bool    Delta, Gamma |- tTrue : T   Delta, Gamma |- tFalse : T
@@ -422,15 +427,14 @@ typeSystem delta imports gamma = \case
           Right (NoTypeFound qb) -> wfError $ "No type in environment found for qualified symbol: " <> quickRender qb
           Right (Ambiguity qb1 qb2) -> symResError $ "Symbol ambiguity detected.\n" <> quickRender qb1 <> "\n vs.\n" <> quickRender qb2
 
--- ToDo: This is really unelegant i.e. we expect methods to be function literals (or anything else??), 
--- so we shouldn't make this a transformation on all exprs.
-addStateToNS ::(ErrAndLogM m, TypeErrorM m ty) => Either Binding QualifiedBinding -> Expr ty 'Unresolved -> m (Expr ty 'Unresolved)
-addStateToNS stateTyBnd (LitE (FunRefLit (FunRef (QualifiedBinding (NSRef bnds) bnd) id ty))) = do
+
+addStateToNS ::(ErrAndLogM m, TypeErrorM m ty) => Either Binding QualifiedBinding -> Binding -> m QualifiedBinding
+addStateToNS stateTyBnd  bnd = do
     let new_ns = case stateTyBnd of 
             -- This will give a path like std::something ++ Arc
-            Left sbnd -> NSRef (bnds ++ [sbnd])
-            Right (QualifiedBinding (NSRef sbnds) sbnd) -> NSRef ( bnds ++ sbnds ++ [sbnd])
-    return (LitE (FunRefLit (FunRef (QualifiedBinding new_ns bnd) id ty)))
+            Left sbnd -> NSRef [sbnd]
+            Right (QualifiedBinding (NSRef sbnds) sbnd) -> NSRef (sbnds ++ [sbnd])
+    return (QualifiedBinding new_ns bnd)
 addStateToNS _ e = throwErrorWithTrace $ 
   "The compiler didn't expect a method to be anything else than a function literal but it was:\n " 
   <> show e 

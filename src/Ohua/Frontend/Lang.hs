@@ -83,13 +83,12 @@ data Expr ty res where
   -- version
   -- Also, to allow the typecheck to check that the arg types of method include the state, it makes sense to not nest them 
   -- in an AppE expression but keep them directly in the BindE
+  -- BindE state function arguments
   BindE     :: Expr ty Unresolved -> Binding          -> [Expr ty Unresolved] -> Expr ty Unresolved
-  -- However I don't see why in StateFunE we should 
-  --     a) keep the QualifiedBinding instead of the VarE the state should be at this point -> maybe to enforce it ... well ok then 
-  --     b) keep the args in the StateFunE Expression instead of nesting it in an AppE again
-  -- StateFunE :: Expr ty Resolved   -> QualifiedBinding -> NonEmpty (Expr ty Resolved)   -> Expr ty Resolved
-  --           State VarE             fullName           method call
-  StateFunE :: Expr ty Resolved   -> QualifiedBinding -> Expr ty Resolved              -> Expr ty Resolved
+  -- The function cannot be just a binding here, because it is an expression in Alang expressions
+  -- and we need to "transport" the function type from the type system to the lowering
+  -- StateFunE state method args
+  StateFunE :: Expr ty Resolved   -> Expr ty Resolved -> NonEmpty (Expr ty Resolved)   -> Expr ty Resolved
   StmtE     :: Expr ty res -> Expr ty res                                              -> Expr ty res
   TupE      :: NonEmpty (Expr ty res)                                                  -> Expr ty res
 
@@ -163,10 +162,11 @@ preWalkER f e = case e of
           let e1' = preWalkER f e1
               e2' = preWalkER f e2
           in  f (MapE e1' e2')
-      StateFunE s sb m ->  
-          let m' = preWalkER f m
-              s' = preWalkER f s
-          in f (StateFunE s' sb m')
+      StateFunE st meth args ->  
+          let st' = preWalkER f st
+              meth' = preWalkER f meth
+              args' = NE.map (preWalkER f) args
+          in f (StateFunE st' meth' args')
       StmtE e1 e2 -> 
           let e1' = preWalkER f e1
               e2' = preWalkER f e2
@@ -247,10 +247,11 @@ preWalkMR f e = case e of
           e1' <- preWalkMR f e1
           e2' <- preWalkMR f e2
           f (MapE e1' e2')
-      StateFunE s sb m ->  do
-          m' <- preWalkMR f m
-          s' <- preWalkMR f s
-          f (StateFunE s' sb m')
+      StateFunE st meth args ->  do
+          meth' <- preWalkMR f meth
+          st' <- preWalkMR f st
+          args' <- mapM (preWalkMR f) args
+          f (StateFunE st' meth' args')
       StmtE e1 e2 ->  do
           e1' <- preWalkMR f e1
           e2' <- preWalkMR f e2
@@ -308,7 +309,7 @@ freeVars = go HS.empty
     go  ctxt (MapE e1 e2) = go ctxt e1 ++ go ctxt e2
     go  ctxt (BindE s _ xs) = go ctxt s ++ foldl (\vs e -> vs ++ go ctxt e) [] xs
     -- go  ctxt (StateFunE s _ xs) = go ctxt s ++ foldl (\vs e -> vs ++ go ctxt e) [] xs
-    go  ctxt (StateFunE s _ method ) = go ctxt s ++ go ctxt method
+    go  ctxt (StateFunE s method args ) = go ctxt s ++ go ctxt method ++ foldl (\vs e -> vs ++ go ctxt e) [] args
     go  ctxt (StmtE e1 e2) = go ctxt e1 ++ go ctxt e2
     go  ctxt (TupE es) = foldl (\vs e -> vs ++ go ctxt e) [] es
 
@@ -325,6 +326,6 @@ flatten e = case e of
         (WhileE e1 e2)-> [e] ++ flatten e1 ++ flatten e2
         (MapE e1 e2)-> [e] ++ flatten e1 ++ flatten e2
         (BindE s _ xs)-> [e] ++ flatten s ++ concatMap flatten xs 
-        (StateFunE s _ method )-> [e] ++ flatten s ++ flatten method
+        (StateFunE s method args)-> [e] ++ flatten s ++ flatten method ++ concatMap flatten (NE.toList args)
         (StmtE e1 e2)-> [e] ++ flatten e1 ++ flatten e2
         (TupE es)-> [e] ++ concatMap flatten es
