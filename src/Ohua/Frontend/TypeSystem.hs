@@ -7,11 +7,11 @@ where
 
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.List.NonEmpty as NE 
-import Data.List (nub, last)
+import Data.List (nub, last, init)
 import Data.Text.Prettyprint.Doc
 import Data.Text.Prettyprint.Doc.Render.Text
 
-import Ohua.Prelude hiding (Nat, last)
+import Ohua.Prelude hiding (Nat, last, init)
 import qualified Ohua.Prelude as Res
   ( Lit(..), FunType(..), FunRef(..))
 
@@ -173,6 +173,7 @@ typeSystem delta imports gamma = \case
       -- Then we check if function decalaration and arg types match
       resTy <- case funTy of
         FType (FunType ins out) -> do
+            traceM $ "Function: "<> show fun <> "\nArgs Resolved: "<> show args'<>"\nArgTypes Resolved: " <> show argTypesR <> "\nFunction Inputs Resolved: " <> show ins
             (_, pendingArgsTy) <- assocArgWithType (toList ins) $ toList argTypesR
             case pendingArgsTy of
               [] -> return out
@@ -378,6 +379,7 @@ typeSystem delta imports gamma = \case
           Just ty'@(FType fty)  -> return (HM.empty, LitE (FunRefLit (FunRef qBnd id fty)), ty', imports)
           _ -> do 
             (g, e, t, i) <- handleRef bnd (Just ns) (FType ty)
+            traceM $ "Handling literal yielded function type: " <> show t
             return (g,e,t,i)
 
   {-
@@ -405,19 +407,19 @@ typeSystem delta imports gamma = \case
       -- We might get references like std::sync::Arc::new here. 
       -- Such references i.e. constructor functions with namespace bring that namespace into scope i.e.
       -- iff there's a namespace on a function (std::sync::Arc) AND the return type of the function corresponds to the last
-      -- element of that namespace (new()-> Arc) then this actually is like an import of the namespace (std::sync::Arc)
-      -- and we need to add it to the imports 
+      -- element of that namespace (new()-> Arc) then this actually is like a full import of the namespace (std::sync::Arc)
+      -- and we need to add it to the imports. Full import means std::sync::Arc, as oposed to a global import std::sync::Arc::*;
       -- traceM ("Resolving symbol " <> show bnd <> " with nSpace " <> show nSpace)
       case resolveSymbols delta imports nSpace bnd of 
           Left (qBnd,ty1) -> do 
                 new_ty <- maxType ty (FType ty1)
-
+                traceM $ "Resolved Type " <> show ty1 <> " Max Type " <> show new_ty
                 -- now check if the function has a namespace
                 let imports' = case nSpace of
                       -- now check if that namespace is "imported", because the function returns the last part of it
                       Just (NSRef spaces)  -> 
                         case getReturnType new_ty of 
-                          Just (HType hTy _) | (Just (last spaces)) == (getBinding . toPath $ hTy) -> imports ++ [Glob (NSRef spaces)]
+                          Just (HType hTy _) | (Just (last spaces)) == (getBinding . toPath $ hTy) -> imports ++ [Full (NSRef $ init spaces) (last spaces)]
                           _ -> imports
                       Nothing -> imports
                 return  (HM.empty, LitE $ FunRefLit $ FunRef qBnd Nothing ty1, new_ty, imports')
@@ -426,6 +428,8 @@ typeSystem delta imports gamma = \case
           Right (QBndError qb) -> symResError $ "Unresolved qualified symbol: " <> quickRender qb
           Right (NoTypeFound qb) -> wfError $ "No type in environment found for qualified symbol: " <> quickRender qb
           Right (Ambiguity qb1 qb2) -> symResError $ "Symbol ambiguity detected.\n" <> quickRender qb1 <> "\n vs.\n" <> quickRender qb2
+          Right (AmbiguousImports qbs) -> 
+              symResError $ "Symbol import ambiguity detected.\n" <> foldl (\str pot_import -> str <> quickRender pot_import <> ",\n ") "" qbs
 
 
 addStateToNS ::(ErrAndLogM m, TypeErrorM m ty) => Either Binding QualifiedBinding -> Binding -> m QualifiedBinding
@@ -481,10 +485,29 @@ maxType t1              t2@(FType _)        = typeError $ "Comparing in compatib
 
 
 maxFunType :: (ErrAndLogM m, TypeErrorM m ty) => FunType ty Unresolved -> FunType ty Resolved-> m (FunType ty Resolved)
-maxFunType (FunType ins out) (FunType rins rout) =
-  FunType <$> mapM (uncurry maxType) (NE.zip ins rins) <*> maxType out rout
-maxFunType (STFunType sIn ins out) (STFunType rsIn rIns rout) =
-  STFunType <$> maxType sIn rsIn <*> mapM (uncurry maxType) (zip ins rIns) <*> maxType out rout
+maxFunType (FunType ins out) (FunType rIns rout) = do
+  -- If we didn't know the function type, the length of input types given and resolved will not match
+  -- On the other hand, if we knew the function type we want to compare each input type with the resolved type
+  -- So we check, if input types are convertible to resolved types and if so compare them to our resolution
+  -- Otherwise we jsut take the resolution
+  max_intypes <- case mapM unresToRes ins of
+             (Just resolvedIns) -> if length resolvedIns == length rIns 
+                                    then mapM (uncurry maxType) (NE.zip ins rIns)
+                                    else typeError $ "Comparing given and extracted function input types yielded unequal number of arguments in " 
+                                                    <> show resolvedIns <> " vs " <> show rIns
+             Nothing -> return rIns
+  FunType max_intypes <$> maxType out rout
+
+-- maxFunType (STFunType sIn ins out) (STFunType rsIn rIns rout) =
+--     STFunType <$> maxType sIn rsIn <*> mapM (uncurry maxType) (zip ins rIns) <*> maxType out rout
+maxFunType (STFunType sIn ins out) (STFunType rsIn rIns rout) = do 
+  max_intypes <- case mapM unresToRes ins of
+             (Just resolvedIns) -> if length resolvedIns == length rIns 
+                                    then mapM (uncurry maxType) (zip ins rIns)
+                                    else typeError $ "Comparing given and extracted function input types yielded unequal number of arguments in " 
+                                                    <> show resolvedIns <> " vs " <> show rIns
+             Nothing -> return rIns
+  STFunType <$> maxType sIn rsIn <*> pure max_intypes <*> maxType out rout
 maxFunType fun otherfun = typeError $ "Comparing stateful to stateless function type " <> show fun <> " with " <> show otherfun
 
 
