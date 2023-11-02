@@ -33,7 +33,7 @@ type Gamma ty res = HM.HashMap Binding (OhuaType ty res)
 type Delta ty res = HM.HashMap QualifiedBinding (Res.FunType ty res)
 
 
-resolveSymbols :: Delta ty res -> [Import] -> Maybe NSRef -> Binding -> Either (QualifiedBinding, FunType ty res ) SymResError
+resolveSymbols :: Delta ty res -> [Import] -> Maybe NSRef -> Binding -> Either (QualifiedBinding, FunType ty res) SymResError
 resolveSymbols delta mod_imports (Just nspace) bnd =
   -- trace ("Will resolve " <> show bnd <> "with imports " <> show mod_imports <> " and namespace " <> show nspace)$
   let potential_qbs = resolveQBnd mod_imports $ QualifiedBinding nspace bnd
@@ -43,29 +43,16 @@ resolveSymbols delta mod_imports (Just nspace) bnd =
                         Nothing -> defs)
         []
         potential_qbs
-   
   in case potential_defs of
        [] -> Right $ QBndError (QualifiedBinding nspace bnd)
        [(qb, t)] -> Left (qb, t)
        (def:defs) -> Right $ AmbiguousImports potential_qbs
        
 resolveSymbols delta mod_imports Nothing bnd =
-  case resolveBnd mod_imports bnd of
-    Left qbs -> check delta qbs
-    Right r -> Right r
+  -- Bindings wihtout a namespace can be local (functions) or, imported by Full, Global or Alias import just like 
+  -- So we treat them just like bindings with namespaces and add the empty/local namespace as a potential resolution
+  resolveSymbols delta mod_imports (Just (NSRef [])) bnd
 
-check :: Delta ty res -> NonEmpty QualifiedBinding -> Either (QualifiedBinding, FunType ty res) SymResError
-check delta (qb:|[]) =
-  case HM.lookup qb delta of
-    Just t -> Left (qb, t)
-    Nothing -> Right $ NoTypeFound qb
-check delta (qb:|(qbs:qbss)) =
-  case HM.lookup qb delta of
-    Just t ->
-      case check delta (qbs:|qbss) of
-            Left (qB, _) -> Right $ Ambiguity qb qB
-            Right _ -> Left (qb,t)
-    Nothing -> check delta (qbs:|qbss)
 
 resolveQBnd :: [Import] -> QualifiedBinding -> [QualifiedBinding]
 -- When we resolve a qualified Binding like Arc::clone, 
@@ -82,22 +69,11 @@ resolveQBnd :: [Import] -> QualifiedBinding -> [QualifiedBinding]
 --    if the symbol lookup in delta yields multiple results the import is ambiguose.
 -- ToDo?: We could add a check here, to not add potential global namespaces if there already was a fully specified (i.e. unequivocal) import
 resolveQBnd [] qb = [qb]
-resolveQBnd (Full (NSRef impSpaces) ns : _imps) qb@(QualifiedBinding (NSRef funSpaces) b)
-  | ns == head funSpaces = [QualifiedBinding (NSRef $ impSpaces ++ funSpaces) b]
+resolveQBnd (Full (NSRef impSpaces) ns : _imps) qb@(QualifiedBinding (NSRef funSpaces@(fs:fss)) b)
+  | ns == fs = [QualifiedBinding (NSRef $ impSpaces ++ funSpaces) b]
 resolveQBnd (Alias nspace alias: _imps) qb@(QualifiedBinding nspace' b)
   | NSRef [alias] == nspace' = [QualifiedBinding nspace b]
 resolveQBnd (Glob (NSRef impSpaces) : imps) qb@(QualifiedBinding (NSRef funSpaces) b)
   = QualifiedBinding (NSRef $ impSpaces ++ funSpaces) b : resolveQBnd imps qb
 resolveQBnd (_:is) bnd = resolveQBnd is bnd
 
-resolveBnd :: [Import] -> Binding -> Either (NonEmpty QualifiedBinding) SymResError
-resolveBnd [] bnd = Right $ BndError bnd
-resolveBnd ((Full nspace bnd') : is) bnd | bnd' == bnd =
-                                     case resolveBnd is bnd of
-                                       Left other ->  Left ( QualifiedBinding nspace bnd NE.<| other)
-                                       Right _ -> Left (QualifiedBinding nspace bnd :| [])
-resolveBnd ((Glob nspace):is) bnd =
-  case resolveBnd is bnd of
-    Left other -> Left (QualifiedBinding nspace bnd NE.<| other)
-    Right _ -> Left (QualifiedBinding nspace bnd :| [])
-resolveBnd (_:is) bnd = resolveBnd is bnd
