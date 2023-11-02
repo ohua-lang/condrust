@@ -29,6 +29,7 @@ frontend lang compScope inFile = do
 
         -- we exclude recursive functions from stand-alone compilation.
         let nsNoRecs                      =  over algos (filter (not . isRecAlgo)) nsReslvd
+        -- FIXME: We ignore global definitions from the Namespace here
         nsWellTypd                        <- updateExprs nsNoRecs (toWellTyped delta (nsNoRecs^.imports))
         nsLetRoot                         <- updateExprs nsWellTypd prepareRootAlgoVars
         return ((langNs, nsLetRoot ), placeholder)
