@@ -167,15 +167,8 @@ trans =
         VarE b ty -> Var $ TBind b ty
         LitE l -> Lit l
         LetE p e1 e2 -> Let (patToTBind p) (trans e1) (trans e2)
-        app@(AppE e1 arg) -> case arg of
-        -- ToDo: We used to add the unit argument in the lowering to ALang -> shoudl we return to that principle?
-        -- ToDo: Should args be normalized here?
-            (a:| []) ->  Apply (trans e1)  (trans a)
-            _ -> error $ 
-                "Invariant broken. During lowering to Alang the application expressions should be normalized to one argument" 
-                <> show app <> " is not. Please report this bug."
-            {-| null e2 -> e1 `Apply` Lit UnitLit
-              | otherwise -> foldl Apply e1 e2 -}
+        -- ToDo: We used to add the unit argument in the lowering to ALang -> should we return to that principle?
+        AppE e1 args -> foldl Apply (trans e1) (map trans args)
         LamE p e -> case p of
                 (p0:|[]) -> Lambda (patToTBind p0) (trans e)
                 _ -> error $
@@ -196,11 +189,7 @@ trans =
         -- It look superfluose to do this Apply conversion twice, but this should be adressed by a rewrite of ALang, not by a refactoring FLang
         StateFunE stateE methodE args -> 
             let method' = BindState (trans stateE) (trans methodE)
-            in case args of
-                (a:| []) ->  Apply method' (trans a)
-                _ -> error $ 
-                    "Invariant broken. During lowering to Alang the application expressions should be normalized to one argument" 
-                    <> show methodE <> " is not. Please report this bug."
+            in foldl Apply method' (map trans args)
         StmtE e1 cont -> Let (TBind "_" $ IType TypeUnit) (trans e1) (trans cont)
         TupE exprs -> 
             let alExprs = NE.map trans exprs
