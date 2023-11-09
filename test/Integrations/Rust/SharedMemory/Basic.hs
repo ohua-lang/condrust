@@ -9,7 +9,7 @@ import Language.Rust.Data.Position (Span)
 spec :: Spec
 spec =
     describe "Basics" $ do
-{-
+
         it "a function" $
             (showCode "Compiled: " =<< compileCode  [sourceFile|
                 use funs::hello_world;
@@ -34,7 +34,7 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:" simpleComposition
                 compiled `shouldBe` expected)
--}
+
 -- FIXME see issue ohua-lang/ohua-frontend#8
 --        it "var multi fail" $
 --            -- enforce Arc construction via type-check
@@ -47,21 +47,10 @@ spec =
 --                    h2(x,y)
 --                }
 --                |]) `shouldThrow` anyErrorCall
-{-
-        it "binary operations" $ 
-          (showCode "Compiled: " =<< compileCode[sourceFile|
-                fn test() -> i32 {
-                    let x:i32 = 0;
-                    let y:i32 = 42;
-                    let z:i32 = x + y;
-                    let z1:i32 = z * 2;
-                    z1 
-                }
-                |]) >>=
-            (\compiled -> do
-                expected <- showCode "Expected:" binaryOperation
-                compiled `shouldBe` expected)
--}        
+
+     {-FIXME: We cannot compile simple binary operations now, because we don't propagate 
+     agrument types and they are overloaded
+     
         it "binary operations" $ 
           (compileCode[sourceFile|
                 fn test() -> i32 {
@@ -72,9 +61,9 @@ spec =
                     z1 
                 }
                 |] `shouldThrow` anyException) 
-
+-}
         it "var multi 1: read-only" $
-          (showCode "Compiled: " =<< compileCodeWithDebug  [sourceFile|
+          (showCode "Compiled: " =<< compileCode [sourceFile|
                 use crate::funs::*;
 
                 fn test() -> i32 {
@@ -88,9 +77,11 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:" var_multi_1
                 compiled `shouldBe` expected)
-{-}
+
         it "Struct Namespace: distinguish clones" $
-          -- to check that the type system can distiguish namesapces of the clone function
+          -- to check that the type system can distiguish namespaces of the clone function
+          -- and to check that use_arc is found in the impl space of State, not as a pure function from 
+          -- top-level definitions 
           (showCode "Compiled: " =<< compileCode  [sourceFile|
                 use crate::funs::*;
 
@@ -108,11 +99,11 @@ spec =
 
         it "env vars" $
             (showCode "Compiled: " =<< compileCode  [sourceFile|
-                use funs;
+                use crate::funs;
 
                 fn test(i: i32) -> String {
                     let x:i32 = funs::h(i);
-                    funs::g(x)
+                    funs::from_int(x)
                 }
                 |]) >>=
             (\compiled -> do
@@ -121,7 +112,7 @@ spec =
 
         it "algo loading" $
             (showCode "Compiled: " =<< compileCode  [sourceFile|
-                use funs;
+                use crate::funs;
 
                 fn algo(i: i32, j:char) -> String {
                     let x:i32 = funs::h(i);
@@ -129,7 +120,9 @@ spec =
                 }
 
                 fn test() -> String {
-                    algo(4)
+                    let c = funs::make_char();
+                    let i = funs::somefun();
+                    algo(i, c)
                 }
                 |]) >>=
             (\compiled -> do
@@ -142,11 +135,12 @@ spec =
 
                 fn algo(i: i32) -> String {
                     let x:i32 = h(i);
-                    g(x)
+                    g()
                 }
 
                 fn test() -> String {
-                    algo(4)
+                    let inp = some_int();
+                    algo(inp)
                 }
                 |]) >>= 
             -- Question: I wonder why I didn't notice until now but ...Why are tasks doubled in 
@@ -155,7 +149,21 @@ spec =
                 expected <- showCode "Expected:"  algoLoadingGlobs
                 compiled `shouldBe` expected)
 
+        it "algo loading (globs) - wrongly typed" $
+            compileCode  [sourceFile|
+                use crate::funs::*;
 
+                fn algo(i: i32) -> String {
+                    let x:i32 = h(i);
+                    g(x)
+                }
+
+                fn test() -> String {
+                    let inp = some_int();
+                    algo(inp)
+                }
+                |] `shouldThrow` anyException
+{-
         describe "tuples" $ do
 
           it "different targets" $
@@ -193,7 +201,7 @@ spec =
                 use crate::funs::*;
 
                 fn test() -> i32 {
-                    let (a,b, c):(i32, i32, String) = f_tup();
+                    let (a, b, c):(i32, i32, String) = f_tup();
                     let x:i32 = f0(a);
                     let y:i32 = f1(b);
                     let z:usize = take_string(c);
@@ -440,7 +448,7 @@ fn test() -> i32 {
 
 var_multi_2 :: SourceFile Span
 var_multi_2 = [sourceFile|
- use crate::funs::*;
+use crate::funs::*;
 
 fn test() -> String {
   #[derive(Debug)]
@@ -458,45 +466,52 @@ fn test() -> String {
       RunError::RecvFailed
     }
   }
-  let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel::<  String,>();
-  let (x_0_0_1_tx, x_0_0_1_rx) = std::sync::mpsc::channel::<  i32,>();
-  let (x_0_0_0_0_tx, x_0_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
-  let (y_0_0_0_tx, y_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
-  let (x1_0_0_0_tx, x1_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (result_0_0_0_tx, result_0_0_0_rx) =
+    std::sync::mpsc::channel::<  String,>();
+  let (x1_0_0_1_tx, x1_0_0_1_rx) = std::sync::mpsc::channel::<  Arc,>();
+  let (x2_0_0_1_tx, x2_0_0_1_rx) = std::sync::mpsc::channel::<  State,>();
+  let (y1_0_0_0_tx, y1_0_0_0_rx) = std::sync::mpsc::channel::<  Arc,>();
+  let (y2_0_0_1_tx, y2_0_0_1_rx) = std::sync::mpsc::channel::<  State,>();
   let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
     Vec::new();
   tasks
     .push(Box::new(move || -> _ {
       loop {
-        let var_0 = x1_0_0_0_rx.recv()?;
-        let var_1 = y_0_0_0_rx.recv()?;
-        let a_0_0 = h2(var_0, var_1);
-        a_0_0_tx.send(a_0_0)?;
+        let mut var_0 = y2_0_0_1_rx.recv()?;
+        let var_1 = y1_0_0_0_rx.recv()?;
+        let result_0_0_0 = var_0.use_arc(var_1);
+        result_0_0_0_tx.send(result_0_0_0)?;
         ()
       }
     }));
   tasks
     .push(Box::new(move || -> _ {
       loop {
-        let var_0 = x_0_0_0_0_rx.recv()?;
-        let y_0_0_0 = h(var_0);
-        y_0_0_0_tx.send(y_0_0_0)?;
+        let mut var_0 = x2_0_0_1_rx.recv()?;
+        let y2_0_0_1 = var_0.clone();
+        y2_0_0_1_tx.send(y2_0_0_1)?;
         ()
       }
     }));
   tasks
     .push(Box::new(move || -> _ {
       loop {
-        let mut var_0 = x_0_0_1_rx.recv()?;
-        let x1_0_0_0 = var_0.clone();
-        x1_0_0_0_tx.send(x1_0_0_0)?;
-        x_0_0_0_0_tx.send(var_0)?
+        let mut var_0 = x1_0_0_1_rx.recv()?;
+        let y1_0_0_0 = var_0.clone();
+        y1_0_0_0_tx.send(y1_0_0_0)?;
+        ()
       }
     }));
   tasks
     .push(Box::new(move || -> _ {
-      let x_0_0_1 = f();
-      x_0_0_1_tx.send(x_0_0_1)?;
+      let x2_0_0_1 = crate::funs::State::new(2);
+      x2_0_0_1_tx.send(x2_0_0_1)?;
+      Ok(())
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      let x1_0_0_1 = std::sync::Arc::new(1);
+      x1_0_0_1_tx.send(x1_0_0_1)?;
       Ok(())
     }));
   let handles: Vec<  std::thread::JoinHandle<  _,>,> =
@@ -509,7 +524,7 @@ fn test() -> String {
       eprintln!("[Error] A worker thread of an Ohua algorithm has panicked!");
     }
   }
-  match a_0_0_rx.recv() {
+  match result_0_0_0_rx.recv() {
     Ok(res) => res,
     Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
   }
@@ -517,164 +532,186 @@ fn test() -> String {
 
 envVars :: SourceFile Span
 envVars = [sourceFile|
-                        use funs;
+use crate::funs;
 
-                        fn test(i: i32) -> String {
-                            #[derive(Debug)]
-                            enum RunError {
-                              SendFailed,
-                              RecvFailed,
-                            }
-                            impl<  T: Send,> From<  std::sync::mpsc::SendError<  T,>,> for RunError {
-                              fn from(_err: std::sync::mpsc::SendError<  T,>) -> Self {
-                                RunError::SendFailed
-                              }
-                            }
-                            impl From<  std::sync::mpsc::RecvError,> for RunError {
-                              fn from(_err: std::sync::mpsc::RecvError) -> Self {
-                                RunError::RecvFailed
-                              }
-                            }
-                            let (result_0_0_0_tx, result_0_0_0_rx) = std::sync::mpsc::channel::<  String,>();
-                            let (x_0_0_0_tx, x_0_0_0_rx)  = std::sync::mpsc::channel::<i32>();
-                            let mut tasks: Vec<Box<FnOnce() -> Result<(), RunError> + Send>> = Vec::new();
-                            tasks
-                                .push(Box::new(move || -> _ {
-                                    loop {
-                                        let var_0 = x_0_0_0_rx.recv()?;
-                                        let result_0_0_0 = funs::g();
-                                        result_0_0_0_tx.send(result_0_0_0)?;
-                                        ()
-                                    }
-                                }));
-                            tasks
-                                .push(Box::new(move || -> _ {
-                                    let x_0_0_0 = funs::h(i);
-                                    x_0_0_0_tx.send(x_0_0_0)?;
-                                    Ok(())
-                                }));
-                            let handles: Vec<  std::thread::JoinHandle<  _,>,> =
-                                tasks
-                                    .into_iter()
-                                    .map(|t| { std::thread::spawn(move || { let _ = t(); }) })
-                                    .collect();
-                            for h in handles {
-                                if let Err(_) = h.join() {
-                                    eprintln!("[Error] A worker thread of an Ohua algorithm has panicked!");
-                                }
-                            }
-                            match result_0_0_0_rx.recv() {
-                                Ok(res) => res,
-                                Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
-                            }
-                        }
+fn test(i: i32) -> String {
+  #[derive(Debug)]
+  enum RunError {
+    SendFailed,
+    RecvFailed,
+  }
+  impl<  T: Send,> From<  std::sync::mpsc::SendError<  T,>,> for RunError {
+    fn from(_err: std::sync::mpsc::SendError<  T,>) -> Self {
+      RunError::SendFailed
+    }
+  }
+  impl From<  std::sync::mpsc::RecvError,> for RunError {
+    fn from(_err: std::sync::mpsc::RecvError) -> Self {
+      RunError::RecvFailed
+    }
+  }
+  let (result_0_0_0_tx, result_0_0_0_rx) =
+    std::sync::mpsc::channel::<  String,>();
+  let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
+    Vec::new();
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
+        let var_0 = x_0_0_0_rx.recv()?;
+        let result_0_0_0 = crate::funs::from_int(var_0);
+        result_0_0_0_tx.send(result_0_0_0)?;
+        ()
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      let x_0_0_0 = crate::funs::h(i);
+      x_0_0_0_tx.send(x_0_0_0)?;
+      Ok(())
+    }));
+  let handles: Vec<  std::thread::JoinHandle<  _,>,> =
+    tasks
+      .into_iter()
+      .map(|t| { std::thread::spawn(move || { let _ = t(); }) })
+      .collect();
+  for h in handles {
+    if let Err(_) = h.join() {
+      eprintln!("[Error] A worker thread of an Ohua algorithm has panicked!");
+    }
+  }
+  match result_0_0_0_rx.recv() {
+    Ok(res) => res,
+    Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
+  }
+}
                     |]
 
 algoLoading :: SourceFile Span
 algoLoading = [sourceFile|
-                      use funs;
+use crate::funs;
 
-                    fn algo(i: i32) -> String {
-                    #[derive(Debug)]
-                    enum RunError {
-                        SendFailed,
-                        RecvFailed,
-                    }
-                    impl<  T: Send,> From<  std::sync::mpsc::SendError<  T,>,> for RunError {
-                        fn from(_err: std::sync::mpsc::SendError<  T,>) -> Self {
-                        RunError::SendFailed
-                        }
-                    }
-                    impl From<  std::sync::mpsc::RecvError,> for RunError {
-                        fn from(_err: std::sync::mpsc::RecvError) -> Self {
-                        RunError::RecvFailed
-                        }
-                    }
-                    let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel::<  String,>();
-                    let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
-                    let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
-                        Vec::new();
-                    tasks
-                        .push(Box::new(move || -> _ {
-                        loop {
-                            let var_0 = x_0_0_0_rx.recv()?;
-                            let a_0_0 = funs::g(var_0);
-                            a_0_0_tx.send(a_0_0)?;
-                            ()
-                        }
-                        }));
-                    tasks
-                        .push(Box::new(move || -> _ {
-                        let x_0_0_0 = funs::h(i);
-                        x_0_0_0_tx.send(x_0_0_0)?;
-                        Ok(())
-                        }));
-                    let handles: Vec<  std::thread::JoinHandle<  _,>,> =
-                        tasks
-                        .into_iter()
-                        .map(|t| { std::thread::spawn(move || { let _ = t(); }) })
-                        .collect();
-                    for h in handles {
-                        if let Err(_) = h.join() {
-                        eprintln!("[Error] A worker thread of an Ohua algorithm has panicked!");
-                        }
-                    }
-                    match a_0_0_rx.recv() {
-                        Ok(res) => res,
-                        Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
-                    }
-                    }
+fn algo(i: i32, j: char) -> String {
+  #[derive(Debug)]
+  enum RunError {
+    SendFailed,
+    RecvFailed,
+  }
+  impl<  T: Send,> From<  std::sync::mpsc::SendError<  T,>,> for RunError {
+    fn from(_err: std::sync::mpsc::SendError<  T,>) -> Self {
+      RunError::SendFailed
+    }
+  }
+  impl From<  std::sync::mpsc::RecvError,> for RunError {
+    fn from(_err: std::sync::mpsc::RecvError) -> Self {
+      RunError::RecvFailed
+    }
+  }
+  let (result_0_0_0_tx, result_0_0_0_rx) =
+    std::sync::mpsc::channel::<  String,>();
+  let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
+    Vec::new();
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
+        let var_1 = x_0_0_0_rx.recv()?;
+        let result_0_0_0 = crate::funs::take_char_i(j, var_1);
+        result_0_0_0_tx.send(result_0_0_0)?;
+        ()
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      let x_0_0_0 = crate::funs::h(i);
+      x_0_0_0_tx.send(x_0_0_0)?;
+      Ok(())
+    }));
+  let handles: Vec<  std::thread::JoinHandle<  _,>,> =
+    tasks
+      .into_iter()
+      .map(|t| { std::thread::spawn(move || { let _ = t(); }) })
+      .collect();
+  for h in handles {
+    if let Err(_) = h.join() {
+      eprintln!("[Error] A worker thread of an Ohua algorithm has panicked!");
+    }
+  }
+  match result_0_0_0_rx.recv() {
+    Ok(res) => res,
+    Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
+  }
+}
 
-                    fn test() -> String {
-                    #[derive(Debug)]
-                    enum RunError {
-                        SendFailed,
-                        RecvFailed,
-                    }
-                    impl<  T: Send,> From<  std::sync::mpsc::SendError<  T,>,> for RunError {
-                        fn from(_err: std::sync::mpsc::SendError<  T,>) -> Self {
-                        RunError::SendFailed
-                        }
-                    }
-                    impl From<  std::sync::mpsc::RecvError,> for RunError {
-                        fn from(_err: std::sync::mpsc::RecvError) -> Self {
-                        RunError::RecvFailed
-                        }
-                    }
-                    let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel::<  String,>();
-                    let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
-                    let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
-                        Vec::new();
-                    tasks
-                        .push(Box::new(move || -> _ {
-                        loop {
-                            let var_0 = x_0_0_0_rx.recv()?;
-                            let a_0_0 = funs::g(var_0);
-                            a_0_0_tx.send(a_0_0)?;
-                            ()
-                        }
-                        }));
-                    tasks
-                        .push(Box::new(move || -> _ {
-                        let x_0_0_0 = funs::h(4);
-                        x_0_0_0_tx.send(x_0_0_0)?;
-                        Ok(())
-                        }));
-                    let handles: Vec<  std::thread::JoinHandle<  _,>,> =
-                        tasks
-                        .into_iter()
-                        .map(|t| { std::thread::spawn(move || { let _ = t(); }) })
-                        .collect();
-                    for h in handles {
-                        if let Err(_) = h.join() {
-                        eprintln!("[Error] A worker thread of an Ohua algorithm has panicked!");
-                        }
-                    }
-                    match a_0_0_rx.recv() {
-                        Ok(res) => res,
-                        Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
-                    }
-                    }
+fn test() -> String {
+  #[derive(Debug)]
+  enum RunError {
+    SendFailed,
+    RecvFailed,
+  }
+  impl<  T: Send,> From<  std::sync::mpsc::SendError<  T,>,> for RunError {
+    fn from(_err: std::sync::mpsc::SendError<  T,>) -> Self {
+      RunError::SendFailed
+    }
+  }
+  impl From<  std::sync::mpsc::RecvError,> for RunError {
+    fn from(_err: std::sync::mpsc::RecvError) -> Self {
+      RunError::RecvFailed
+    }
+  }
+  let (result_0_0_0_tx, result_0_0_0_rx) =
+    std::sync::mpsc::channel::<  String,>();
+  let (i_1_0_0_tx, i_1_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (c_0_0_0_tx, c_0_0_0_rx) = std::sync::mpsc::channel::<  char,>();
+  let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
+    Vec::new();
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
+        let var_0 = c_0_0_0_rx.recv()?;
+        let var_1 = x_0_0_0_rx.recv()?;
+        let result_0_0_0 = crate::funs::take_char_i(var_0, var_1);
+        result_0_0_0_tx.send(result_0_0_0)?;
+        ()
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      loop {
+        let var_0 = i_1_0_0_rx.recv()?;
+        let x_0_0_0 = crate::funs::h(var_0);
+        x_0_0_0_tx.send(x_0_0_0)?;
+        ()
+      }
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      let i_1_0_0 = crate::funs::somefun();
+      i_1_0_0_tx.send(i_1_0_0)?;
+      Ok(())
+    }));
+  tasks
+    .push(Box::new(move || -> _ {
+      let c_0_0_0 = crate::funs::make_char();
+      c_0_0_0_tx.send(c_0_0_0)?;
+      Ok(())
+    }));
+  let handles: Vec<  std::thread::JoinHandle<  _,>,> =
+    tasks
+      .into_iter()
+      .map(|t| { std::thread::spawn(move || { let _ = t(); }) })
+      .collect();
+  for h in handles {
+    if let Err(_) = h.join() {
+      eprintln!("[Error] A worker thread of an Ohua algorithm has panicked!");
+    }
+  }
+  match result_0_0_0_rx.recv() {
+    Ok(res) => res,
+    Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
+  }
+}
                     |]
 
 algoLoadingGlobs :: SourceFile Span
@@ -682,107 +719,89 @@ algoLoadingGlobs =
                     [sourceFile|
                         use crate::funs::*;
 
-                        fn algo(i: i32) -> String {
-                        #[derive(Debug)]
-                        enum RunError {
-                            SendFailed,
-                            RecvFailed,
-                        }
-                        impl<  T: Send,> From<  std::sync::mpsc::SendError<  T,>,> for RunError {
-                            fn from(_err: std::sync::mpsc::SendError<  T,>) -> Self {
-                            RunError::SendFailed
-                            }
-                        }
-                        impl From<  std::sync::mpsc::RecvError,> for RunError {
-                            fn from(_err: std::sync::mpsc::RecvError) -> Self {
-                            RunError::RecvFailed
-                            }
-                        }
-                        let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel::<  String,>();
-                        let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
-                        let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
-                            Vec::new();
-                        tasks
-                            .push(Box::new(move || -> _ {
-                            loop {
-                                let var_0 = x_0_0_0_rx.recv()?;
-                                let a_0_0 = g(var_0);
-                                a_0_0_tx.send(a_0_0)?;
-                                ()
-                            }
-                            }));
-                        tasks
-                            .push(Box::new(move || -> _ {
-                            let x_0_0_0 = h(i);
-                            x_0_0_0_tx.send(x_0_0_0)?;
-                            Ok(())
-                            }));
-                        let handles: Vec<  std::thread::JoinHandle<  _,>,> =
-                            tasks
-                            .into_iter()
-                            .map(|t| { std::thread::spawn(move || { let _ = t(); }) })
-                            .collect();
-                        for h in handles {
-                            if let Err(_) = h.join() {
-                            eprintln!("[Error] A worker thread of an Ohua algorithm has panicked!");
-                            }
-                        }
-                        match a_0_0_rx.recv() {
-                            Ok(res) => res,
-                            Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
-                        }
-                        }
+fn algo(i: i32) -> String {
+  #[derive(Debug)]
+  enum RunError {
+    SendFailed,
+    RecvFailed,
+  }
+  impl<  T: Send,> From<  std::sync::mpsc::SendError<  T,>,> for RunError {
+    fn from(_err: std::sync::mpsc::SendError<  T,>) -> Self {
+      RunError::SendFailed
+    }
+  }
+  impl From<  std::sync::mpsc::RecvError,> for RunError {
+    fn from(_err: std::sync::mpsc::RecvError) -> Self {
+      RunError::RecvFailed
+    }
+  }
+  let (result_0_0_0_tx, result_0_0_0_rx) =
+    std::sync::mpsc::channel::<  String,>();
+  let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
+    Vec::new();
+  tasks
+    .push(Box::new(move || -> _ {
+      let result_0_0_0 = crate::funs::g();
+      result_0_0_0_tx.send(result_0_0_0)?;
+      Ok(())
+    }));
+  let handles: Vec<  std::thread::JoinHandle<  _,>,> =
+    tasks
+      .into_iter()
+      .map(|t| { std::thread::spawn(move || { let _ = t(); }) })
+      .collect();
+  for h in handles {
+    if let Err(_) = h.join() {
+      eprintln!("[Error] A worker thread of an Ohua algorithm has panicked!");
+    }
+  }
+  match result_0_0_0_rx.recv() {
+    Ok(res) => res,
+    Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
+  }
+}
 
-                        fn test() -> String {
-                        #[derive(Debug)]
-                        enum RunError {
-                            SendFailed,
-                            RecvFailed,
-                        }
-                        impl<  T: Send,> From<  std::sync::mpsc::SendError<  T,>,> for RunError {
-                            fn from(_err: std::sync::mpsc::SendError<  T,>) -> Self {
-                            RunError::SendFailed
-                            }
-                        }
-                        impl From<  std::sync::mpsc::RecvError,> for RunError {
-                            fn from(_err: std::sync::mpsc::RecvError) -> Self {
-                            RunError::RecvFailed
-                            }
-                        }
-                        let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel::<  String,>();
-                        let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
-                        let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
-                            Vec::new();
-                        tasks
-                            .push(Box::new(move || -> _ {
-                            loop {
-                                let var_0 = x_0_0_0_rx.recv()?;
-                                let a_0_0 = g(var_0);
-                                a_0_0_tx.send(a_0_0)?;
-                                ()
-                            }
-                            }));
-                        tasks
-                            .push(Box::new(move || -> _ {
-                            let x_0_0_0 = h(4);
-                            x_0_0_0_tx.send(x_0_0_0)?;
-                            Ok(())
-                            }));
-                        let handles: Vec<  std::thread::JoinHandle<  _,>,> =
-                            tasks
-                            .into_iter()
-                            .map(|t| { std::thread::spawn(move || { let _ = t(); }) })
-                            .collect();
-                        for h in handles {
-                            if let Err(_) = h.join() {
-                            eprintln!("[Error] A worker thread of an Ohua algorithm has panicked!");
-                            }
-                        }
-                        match a_0_0_rx.recv() {
-                            Ok(res) => res,
-                            Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
-                        }
-                        }
+fn test() -> String {
+  #[derive(Debug)]
+  enum RunError {
+    SendFailed,
+    RecvFailed,
+  }
+  impl<  T: Send,> From<  std::sync::mpsc::SendError<  T,>,> for RunError {
+    fn from(_err: std::sync::mpsc::SendError<  T,>) -> Self {
+      RunError::SendFailed
+    }
+  }
+  impl From<  std::sync::mpsc::RecvError,> for RunError {
+    fn from(_err: std::sync::mpsc::RecvError) -> Self {
+      RunError::RecvFailed
+    }
+  }
+  let (result_0_0_0_tx, result_0_0_0_rx) =
+    std::sync::mpsc::channel::<  String,>();
+  let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
+    Vec::new();
+  tasks
+    .push(Box::new(move || -> _ {
+      let result_0_0_0 = crate::funs::g();
+      result_0_0_0_tx.send(result_0_0_0)?;
+      Ok(())
+    }));
+  let handles: Vec<  std::thread::JoinHandle<  _,>,> =
+    tasks
+      .into_iter()
+      .map(|t| { std::thread::spawn(move || { let _ = t(); }) })
+      .collect();
+  for h in handles {
+    if let Err(_) = h.join() {
+      eprintln!("[Error] A worker thread of an Ohua algorithm has panicked!");
+    }
+  }
+  match result_0_0_0_rx.recv() {
+    Ok(res) => res,
+    Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
+  }
+}
                     |]
 
 differentTargets :: SourceFile Span

@@ -69,7 +69,7 @@ compileModule inCode opts cty = do
     $ \testDir -> do
       setCurrentDirectory testDir
       let inFile = testDir </> "test.rs"
-      _ <- mapM
+      mapM_
         (\(f,c) -> L.writeFile (testDir </> f) $ renderRustCode c)
         [ ("funs.rs"  , funs)
         , ("benchs.rs", benchs)
@@ -87,9 +87,9 @@ compileModule inCode opts cty = do
             $ compile inFile compScope options backendOptions integrationOptions outDir
           let outFile = outDir </> takeFileName inFile
 
-          -- producedCode <- readFile outFile
-          -- putStr ("\n PRODUCED MODULE: \n"::String)
-          -- putStr producedCode
+          producedCode <- readFile outFile
+          putStr ("\n PRODUCED MODULE: \n"::String)
+          putStr producedCode
           -- putStr ("\n \n \n"::String)
           -- placeholderFile <-readFile (outDir </> "placeholderlib.rs")
           -- putStr placeholderFile
@@ -245,6 +245,10 @@ pub fn check(i:i32) -> bool {
     i < 23
 }
 
+pub fn make_char() -> char {
+    'ö'
+}
+
 pub fn host_id(i:bool) -> (bool, bool) {
     (i,i)
 }
@@ -293,6 +297,14 @@ pub fn otherfun() -> i32 {
 
 pub fn from_int(i:i32) -> String {
    String::new("Actually I ignore the input")
+}
+
+pub fn f_tup() -> (i32, i32, String) {
+    return (1, 2, String::from("Hello, world!") )
+}
+
+pub fn fi_tup(i:i32) -> (i32, i32) {
+    return (23+i, 42+i)
 }
 |]
 
