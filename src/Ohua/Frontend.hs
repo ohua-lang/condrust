@@ -27,14 +27,14 @@ frontend lang compScope inFile = do
         --              the 'register' a map {algo_name: lowered code} used for inlining the algorithms,
         --              placeholder (potentialy) containing host language code we "wrapped" out of the input code because we cannot compile it)
         (langNs, ns, reg, placeholder) <- loadAlgosAndImports lang compScope inFile
-        -- make sure all functions have at least a Unit argument and no algo returns a literal 
-        nsTransf                       <- updateExprs ns trans
         -- Inline algo code from the register
-        nsReslvd                       <- resolveNS (nsTransf,reg)
+        nsInlined                      <- resolveNS (ns,reg)
+        -- make sure all functions have at least a Unit argument and no algo returns a literal 
+        nsTransf                       <- updateExprs nsInlined trans
         -- Extract Delta i.e. the types of all functions used in the algos as {function_name:type}
-        delta                          <- loadTypes lang langNs nsReslvd
+        delta                          <- loadTypes lang langNs nsTransf
         -- Exclude recursive functions from stand-alone compilation.
-        let nsNoRecs                      =  over algos (filter (not . isRecAlgo)) nsReslvd
+        let nsNoRecs                      =  over algos (filter (not . isRecAlgo)) nsTransf
         -- FIXME: We ignore global definitions from the Namespace here
         -- Check typing of algorithms and propagate type information from Delta 
         nsWellTypd                        <- updateExprs nsNoRecs (toWellTyped delta (nsNoRecs^.imports))
