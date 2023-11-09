@@ -167,14 +167,18 @@ instance Heq (FunType ty s1) (FunType ty s2) where
 
 
 resToUnres :: OhuaType ty Resolved -> Maybe (OhuaType ty Unresolved)
--- HTpye gets it's resoltuion from Internal Type, which can only be resolved at this point so I can't pass it back
+-- HTpye gets it's resolution from Internal Type, which can only be resolved at this point so I can't pass it back
 resToUnres (HType hty _miTy)   = Just $ HType hty Nothing
 resToUnres (TType tys) = case mapM resToUnres tys of
       Just rTys -> Just $ TType rTys
       Nothing -> Nothing
--- ToDO: Can/Should we unresolve function types?
-resToUnres (FType _fTy)  = Nothing
-resToUnres (IType _ )         = Nothing
+resToUnres (FType (FunType argsTys retTy))  = do
+  fTy <- FunType  <$> mapM resToUnres argsTys <*> resToUnres retTy
+  return (FType fTy)  
+resToUnres (FType (STFunType stTy argsTys retTy))  = do
+  fTy <- STFunType <$> resToUnres stTy <*> mapM resToUnres argsTys <*> resToUnres retTy
+  return (FType fTy)
+resToUnres (IType _ )    = Nothing
 
 unresToRes :: OhuaType ty Unresolved -> Maybe (OhuaType ty Resolved)
 -- HTpye gets it's resolution from Internal Type, which can only be resolved at this point so I can't pass it back
