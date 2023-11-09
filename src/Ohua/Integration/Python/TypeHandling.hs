@@ -26,6 +26,6 @@ instance Pathable PythonVarType where
 instance Pretty PythonVarType where
     pretty PythonObject = "obj"
 
-type FunTypes = HM.HashMap QualifiedBinding (FunType PythonVarType Resolved)
+type FunTypesMap = HM.HashMap QualifiedBinding (FunType PythonVarType Resolved)
 
 data Module = Module FilePath (Py.Module Py.SrcSpan)

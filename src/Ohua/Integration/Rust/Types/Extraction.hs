@@ -21,7 +21,7 @@ import qualified Data.Text.Prettyprint.Doc as Doc (Pretty(..))
 import Data.List.NonEmpty hiding (map)
 import Data.Text (pack)
 
-
+-- ToDo: Should we move this to the Common subset and replace the RustType in Subset?
 data Module = Module FilePath (SourceFile Span)
 
 data RustVarType = Self (Ty ()) (Maybe (Lifetime ())) Mutability | Normal (Ty ()) deriving (Show)
@@ -37,7 +37,7 @@ instance Eq RustVarType where
 
 
 type RustHostType = HostType RustVarType
-type FunTypes = HM.HashMap QualifiedBinding (FunType RustVarType Resolved)
+type FunTypesMap = HM.HashMap QualifiedBinding (FunType RustVarType Resolved)
 
 
 instance Doc.Pretty RustVarType where
@@ -78,9 +78,9 @@ asHostSelf ty lt mut = HType ((HostType $ Self (deSpan ty) (map deSpan lt) mut))
 
 -- | Load the given file as AST, pattern match on the content and collect
 --   the types of all defined functions (fn, impl or inside trait) into a
---   Hashmap @FunTypes@ mapping function bindings to their types
+--   Hashmap @FunTypesMap@ mapping function bindings to their types
 
-extractFromFile :: ErrAndLogM m => FilePath -> m FunTypes
+extractFromFile :: ErrAndLogM m => FilePath -> m FunTypesMap
 extractFromFile srcFile = extract srcFile =<< liftIO (loadRustFile srcFile)
 
 extract :: forall m.ErrAndLogM m => FilePath -> SourceFile Span -> m (HM.HashMap QualifiedBinding (FunType RustVarType Resolved))

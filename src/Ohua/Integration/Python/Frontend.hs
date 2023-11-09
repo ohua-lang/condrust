@@ -147,15 +147,15 @@ instance Integration (Language 'Python) where
             convertOwn [] = [filePathToNsRef filepath]
             convertOwn n = n
 
-            typesFromNS :: ErrAndLogM m => [NSRef] -> m FunTypes
+            typesFromNS :: ErrAndLogM m => [NSRef] -> m FunTypesMap
             typesFromNS nsRefs = HM.unions <$> mapM (extractFromFile . toFilePath . (,".py") ) nsRefs
 
-            verifyAndRegister :: ErrAndLogM m => FunTypes -> ([NSRef], QualifiedBinding)
+            verifyAndRegister :: ErrAndLogM m => FunTypesMap -> ([NSRef], QualifiedBinding)
                         -> m (QualifiedBinding, FunType PythonVarType)
             verifyAndRegister fun_types ([candidate], qB@(QualifiedBinding _ qBName)) = undefined
             verifyAndRegister fun_types ( _ , qB@(QualifiedBinding _ qBName)) = undefine
 
-            assignTypes :: ErrAndLogM m => FunTypes -> FrLang.Expr PythonVarType Unresolved -> m (FrLang.Expr PythonVarType Unresolved)
+            assignTypes :: ErrAndLogM m => FunTypesMap -> FrLang.Expr PythonVarType Unresolved -> m (FrLang.Expr PythonVarType Unresolved)
             assignTypes funTypes function = case function of
                 (AppEU (LitE (FunRefLit (FunRef qBinding funID _))) args) ->
                     return $
@@ -292,14 +292,11 @@ subExprToIR (Sub.Call (Sub.Pure bnd) args) = do
     let argTypes = neOfPyType args'
     funLit <- toFunRefLit bnd (argTypes, defaultType)
     return $ AppEU funLit args'
-subExprToIR (Sub.Call (Sub.Dotted objBnd funBnd) args) = do
+subExprToIR (Sub.Call (Sub.Dotted objBnd (QualifiedBinding _nsref funBnd)) args) = do
     args' <- mapM subArgToIR args
      -- FIXME: again we're constructing a function type with the unti argument added, this leaks internals and shouldn't happen in the integration
     let argTypes = listOfPyType args
-        method = LitE (FunRefLit (FunRef funBnd Nothing $ STFunType defaultType argTypes defaultType))
-    --    receiver = VarE objBnd defaultType  
-    -- return $ BindE receiver method `AppEU` args'
-    return $ BindE method objBnd args'
+    return $ BindE (VarE objBnd defaultType) funBnd args'
 subExprToIR (Sub.Call (Sub.Direct lambdaExpr) args) = do
     args' <- mapM subArgToIR args
     fun <- subExprToIR lambdaExpr
