@@ -63,18 +63,18 @@ patTyBnds = \case
     VarP bnd ty -> (bnd, ty) :| []
     TupP (ps) -> neConcat $ map patTyBnds ps
 
-type Expr :: Type -> Resolution -> Type
-data Expr ty res where
+type Expr :: Type -> Resolution -> F Expr -> Type
+data Expr ty res f where
   VarE      :: Binding -> OhuaType ty res                                              -> Expr ty res
   LitE      :: Lit ty res                                                              -> Expr ty res
   LetE      :: Pat ty res -> Expr ty res -> Expr ty res                                -> Expr ty res
   -- We need to add unit arguments and unit parameters to applications and abstractions without args or 
   -- parameters. However, internal types (unit) should only appear in resolved expressions
   -- So there is a unresolved and a resolved version of App and Lam now 
-  AppEU     :: Expr ty Unresolved -> [Expr ty Unresolved]                              -> Expr ty Unresolved
-  AppE      :: Expr ty Resolved -> NonEmpty (Expr ty Resolved)                         -> Expr ty Resolved
-  LamEU     :: [Pat ty Unresolved] -> Expr ty Unresolved                               -> Expr ty Unresolved
-  LamE      :: NonEmpty (Pat ty Resolved) -> Expr ty Resolved                          -> Expr ty Resolved
+  -- AppEU     :: Expr ty Unresolved -> [Expr ty Unresolved]                              -> Expr ty Unresolved
+  AppE      :: Expr ty res -> f (Expr ty res)                         -> Expr ty res
+  -- LamEU     :: f (Pat ty Unresolved) -> Expr ty Unresolved                               -> Expr ty Unresolved
+  LamE      :: f (Pat ty res) -> Expr ty res                          -> Expr ty res
   IfE       :: Expr ty res -> Expr ty res -> Expr ty res                               -> Expr ty res
   WhileE    :: Expr ty res -> Expr ty res                                              -> Expr ty res
   MapE      :: Expr ty res -> Expr ty res                                              -> Expr ty res
@@ -84,11 +84,11 @@ data Expr ty res where
   -- Also, to allow the typecheck to check that the arg types of method include the state, it makes sense to not nest them 
   -- in an AppE expression but keep them directly in the BindE
   -- BindE state function arguments
-  BindE     :: Expr ty Unresolved -> Binding          -> [Expr ty Unresolved] -> Expr ty Unresolved
+  -- BindE     :: Expr ty Unresolved -> Binding          -> [Expr ty Unresolved] -> Expr ty Unresolved
   -- The function cannot be just a binding here, because it is an expression in Alang expressions
   -- and we need to "transport" the function type from the type system to the lowering
   -- StateFunE state method args
-  StateFunE :: Expr ty Resolved   -> Expr ty Resolved -> NonEmpty (Expr ty Resolved)   -> Expr ty Resolved
+  StateFunE :: Expr ty res   -> Expr ty res -> f (Expr ty res)   -> Expr ty res
   StmtE     :: Expr ty res -> Expr ty res                                              -> Expr ty res
   TupE      :: NonEmpty (Expr ty res)                                                  -> Expr ty res
 
@@ -284,8 +284,9 @@ universePats expr = concatMap patternFromExpr (flatten expr)
 deriving instance Show (Expr ty res)
 
 
-type UnresolvedExpr ty = Expr ty Unresolved
-type ResolvedExpr ty = Expr ty Resolved
+type UnresolvedExpr ty = Expr ty Unresolved List
+type ResolvedExpr ty = Expr ty Resolved List
+type FuncExpr ty = Expr ty Resolved NonEmpty
 
 type UnresolvedType ty = OhuaType ty Unresolved
 type ResolvedType ty = OhuaType ty Resolved
