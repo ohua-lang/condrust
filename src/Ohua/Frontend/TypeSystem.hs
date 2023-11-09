@@ -510,24 +510,29 @@ maxFunType (FunType ins out) (FunType rIns rout) = do
   -- If we didn't know the function type, the length of input types given and resolved will not match
   -- On the other hand, if we knew the function type we want to compare each input type with the resolved type
   -- So we check, if input types are convertible to resolved types and if so compare them to our resolution
-  -- Otherwise we jsut take the resolution
+  -- Otherwise we just take the resolution
+
   max_intypes <- case mapM unresToRes ins of
-             (Just resolvedIns) -> if length resolvedIns == length rIns 
-                                    then mapM (uncurry maxType) (NE.zip ins rIns)
-                                    else typeError $ "Comparing given and extracted function input types yielded unequal number of arguments in " 
-                                                    <> show resolvedIns <> " vs " <> show rIns
              Nothing -> return rIns
+             (Just resolvedIns) 
+                  | length resolvedIns == 0 -> return rIns
+                  | length resolvedIns == length rIns -> mapM (uncurry maxType) (NE.zip ins rIns)
+                  | otherwise -> typeError $ "Comparing given and extracted function input types yielded unequal number of arguments in " 
+                                                    <> show ins <> " vs " <> show rIns
+             
   FunType max_intypes <$> maxType out rout
 
 -- maxFunType (STFunType sIn ins out) (STFunType rsIn rIns rout) =
 --     STFunType <$> maxType sIn rsIn <*> mapM (uncurry maxType) (zip ins rIns) <*> maxType out rout
 maxFunType (STFunType sIn ins out) (STFunType rsIn rIns rout) = do 
   max_intypes <- case mapM unresToRes ins of
-             (Just resolvedIns) -> if length resolvedIns == length rIns 
-                                    then mapM (uncurry maxType) (zip ins rIns)
-                                    else typeError $ "Comparing given and extracted function input types yielded unequal number of arguments in " 
-                                                    <> show resolvedIns <> " vs " <> show rIns
              Nothing -> return rIns
+             (Just resolvedIns) 
+                  | length resolvedIns == 0 -> return rIns
+                  | length resolvedIns == length rIns -> mapM (uncurry maxType) (zip ins rIns)
+                  | otherwise -> typeError $ "Comparing given and extracted function input types yielded unequal number of arguments in " 
+                                                    <> show ins <> " vs " <> show rIns
+             
   STFunType <$> maxType sIn rsIn <*> pure max_intypes <*> maxType out rout
 maxFunType fun otherfun = typeError $ "Comparing stateful to stateless function type " <> show fun <> " with " <> show otherfun
 
@@ -541,6 +546,14 @@ getBinding = \case
 --FIXME: Remove/Replace this when we have the ability to actually copare host types in terms of subtyping and generics
 compromise_compare :: OhuaType ty Resolved -> OhuaType ty Resolved -> Bool
 compromise_compare (HType _ _ ) (HType _ _) = True
+-- We need to distiguish unit funtions (i.e. with an added unit argument) from actual one argument functions
+-- Also we have the problem, that literals get internal types currently, which cannot be compared to HostTypes
+compromise_compare (HType _ _ ) (IType iTy) 
+    | iTy == TypeUnit = False
+    | otherwise = True
+compromise_compare (IType iTy) (HType _ _ ) 
+    | iTy == TypeUnit = False
+    | otherwise = True
 compromise_compare (TType _  )  (TType _) = True
 compromise_compare (FType _ )   (FType _) = True
 compromise_compare (IType _ )   (IType _) = True
