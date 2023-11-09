@@ -7,6 +7,7 @@ module Ohua.Integration.Rust.Frontend where
 
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.List.NonEmpty as NE
+import Data.List (stripPrefix)
 
 import Language.Rust.Data.Ident
 import Language.Rust.Parser (Span)
@@ -20,7 +21,8 @@ import Ohua.Frontend.PPrint ()
 import Ohua.Frontend.Lang as FrLang
     ( Expr(..),
       Pat(TupP, VarP),
-      flatten)
+      flatten,
+      patType)
 
 import Ohua.Integration.Lang
 import Ohua.Integration.Rust.Util
@@ -116,8 +118,6 @@ instance Integration (Language 'Rust) where
         m (FrLang.Expr RustVarType Unresolved)
       extractAlgo _algoName (FnDecl _ _ True _) _block = error "We do not support compilation of variadic functions for the moment"
       extractAlgo _algoName  (FnDecl args mReturnTy _ _) block = do
-        -- implGlobalArgs <- fromGlobals
-        -- traceM $ "Implicit Arguments:" <> show implGlobalArgs
         args' <- mapM (convertPat <=< SubC.convertArg) args
         block' <- convertIntoFrExpr block
         let returnType = maybe UType asHostNormalU mReturnTy
@@ -152,10 +152,14 @@ instance Integration (Language 'Rust) where
     m (Delta RustVarType Resolved)
   loadTypes _ (Module ownFile _) ohuaNs = do
     filesAndPaths <- concat <$> mapM funsForAlgo (ohuaNs ^. algos)
-    let filesAndPaths' = map (first convertOwn) filesAndPaths
-    fnTypesFromFiles $ concatMap fst filesAndPaths'
-    -- usedFunctionTypes <- HM.fromList . catMaybes <$> mapM (verifyAndRegister functionTypes) filesAndPaths'
-    -- return functionTypes -- usedFunctionTypes
+    -- To enable the type extraction to find local algorithms, we add the filepath to the current file as their namespace 
+    let filesAndPaths' = map (first convertLocalToPath) filesAndPaths
+    importedFnTypes <- fnTypesFromFiles $ concatMap fst filesAndPaths'
+    -- We won't have (or don't want to need) the filepath later, when we typecheck the functions in delta
+    -- Therefore we replace the namespace back to an empty space, so that we can find the local functions later
+    -- in delta. Another option would be to add the local file path to the imported paths 
+    let fixedLocalScope =  foldr (\(qb, ty) hm -> HM.insert (convertPathToLocal qb) ty hm) HM.empty (HM.toList importedFnTypes)
+    return fixedLocalScope
     where
       funsForAlgo :: ErrAndLogM m => Algo (FrLang.Expr RustVarType Unresolved) (Item Span) -> m [([NSRef], QualifiedBinding)]
       funsForAlgo (Algo _name code _inputCode ) = do
@@ -164,18 +168,24 @@ instance Integration (Language 'Rust) where
             $ [f                 | LitE (FunRefLit (FunRef f _ _)) <- flatten code] ++
               [toQualBinding bnd | VarE bnd _                      <- flatten code]
 
-      convertOwn :: [NSRef] -> [NSRef]
-      convertOwn [] = [filePathToNsRef ownFile]
-      convertOwn n = n
+      convertLocalToPath :: [NSRef] -> [NSRef]
+      convertLocalToPath [] = [filePathToNsRef ownFile]
+      convertLocalToPath n = n
+
+      convertPathToLocal :: QualifiedBinding -> QualifiedBinding
+      convertPathToLocal qb@(QualifiedBinding (NSRef spaces) bnd) = 
+        case stripPrefix (filePathToList ownFile) spaces of
+                  Just localspaces -> QualifiedBinding (NSRef localspaces) bnd
+                  Nothing -> {-local path wasn't a prefix-} qb
 
       -- | Extract a HashMap of {name: function type} from the given file reference
-      fnTypesFromFiles :: ErrAndLogM m => [NSRef] -> m FunTypes
+      fnTypesFromFiles :: ErrAndLogM m => [NSRef] -> m FunTypesMap
       fnTypesFromFiles nsRefs = HM.unions <$> mapM (extractFromFile . toFilePath . (,".rs")) nsRefs
 
       -- | Deal with Globs here.
       {- 
       verifyAndRegister :: ErrAndLogM m
-                        => FunTypes
+                        => FunTypesMap
                         -> ([NSRef], QualifiedBinding)
                         -> m (Maybe (QualifiedBinding, Res.FunType RustVarType Resolved))
       verifyAndRegister typez ([candidate], qp@(QualifiedBinding (NSRef nsRef) nam)) = do
@@ -247,11 +257,10 @@ instance ConvertExpr Sub.Expr where
     args' <- mapM convertExpr args
     return $ fun' `AppEU` args'
   -- ToDo: I don't think we should pass the receiver just as a binding, losing potential type information and
-  convertExpr (Sub.MethodCall (Sub.Var bnd _mTy) (Sub.CallRef method _) args) = do
-    -- receiver' <- convertExpr receiver
-    let method' = LitE (FunRefLit (FunRef method Nothing $ STFunType TStar [TStar] TStar))
+  convertExpr (Sub.MethodCall objE (Sub.CallRef (QualifiedBinding nsRef funName) _) args) = do
+    objE' <- convertExpr objE
     args' <- mapM convertExpr args
-    return $ BindE method' bnd args'
+    return $ BindE objE' funName args'
   -- FIXME: This belongs into subset conversion
   convertExpr (Sub.MethodCall obj _ _ ) = error $ "A method call on something other than a struct variable, namely "<> show obj <>" was found but we only support variables."
   convertExpr (Sub.Tuple []) = return (LitE UnitLit)
@@ -361,13 +370,15 @@ instance ConvertPat Sub.IdentPat where
     return $ VarP bnd TStar
 
 instance ConvertPat Sub.Arg where
-  convertPat (Sub.Arg pat _ty) = convertPat pat
-  {- do
+  convertPat (Sub.Arg pat (Sub.RustType rustTy)) =  do
     pat' <- convertPat pat
     case pat' of
-      VarP bnd TStar -> return $ VarP bnd TStar
+      VarP bnd TStar -> return $ VarP bnd (HType (HostType (TH.Normal rustTy)) Nothing)
+      -- FIXME: We need to pass on the type to tuples as well I assume
+      --        The most critical part are varaibes though, because we use this function to convert 
+      --        the algo argumets, and we need their types obviously
       p -> return p
-      -}
+
 
 binOpInfo :: Sub.BinOp -> (Binding, OhuaType RustVarType Unresolved)
 -- ToDo: It seems infering the type of binary ops should be easy given the input. However
