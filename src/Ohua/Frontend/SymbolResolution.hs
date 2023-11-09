@@ -37,12 +37,14 @@ resolveSymbols :: Delta ty res -> [Import] -> Maybe NSRef -> Binding -> Either (
 resolveSymbols delta mod_imports (Just nspace) bnd =
   -- trace ("Will resolve " <> show bnd <> "with imports " <> show mod_imports <> " and namespace " <> show nspace)$
   let potential_qbs = resolveQBnd mod_imports $ QualifiedBinding nspace bnd
-      potential_defs = foldr 
+      potential_defs = {-trace ("Found qBnds " <> show potential_qbs)$-} 
+        foldr 
         (\bnd defs -> case HM.lookup bnd delta of
                         Just ty -> (bnd, ty) : defs
                         Nothing -> defs)
         []
         potential_qbs
+  
   in case potential_defs of
        [] -> Right $ QBndError (QualifiedBinding nspace bnd)
        [(qb, t)] -> Left (qb, t)
@@ -69,6 +71,8 @@ resolveQBnd :: [Import] -> QualifiedBinding -> [QualifiedBinding]
 --    if the symbol lookup in delta yields multiple results the import is ambiguose.
 -- ToDo?: We could add a check here, to not add potential global namespaces if there already was a fully specified (i.e. unequivocal) import
 resolveQBnd [] qb = [qb]
+resolveQBnd (Full (NSRef impSpaces) ns : imps) qb@(QualifiedBinding (NSRef []) b)
+  | ns == b = [QualifiedBinding (NSRef impSpaces) b]
 resolveQBnd (Full (NSRef impSpaces) ns : _imps) qb@(QualifiedBinding (NSRef funSpaces@(fs:fss)) b)
   | ns == fs = [QualifiedBinding (NSRef $ impSpaces ++ funSpaces) b]
 resolveQBnd (Alias nspace alias: _imps) qb@(QualifiedBinding nspace' b)
