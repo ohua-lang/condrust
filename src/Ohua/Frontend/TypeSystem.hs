@@ -138,22 +138,34 @@ typeSystem delta imports gamma = \case
              Delta, Gamma |– let (x:X) e1 e2 : T2
   -}
   (LetE pat e1 e2) -> do
-    (_, e1', tyT1', imports' ) <- typeExpr delta imports gamma e1
+    
+    (gamma', e1', tyT1', imports') <- typeExpr delta imports gamma e1
+    
     pat' <- typePat pat tyT1'
+    
     -- ToDo: We currently can't allways get unresolved types from resolved ones although I think this should be possible.
+    -- FIXME: I Think we shouldn't do this conversion but add the (original) unresolved pattern type to e1's and e2' gamma
+    --        context and check the rule after typechecking both
+
     let mResTypes = mapM 
           (\(bnd, tyR) ->  case resToUnres tyR of 
               Just tyU -> Just (bnd, tyU)
               Nothing -> Nothing)
           $ patTyBnds pat'
+    
     -- let patTys = mapM (second resToUnres) $ patTyBnds pat'
-    let gamma' = case mResTypes of 
+    let gamma_u' =
+          case mResTypes of 
             Just tys -> foldl (\ g (b, t) -> HM.insert b t g) gamma tys 
-            Nothing -> error $ "Implementation Error. I should be probably be possible to convert " <> show mResTypes <> " to unresolved tpyes but we didn't implement it"
+            Nothing -> 
+              error $ "Implementation Error. It should probably be possible to convert " <> show mResTypes <> " to unresolved types but we didn't implement it"
 
-    (gamma'', e2', tyT2, imports'' ) <- typeExpr delta imports' gamma' e2
+    (gamma'', e2', tyT2, imports'' ) <- typeExpr delta imports' gamma_u' e2
+    -- We type bottom up, i.e. using the usage sites of variables to add them to the typed context
+    -- this means, we need to unify usages in e1 and e2 to typecheck the outer expressions 
+    let gamma''' = HM.union gamma' gamma''  
 
-    return (gamma'', LetE pat' e1' e2', tyT2, imports'' )
+    return (gamma''' , LetE pat' e1' e2', tyT2, imports'' )
 
   {-
                Delta, Gamma |– fun: T1 -> T2 -> ... Tm -> Tf  n<=m
@@ -162,18 +174,21 @@ typeSystem delta imports gamma = \case
                   Delta, Gamma |– fun t1 t2 ... tn : Tf
   -}
   (AppEU fun args) -> do
+      traceM $ "Typing application of " <> show fun <> " with args " <> show args
+        
       -- First we type the function
       (gamma', fun', funTy, imports' ) <- typeExpr delta imports gamma fun
 
       -- Then we type it's args
-      (args', argTypesR) <- case args of
-        [] -> invariantBroken $ "Applications need to have at least one argument. The function " <> show fun <> " did not. This is a compiler error. Please file a bug"
-        (a:as) -> (neUnzip4 <$> mapM (typeExpr delta imports gamma) (a:|as)) >>= (\ (_, argsT, argTypes , _ ) -> return (argsT, argTypes))
+      (gammas , args', argTypesR) <- case args of
+        [] -> invariantBroken $ "Applications need to have at least one argument. The function " <> show fun' <> " did not. This is a compiler error. Please file a bug"
+        (a:as) -> (neUnzip4 <$> mapM (typeExpr delta imports gamma) (a:|as)) >>= (\ (gamma' , argsT, argTypes , _ ) -> return (gamma', argsT, argTypes))
+      -- Produce a common context with all arg types
+      let gamma'' = foldl (\ gs g -> HM.union gs g) gamma' gammas
       
       -- Then we check if function decalaration and arg types match
       resTy <- case funTy of
         FType (FunType ins out) -> do
-            traceM $ "Function: "<> show fun <> "\nArgs Resolved: "<> show args'<>"\nArgTypes Resolved: " <> show argTypesR <> "\nFunction Inputs Resolved: " <> show ins
             (_, pendingArgsTy) <- assocArgWithType (toList ins) $ toList argTypesR
             case pendingArgsTy of
               [] -> return out
@@ -182,39 +197,49 @@ typeSystem delta imports gamma = \case
             (_, pendingArgsTy) <- assocArgWithType ins $ toList argTypesR
             return $ FType  (STFunType sin pendingArgsTy out)
         t -> typeError $ "First argument of function application is not a function, but has type: " <> show t
-
-      return (gamma', AppE fun' args', resTy, imports')
+      
+      -- traceM $ "After typing Gamma is "
+      -- traceM $  renderStrict $ layoutSmart defaultLayoutOptions $ pretty $ HM.toList gamma''
+      return (gamma'', AppE fun' args', resTy, imports')
       where  
         -- We must not have more arguments than argument types in the declaration
         assocArgWithType [] (_:_) =  wfError "Too many arguments in function application."
         -- We can have less arguments than types because function application can be partial (e.g. through previous transformation) 
         assocArgWithType l [] = return ([], l)
         -- Argument type and type of argument have to match
-        -- FIXME: Actually the given argument type has to be a subtype/specialization of the declared argument type acutally. ie. we have to 
+        -- FIXME: Actually the given argument type has to be a subtype/specialization of the declared argument type actually. ie. we have to 
         --        add (>=) to the constraints of HostType
-        assocArgWithType (t:ts) (argT:argTs') = do
+        -- for now I'll replace this with a 'compromise compare' function to make sure that we at least not accept the added UnitArg as equal to a 
+        -- to the type of an argument wrongly passed to a unit function
+        assocArgWithType (t:ts) (argT:argTs')
+           {- (argsAndTy, pendingTy) <- assocArgWithType ts argTs'
+            return ((argT,t) : argsAndTy, pendingTy)-}
+          | compromise_compare t argT = do
             (argsAndTy, pendingTy) <- assocArgWithType ts argTs'
             return ((argT,t) : argsAndTy, pendingTy)
-          {-| t == argT = do
-            (argsAndTy, pendingTy) <- assocArgWithType ts argTs'
-            return ((argT,t) : argsAndTy, pendingTy)
-          | otherwise = typeError $ "Declared argument type "<> show t <> " and type of given argument " <> show argT <> " do not match."-}
+          | otherwise = typeError $ "Declared argument type "<> show t <> " and type of given argument " <> show argT <> " do not match."
 
 
   {-
-              Delta, Gamma, p1:T1, p2:T2, ..., pn:Tn |- e:Te
-  =================================================================
-      Delta, Gamma |- Lambda p1 p2 .. pn. e : T1 -> T2 -> ... -> Tn -> Te
+              Delta, Gamma, p1:T1, p2:T2, ..., pn:Tn |- expr:Te
+  ============================================================================
+      Delta, Gamma |- Lambda p1 p2 .. pn. expr : T1 -> T2 -> ... -> Tn -> Te
   -}
   e@(LamEU pats expr) ->
     let
       -- FIXME: Replace the check for "_" binding here. We currently introduce it when 
-      -- as unit arg representation, but we should have somethign not stringly typed for that purpose 
+      -- as unit arg representation, but we should have something not stringly typed for that purpose 
       invariantGetGamma :: Binding -> StateT (Gamma ty Resolved) m (OhuaType ty Resolved)
       invariantGetGamma bnd | bnd == fromString "_" = return (IType TypeUnit)
       invariantGetGamma bnd = do
         gam <- get
         case HM.lookup bnd gam of
+          -- FIXME:
+          -- We cannot error if a pattern isn't present in gamma, the reason is, that gamma will only
+          -- contain the types of used variables
+          -- This is because we cannot "forward" gamma through the applications of typeExpr i.e. 
+          -- when we give it a gamma containing the patterns types, those types are Unresolved and are not just copied to the
+          -- resolved gamma we return. the rolved gamma will only contain used (and therefor typed) variables
           Nothing -> invariantBroken $ "Pattern deleted while typing. Deleted pattern: " <> show bnd
           Just ty' -> (modify $ HM.delete bnd) >> return ty'
 
@@ -222,18 +247,17 @@ typeSystem delta imports gamma = \case
       typePatFromGamma (VarP bnd t) = (\ t' -> VarP bnd <$> maxType t t') =<< invariantGetGamma bnd
       typePatFromGamma (TupP ps) = TupP <$> mapM typePatFromGamma ps
     in do
+
       patsNE <- case pats of 
             [] -> invariantBroken $ "Abstractions need to have at least one argument. The function " <> show e <> " did not. This is a compiler error. Please file a bug"
             (p:ps) -> return (p:|ps)
       let gamma' = foldl (\ g (b, t) -> HM.insert b t g) gamma $ join $ NE.map patTyBnds patsNE
-      (gamma'', expr', tyE, imports' ) <- typeExpr delta imports gamma' expr
-      (pats', gamma''') <- runStateT (mapM typePatFromGamma patsNE) gamma''
-      --FIXME: What is going on whith this double return here?! 
-      return (pats', gamma''', tyE, expr', imports' )
+
+      (gamma', expr', tyE, imports' ) <- typeExpr delta imports gamma' expr
+      (pats', gamma'') <- runStateT (mapM typePatFromGamma patsNE) gamma'
       
       let ty = FunType (NE.map patType pats') tyE
-
-      return (gamma''', LamE pats' expr', FType ty, imports' )
+      return (gamma'', LamE pats' expr', FType ty, imports' )
 
   {-
       Delta, Gamma |- state : S     Delta, Gamma |- method : S -> Tm
@@ -253,9 +277,8 @@ typeSystem delta imports gamma = \case
     methodQB <- case maybeMethodNS of 
       Just method_ns -> addStateToNS method_ns methodB
       Nothing -> return (QualifiedBinding (NSRef []) methodB)
-    traceM $ "Now trying to resolve method " <> show methodQB
 
-    -- At this point we need to make the method an epression, 
+    -- At this point we need to make the method an expression, 
     -- because a) it is an expression in ALang and b) therefore we need to attach it's type to it, which we cannot do with a qualified binding
     -- FIXME: What's supposed to happen with gamma here?
     -- FIXME: Ho to properly construct an unresolved stateful function (type)?
@@ -379,7 +402,6 @@ typeSystem delta imports gamma = \case
           Just ty'@(FType fty)  -> return (HM.empty, LitE (FunRefLit (FunRef qBnd id fty)), ty', imports)
           _ -> do 
             (g, e, t, i) <- handleRef bnd (Just ns) (FType ty)
-            traceM $ "Handling literal yielded function type: " <> show t
             return (g,e,t,i)
 
   {-
@@ -413,7 +435,6 @@ typeSystem delta imports gamma = \case
       case resolveSymbols delta imports nSpace bnd of 
           Left (qBnd,ty1) -> do 
                 new_ty <- maxType ty (FType ty1)
-                traceM $ "Resolved Type " <> show ty1 <> " Max Type " <> show new_ty
                 -- now check if the function has a namespace
                 let imports' = case nSpace of
                       -- now check if that namespace is "imported", because the function returns the last part of it
@@ -484,7 +505,7 @@ maxType t1@(FType _)    t2                  = typeError $ "Comparing in compatib
 maxType t1              t2@(FType _)        = typeError $ "Comparing in compatible types " <> show t1 <> " and " <> show t2
 
 
-maxFunType :: (ErrAndLogM m, TypeErrorM m ty) => FunType ty Unresolved -> FunType ty Resolved-> m (FunType ty Resolved)
+maxFunType :: (ErrAndLogM m, TypeErrorM m ty) => FunType ty Unresolved -> FunType ty Resolved -> m (FunType ty Resolved)
 maxFunType (FunType ins out) (FunType rIns rout) = do
   -- If we didn't know the function type, the length of input types given and resolved will not match
   -- On the other hand, if we knew the function type we want to compare each input type with the resolved type
@@ -516,3 +537,11 @@ getBinding = \case
     Nothing -> Nothing 
     Just (Left bnd) -> Just bnd
     Just (Right (QualifiedBinding _ bnd)) -> Just bnd
+
+--FIXME: Remove/Replace this when we have the ability to actually copare host types in terms of subtyping and generics
+compromise_compare :: OhuaType ty Resolved -> OhuaType ty Resolved -> Bool
+compromise_compare (HType _ _ ) (HType _ _) = True
+compromise_compare (TType _  )  (TType _) = True
+compromise_compare (FType _ )   (FType _) = True
+compromise_compare (IType _ )   (IType _) = True
+compromise_compare t1 t2                    = False

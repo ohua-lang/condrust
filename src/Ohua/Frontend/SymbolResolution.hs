@@ -37,14 +37,12 @@ resolveSymbols :: Delta ty res -> [Import] -> Maybe NSRef -> Binding -> Either (
 resolveSymbols delta mod_imports (Just nspace) bnd =
   -- trace ("Will resolve " <> show bnd <> "with imports " <> show mod_imports <> " and namespace " <> show nspace)$
   let potential_qbs = resolveQBnd mod_imports $ QualifiedBinding nspace bnd
-      potential_defs = {-trace ("Found qBnds " <> show potential_qbs)$-} 
-        foldr 
+      potential_defs = foldr 
         (\bnd defs -> case HM.lookup bnd delta of
                         Just ty -> (bnd, ty) : defs
                         Nothing -> defs)
         []
         potential_qbs
-  
   in case potential_defs of
        [] -> Right $ QBndError (QualifiedBinding nspace bnd)
        [(qb, t)] -> Left (qb, t)
