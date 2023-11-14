@@ -2,14 +2,18 @@
     TypeOperators
     , DataKinds
     , StandaloneKindSignatures
+    , UndecidableInstances
+    , PolyKinds
     , AllowAmbiguousTypes
 #-}
 
 module Ohua.Frontend.Lang
     ( Pat(..)
     , Expr(..)
+    , MethodRepr(..)
     , UnresolvedExpr
     , ResolvedExpr
+    , FuncExpr
     , UnresolvedPat
     , ResolvedPat
     , UnresolvedType
@@ -18,14 +22,12 @@ module Ohua.Frontend.Lang
     , patBnd
     , patTyBnds
     , freeVars
+    , preWalkM
     , preWalkE
-    , preWalkER
-    , preWalkMR
     , universeReplace
-    , universeReplaceRes
     , universePats
-    , flatten
-    --- , postWalkE
+    , flattenR
+    , flattenU
     ) where
 
 import Ohua.Prelude
@@ -63,38 +65,183 @@ patTyBnds = \case
     VarP bnd ty -> (bnd, ty) :| []
     TupP (ps) -> neConcat $ map patTyBnds ps
 
-type Expr :: Type -> Resolution -> F Expr -> Type
-data Expr ty res f where
-  VarE      :: Binding -> OhuaType ty res                                              -> Expr ty res
-  LitE      :: Lit ty res                                                              -> Expr ty res
-  LetE      :: Pat ty res -> Expr ty res -> Expr ty res                                -> Expr ty res
-  -- We need to add unit arguments and unit parameters to applications and abstractions without args or 
-  -- parameters. However, internal types (unit) should only appear in resolved expressions
-  -- So there is a unresolved and a resolved version of App and Lam now 
-  -- AppEU     :: Expr ty Unresolved -> [Expr ty Unresolved]                              -> Expr ty Unresolved
-  AppE      :: Expr ty res -> f (Expr ty res)                         -> Expr ty res
-  -- LamEU     :: f (Pat ty Unresolved) -> Expr ty Unresolved                               -> Expr ty Unresolved
-  LamE      :: f (Pat ty res) -> Expr ty res                          -> Expr ty res
-  IfE       :: Expr ty res -> Expr ty res -> Expr ty res                               -> Expr ty res
-  WhileE    :: Expr ty res -> Expr ty res                                              -> Expr ty res
-  MapE      :: Expr ty res -> Expr ty res                                              -> Expr ty res
-  -- Before BindE consisted of a state expr (a variable) and a method call (AppE)
-  -- Now we don't have type annotations at binding sites, so the state can become a Binding in the 'Uresolved'
-  -- version
-  -- Also, to allow the typecheck to check that the arg types of method include the state, it makes sense to not nest them 
-  -- in an AppE expression but keep them directly in the BindE
-  -- BindE state function arguments
-  -- BindE     :: Expr ty Unresolved -> Binding          -> [Expr ty Unresolved] -> Expr ty Unresolved
+type Expr :: Type -> Resolution -> (Type -> Type) -> Type
+data Expr ty res lists where
+  VarE      :: Binding -> OhuaType ty res                                               -> Expr ty res lists
+  LitE      :: Lit ty res                                                               -> Expr ty res lists
+  LetE      :: Pat ty res -> Expr ty res lists -> Expr ty res lists                             -> Expr ty res lists
+  AppE      :: (Traversable lists) => Expr ty res lists -> lists (Expr ty res lists)                                       -> Expr ty res lists
+  LamE      :: (Traversable lists) => lists (Pat ty res) -> Expr ty res lists                                          -> Expr ty res lists
+  IfE       :: Expr ty res lists -> Expr ty res lists -> Expr ty res lists                          -> Expr ty res lists
+  WhileE    :: Expr ty res lists -> Expr ty res lists                                           -> Expr ty res lists
+  MapE      :: Expr ty res lists-> Expr ty res lists                                            -> Expr ty res lists
   -- The function cannot be just a binding here, because it is an expression in Alang expressions
   -- and we need to "transport" the function type from the type system to the lowering
   -- StateFunE state method args
-  StateFunE :: Expr ty res   -> Expr ty res -> f (Expr ty res)   -> Expr ty res
-  StmtE     :: Expr ty res -> Expr ty res                                              -> Expr ty res
-  TupE      :: NonEmpty (Expr ty res)                                                  -> Expr ty res
+  StateFunE :: (Traversable lists) => Expr ty res lists -> MethodRepr ty res -> lists (Expr ty res lists) -> Expr ty res lists
+  StmtE     :: Expr ty res lists -> Expr ty res lists                                           -> Expr ty res lists
+  TupE      :: NonEmpty (Expr ty res lists)                                                 -> Expr ty res lists
 
--- ToDo: Make Expr a functor without generics 
--- ToDo: Replace clumsy/repetitive traversals
-preWalkE :: (Expr ty Unresolved -> Expr ty Unresolved) -> Expr ty Unresolved -> Expr ty Unresolved
+
+data MethodRepr ty res where
+    MethodUnres :: Binding -> MethodRepr ty 'Unresolved
+    MethodRes   :: QualifiedBinding -> OhuaType ty 'Resolved -> MethodRepr ty 'Resolved 
+
+deriving instance Show (MethodRepr ty res)
+deriving instance (Show (lists (Expr ty res lists)), Show (lists (Pat ty res))) => Show (Expr ty res lists) 
+
+type UnresolvedExpr ty = Expr ty Unresolved [] 
+type ResolvedExpr ty = Expr ty Resolved []
+type FuncExpr ty = Expr ty Resolved NonEmpty
+
+type UnresolvedType ty = OhuaType ty Unresolved
+type ResolvedType ty = OhuaType ty Resolved
+
+type UnresolvedPat ty = Pat ty Unresolved
+type ResolvedPat ty = Pat ty Resolved
+
+preWalkM :: (Monad m, Traversable lists) =>  (Expr ty res lists -> m (Expr ty res lists)) -> Expr ty res lists -> m (Expr ty res lists)
+preWalkM f e = case e of 
+      VarE _ _ -> f e
+      LitE _ -> f e 
+      LetE p e1 e2 ->  do
+          e1' <- preWalkM  f e1
+          e2' <- preWalkM  f e2
+          f (LetE p e1' e2')
+      AppE fun args ->  do
+          fun' <- preWalkM f fun
+          args' <- mapM (preWalkM f) args
+          f (AppE fun' args')
+      LamE pats body ->  do
+          body' <- preWalkM f body
+          f (LamE pats body')
+      IfE c te fe ->  do
+          c' <- preWalkM f c
+          te' <- preWalkM f te 
+          fe' <- preWalkM f fe
+          f (IfE c' te' fe')
+      WhileE c body ->  do
+          c' <- preWalkM f c
+          body' <- preWalkM f body
+          f (WhileE c' body')
+      MapE e1 e2 ->  do
+          e1' <- preWalkM f e1
+          e2' <- preWalkM f e2
+          f (MapE e1' e2')
+      StateFunE st meth args -> do 
+          -- meth' <- preWalkM f meth
+          st' <- preWalkM f st
+          args' <- mapM (preWalkM f) args
+          f (StateFunE st' meth args')
+      StmtE e1 e2 ->  do
+          e1' <- preWalkM f e1
+          e2' <- preWalkM f e2
+          f (StmtE e1' e2')
+      TupE es ->  do
+          es' <- mapM (preWalkM f) es
+          f (TupE es')
+
+
+
+accu :: [a] -> a -> [a]
+accu l e = l ++ [e] 
+
+{-
+ -- Question: Traversing traversables gives Elements: How to get the actual type i.e.
+    Pat ty res from Element (lists (Pat ty res))???
+    
+    patternFromExpr ::(Traversable lists) =>  Expr ty res lists ->  [Pat ty res]
+    patternFromExpr e = case e of 
+    LamE lPats _body -> toList lPats
+    LetE p _e1 _e2 -> [p]
+    _e -> []
+-}
+
+patternFromUExpr :: Expr ty res [] ->  [Pat ty res]
+patternFromUExpr e = case e of 
+    LamE lPats _body -> lPats
+    LetE p _e1 _e2 -> [p]
+    _e -> []
+
+patternFromExpr :: Expr ty res NonEmpty ->  [Pat ty res]
+patternFromExpr e = case e of 
+    LamE lPats _body -> NE.toList lPats
+    LetE p _e1 _e2 -> [p]
+    _e -> []
+
+-- preorder list expressions
+universeReplace :: (Traversable lists) => Expr ty res lists -> [Expr ty res lists]
+universeReplace expr =  preWalkM (accu []) expr
+
+{-
+universeReplaceRes ::  Expr ty Resolved -> [Expr ty Resolved]
+universeReplaceRes expr =  preWalkMR (accu []) expr
+-}
+
+-- We currently only use this with resolved (Func) expressions
+universePats :: Expr ty res NonEmpty -> [Pat ty res]
+universePats expr = concatMap patternFromExpr (flattenR expr) 
+
+-- We currently only use this with unresolved expressions
+freeVars :: Expr ty res [] -> [(Binding, OhuaType ty res)]
+freeVars e = go HS.empty e
+  where
+    go :: HS.HashSet Binding -> Expr ty res [] -> [(Binding, OhuaType ty res)]
+    go  ctxt (VarE bnd _) | HS.member bnd ctxt = []
+    go _ctxt (VarE bnd ty) = [(bnd, ty)]
+    go _ctxt (LitE _) = []
+    go  ctxt (LetE p e1 e2) = go ctxt e1 ++ (go (foldl (flip HS.insert) ctxt $ patBnd p) e2)
+    go  ctxt (AppE f xs) = go ctxt f ++ foldl (\vs e -> vs ++ go ctxt e) [] xs
+    go  ctxt (LamE ps e) = go (foldl (flip HS.insert) ctxt $ concat $ map (NE.toList . patBnd) ps) e
+    go  ctxt (IfE e1 e2 e3) = go ctxt e1 ++ go ctxt e2 ++ go ctxt e3
+    go  ctxt (WhileE e1 e2) = go ctxt e1 ++ go ctxt e2
+    go  ctxt (MapE e1 e2) = go ctxt e1 ++ go ctxt e2
+    -- go  ctxt (BindE s _ xs) = go ctxt s ++ foldl (\vs e -> vs ++ go ctxt e) [] xs
+    go  ctxt (StateFunE s _ xs) = go ctxt s ++ foldl (\vs e -> vs ++ go ctxt e) [] xs
+    -- Question: Can a method be a free variable ? 
+    go  ctxt (StateFunE s method args ) = go ctxt s {-++ go ctxt method -} ++ foldl (\vs e -> vs ++ go ctxt e) [] args
+    go  ctxt (StmtE e1 e2) = go ctxt e1 ++ go ctxt e2
+    go  ctxt (TupE es) = foldl (\vs e -> vs ++ go ctxt e) [] es
+
+-- FIXME: Same problem as with pattern extraction. Making the function generic over lists 
+--        turns the type of elements into Elements and I don't know how to handle them
+flattenU :: Expr ty res [] -> [Expr ty res []]
+flattenU e = case e of 
+        (VarE _ _ ) -> [e]
+        (LitE _) -> [e]
+        (LetE _p e1 e2) -> [e] ++ flattenU e1 ++ flattenU e2 
+        (AppE f xs)-> [e] ++ flattenU f ++ concatMap flattenU xs  
+        -- (AppEU f xs)-> [e] ++ flattenU f ++ concatMap flattenU  xs  
+        (LamE _ps lbody)-> [e] ++ flattenU lbody  
+        -- (LamEU _ps lbody )->  [e] ++ flattenU lbody
+        (IfE e1 e2 e3)-> [e] ++ flattenU e1 ++ flattenU e2 ++ flattenU e3
+        (WhileE e1 e2)-> [e] ++ flattenU e1 ++ flattenU e2
+        (MapE e1 e2)-> [e] ++ flattenU e1 ++ flattenU e2
+        -- (BindE s _ xs)-> [e] ++ flattenU s ++ concatMap flattenU xs 
+        -- Reminder: We take the methods out of the expression list here. That will require changes in
+        --           the way code using this function acts on StateFunE
+        (StateFunE s method args)-> [e] ++ flattenU s {- ++ flattenU method -} ++ concatMap flattenU args
+        (StmtE e1 e2)-> [e] ++ flattenU e1 ++ flattenU e2
+        (TupE es)-> [e] ++ concatMap flattenU es
+
+flattenR :: Expr ty res NonEmpty -> [Expr ty res NonEmpty]
+flattenR e = case e of 
+        (VarE _ _ ) -> [e]
+        (LitE _) -> [e]
+        (LetE _p e1 e2) -> [e] ++ flattenR e1 ++ flattenR e2 
+        (AppE f xs)-> [e] ++ flattenR f ++ concatMap flattenR xs  
+        -- (AppEU f xs)-> [e] ++ flattenR f ++ concatMap flattenR  xs  
+        (LamE _ps lbody)-> [e] ++ flattenR lbody  
+        -- (LamEU _ps lbody )->  [e] ++ flattenR lbody
+        (IfE e1 e2 e3)-> [e] ++ flattenR e1 ++ flattenR e2 ++ flattenR e3
+        (WhileE e1 e2)-> [e] ++ flattenR e1 ++ flattenR e2
+        (MapE e1 e2)-> [e] ++ flattenR e1 ++ flattenR e2
+        -- (BindE s _ xs)-> [e] ++ flattenR s ++ concatMap flattenR xs 
+        (StateFunE s method args)-> [e] ++ flattenR s {- ++ flattenR method-} ++ concatMap flattenR args
+        (StmtE e1 e2)-> [e] ++ flattenR e1 ++ flattenR e2
+        (TupE es)-> [e] ++ concatMap flattenR es
+
+preWalkE :: (Traversable lists) => (Expr ty res lists -> Expr ty res lists) -> Expr ty res lists -> Expr ty res lists
 preWalkE f e = case e of 
       VarE _ _ -> f e
       LitE _ -> f e 
@@ -102,13 +249,13 @@ preWalkE f e = case e of
           let e1' = preWalkE  f e1
               e2' = preWalkE  f e2
           in f (LetE p e1' e2')
-      AppEU fun args -> 
+      AppE fun args -> 
           let fun' = preWalkE f fun
               args' = map (preWalkE f) args
-          in f (AppEU fun' args')
-      LamEU pats body -> 
+          in f (AppE fun' args')
+      LamE pats body -> 
           let body' = preWalkE f body
-          in f (LamEU pats body')
+          in f (LamE pats body')
       IfE c te fe -> 
           let c' = preWalkE f c
               te' = preWalkE f te 
@@ -122,10 +269,10 @@ preWalkE f e = case e of
           let e1' = preWalkE f e1
               e2' = preWalkE f e2
           in  f (MapE e1' e2')
-      BindE m sB args -> 
-          let m' = preWalkE f m
+      StateFunE st meth args ->
+          let st' = preWalkE f st
               args' = map (preWalkE f) args
-          in f (BindE m' sB args')
+          in f (StateFunE st' meth args')
       StmtE e1 e2 -> 
           let e1' = preWalkE f e1
               e2' = preWalkE f e2
@@ -133,200 +280,3 @@ preWalkE f e = case e of
       TupE es -> 
           let es' = map (preWalkE f) es
           in  f (TupE es')
-
-preWalkER :: (Expr ty Resolved -> Expr ty Resolved) -> Expr ty Resolved -> Expr ty Resolved
-preWalkER f e = case e of 
-      VarE _ _ -> f e
-      LitE _ -> f e 
-      LetE p e1 e2 -> 
-          let e1' = preWalkER f e1
-              e2' = preWalkER f e2
-          in f (LetE p e1' e2')
-      AppE fun args -> 
-          let fun' = preWalkER f fun
-              args' = map (preWalkER f) args
-          in f (AppE fun' args')
-      LamE pats body -> 
-          let body' = preWalkER f body
-          in f (LamE pats body')
-      IfE c te fe -> 
-          let c' = preWalkER f c
-              te' = preWalkER f te 
-              fe' = preWalkER f fe
-          in f (IfE c' te' fe')
-      WhileE c body -> 
-          let c' = preWalkER f c
-              body' = preWalkER f body
-          in f (WhileE c' body')
-      MapE e1 e2 -> 
-          let e1' = preWalkER f e1
-              e2' = preWalkER f e2
-          in  f (MapE e1' e2')
-      StateFunE st meth args ->  
-          let st' = preWalkER f st
-              meth' = preWalkER f meth
-              args' = NE.map (preWalkER f) args
-          in f (StateFunE st' meth' args')
-      StmtE e1 e2 -> 
-          let e1' = preWalkER f e1
-              e2' = preWalkER f e2
-          in  f (StmtE e1' e2')
-      TupE es -> 
-          let es' = map (preWalkER f) es
-          in  f (TupE es')
-
-
-preWalkMU :: Monad m =>  (Expr ty Unresolved -> m (Expr ty Unresolved)) -> Expr ty Unresolved -> m (Expr ty Unresolved)
-preWalkMU f e = case e of 
-      VarE _ _ -> f e
-      LitE _ -> f e 
-      LetE p e1 e2 ->  do
-          e1' <- preWalkMU  f e1
-          e2' <- preWalkMU  f e2
-          f (LetE p e1' e2')
-      AppEU fun args ->  do
-          fun' <- preWalkMU f fun
-          args' <- mapM (preWalkMU f) args
-          f (AppEU fun' args')
-      LamEU pats body ->  do
-          body' <- preWalkMU f body
-          f (LamEU pats body')
-      IfE c te fe ->  do
-          c' <- preWalkMU f c
-          te' <- preWalkMU f te 
-          fe' <- preWalkMU f fe
-          f (IfE c' te' fe')
-      WhileE c body ->  do
-          c' <- preWalkMU f c
-          body' <- preWalkMU f body
-          f (WhileE c' body')
-      MapE e1 e2 ->  do
-          e1' <- preWalkMU f e1
-          e2' <- preWalkMU f e2
-          f (MapE e1' e2')
-      BindE m sB args ->  do
-          m' <- preWalkMU f m
-          args' <- mapM (preWalkMU f) args
-          f (BindE m' sB args')
-      StmtE e1 e2 ->  do
-          e1' <- preWalkMU f e1
-          e2' <- preWalkMU f e2
-          f (StmtE e1' e2')
-      TupE es ->  do
-          es' <- mapM (preWalkMU f) es
-          f (TupE es')
-
-preWalkMR :: Monad m =>  
-    (Expr ty Resolved -> m (Expr ty Resolved)) 
-    -> Expr ty Resolved 
-    -> m (Expr ty Resolved)
-preWalkMR f e = case e of 
-      VarE _ _ -> f e
-      LitE _ -> f e 
-      LetE p e1 e2 ->  do
-          e1' <- preWalkMR  f e1
-          e2' <- preWalkMR  f e2
-          f (LetE p e1' e2')
-      AppE fun args ->  do
-          fun' <- preWalkMR f fun
-          args' <- mapM (preWalkMR f) args
-          f (AppE fun' args')
-      LamE pats body ->  do
-          body' <- preWalkMR f body
-          f (LamE pats body')
-      IfE c te fe ->  do
-          c' <- preWalkMR f c
-          te' <- preWalkMR f te 
-          fe' <- preWalkMR f fe
-          f (IfE c' te' fe')
-      WhileE c body ->  do
-          c' <- preWalkMR f c
-          body' <- preWalkMR f body
-          f (WhileE c' body')
-      MapE e1 e2 ->  do
-          e1' <- preWalkMR f e1
-          e2' <- preWalkMR f e2
-          f (MapE e1' e2')
-      StateFunE st meth args ->  do
-          meth' <- preWalkMR f meth
-          st' <- preWalkMR f st
-          args' <- mapM (preWalkMR f) args
-          f (StateFunE st' meth' args')
-      StmtE e1 e2 ->  do
-          e1' <- preWalkMR f e1
-          e2' <- preWalkMR f e2
-          f (StmtE e1' e2')
-      TupE es ->  do
-          es' <- mapM (preWalkMR f) es
-          f (TupE es')
-
-
-
-accu :: Show a => [a] -> a -> [a]
-accu l e = l ++ [e] 
-
-patternFromExpr :: Expr ty Resolved -> [Pat ty Resolved]
-patternFromExpr e = case e of 
-    LamE lPats _body -> NE.toList lPats
-    LetE p _e1 _e2 -> [p]
-    _e -> [] 
-
--- preorder list expressions
-universeReplace ::  Expr ty Unresolved -> [Expr ty Unresolved]
-universeReplace expr =  preWalkMU (accu []) expr
-
-universeReplaceRes ::  Expr ty Resolved -> [Expr ty Resolved]
-universeReplaceRes expr =  preWalkMR (accu []) expr
-
-universePats :: Expr ty Resolved -> [Pat ty Resolved]
-universePats expr = concatMap patternFromExpr (flatten expr) 
-
-deriving instance Show (Expr ty res)
-
-
-type UnresolvedExpr ty = Expr ty Unresolved List
-type ResolvedExpr ty = Expr ty Resolved List
-type FuncExpr ty = Expr ty Resolved NonEmpty
-
-type UnresolvedType ty = OhuaType ty Unresolved
-type ResolvedType ty = OhuaType ty Resolved
-
-type UnresolvedPat ty = Pat ty Unresolved
-type ResolvedPat ty = Pat ty Resolved
-
-freeVars :: Expr ty res -> [(Binding, OhuaType ty res)]
-freeVars = go HS.empty
-  where
-    go  ctxt (VarE bnd _) | HS.member bnd ctxt = []
-    go _ctxt (VarE bnd ty) = [(bnd, ty)]
-    go _ctxt (LitE _) = []
-    go  ctxt (LetE p e1 e2) = go ctxt e1 ++ (go (foldl (flip HS.insert) ctxt $ patBnd p) e2)
-    go  ctxt (AppE f xs) = go ctxt f ++ foldl (\vs e -> vs ++ go ctxt e) [] xs
-    go  ctxt (AppEU f xs) = go ctxt f ++ foldl (\vs e -> vs ++ go ctxt e) [] xs
-    go  ctxt (LamE ps e) = go (foldl (flip HS.insert) ctxt $ neConcat $ map patBnd ps) e
-    go  ctxt (LamEU ps e) =  go (foldl (flip HS.insert) ctxt $ concat $ map (NE.toList . patBnd) ps) e
-    go  ctxt (IfE e1 e2 e3) = go ctxt e1 ++ go ctxt e2 ++ go ctxt e3
-    go  ctxt (WhileE e1 e2) = go ctxt e1 ++ go ctxt e2
-    go  ctxt (MapE e1 e2) = go ctxt e1 ++ go ctxt e2
-    go  ctxt (BindE s _ xs) = go ctxt s ++ foldl (\vs e -> vs ++ go ctxt e) [] xs
-    -- go  ctxt (StateFunE s _ xs) = go ctxt s ++ foldl (\vs e -> vs ++ go ctxt e) [] xs
-    go  ctxt (StateFunE s method args ) = go ctxt s ++ go ctxt method ++ foldl (\vs e -> vs ++ go ctxt e) [] args
-    go  ctxt (StmtE e1 e2) = go ctxt e1 ++ go ctxt e2
-    go  ctxt (TupE es) = foldl (\vs e -> vs ++ go ctxt e) [] es
-
-flatten :: Expr ty res -> [Expr ty res]
-flatten e = case e of 
-        (VarE _ _ ) -> [e]
-        (LitE _) -> [e]
-        (LetE _p e1 e2) -> [e] ++ flatten e1 ++ flatten e2 
-        (AppE f xs)-> [e] ++ flatten f ++ concatMap flatten (NE.toList xs)  
-        (AppEU f xs)-> [e] ++ flatten f ++ concatMap flatten  xs  
-        (LamE _ps lbody)-> [e] ++ flatten lbody  
-        (LamEU _ps lbody )->  [e] ++ flatten lbody
-        (IfE e1 e2 e3)-> [e] ++ flatten e1 ++ flatten e2 ++ flatten e3
-        (WhileE e1 e2)-> [e] ++ flatten e1 ++ flatten e2
-        (MapE e1 e2)-> [e] ++ flatten e1 ++ flatten e2
-        (BindE s _ xs)-> [e] ++ flatten s ++ concatMap flatten xs 
-        (StateFunE s method args)-> [e] ++ flatten s ++ flatten method ++ concatMap flatten (NE.toList args)
-        (StmtE e1 e2)-> [e] ++ flatten e1 ++ flatten e2
-        (TupE es)-> [e] ++ concatMap flatten es
