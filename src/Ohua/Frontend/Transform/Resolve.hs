@@ -20,7 +20,7 @@ module Ohua.Frontend.Transform.Resolve where
 
 import Ohua.Prelude
 
-import Ohua.Frontend.Lang as FrLang (Expr(..), Pat(VarP), preWalkE, universeReplace, flatten)
+import Ohua.Frontend.Lang as FrLang (Expr(..), UnresolvedExpr, Pat(VarP), universeReplace, flattenU, preWalkE)
 import Ohua.Frontend.Types
 import Ohua.Frontend.PPrint ()
 
@@ -41,12 +41,12 @@ import qualified Data.Text as T
 
 -- QUESTION :  Am I getting this right?
 resolveNS :: forall ty m anno.(MonadError Error m)
-          => (Namespace (Expr ty Unresolved)  anno, NamespaceRegistry ty)
-          -> m (Namespace (Expr ty Unresolved)  anno)
+          => (Namespace (UnresolvedExpr ty)  anno, NamespaceRegistry ty)
+          -> m (Namespace (UnresolvedExpr ty)   anno)
 resolveNS (ns, registry) =
     return $ over algos (map (\algo -> over algoCode (work $ view algoName algo) algo)) ns
     where
-        work :: Binding -> Expr ty Unresolved -> Expr ty Unresolved
+        work :: Binding -> UnresolvedExpr ty -> UnresolvedExpr ty
         work algoNm algoExpr =
             let
                 calledFunctions = collectAllFunctionRefs algoNm registry algoExpr
@@ -54,7 +54,7 @@ resolveNS (ns, registry) =
                 algoExpr' = resolveExpr expr
             in algoExpr'
 
-        collectAllFunctionRefs :: Binding -> NamespaceRegistry ty -> Expr ty Unresolved -> HS.HashSet (QualifiedBinding, OhuaType ty Unresolved)
+        collectAllFunctionRefs :: Binding -> NamespaceRegistry ty -> UnresolvedExpr ty  -> HS.HashSet (QualifiedBinding, OhuaType ty Unresolved)
         collectAllFunctionRefs name available =
             HS.unions .
             HS.toList .
@@ -65,13 +65,13 @@ resolveNS (ns, registry) =
                     $ HM.lookup qb available) .
             HS.filter (\(qb, ty )-> qb /= QualifiedBinding (makeThrow []) name) .  collectFunctionRefs
 
-        collectFunctionRefs :: Expr ty Unresolved -> HS.HashSet (QualifiedBinding, OhuaType ty Unresolved)
+        collectFunctionRefs :: (UnresolvedExpr ty)  -> HS.HashSet (QualifiedBinding, OhuaType ty Unresolved)
         collectFunctionRefs e =
             -- FIXME we need to resolve this reference here against the namespace and the registry (for Globs).
             -- We can/should not rely on algorithms being function literals or having function types here
             -- So we extract references and vars that are `applied` and match them against the algorithm register later
-            HS.fromList $ [ (fname, FType fTy) |  AppEU (LitE (FunRefLit (FunRef fname _ fTy))) _args <- flatten e] 
-                ++ [(QualifiedBinding (NSRef []) bnd, ty) |  AppEU (VarE bnd ty) _args <- flatten e]
+            HS.fromList $ [ (fname, FType fTy) |  AppE (LitE (FunRefLit (FunRef fname _ fTy))) _args <- flattenU e] 
+                ++ [(QualifiedBinding (NSRef []) bnd, ty) |  AppE (VarE bnd ty) _args <- flattenU e]
         
                         
 
@@ -79,10 +79,10 @@ resolveNS (ns, registry) =
         pathToVar (QualifiedBinding ns bnd) =
             (makeThrow . T.intercalate ".") $ map unwrap $ unwrap ns ++ [bnd]
 
-        addExpr :: (QualifiedBinding, OhuaType ty Unresolved) -> Expr ty Unresolved -> Expr ty Unresolved
+        addExpr :: (QualifiedBinding, OhuaType ty Unresolved) -> UnresolvedExpr ty  -> UnresolvedExpr ty 
         -- TODO This is an assumption that fails in Ohua.Compile.Compiler.prepareRootAlgoVars
         --      We should enforce this via the type system rather than a runtime error!
-        addExpr (otherAlgo, ty) (LamEU vars body) = LamEU vars $ addExpr  (otherAlgo, ty) body
+        addExpr (otherAlgo, ty) (LamE vars body) = LamE vars $ addExpr  (otherAlgo, ty) body
         addExpr (otherAlgo, ty) e =
             -- (trace $"Adding Expression. Assign bind : "<> show bnd <> "\n to expression: "<> quickRender e)
             LetE
@@ -93,12 +93,12 @@ resolveNS (ns, registry) =
                 e
 
         -- turns the function literal into a simple (var) binding
-        replaceFunLit :: Expr ty Unresolved -> Expr ty Unresolved
+        replaceFunLit :: UnresolvedExpr ty -> UnresolvedExpr ty
         replaceFunLit = \case
             -- If the algorithm was a function literal before we need to replace it with a variable since it is bound in a local 
             -- let expression now, if it was a variable anyway, we have to do nothing
             LitE (FunRefLit (FunRef fName _id funTy)) | HM.member fName registry -> VarE (pathToVar fName) (FType funTy)
             e -> e
 
-        resolveExpr :: Expr ty Unresolved -> Expr ty Unresolved
+        resolveExpr :: UnresolvedExpr ty -> UnresolvedExpr ty
         resolveExpr = preWalkE replaceFunLit

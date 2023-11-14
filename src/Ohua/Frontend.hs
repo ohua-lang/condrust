@@ -7,7 +7,6 @@ import Ohua.Frontend.Types
 import qualified Ohua.Frontend.Lang as FrLang
 import Ohua.Frontend.Transform.Load ( loadAlgosAndImports  )
 import Ohua.Frontend.Transform.Resolve ( resolveNS )
-import Ohua.Frontend.Transform.Envs ( prepareRootAlgoVars )
 import Ohua.Frontend.Transform.TailRec ( isRecAlgo )
 import Ohua.Frontend.Transform.FinalLiterals ( noFinalLiterals )
 import Ohua.Frontend.Transform.UnitArgs ( noEmptyArgs )
@@ -20,7 +19,7 @@ frontend :: forall m lang. (ErrAndLogM m, Integration lang)
          => lang
          -> CompilationScope
          -> FilePath
-         -> m ((HostModule lang, Namespace (FrLang.Expr (Type lang) Resolved) (AlgoSrc lang)), HostModule lang)
+         -> m ((HostModule lang, Namespace (FrLang.FuncExpr (Type lang)) (AlgoSrc lang)), HostModule lang)
 frontend lang compScope inFile = do
         -- 1. Extract: (input file in host language,
         --              Integration.Namespace containing Integration.Algo's, Integration.Imports's and Integration.Global's of the input module,
@@ -37,10 +36,10 @@ frontend lang compScope inFile = do
         let nsNoRecs                      =  over algos (filter (not . isRecAlgo)) nsTransf
         -- FIXME: We ignore global definitions from the Namespace here
         -- Check typing of algorithms and propagate type information from Delta 
-        nsWellTypd                        <- updateExprs nsNoRecs (toWellTyped delta (nsNoRecs^.imports))
+        nsWellTypd                      <- updateExprs nsNoRecs (toWellTyped delta (nsNoRecs^.imports))
         -- Transform algos with multiple arguments to nested one argument functions
-        nsLetRoot                         <- updateExprs nsWellTypd prepareRootAlgoVars
+        nsLetRoot                         <- updateExprs nsWellTypd (return . noEmptyArgs)
         return ((langNs, nsLetRoot), placeholder)
     where
-        trans :: ErrAndLogM m => FrLang.Expr ty Unresolved -> m (FrLang.Expr ty Unresolved)
-        trans e = noFinalLiterals e >> noEmptyArgs e
+        trans :: ErrAndLogM m => FrLang.UnresolvedExpr ty -> m (FrLang.UnresolvedExpr ty)
+        trans e = noFinalLiterals e >> pure e

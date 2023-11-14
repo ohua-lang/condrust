@@ -19,18 +19,18 @@ class (Show (Type lang)) => Integration lang where
     loadNs :: ErrAndLogM m
            => lang
            -> FilePath
-           -> m (HostModule lang, Namespace (Expr (Type lang) Unresolved) (AlgoSrc lang), HostModule lang)
+           -> m (HostModule lang, Namespace (UnresolvedExpr (Type lang)) (AlgoSrc lang), HostModule lang)
 
     loadTypes :: ErrAndLogM m
               => lang -> HostModule lang
-              ->    Namespace (Expr (Type lang) Unresolved ) (AlgoSrc lang)
+              ->    Namespace (UnresolvedExpr (Type lang)) (AlgoSrc lang)
               -> m (Delta (Type lang) Resolved )
 
 type LanguageFileSuffix = Text
 type CompilationScope = HM.HashMap NSRef LanguageFileSuffix
 
 -- | This registers all algos used in a given namespace with their qualified names.
-type NamespaceRegistry ty = HM.HashMap QualifiedBinding (Expr ty Unresolved)
+type NamespaceRegistry ty = HM.HashMap QualifiedBinding (UnresolvedExpr ty)
 
 {-
 class Someclass a where

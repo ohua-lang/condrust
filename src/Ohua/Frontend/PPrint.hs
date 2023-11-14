@@ -1,3 +1,4 @@
+{-#LANGUAGE  UndecidableInstances #-}
 module Ohua.Frontend.PPrint where
 
 import Ohua.Prelude
@@ -14,6 +15,7 @@ import qualified Data.Text.IO as LT
 import qualified Data.List.NonEmpty as NE
 
 
+
 prettyExpr :: Pretty a => a -> T.Text
 prettyExpr = renderStrict . layoutSmart ohuaDefaultLayoutOpts . pretty
 
@@ -27,7 +29,7 @@ instance Pretty (Pat ty res) where
     pretty (VarP b ty) = pretty b <> "::" <> pretty ty
     pretty (TupP pats) = align $ tupled $ map pretty (NE.toList pats)
 
-instance Pretty (Expr ty res) where
+instance Pretty (Expr ty res []) where
     pretty (VarE bnd _ty) = pretty bnd
     pretty (LitE l) = pretty l
     pretty (LetE p app cont) =
@@ -44,18 +46,13 @@ instance Pretty (Expr ty res) where
         , align (pretty cont)
         ]
 
-    pretty (AppEU x xs) = pretty x <> align (tupled $ map pretty xs)
-    pretty (AppE x xs) = pretty x <> align (tupled $ NE.toList $  NE.map pretty xs)
+    pretty (AppE x xs) = pretty x <> align (tupled $ toList $  map pretty xs)
     pretty (LamE ps b) = sep ["λ" <+>
                     align
                         (sep [ sep (map pretty (toList ps) <> ["->"])
                              , pretty b
                              ])]
-    pretty (LamEU ps b) = sep ["λ" <+>
-                    align
-                        (sep [ sep (map pretty (toList ps) <> ["->"])
-                             , pretty b
-                             ])]
+
     pretty (IfE c t f) = sep ["if" <+>
                     align
                         (sep [ sep [pretty c]
@@ -72,7 +69,50 @@ instance Pretty (Expr ty res) where
                         (sep [ pretty e1 <> ":"
                              , pretty e2
                              ])]
-    pretty (BindE s f xs) = hsep [brackets $ pretty s, pretty f, align (tupled $ map pretty xs)]
+    pretty (StateFunE s _qb mCall) = pretty s <+> "." <+> pretty mCall
+    pretty (StmtE e c) = vsep $ hsep [pretty e, ";"] : [pretty c]
+    pretty (TupE (e:|es)) = hsep [align $ tupled $ map pretty (e:es)]
+
+instance Pretty (Expr ty res NonEmpty) where
+    pretty (VarE bnd _ty) = pretty bnd
+    pretty (LitE l) = pretty l
+    pretty (LetE p app cont) =
+        sep
+        [ "let" <+>
+            align
+                (hang afterLetIndent $
+                sep
+                    [ hsep [pretty p] <+>
+                        "="
+                    , pretty app
+                    ]) <+>
+            "in"
+        , align (pretty cont)
+        ]
+
+    pretty (AppE x xs) = pretty x <> align (tupled $ toList $  map pretty xs)
+    pretty (LamE ps b) = sep ["λ" <+>
+                    align
+                        (sep [ sep (map pretty (toList ps) <> ["->"])
+                             , pretty b
+                             ])]
+
+    pretty (IfE c t f) = sep ["if" <+>
+                    align
+                        (sep [ sep [pretty c]
+                             , pretty t
+                             , pretty f
+                             ])]
+    pretty (MapE b d) = sep ["map" <+>
+                    align
+                        (sep [ pretty b
+                             , pretty d
+                             ])]
+    pretty (WhileE e1 e2) = sep ["while" <+>
+                        align 
+                        (sep [ pretty e1 <> ":"
+                             , pretty e2
+                             ])]
     pretty (StateFunE s _qb mCall) = pretty s <+> "." <+> pretty mCall
     pretty (StmtE e c) = vsep $ hsep [pretty e, ";"] : [pretty c]
     pretty (TupE (e:|es)) = hsep [align $ tupled $ map pretty (e:es)]

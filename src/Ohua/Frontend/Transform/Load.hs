@@ -28,7 +28,7 @@ import qualified Data.HashMap.Strict as HM
 --   a lazy hashmap, this should only load the algo once actually needed.
 loadDeps :: forall m lang.
     (ErrAndLogM m, Integration lang)
-    => lang -> CompilationScope -> Namespace (Expr (Type lang) Unresolved) (AlgoSrc lang) -> m (NamespaceRegistry (Type lang))
+    => lang -> CompilationScope -> Namespace (UnresolvedExpr (Type lang)) (AlgoSrc lang) -> m (NamespaceRegistry (Type lang))
 loadDeps lang scope (Namespace _name imps globs algs) = do
     let currentNs = Namespace (makeThrow []) imps globs algs
     let registry' = registerAlgos HM.empty currentNs
@@ -36,7 +36,7 @@ loadDeps lang scope (Namespace _name imps globs algs) = do
     let registry'' = foldl registerAlgos registry' modules
     return registry''
     where
-        registerAlgos :: NamespaceRegistry ty -> Namespace (Expr ty Unresolved) anno -> NamespaceRegistry ty
+        registerAlgos :: NamespaceRegistry ty -> Namespace (UnresolvedExpr ty) anno -> NamespaceRegistry ty
         registerAlgos registry ns =
             foldl
                 (\reg algo ->
@@ -56,7 +56,7 @@ loadDeps lang scope (Namespace _name imps globs algs) = do
 loadAlgosAndImports :: forall m lang.
     (ErrAndLogM m, Integration lang)
     => lang -> CompilationScope -> FilePath
-    -> m (HostModule lang, Namespace (Expr (Type lang) Unresolved ) (AlgoSrc lang), NamespaceRegistry (Type lang), HostModule lang)
+    -> m (HostModule lang, Namespace (UnresolvedExpr (Type lang)) (AlgoSrc lang), NamespaceRegistry (Type lang), HostModule lang)
 loadAlgosAndImports  lang scope inFile = do
     -- logDebugN $ "Loading module: " <> show inFile <> "..."
     (ctxt, ns, placeholder) <- loadNs lang inFile
