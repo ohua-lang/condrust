@@ -13,6 +13,31 @@ import qualified Ohua.Core.InternalFunctions as IFuns
 import qualified Data.List.NonEmpty as NE
 
 
+toAlang :: ErrAndLogM m => FR.FuncExpr ty -> m (ALang.Expr ty)
+toAlang expr =  toAlang' (definedBindings expr)  expr
+
+toAlang' :: ErrAndLogM m => HS.HashSet Binding -> FR.FuncExpr ty -> m (ALang.Expr ty)
+toAlang' taken expr = runGenBndT taken $ transfrm expr
+    where
+        transfrm =
+            whileToRecursion >=>
+            mkLamSingleArgument . unwrapAlgo >>>
+            removeDestructuring >=> pure . trans
+
+-- | In the frontend we represent algos as Lamda expressions to capture the input and return types
+--   However ALang still expects them to be Let expressions (which is the "second layer" of each algo)
+--   so we just unwrap them here until we get consistency among the representations
+unwrapAlgo :: FR.FuncExpr ty -> FR.FuncExpr ty
+unwrapAlgo (LamE pats innerAlgo) = innerAlgo
+-- This case shouldn't happen, but this is an intermediate solution so we let it error in the code we want to keep/refactor
+unwrapAlgo e = e
+
+definedBindings :: FR.FuncExpr ty -> HS.HashSet Binding
+definedBindings olang =
+    HS.fromList $
+    [v | VarE v _ty <- FR.flattenR olang] <>
+    [v | VarP v _ty <- universePats olang]
+
 -- | Not sure this traversal is necessary, but it turns every smap argument into
 -- a lambda
 --
@@ -29,15 +54,15 @@ _ensureLambdaInSmap =
 -}
 
 -- | Ensures every lambda takes at most one argument.
-mkLamSingleArgument :: FR.Expr ty 'Resolved -> FR.Expr ty 'Resolved
+mkLamSingleArgument :: FR.FuncExpr ty -> FR.FuncExpr ty
 mkLamSingleArgument =
-    FR.preWalkER $ \case
+    FR.preWalkE $ \case
         LamE (x1:|(x2:xs)) b -> LamE (x1 :| []) $ LamE (x2 :| xs) b
         e -> e
 
-removeDestructuring :: MonadGenBnd m => FR.Expr ty 'Resolved -> m (FR.Expr ty 'Resolved)
+removeDestructuring :: MonadGenBnd m => FR.FuncExpr ty -> m (FR.FuncExpr ty)
 removeDestructuring = 
-    FR.preWalkMR $ \case
+    FR.preWalkM $ \case
         LetE (TupP pats) e1 e2 -> do
             valBnd <- generateBinding
             let tType = (tupTypeFrom pats)
@@ -73,7 +98,7 @@ removeDestructuring =
 --           We do not care (at all) for invalid Code of the input language, and should treat 
 --           more general problems that affect also recursions downstream.
 
-whileToRecursion :: MonadGenBnd m =>  FR.Expr ty 'Resolved -> m (FR.Expr ty 'Resolved)
+whileToRecursion :: MonadGenBnd m =>  FR.FuncExpr ty -> m (FR.FuncExpr ty)
 whileToRecursion = return 
 {-
     rewriteM $ \case
@@ -142,10 +167,10 @@ whileToRecursion = return
 
 
 -- ToDo: Replace by Alang definition
-nthFun :: OhuaType ty 'Resolved -> OhuaType ty Resolved -> FR.Expr ty 'Resolved
+nthFun :: ResolvedType ty -> OhuaType ty Resolved -> FR.FuncExpr ty
 nthFun collTy elemTy = LitE $ FunRefLit $ FunRef IFuns.nth Nothing $ FunType (IType TypeNat :| [IType TypeNat, collTy]) elemTy
 
-unstructure :: (Binding, OhuaType ty 'Resolved) -> NonEmpty (FR.Pat ty 'Resolved) -> FR.Expr ty 'Resolved -> FR.Expr ty 'Resolved
+unstructure :: (Binding, ResolvedType ty) -> NonEmpty (FR.ResolvedPat ty) -> FR.FuncExpr ty -> FR.FuncExpr ty
 unstructure (valBnd, valTy) pats = go (toInteger $ length pats) (NE.toList pats)
   where
     go numPats =
@@ -161,7 +186,7 @@ unstructure (valBnd, valTy) pats = go (toInteger $ length pats) (NE.toList pats)
                      ])) .
         zip [0 ..]
 
-trans :: FR.Expr ty 'Resolved -> ALang.Expr ty
+trans :: FR.FuncExpr ty -> ALang.Expr ty
 trans =
     \case
         VarE b ty -> Var $ TBind b ty
@@ -187,8 +212,8 @@ trans =
                 Just fTy -> (ALang.smapBuiltin (FType fTy) (ALang.exprType coll') (IType $ TypeList (IType TypeUnit))) `Apply` function' `Apply` coll'
                 Nothing -> error $ "Function type is not available for expression:\n "<> show function <> "\n Please report this error."
         -- It look superfluose to do this Apply conversion twice, but this should be adressed by a rewrite of ALang, not by a refactoring FLang
-        StateFunE stateE methodE args -> 
-            let method' = BindState (trans stateE) (trans methodE)
+        StateFunE stateE (MethodRes (QualifiedBinding _ns mName) ty) args -> 
+            let method' = BindState (trans stateE) (Var $ TBind mName ty)
             in foldl Apply method' (map trans args)
         StmtE e1 cont -> Let (TBind "_" $ IType TypeUnit) (trans e1) (trans cont)
         TupE exprs -> 
@@ -209,25 +234,7 @@ trans =
              "Invariant broken: At this point any patterns" <>
              "(function arguments or let bound variables) should be single vars but " <> show p <>
              "is not. Please file a bug."
-
-toAlang' :: ErrAndLogM m => HS.HashSet Binding -> Expr ty 'Resolved -> m (ALang.Expr ty)
-toAlang' taken expr = runGenBndT taken $ transfrm expr
-    where
-        transfrm =
-            whileToRecursion >=>
-            mkLamSingleArgument >>>
-            removeDestructuring >=> pure . trans
-
-toAlang :: ErrAndLogM m => FR.Expr ty 'Resolved -> m (ALang.Expr ty)
-toAlang expr =  toAlang' (definedBindings expr) expr
-
-definedBindings :: FR.Expr ty 'Resolved -> HS.HashSet Binding
-definedBindings olang =
-    HS.fromList $
-    [v | VarE v _ty <- FR.flatten olang] <>
-    [v | VarP v _ty <- universePats olang]
-
-tupTypeFrom :: NonEmpty (Pat ty 'Resolved) -> (OhuaType ty 'Resolved)
+tupTypeFrom :: NonEmpty (ResolvedPat ty) -> (ResolvedType ty)
 tupTypeFrom pats = TType $ NE.map getPType pats
     where
         getPType (VarP _b ty) = ty
