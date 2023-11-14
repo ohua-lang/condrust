@@ -7,11 +7,11 @@ where
 
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.List.NonEmpty as NE 
-import Data.List (nub, last, init)
+import Data.List (nub, last, init, unzip4, map)
 import Data.Text.Prettyprint.Doc
 import Data.Text.Prettyprint.Doc.Render.Text
 
-import Ohua.Prelude hiding (Nat, last, init)
+import Ohua.Prelude hiding (Nat, last, init, map)
 import qualified Ohua.Prelude as Res
   ( Lit(..), FunType(..), FunRef(..))
 
@@ -20,6 +20,7 @@ import Ohua.Frontend.Lang
     ( UnresolvedExpr
     , ResolvedExpr
     , Expr(..)
+    , MethodRepr(..)
     , UnresolvedPat(..)
     , ResolvedPat(..)
     , UnresolvedType
@@ -57,7 +58,7 @@ Delta ... associates function literals to a type
 
 
 toWellTyped :: forall ty m. ErrAndLogM m => Delta ty 'Resolved -> [Import] -> UnresolvedExpr ty -> m (ResolvedExpr ty)
-toWellTyped delta modImports e@(LamEU pats@(p:ps) expr) =
+toWellTyped delta modImports e@(LamE pats expr) =
   let
     gamma = HM.fromList $ freeVars e
     -- FIXME: Remove this when algos are Functions of typed inputs, output and body.
@@ -66,7 +67,9 @@ toWellTyped delta modImports e@(LamEU pats@(p:ps) expr) =
                         Just tyR -> Just (bnd, tyR)
                         Nothing -> Nothing)
     resolvedPats = case mapM replaceTy patBndsAndTypes of 
-      Just (rp:rps) -> NE.map (\(b, t) -> VarP b t) (rp:|rps)
+      Just (rp:rps) -> map (\(b, t) -> VarP b t) (rp:rps)
+      -- FIXME: Again we have the problem (this time with algos themselves) that unit functions need to be treated separately
+      Just [] -> [VarP "_" (IType TypeUnit)]
       _ -> error $ "Could not resolve the types of function arguments in " <> show e
     gamma_with_inpts = foldl (\ g (b, ty) -> HM.insert b ty g) gamma patBndsAndTypes
   in do
@@ -173,16 +176,17 @@ typeSystem delta imports gamma = \case
   ===================================================================================
                   Delta, Gamma |– fun t1 t2 ... tn : Tf
   -}
-  (AppEU fun args) -> do
-      traceM $ "Typing application of " <> show fun <> " with args " <> show args
+  (AppE fun args) -> do
+      -- traceM $ "Typing application of " <> show fun <> " with args " <> show args
         
       -- First we type the function
       (gamma', fun', funTy, imports' ) <- typeExpr delta imports gamma fun
 
       -- Then we type it's args
-      (gammas , args', argTypesR) <- case args of
-        [] -> invariantBroken $ "Applications need to have at least one argument. The function " <> show fun' <> " did not. This is a compiler error. Please file a bug"
-        (a:as) -> (neUnzip4 <$> mapM (typeExpr delta imports gamma) (a:|as)) >>= (\ (gamma' , argsT, argTypes , _ ) -> return (gamma', argsT, argTypes))
+      (gammas , args', argTypesR) <- 
+        (unzip4 <$> mapM (typeExpr delta imports gamma) args ) 
+          >>= (\ (gamma' , argsT, argTypes , _ ) -> return (gamma', argsT, argTypes))
+
       -- Produce a common context with all arg types
       let gamma'' = foldl (\ gs g -> HM.union gs g) gamma' gammas
       
@@ -192,13 +196,15 @@ typeSystem delta imports gamma = \case
             (_, pendingArgsTy) <- assocArgWithType (toList ins) $ toList argTypesR
             case pendingArgsTy of
               [] -> return out
+              -- FIXME: We need a syntax to represent Unit Function that's clearly separate from Functions with one actual argument
+              (IType TypeUnit: []) -> return out
               (x:xs)  -> return $ FType  (FunType (x:|xs) out)
         FType (STFunType sin ins out) -> do
             (_, pendingArgsTy) <- assocArgWithType ins $ toList argTypesR
             return $ FType  (STFunType sin pendingArgsTy out)
         t -> typeError $ "First argument of function application is not a function, but has type: " <> show t
       
-      -- traceM $ "After typing Gamma is "
+      -- traceM $ "Found return type to be " <> show resTy
       -- traceM $  renderStrict $ layoutSmart defaultLayoutOptions $ pretty $ HM.toList gamma''
       return (gamma'', AppE fun' args', resTy, imports')
       where  
@@ -225,7 +231,7 @@ typeSystem delta imports gamma = \case
   ============================================================================
       Delta, Gamma |- Lambda p1 p2 .. pn. expr : T1 -> T2 -> ... -> Tn -> Te
   -}
-  e@(LamEU pats expr) ->
+  e@(LamE pats expr) ->
     let
       -- FIXME: Replace the check for "_" binding here. We currently introduce it when 
       -- as unit arg representation, but we should have something not stringly typed for that purpose 
@@ -248,23 +254,27 @@ typeSystem delta imports gamma = \case
       typePatFromGamma (TupP ps) = TupP <$> mapM typePatFromGamma ps
     in do
 
-      patsNE <- case pats of 
+      {-patsNE <- case pats of 
             [] -> invariantBroken $ "Abstractions need to have at least one argument. The function " <> show e <> " did not. This is a compiler error. Please file a bug"
-            (p:ps) -> return (p:|ps)
-      let gamma' = foldl (\ g (b, t) -> HM.insert b t g) gamma $ join $ NE.map patTyBnds patsNE
+            (p:ps) -> return (p:|ps) -}
+
+      let gamma' = foldl (\ g (b, t) -> HM.insert b t g) gamma $ join $ map (NE.toList . patTyBnds) pats
 
       (gamma', expr', tyE, imports' ) <- typeExpr delta imports gamma' expr
-      (pats', gamma'') <- runStateT (mapM typePatFromGamma patsNE) gamma'
+      (pats', gamma'') <- runStateT (mapM typePatFromGamma pats) gamma'
       
-      let ty = FunType (NE.map patType pats') tyE
-      return (gamma'', LamE pats' expr', FType ty, imports' )
+      let funty = case pats' of 
+           []       -> FunType (IType TypeUnit:| []) tyE
+           (p:ps) ->  FunType (NE.map patType (p:|ps)) tyE
+      
+      return (gamma'', LamE pats' expr', FType funty, imports' )
 
   {-
       Delta, Gamma |- state : S     Delta, Gamma |- method : S -> Tm
   ========================================================================
                 Delta, Gamma |- Bind state method : Tm
   -}
-  (BindE stateVar methodB args) -> do
+  (StateFunE stateVar (MethodUnres methodB) args) -> do
     -- We need to get the state type before the method type, because the type of the method depends on the
     -- type of the state i.e. obj.clone() -->  Arc::clone ? String::clone ? 
     (gamma', stateVar', stateTy, imports') <- typeExpr delta imports gamma stateVar
@@ -294,14 +304,12 @@ typeSystem delta imports gamma = \case
 
     -- if args are empty, we need to pass an explicit unit argument
     -- FIXME: That shouldn't happen any more so we should error here. 
-    args' <- case args of
-      [] -> return (LitE UnitLit:|[]) 
-      (a:as) -> (neUnzip4 <$> mapM (typeExpr delta imports'' gamma) (a:| as)) >>= (\ (_, argsT, _ , _ ) -> return argsT)
+    args' <- (unzip4 <$> mapM (typeExpr delta imports'' gamma) args ) >>= (\ (_, argsT, _ , _ ) -> return argsT)
 
     -- gamma doesn't change (at least in the current system) as args are only usage sites
     -- ToDO: ArgTys should match function tys
 
-    return (gamma', StateFunE stateVar' methodE args', ty, imports'')
+    return (gamma', StateFunE stateVar' (MethodRes methodQB methodTy) args', ty, imports'')
 
   {-
       Delta, Gamma |- cond : Bool    Delta, Gamma |- tTrue : T   Delta, Gamma |- tFalse : T
@@ -496,13 +504,13 @@ maxType (FType fty1) (FType fty2) = do
     return (FType mTy)
 maxType TStar t2 = return t2
 maxType UType (IType TypeUnit) = return (IType TypeUnit)
-maxType UType t = typeError $ "Comparing in compatible types UType and " <> show t
-maxType t1@(HType _ _)  t2@(TType _)        = typeError $ "Comparing in compatible types " <> show t1 <> " and " <> show t2
-maxType t1@(HType _t _)  t2@(IType _)        = typeError $ "Comparing in compatible types " <> show t1 <> " and " <> show t2
-maxType t1@(TType _)    t2@(HType _ _ )     = typeError $ "Comparing in compatible types " <> show t1 <> " and " <> show t2
-maxType t1@(TType _)    t2@(IType _)        = typeError $ "Comparing in compatible types " <> show t1 <> " and " <> show t2
-maxType t1@(FType _)    t2                  = typeError $ "Comparing in compatible types " <> show t1 <> " and " <> show t2
-maxType t1              t2@(FType _)        = typeError $ "Comparing in compatible types " <> show t1 <> " and " <> show t2
+maxType UType t = typeError $ "Comparing incompatible types:\n UType \n and: \n " <> show t
+maxType t1@(HType _ _)  t2@(TType _)        = typeError $ "Comparing incompatible types:\n " <> show t1 <> "\n and: \n " <> show t2
+maxType t1@(HType _t _)  t2@(IType _)        = typeError $ "Comparing incompatible types:\n " <> show t1 <> "\n and: \n " <> show t2
+maxType t1@(TType _)    t2@(HType _ _ )     = typeError $ "Comparing incompatible types:\n " <> show t1 <> "\n and: \n " <> show t2
+maxType t1@(TType _)    t2@(IType _)        = typeError $ "Comparing incompatible types:\n " <> show t1 <> "\n and: \n " <> show t2
+maxType t1@(FType _)    t2                  = typeError $ "Comparing incompatible types:\n " <> show t1 <> "\n and: \n " <> show t2
+maxType t1              t2@(FType _)        = typeError $ "Comparing incompatible types:\n " <> show t1 <> "\n and: \n " <> show t2
 
 
 maxFunType :: (ErrAndLogM m, TypeErrorM m ty) => FunType ty Unresolved -> FunType ty Resolved -> m (FunType ty Resolved)
