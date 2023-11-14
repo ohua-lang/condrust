@@ -295,9 +295,9 @@ typeSystem delta imports gamma = \case
     (gamma'', methodE , methodTy, imports'') <- typeExpr delta imports' gamma (LitE (FunRefLit (FunRef methodQB Nothing (STFunType TStar [] TStar))))
     
     
-    ty <- case methodTy of
+    (fty, ty) <- case methodTy of
             -- Question: Why don't we do the partial application type check here?
-            FType (STFunType sTy _ resTy) | heq sTy stateTy -> return resTy
+            FType fty@(STFunType sTy _ resTy) | heq sTy stateTy -> return (fty, resTy)
             FType (STFunType sTy _ resTy) -> typeError $ "State types "<> show sTy <>" and "<> show stateTy <> " do not match."
             _ -> typeError $ "Method type "<> show methodTy <>" is not a stateful function type."
 
@@ -309,7 +309,7 @@ typeSystem delta imports gamma = \case
     -- gamma doesn't change (at least in the current system) as args are only usage sites
     -- ToDO: ArgTys should match function tys
 
-    return (gamma', StateFunE stateVar' (MethodRes methodQB methodTy) args', ty, imports'')
+    return (gamma', StateFunE stateVar' (MethodRes methodQB fty) args', ty, imports'')
 
   {-
       Delta, Gamma |- cond : Bool    Delta, Gamma |- tTrue : T   Delta, Gamma |- tFalse : T

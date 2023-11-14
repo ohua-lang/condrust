@@ -69,23 +69,23 @@ type Expr :: Type -> Resolution -> (Type -> Type) -> Type
 data Expr ty res lists where
   VarE      :: Binding -> OhuaType ty res                                               -> Expr ty res lists
   LitE      :: Lit ty res                                                               -> Expr ty res lists
-  LetE      :: Pat ty res -> Expr ty res lists -> Expr ty res lists                             -> Expr ty res lists
-  AppE      :: (Traversable lists) => Expr ty res lists -> lists (Expr ty res lists)                                       -> Expr ty res lists
-  LamE      :: (Traversable lists) => lists (Pat ty res) -> Expr ty res lists                                          -> Expr ty res lists
-  IfE       :: Expr ty res lists -> Expr ty res lists -> Expr ty res lists                          -> Expr ty res lists
-  WhileE    :: Expr ty res lists -> Expr ty res lists                                           -> Expr ty res lists
-  MapE      :: Expr ty res lists-> Expr ty res lists                                            -> Expr ty res lists
+  LetE      :: Pat ty res -> Expr ty res lists -> Expr ty res lists                     -> Expr ty res lists
+  AppE      :: (Traversable lists) => Expr ty res lists -> lists (Expr ty res lists)    -> Expr ty res lists
+  LamE      :: (Traversable lists) => lists (Pat ty res) -> Expr ty res lists           -> Expr ty res lists
+  IfE       :: Expr ty res lists -> Expr ty res lists -> Expr ty res lists              -> Expr ty res lists
+  WhileE    :: Expr ty res lists -> Expr ty res lists                                   -> Expr ty res lists
+  MapE      :: Expr ty res lists-> Expr ty res lists                                    -> Expr ty res lists
   -- The function cannot be just a binding here, because it is an expression in Alang expressions
   -- and we need to "transport" the function type from the type system to the lowering
   -- StateFunE state method args
   StateFunE :: (Traversable lists) => Expr ty res lists -> MethodRepr ty res -> lists (Expr ty res lists) -> Expr ty res lists
-  StmtE     :: Expr ty res lists -> Expr ty res lists                                           -> Expr ty res lists
-  TupE      :: NonEmpty (Expr ty res lists)                                                 -> Expr ty res lists
+  StmtE     :: Expr ty res lists -> Expr ty res lists                                    -> Expr ty res lists
+  TupE      :: NonEmpty (Expr ty res lists)                                              -> Expr ty res lists
 
 
 data MethodRepr ty res where
     MethodUnres :: Binding -> MethodRepr ty 'Unresolved
-    MethodRes   :: QualifiedBinding -> OhuaType ty 'Resolved -> MethodRepr ty 'Resolved 
+    MethodRes   :: QualifiedBinding -> FunType ty 'Resolved -> MethodRepr ty 'Resolved 
 
 deriving instance Show (MethodRepr ty res)
 deriving instance (Show (lists (Expr ty res lists)), Show (lists (Pat ty res))) => Show (Expr ty res lists) 
