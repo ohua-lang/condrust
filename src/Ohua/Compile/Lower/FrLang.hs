@@ -86,7 +86,7 @@ trans =
         VarE b ty -> Var $ TBind b ty
         LitE l -> Lit l
         LetE p e1 e2 -> Let (patToTBind p) (trans e1) (trans e2)
-        -- ToDo: We used to add the unit argument in the lowering to ALang -> should we return to that principle?
+
         AppE e1 args -> foldl Apply (trans e1) (map trans args)
         LamE p e -> case p of
                 (p0:|[]) -> Lambda (patToTBind p0) (trans e)
@@ -105,10 +105,11 @@ trans =
             in  case ALang.funType function' of
                 Just fTy -> (ALang.smapBuiltin (FType fTy) (ALang.exprType coll') (IType $ TypeList (IType TypeUnit))) `Apply` function' `Apply` coll'
                 Nothing -> error $ "Function type is not available for expression:\n "<> show function <> "\n Please report this error."
-        -- It look superfluose to do this Apply conversion twice, but this should be adressed by a rewrite of ALang, not by a refactoring FLang
-        StateFunE stateE (MethodRes (QualifiedBinding _ns mName) ty) args -> 
-            let method' = BindState (trans stateE) (Var $ TBind mName ty)
+
+        StateFunE stateE (MethodRes mName fty) args -> 
+            let method' = BindState (trans stateE) (Lit $ FunRefLit (FunRef mName Nothing fty) )
             in foldl Apply method' (map trans args)
+
         StmtE e1 cont -> Let (TBind "_" $ IType TypeUnit) (trans e1) (trans cont)
         TupE exprs -> 
             let alExprs = NE.map trans exprs
