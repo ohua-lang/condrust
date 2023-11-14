@@ -28,9 +28,119 @@ toAlang' taken expr = runGenBndT taken $ transfrm expr
 --   However ALang still expects them to be Let expressions (which is the "second layer" of each algo)
 --   so we just unwrap them here until we get consistency among the representations
 unwrapAlgo :: FR.FuncExpr ty -> FR.FuncExpr ty
-unwrapAlgo (LamE pats innerAlgo) = innerAlgo
+unwrapAlgo (LamE pats innerAlgo) = addAssignments (NE.toList pats) innerAlgo
+   where 
+    addAssignments ((VarP x xty): xs) body =
+        addAssignments xs $ LetE (VarP x xty) (LitE $ EnvRefLit x xty) body
+    addAssignments [] body = body
+    -- ToDo/Representation: We need to encode in the type system, that it's impossible to have nested patterns at this point 
+    addAssignments _nested _body = error "Error: Algo arguments contain tuple pattern. Those should have been resolved already. Please file a bug"
 -- This case shouldn't happen, but this is an intermediate solution so we let it error in the code we want to keep/refactor
 unwrapAlgo e = e
+
+
+-- | Whenever the result of a function call is a tuple, add assignemnts for each part of the tuple to have each function call a single
+--   output i.e.
+--   Let (a, b) = fun() becomes 
+--   Let newName = fun()
+--       in Let a = nth(newName, 0) 
+--       in Let b = nth(newName, 1)
+removeDestructuring :: MonadGenBnd m => FR.FuncExpr ty -> m (FR.FuncExpr ty)
+removeDestructuring = 
+    FR.preWalkM $ \case
+        LetE (TupP pats) e1 e2 -> do
+            valBnd <- generateBinding
+            let tType = (tupTypeFrom pats)
+            pure $ LetE (VarP valBnd tType) e1 $ unstructure (valBnd, tType) pats e2
+        LamE (TupP pats :| []) e -> do
+            valBnd <- generateBinding
+            let tType = (tupTypeFrom pats)
+            pure $ LamE (VarP valBnd tType :| []) $ unstructure (valBnd, tType) pats e
+        e -> pure e
+
+
+unstructure :: (Binding, ResolvedType ty) -> NonEmpty (FR.ResolvedPat ty) -> FR.FuncExpr ty -> FR.FuncExpr ty
+unstructure (valBnd, valTy) pats = go (toInteger $ length pats) (NE.toList pats)
+  where
+    go numPats =
+        foldl (.) id .
+        map
+            (\(idx, pat) ->
+                 LetE pat $
+                 AppE
+                     (nthFun valTy (FR.patType pat))
+                     (LitE (NumericLit idx) :|
+                     [ LitE (NumericLit numPats)
+                     , VarE valBnd valTy
+                     ])) .
+        zip [0 ..]
+
+-- ToDo: Replace by Alang definition
+nthFun :: ResolvedType ty -> OhuaType ty Resolved -> FR.FuncExpr ty
+nthFun collTy elemTy = LitE $ FunRefLit $ FunRef IFuns.nth Nothing $ FunType (IType TypeNat :| [IType TypeNat, collTy]) elemTy
+
+-- | The function actualy lowering Frontend IR to ALang
+trans :: FR.FuncExpr ty -> ALang.Expr ty
+trans =
+    \case
+        VarE b ty -> Var $ TBind b ty
+        LitE l -> Lit l
+        LetE p e1 e2 -> Let (patToTBind p) (trans e1) (trans e2)
+        -- ToDo: We used to add the unit argument in the lowering to ALang -> should we return to that principle?
+        AppE e1 args -> foldl Apply (trans e1) (map trans args)
+        LamE p e -> case p of
+                (p0:|[]) -> Lambda (patToTBind p0) (trans e)
+                _ -> error $
+                    "Invariant broken: Found multi apply or destructure lambda: " <>
+                    show p
+        IfE cont then_ else_ ->
+            ALang.ifBuiltin
+                (ALang.exprType  (trans then_))
+                `Apply` (trans cont)
+                    `Apply` Lambda (TBind "_" $ IType TypeUnit) (trans then_)
+                    `Apply` Lambda (TBind "_" $ IType TypeUnit) (trans else_)
+        MapE function coll ->
+            let function' = trans function
+                coll' = trans coll
+            in  case ALang.funType function' of
+                Just fTy -> (ALang.smapBuiltin (FType fTy) (ALang.exprType coll') (IType $ TypeList (IType TypeUnit))) `Apply` function' `Apply` coll'
+                Nothing -> error $ "Function type is not available for expression:\n "<> show function <> "\n Please report this error."
+        -- It look superfluose to do this Apply conversion twice, but this should be adressed by a rewrite of ALang, not by a refactoring FLang
+        StateFunE stateE (MethodRes (QualifiedBinding _ns mName) ty) args -> 
+            let method' = BindState (trans stateE) (Var $ TBind mName ty)
+            in foldl Apply method' (map trans args)
+        StmtE e1 cont -> Let (TBind "_" $ IType TypeUnit) (trans e1) (trans cont)
+        TupE exprs -> 
+            let alExprs = NE.map trans exprs
+                exprTys = NE.map ALang.exprType alExprs
+            in foldl 
+                    Apply 
+                    (pureFunction IFuns.mkTuple Nothing (FunType exprTys (TType exprTys))) 
+                    alExprs
+                 
+                
+        WhileE _cond _body ->  error "While loop has not been replaced. Please file a bug"
+  where
+    patToTBind =
+        \case
+            VarP v ty -> TBind v ty
+            p -> error $
+             "Invariant broken: At this point any patterns" <>
+             "(function arguments or let bound variables) should be single vars but " <> show p <>
+             "is not. Please file a bug."
+
+
+tupTypeFrom :: NonEmpty (ResolvedPat ty) -> (ResolvedType ty)
+tupTypeFrom pats = TType $ NE.map getPType pats
+    where
+        getPType (VarP _b ty) = ty
+        -- Actually we could probably support it. Also we should have cought that case before
+        -- FIXME correct!
+        -- steps:
+        -- 1) adapt TType (in Resolved.Types)
+        -- 2) adapt TupP (in WellTyped)
+        getPType (TupP _ ) = error $ "Encountered a nested tuple pattern, like \"let (a, (b, c)) = ...\". This is currently not supported"
+
 
 definedBindings :: FR.FuncExpr ty -> HS.HashSet Binding
 definedBindings olang =
@@ -59,19 +169,6 @@ mkLamSingleArgument =
     FR.preWalkE $ \case
         LamE (x1:|(x2:xs)) b -> LamE (x1 :| []) $ LamE (x2 :| xs) b
         e -> e
-
-removeDestructuring :: MonadGenBnd m => FR.FuncExpr ty -> m (FR.FuncExpr ty)
-removeDestructuring = 
-    FR.preWalkM $ \case
-        LetE (TupP pats) e1 e2 -> do
-            valBnd <- generateBinding
-            let tType = (tupTypeFrom pats)
-            pure $ LetE (VarP valBnd tType) e1 $ unstructure (valBnd, tType) pats e2
-        LamE (TupP pats :| []) e -> do
-            valBnd <- generateBinding
-            let tType = (tupTypeFrom pats)
-            pure $ LamE (VarP valBnd tType :| []) $ unstructure (valBnd, tType) pats e
-        e -> pure e
 
 -- | The idea here is, that we transform a while loop to a recursive call
 --   As the inner part of the while loop is a local scope and there is no 'return' 
@@ -166,82 +263,4 @@ whileToRecursion = return
     -}
 
 
--- ToDo: Replace by Alang definition
-nthFun :: ResolvedType ty -> OhuaType ty Resolved -> FR.FuncExpr ty
-nthFun collTy elemTy = LitE $ FunRefLit $ FunRef IFuns.nth Nothing $ FunType (IType TypeNat :| [IType TypeNat, collTy]) elemTy
-
-unstructure :: (Binding, ResolvedType ty) -> NonEmpty (FR.ResolvedPat ty) -> FR.FuncExpr ty -> FR.FuncExpr ty
-unstructure (valBnd, valTy) pats = go (toInteger $ length pats) (NE.toList pats)
-  where
-    go numPats =
-        foldl (.) id .
-        map
-            (\(idx, pat) ->
-                 LetE pat $
-                 AppE
-                     (nthFun valTy (FR.patType pat))
-                     (LitE (NumericLit idx) :|
-                     [ LitE (NumericLit numPats)
-                     , VarE valBnd valTy
-                     ])) .
-        zip [0 ..]
-
-trans :: FR.FuncExpr ty -> ALang.Expr ty
-trans =
-    \case
-        VarE b ty -> Var $ TBind b ty
-        LitE l -> Lit l
-        LetE p e1 e2 -> Let (patToTBind p) (trans e1) (trans e2)
-        -- ToDo: We used to add the unit argument in the lowering to ALang -> should we return to that principle?
-        AppE e1 args -> foldl Apply (trans e1) (map trans args)
-        LamE p e -> case p of
-                (p0:|[]) -> Lambda (patToTBind p0) (trans e)
-                _ -> error $
-                    "Invariant broken: Found multi apply or destructure lambda: " <>
-                    show p
-        IfE cont then_ else_ ->
-            ALang.ifBuiltin
-                (ALang.exprType  (trans then_))
-                `Apply` (trans cont)
-                    `Apply` Lambda (TBind "_" $ IType TypeUnit) (trans then_)
-                    `Apply` Lambda (TBind "_" $ IType TypeUnit) (trans else_)
-        MapE function coll ->
-            let function' = trans function
-                coll' = trans coll
-            in  case ALang.funType function' of
-                Just fTy -> (ALang.smapBuiltin (FType fTy) (ALang.exprType coll') (IType $ TypeList (IType TypeUnit))) `Apply` function' `Apply` coll'
-                Nothing -> error $ "Function type is not available for expression:\n "<> show function <> "\n Please report this error."
-        -- It look superfluose to do this Apply conversion twice, but this should be adressed by a rewrite of ALang, not by a refactoring FLang
-        StateFunE stateE (MethodRes (QualifiedBinding _ns mName) ty) args -> 
-            let method' = BindState (trans stateE) (Var $ TBind mName ty)
-            in foldl Apply method' (map trans args)
-        StmtE e1 cont -> Let (TBind "_" $ IType TypeUnit) (trans e1) (trans cont)
-        TupE exprs -> 
-            let alExprs = NE.map trans exprs
-                exprTys = NE.map ALang.exprType alExprs
-            in foldl 
-                    Apply 
-                    (pureFunction IFuns.mkTuple Nothing (FunType exprTys (TType exprTys))) 
-                    alExprs
-                 
-                
-        WhileE _cond _body ->  error "While loop has not been replaced. Please file a bug"
-  where
-    patToTBind =
-        \case
-            VarP v ty -> TBind v ty
-            p -> error $
-             "Invariant broken: At this point any patterns" <>
-             "(function arguments or let bound variables) should be single vars but " <> show p <>
-             "is not. Please file a bug."
-tupTypeFrom :: NonEmpty (ResolvedPat ty) -> (ResolvedType ty)
-tupTypeFrom pats = TType $ NE.map getPType pats
-    where
-        getPType (VarP _b ty) = ty
-        -- Actually we could probably support it. Also we should have cought that case before
-        -- FIXME correct!
-        -- steps:
-        -- 1) adapt TType (in Resolved.Types)
-        -- 2) adapt TupP (in WellTyped)
-        getPType (TupP _ ) = error $ "Encountered a nested tuple pattern, like \"let (a, (b, c)) = ...\". This is currently not supported"
 
