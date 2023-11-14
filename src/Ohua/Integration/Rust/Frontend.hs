@@ -20,8 +20,10 @@ import Ohua.Frontend.TypeSystem (Delta)
 import Ohua.Frontend.PPrint ()
 import Ohua.Frontend.Lang as FrLang
     ( Expr(..),
+      UnresolvedExpr,
+      MethodRepr(..),
       Pat(TupP, VarP),
-      flatten,
+      flattenU,
       patType)
 
 import Ohua.Integration.Lang
@@ -32,7 +34,7 @@ import qualified Ohua.Integration.Rust.Frontend.Convert as SubC
 
 
 class ConvertExpr a where
-  convertExpr :: SubC.ConvertM m => a -> m (FrLang.Expr RustVarType Unresolved)
+  convertExpr :: SubC.ConvertM m => a -> m (FrLang.UnresolvedExpr RustVarType)
 
 class ConvertPat a where
   convertPat :: SubC.ConvertM m => a -> m (FrLang.Pat RustVarType Unresolved)
@@ -46,7 +48,7 @@ instance Integration (Language 'Rust) where
     ErrAndLogM m =>
     Language 'Rust ->
     FilePath ->
-    m (Module, Namespace (FrLang.Expr RustVarType Unresolved) (Item Span), Module)
+    m (Module, Namespace (FrLang.UnresolvedExpr RustVarType) (Item Span), Module)
   loadNs _ srcFile = do
     rustMod <- liftIO $ loadRustFile srcFile
     rustNS <- extractNs rustMod
@@ -55,7 +57,7 @@ instance Integration (Language 'Rust) where
       extractNs ::
         ErrAndLogM m =>
         SourceFile Span ->
-        m (Namespace (FrLang.Expr RustVarType Unresolved) (Item Span))
+        m (Namespace (FrLang.UnresolvedExpr RustVarType) (Item Span))
       extractNs input = do
         globalDefs <- collectGlobals input
         extractWithGlobals globalDefs input
@@ -115,7 +117,7 @@ instance Integration (Language 'Rust) where
         Ident ->
         FnDecl Span ->
         Block Span ->
-        m (FrLang.Expr RustVarType Unresolved)
+        m (FrLang.UnresolvedExpr RustVarType)
       extractAlgo _algoName (FnDecl _ _ True _) _block = error "We do not support compilation of variadic functions for the moment"
       extractAlgo _algoName  (FnDecl args mReturnTy _ _) block = do
         args' <- mapM (convertPat <=< SubC.convertArg) args
@@ -125,9 +127,9 @@ instance Integration (Language 'Rust) where
         --        I really think that this is the way we should do it instead of expecting the integrations to do this quirk for us.
         --        We need this transformation to have the return type of the algo inside the algo i.e. for type checking.
         let wrappedBlock = LetE (VarP "result" returnType) block' (VarE "result" returnType)
-        return $ LamEU {- implGlobalArgs ++ -} args' wrappedBlock
+        return $ LamE {- implGlobalArgs ++ -} args' wrappedBlock
 
-      convertIntoFrExpr :: SubC.ConvertM m => Block Span -> m (FrLang.Expr RustVarType Unresolved)
+      convertIntoFrExpr :: SubC.ConvertM m => Block Span -> m (FrLang.UnresolvedExpr RustVarType)
       convertIntoFrExpr rustBlock = do
         subsetExpr <- SubC.convertBlock rustBlock
         convertExpr subsetExpr
@@ -148,7 +150,7 @@ instance Integration (Language 'Rust) where
     ErrAndLogM m =>
     Language 'Rust ->
     Module ->
-    Namespace (FrLang.Expr RustVarType Unresolved) (Item Span) ->
+    Namespace (FrLang.UnresolvedExpr RustVarType) (Item Span) ->
     m (Delta RustVarType Resolved)
   loadTypes _ (Module ownFile _) ohuaNs = do
     filesAndPaths <- concat <$> mapM funsForAlgo (ohuaNs ^. algos)
@@ -161,12 +163,12 @@ instance Integration (Language 'Rust) where
     let fixedLocalScope =  foldr (\(qb, ty) hm -> HM.insert (convertPathToLocal qb) ty hm) HM.empty (HM.toList importedFnTypes)
     return fixedLocalScope
     where
-      funsForAlgo :: ErrAndLogM m => Algo (FrLang.Expr RustVarType Unresolved) (Item Span) -> m [([NSRef], QualifiedBinding)]
+      funsForAlgo :: ErrAndLogM m => Algo (FrLang.UnresolvedExpr RustVarType) (Item Span) -> m [([NSRef], QualifiedBinding)]
       funsForAlgo (Algo _name code _inputCode ) = do
           mapM
             lookupFunTypes
-            $ [f                 | LitE (FunRefLit (FunRef f _ _)) <- flatten code] ++
-              [toQualBinding bnd | VarE bnd _                      <- flatten code]
+            $ [f                 | LitE (FunRefLit (FunRef f _ _)) <- flattenU code] ++
+              [toQualBinding bnd | VarE bnd _                      <- flattenU code]
 
       convertLocalToPath :: [NSRef] -> [NSRef]
       convertLocalToPath [] = [filePathToNsRef ownFile]
@@ -255,12 +257,12 @@ instance ConvertExpr Sub.Expr where
   convertExpr (Sub.Call fun args) = do
     fun' <- convertExpr fun
     args' <- mapM convertExpr args
-    return $ fun' `AppEU` args'
+    return $ fun' `AppE` args'
   -- ToDo: I don't think we should pass the receiver just as a binding, losing potential type information and
   convertExpr (Sub.MethodCall objE (Sub.CallRef (QualifiedBinding nsRef funName) _) args) = do
     objE' <- convertExpr objE
     args' <- mapM convertExpr args
-    return $ BindE objE' funName args'
+    return $ StateFunE objE' (MethodUnres funName) args'
   -- FIXME: This belongs into subset conversion
   convertExpr (Sub.MethodCall obj _ _ ) = error $ "A method call on something other than a struct variable, namely "<> show obj <>" was found but we only support variables."
   convertExpr (Sub.Tuple []) = return (LitE UnitLit)
@@ -273,12 +275,12 @@ instance ConvertExpr Sub.Expr where
     right' <- convertExpr right
     let (symbol, retTy) = binOpInfo op
     funref <- asFunRef symbol (TStar :| [TStar]) retTy
-    return $  AppEU funref [left',right']
+    return $  AppE funref [left',right']
   convertExpr (Sub.Unary op arg) = do
     arg' <- convertExpr arg
     let (symbol, retTy) = unOpInfo op
     funref <- asFunRef symbol (TStar :| []) retTy
-    return $ AppEU funref [arg']
+    return $ AppE funref [arg']
   convertExpr (Sub.Lit l) = convertExpr l
   convertExpr (Sub.If expr trueBlock falseBlock) = do
     expr' <- convertExpr expr
@@ -295,13 +297,13 @@ instance ConvertExpr Sub.Expr where
     body' <- convertExpr body
     return $
       MapE
-        (LamEU [pat'] body')
+        (LamE [pat'] body')
         dataExpr'
   convertExpr (Sub.EndlessLoop body) = convertExpr $ Sub.While (Sub.Lit $ Sub.Bool True) body
   convertExpr (Sub.Closure _ _ _ args _retTy body) = do
     args' <- mapM convertPat args
     body' <- convertExpr body
-    return $ LamEU args' body'
+    return $ LamE args' body'
   convertExpr (Sub.BlockExpr block) = convertExpr block
   convertExpr (Sub.PathExpr (Sub.CallRef ref _tyInfo)) = do
     return $ LitE $ FunRefLit $ FunRef ref Nothing $ FunType (TStar :| []) TStar
@@ -324,7 +326,7 @@ instance ConvertExpr Sub.Block where
                   (\stmt cont -> stmt cont)
                   convertedLast
                   convertedHeads
-      convertStmt :: SubC.ConvertM m => Sub.Stmt -> m (FrLang.Expr RustVarType Unresolved -> FrLang.Expr RustVarType Unresolved)
+      convertStmt :: SubC.ConvertM m => Sub.Stmt -> m (FrLang.UnresolvedExpr RustVarType -> FrLang.UnresolvedExpr RustVarType)
       convertStmt (Sub.Local pat _ty e) = do
         {-
         case (pat, ty) of
@@ -401,7 +403,7 @@ unOpInfo Sub.Deref =  ("*",  TStar)
 unOpInfo Sub.Not =  ("!",  TStar)
 unOpInfo Sub.Neg =  ("-",  TStar)
 
-asFunRef :: Monad m => Binding -> NonEmpty (OhuaType RustVarType Unresolved) -> OhuaType RustVarType Unresolved -> m (FrLang.Expr RustVarType Unresolved)
+asFunRef :: Monad m => Binding -> NonEmpty (OhuaType RustVarType Unresolved) -> OhuaType RustVarType Unresolved -> m (FrLang.UnresolvedExpr RustVarType)
 asFunRef op tys retTy = return $
       LitE $ FunRefLit $
         FunRef (QualifiedBinding (makeThrow []) op) Nothing (FunType tys retTy)
