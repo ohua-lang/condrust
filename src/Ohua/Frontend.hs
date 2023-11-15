@@ -28,7 +28,7 @@ frontend lang compScope inFile = do
         (langNs, ns, reg, placeholder) <- loadAlgosAndImports lang compScope inFile
         -- Inline algo code from the register
         nsInlined                      <- resolveNS (ns,reg)
-        -- make sure all functions have at least a Unit argument and no algo returns a literal 
+        -- Check that algos comply to programming model, in particular do not return a literal
         nsTransf                       <- updateExprs nsInlined trans
         -- Extract Delta i.e. the types of all functions used in the algos as {function_name:type}
         delta                          <- loadTypes lang langNs nsTransf
@@ -37,9 +37,9 @@ frontend lang compScope inFile = do
         -- FIXME: We ignore global definitions from the Namespace here
         -- Check typing of algorithms and propagate type information from Delta 
         nsWellTypd                      <- updateExprs nsNoRecs (toWellTyped delta (nsNoRecs^.imports))
-        -- Transform algos with multiple arguments to nested one argument functions
+        -- Add Unit literals if function cals have no arguments or function defintions have no parameters
         nsLetRoot                         <- updateExprs nsWellTypd (return . noEmptyArgs)
-        return ((langNs, nsLetRoot), placeholder)
+        return  ((langNs, nsLetRoot), placeholder)
     where
         trans :: ErrAndLogM m => FrLang.UnresolvedExpr ty -> m (FrLang.UnresolvedExpr ty)
         trans e = noFinalLiterals e >> pure e
