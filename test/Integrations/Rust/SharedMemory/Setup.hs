@@ -169,6 +169,10 @@ impl State {
         i
     }
 
+    pub fn modify(&mut self, i:i32) {
+        self.num += i;
+    }
+
     pub fn io(&self) {
         println!("LOOOP gnihihi\n")
     }
@@ -245,6 +249,17 @@ pub fn check(i:i32) -> bool {
     i < 23
 }
 
+pub fn f0(i:i32) -> i32 {
+    i + 1
+}
+pub fn f1(i:i32) -> i32 {
+    i + 2
+}
+pub fn f2(i:i32) -> i32 {
+    i + 3
+}
+
+
 pub fn make_char() -> char {
     'ö'
 }
@@ -299,9 +314,14 @@ pub fn from_int(i:i32) -> String {
    String::new("Actually I ignore the input")
 }
 
-pub fn f_tup() -> (i32, i32, String) {
+pub fn f_tup(i:i32) -> (i32, i32, String) {
+    return (i, 2, String::from("Hello, world!") )
+}
+
+pub fn fu_tup() -> (i32, i32) {
     return (1, 2, String::from("Hello, world!") )
 }
+
 
 pub fn fi_tup(i:i32) -> (i32, i32) {
     return (23+i, 42+i)

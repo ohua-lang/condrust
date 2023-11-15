@@ -163,18 +163,18 @@ spec =
                     algo(inp)
                 }
                 |] `shouldThrow` anyException
-{-
+
         describe "tuples" $ do
 
           it "different targets" $
-            (showCode "Compiled: " =<< compileCode  [sourceFile|
+            (showCode "Compiled: " =<< compileCodeWithDebug  [sourceFile|
                 use crate::funs::*;
 
                 fn test(i:i32) -> i32 {
                     let (x0 ,y0):(i32, i32) = fi_tup(i);
                     let x1:i32 = f0(x0);
                     let y1:i32 = f1(y0);
-                    h2(x1,y1)
+                    h4(x1,y1)
                 }
                 |]) >>=
             (\compiled -> do
@@ -186,10 +186,10 @@ spec =
                 use crate::funs::*;
 
                 fn test() -> i32 {
-                    let (x0,y0):(i32, i32) = f_tup();
+                    let (x0,y0):(i32, i32) = fu_tup();
                     let x1:i32 = f0(x0);
                     let y1:i32 = f1(y0);
-                    h2(x1,y1)
+                    h4(x1,y1)
                 }
                 |]) >>=
             (\compiled -> do
@@ -200,8 +200,8 @@ spec =
             (showCode "Compiled: " =<< compileCode  [sourceFile|
                 use crate::funs::*;
 
-                fn test() -> i32 {
-                    let (a, b, c):(i32, i32, String) = f_tup();
+                fn test(i:i32) -> i32 {
+                    let (a, b, c):(i32, i32, String) = f_tup(i);
                     let x:i32 = f0(a);
                     let y:i32 = f1(b);
                     let z:usize = take_string(c);
@@ -211,7 +211,7 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:" destruct
                 compiled `shouldBe` expected)
--}
+
 ------------- Testouput -------------------------------------
 
 aFunction :: SourceFile Span
@@ -824,7 +824,7 @@ fn test(i: i32) -> i32 {
       RunError::RecvFailed
     }
   }
-  let (b_0_0_tx, b_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (result_0_0_0_tx, result_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (x0_0_0_0_tx, x0_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (y0_0_0_0_tx, y0_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (y1_0_0_0_tx, y1_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
@@ -836,8 +836,8 @@ fn test(i: i32) -> i32 {
       loop {
         let var_0 = x1_0_0_0_rx.recv()?;
         let var_1 = y1_0_0_0_rx.recv()?;
-        let b_0_0 = h2(var_0, var_1);
-        b_0_0_tx.send(b_0_0)?;
+        let result_0_0_0 = crate::funs::h4(var_0, var_1);
+        result_0_0_0_tx.send(result_0_0_0)?;
         ()
       }
     }));
@@ -845,7 +845,7 @@ fn test(i: i32) -> i32 {
     .push(Box::new(move || -> _ {
       loop {
         let var_0 = y0_0_0_0_rx.recv()?;
-        let y1_0_0_0 = f1(var_0);
+        let y1_0_0_0 = crate::funs::f1(var_0);
         y1_0_0_0_tx.send(y1_0_0_0)?;
         ()
       }
@@ -854,14 +854,14 @@ fn test(i: i32) -> i32 {
     .push(Box::new(move || -> _ {
       loop {
         let var_0 = x0_0_0_0_rx.recv()?;
-        let x1_0_0_0 = f0(var_0);
+        let x1_0_0_0 = crate::funs::f0(var_0);
         x1_0_0_0_tx.send(x1_0_0_0)?;
         ()
       }
     }));
   tasks
     .push(Box::new(move || -> _ {
-      let res = fi_tup(i);
+      let res = crate::funs::fi_tup(i);
       let x0_0_0_0 = res.0;
       x0_0_0_0_tx.send(x0_0_0_0)?;
       let y0_0_0_0 = res.1;
@@ -878,7 +878,7 @@ fn test(i: i32) -> i32 {
       eprintln!("[Error] A worker thread of an Ohua algorithm has panicked!");
     }
   }
-  match b_0_0_rx.recv() {
+  match result_0_0_0_rx.recv() {
     Ok(res) => res,
     Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
   }
@@ -906,7 +906,7 @@ fn test() -> i32 {
       RunError::RecvFailed
     }
   }
-  let (b_0_0_tx, b_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (result_0_0_0_tx, result_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (x0_0_0_0_tx, x0_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (y0_0_0_0_tx, y0_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (y1_0_0_0_tx, y1_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
@@ -918,8 +918,8 @@ fn test() -> i32 {
       loop {
         let var_0 = x1_0_0_0_rx.recv()?;
         let var_1 = y1_0_0_0_rx.recv()?;
-        let b_0_0 = h2(var_0, var_1);
-        b_0_0_tx.send(b_0_0)?;
+        let result_0_0_0 = crate::funs::h4(var_0, var_1);
+        result_0_0_0_tx.send(result_0_0_0)?;
         ()
       }
     }));
@@ -927,7 +927,7 @@ fn test() -> i32 {
     .push(Box::new(move || -> _ {
       loop {
         let var_0 = y0_0_0_0_rx.recv()?;
-        let y1_0_0_0 = f1(var_0);
+        let y1_0_0_0 = crate::funs::f1(var_0);
         y1_0_0_0_tx.send(y1_0_0_0)?;
         ()
       }
@@ -936,14 +936,14 @@ fn test() -> i32 {
     .push(Box::new(move || -> _ {
       loop {
         let var_0 = x0_0_0_0_rx.recv()?;
-        let x1_0_0_0 = f0(var_0);
+        let x1_0_0_0 = crate::funs::f0(var_0);
         x1_0_0_0_tx.send(x1_0_0_0)?;
         ()
       }
     }));
   tasks
     .push(Box::new(move || -> _ {
-      let res = f_tup();
+      let res = crate::funs::fu_tup();
       let x0_0_0_0 = res.0;
       x0_0_0_0_tx.send(x0_0_0_0)?;
       let y0_0_0_0 = res.1;
@@ -960,7 +960,7 @@ fn test() -> i32 {
       eprintln!("[Error] A worker thread of an Ohua algorithm has panicked!");
     }
   }
-  match b_0_0_rx.recv() {
+  match result_0_0_0_rx.recv() {
     Ok(res) => res,
     Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
   }
@@ -971,7 +971,7 @@ destruct :: SourceFile Span
 destruct = [sourceFile|
 use crate::funs::*;
 
-fn test() -> i32 {
+fn test(i: i32) -> i32 {
   #[derive(Debug)]
   enum RunError {
     SendFailed,
@@ -987,7 +987,7 @@ fn test() -> i32 {
       RunError::RecvFailed
     }
   }
-  let (e_0_0_tx, e_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (result_0_0_0_tx, result_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (a_0_0_0_tx, a_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (b_0_0_0_tx, b_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (c_0_0_0_tx, c_0_0_0_rx) = std::sync::mpsc::channel::<  String,>();
@@ -1002,8 +1002,8 @@ fn test() -> i32 {
         let var_0 = x_0_0_0_rx.recv()?;
         let var_1 = y_0_0_0_rx.recv()?;
         let var_2 = z_0_0_0_rx.recv()?;
-        let e_0_0 = take_triple(var_0, var_1, var_2);
-        e_0_0_tx.send(e_0_0)?;
+        let result_0_0_0 = crate::funs::take_triple(var_0, var_1, var_2);
+        result_0_0_0_tx.send(result_0_0_0)?;
         ()
       }
     }));
@@ -1011,7 +1011,7 @@ fn test() -> i32 {
     .push(Box::new(move || -> _ {
       loop {
         let var_0 = c_0_0_0_rx.recv()?;
-        let z_0_0_0 = take_string(var_0);
+        let z_0_0_0 = crate::funs::take_string(var_0);
         z_0_0_0_tx.send(z_0_0_0)?;
         ()
       }
@@ -1020,7 +1020,7 @@ fn test() -> i32 {
     .push(Box::new(move || -> _ {
       loop {
         let var_0 = b_0_0_0_rx.recv()?;
-        let y_0_0_0 = f1(var_0);
+        let y_0_0_0 = crate::funs::f1(var_0);
         y_0_0_0_tx.send(y_0_0_0)?;
         ()
       }
@@ -1029,14 +1029,14 @@ fn test() -> i32 {
     .push(Box::new(move || -> _ {
       loop {
         let var_0 = a_0_0_0_rx.recv()?;
-        let x_0_0_0 = f0(var_0);
+        let x_0_0_0 = crate::funs::f0(var_0);
         x_0_0_0_tx.send(x_0_0_0)?;
         ()
       }
     }));
   tasks
     .push(Box::new(move || -> _ {
-      let res = f_tup();
+      let res = crate::funs::f_tup(i);
       let a_0_0_0 = res.0;
       a_0_0_0_tx.send(a_0_0_0)?;
       let b_0_0_0 = res.1;
@@ -1055,7 +1055,7 @@ fn test() -> i32 {
       eprintln!("[Error] A worker thread of an Ohua algorithm has panicked!");
     }
   }
-  match e_0_0_rx.recv() {
+  match result_0_0_0_rx.recv() {
     Ok(res) => res,
     Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
   }
