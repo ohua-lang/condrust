@@ -96,6 +96,7 @@ instance Heq (OhuaType ty s1) (OhuaType ty s2) where
   heq (HType ty1 _) (HType ty2 _) = ty1 == ty2
   heq (IType ty1) (IType ty2) = heq ty1 ty2
   heq (FType fTy1)(FType fTy2) = heq fTy1 fTy2
+  heq (TType tys1)(TType tys2) = length tys1 == length tys2 && all (uncurry heq) (NE.zip tys1 tys2)
   heq UType UType = True 
   heq TStar TStar = True
   heq _ _ = False

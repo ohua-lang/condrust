@@ -9,6 +9,8 @@ module Ohua.Types.Types
     , QualifiedBinding(..)
     , HostType(..)
     , Pathable(..)
+    , TruthableType(..)
+    , UnTuple(..)
     , OhuaType(..)
     , InternalType(..)
     , FunType(..)
