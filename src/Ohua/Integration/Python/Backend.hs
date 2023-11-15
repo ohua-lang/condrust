@@ -24,7 +24,7 @@ import Data.Maybe
 -- import Data.List.NonEmpty ((<|))
 
 defaultType :: OhuaType PythonVarType Resolved
-defaultType = HType (HostType PythonObject) Nothing
+defaultType = HType (HostType (PSingle PythonObject)) Nothing
 
 {-| Convert a task to a function block of the
     subset Language.

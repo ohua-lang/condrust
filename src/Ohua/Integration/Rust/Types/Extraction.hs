@@ -18,7 +18,7 @@ import Language.Rust.Pretty as RustP
 
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text.Prettyprint.Doc as Doc (Pretty(..))
-import Data.List.NonEmpty hiding (map)
+import qualified Data.List.NonEmpty as NE
 import Data.Text (pack)
 
 -- ToDo: Should we move this to the Common subset and replace the RustType in Subset?
@@ -50,6 +50,16 @@ instance Pathable RustVarType where
     toPath (Self ty _lT _mut) = toPath (RustType ty)
     toPath other = error $ "Compiler is traing to transform the Rust type "<> show other <> " to a path. This hasn't been implemented. Please file a bug."
     
+instance TruthableType RustVarType where
+    canbeBool (Normal (Rust.PathTy _ (Rust.Path False [Rust.PathSegment "bool" Nothing ()] _) _)) = True
+    canbeBool other = False
+
+instance UnTuple RustVarType where
+    unTupleType st@(Self ty _ _ ) = (st :|[])
+    unTupleType nt@(Normal (Rust.TupTy tys _ )) = case tys of
+            [] ->  (nt :|[]) -- This is the representation of a Unit type
+            (t:ts) ->  NE.map Normal (t:|ts)
+    unTupleType nt@(Normal other) = (nt :|[])
 
 rustUnitReturn :: Ty ()
 rustUnitReturn = Rust.TupTy [] () -- Nothing (Rust.Path False [Rust.PathSegment "()" Nothing ()] ()) ()

@@ -35,7 +35,7 @@ type ConvertM m = (Monad m, MonadState Context m)
 type PythonNamespace = Namespace (FrLang.UnresolvedExpr PythonVarType) (Py.Statement SrcSpan)
 
 defaultType:: OhuaType PythonVarType Unresolved
-defaultType = HType (HostType PythonObject) Nothing
+defaultType = HType (HostType (PSingle PythonObject)) Nothing
 
 instance Integration (Language 'Python) where
     type HostModule (Language 'Python) = Module
