@@ -33,7 +33,7 @@ spec =
           fn test(i: i32) -> i32 {
             let state: State  = State::new_state(i);
             state.modify(5);
-            let r1:i32 = state.gs1(6);
+            let r1:i32 = state.gs(6);
             r1
           }
           |]) >>=
@@ -59,6 +59,7 @@ spec =
             expected <- showCode "Expected:" singleState 
             compiled `shouldBe` expected)
       )
+
     describe "loop" ( do
         it "deep state simple" $
             (showCode "Compiled: " =<< compileCode  [sourceFile|
@@ -179,17 +180,17 @@ fn test(i: i32) -> i32 {
       RunError::RecvFailed
     }
   }
-  let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
-  let (state_0_0_1_tx, state_0_0_1_rx) = std::sync::mpsc::channel::<  State,>();
   let (result_0_0_0_tx, result_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (state_0_0_1_tx, state_0_0_1_rx) = std::sync::mpsc::channel::<  State,>();
+  let (result_1_0_0_tx, result_1_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
     Vec::new();
   tasks
     .push(Box::new(move || -> _ {
       loop {
-        let var_0 = result_0_0_0_rx.recv()?;
-        let a_0_0 = h(var_0);
-        a_0_0_tx.send(a_0_0)?;
+        let var_0 = result_1_0_0_rx.recv()?;
+        let result_0_0_0 = crate::funs::h(var_0);
+        result_0_0_0_tx.send(result_0_0_0)?;
         ()
       }
     }));
@@ -197,14 +198,14 @@ fn test(i: i32) -> i32 {
     .push(Box::new(move || -> _ {
       loop {
         let mut var_0 = state_0_0_1_rx.recv()?;
-        let result_0_0_0 = var_0.gs(5);
-        result_0_0_0_tx.send(result_0_0_0)?;
+        let result_1_0_0 = var_0.gs(5);
+        result_1_0_0_tx.send(result_1_0_0)?;
         ()
       }
     }));
   tasks
     .push(Box::new(move || -> _ {
-      let state_0_0_1 = State::new_state(i);
+      let state_0_0_1 = crate::funs::State::new_state(i);
       state_0_0_1_tx.send(state_0_0_1)?;
       Ok(())
     }));
@@ -218,7 +219,7 @@ fn test(i: i32) -> i32 {
       eprintln!("[Error] A worker thread of an Ohua algorithm has panicked!");
     }
   }
-  match a_0_0_rx.recv() {
+  match result_0_0_0_rx.recv() {
     Ok(res) => res,
     Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
   }
@@ -254,7 +255,7 @@ fn test(i: i32) -> i32 {
     .push(Box::new(move || -> _ {
       loop {
         let mut var_0 = state_0_0_1_0_rx.recv()?;
-        let r1_0_0_0 = var_0.gs1(6);
+        let r1_0_0_0 = var_0.gs(6);
         r1_0_0_0_tx.send(r1_0_0_0)?;
         ()
       }
@@ -269,7 +270,7 @@ fn test(i: i32) -> i32 {
     }));
   tasks
     .push(Box::new(move || -> _ {
-      let state_0_0_2 = State::new_state(i);
+      let state_0_0_2 = crate::funs::State::new_state(i);
       state_0_0_2_tx.send(state_0_0_2)?;
       Ok(())
     }));
