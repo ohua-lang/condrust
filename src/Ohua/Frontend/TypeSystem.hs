@@ -318,9 +318,13 @@ typeSystem delta imports gamma = \case
   -}
   (IfE cond tTrue tFalse) -> do
     (_, cond', condTy, imports') <- typeExpr delta imports gamma cond
-    if (heq condTy ((IType TypeBool)::OhuaType ty Resolved))
+    let is_bool = case condTy of 
+            IType TypeBool -> True
+            HType hTy _ -> canbeBool hTy
+            _ -> False
+    if is_bool
     then return ()
-    else typeError "Condition input does not have type bool."
+    else typeError$ "Condition input does not have type bool BUT " <> show condTy
 
     (_, tTrue', tTrueTy, imports'') <- typeExpr delta imports' gamma tTrue
     (gamma', tFalse', tFalseTy, imports''' ) <- typeExpr delta imports'' gamma tFalse
