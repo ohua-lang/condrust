@@ -48,7 +48,7 @@ import qualified Text.Show
 -- | A wrapper type for the types of supported host languages allowing us to specify requried properties (constraints) 
 --   host types must implement to process them properly.
 data HostType ty where
-  HostType::(Pretty ty, Show ty, Eq ty, Pathable ty, TruthableType ty, UnTuple ty) => ty -> HostType ty
+  HostType::(Pretty ty, Show ty, Eq ty, Pathable ty, TruthableType ty, UnTupleType ty, ListElementType ty) => ty -> HostType ty
 
 deriving instance Eq (HostType ty)
 
@@ -60,7 +60,7 @@ class Pathable t where
 -- | We need to destruct and typecheck tuples during compilation. Tuples will have a tuple type in the host type representation. 
 --   This allows us to get the single types contained in those tuples irrespective of the current host type.
 --   We get a NonEmpty because obviously each hosttype contains at least one host type
-class UnTuple ty where
+class UnTupleType ty where
   unTupleType :: ty -> NonEmpty ty
 
 -- | We want to support branching with conditions other than plain boolean literals.
@@ -69,6 +69,12 @@ class UnTuple ty where
 --   a type is (equivalent to) a boolean
 class TruthableType ty where
   canbeBool :: ty -> Bool  
+
+-- | To type(check) map expressions, we (currently) need to know which element type 
+--   iterated objects return and need to be able to check that they return a "list like"
+--   iterable structure we can interpret as an internal list type.
+class ListElementType ty where
+  asListElementType :: ty -> Maybe ty
 
 instance Show (HostType ty) where
   show (HostType ty) = show ty
@@ -82,12 +88,15 @@ instance Pretty (HostType ty) where
 instance Pathable (HostType ty) where
   toPath (HostType t) = toPath t
 
-instance UnTuple (HostType ty) where
+instance UnTupleType (HostType ty) where
   unTupleType (HostType ty) = NE.map HostType (unTupleType ty)
 
 instance TruthableType (HostType ty) where
   canbeBool (HostType ty) = canbeBool ty
 
+instance ListElementType (HostType ty) where
+  asListElementType (HostType ty) = asListElementType ty <&> HostType
+ 
 ------------------------------------------------------------------------------------
 --  Generics implementation for GADTS taken from the example described at 
 --  https://ryanglscott.github.io/2018/02/11/how-to-derive-generic-for-some-gadts/
@@ -105,7 +114,7 @@ instance (c, Eq (f x)) => Eq (ECC c f x) where
   ECC x == ECC y = x == y
 
 instance Generic (HostType ty) where
-  type Rep (HostType ty) = (ECC (Pretty ty, Show ty, Eq ty, Pathable ty, UnTuple ty, TruthableType ty) (Rec0 ty))
+  type Rep (HostType ty) = (ECC (Pretty ty, Show ty, Eq ty, Pathable ty, UnTupleType ty, TruthableType ty, ListElementType ty) (Rec0 ty))
 
   from (HostType x) = ECC (K1 x)
   to (ECC (K1 x)) = HostType x
