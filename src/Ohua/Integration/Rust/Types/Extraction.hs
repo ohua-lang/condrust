@@ -54,12 +54,16 @@ instance TruthableType RustVarType where
     canbeBool (Normal (Rust.PathTy _ (Rust.Path False [Rust.PathSegment "bool" Nothing ()] _) _)) = True
     canbeBool other = False
 
-instance UnTuple RustVarType where
+instance UnTupleType RustVarType where
     unTupleType st@(Self ty _ _ ) = (st :|[])
     unTupleType nt@(Normal (Rust.TupTy tys _ )) = case tys of
             [] ->  (nt :|[]) -- This is the representation of a Unit type
             (t:ts) ->  NE.map Normal (t:|ts)
     unTupleType nt@(Normal other) = (nt :|[])
+
+instance ListElementType RustVarType where
+    asListElementType (Normal (Rust.PathTy Nothing (Path False [PathSegment "Vec" (Just (AngleBracketed [TypeArg (itemTy)] _ _ )) _] _) _)) = Just (Normal itemTy) 
+    asListElementType other = Nothing 
 
 rustUnitReturn :: Ty ()
 rustUnitReturn = Rust.TupTy [] () -- Nothing (Rust.Path False [Rust.PathSegment "()" Nothing ()] ()) ()

@@ -33,9 +33,12 @@ instance Pretty PythonVarType where
 instance TruthableType PythonVarType where 
     canbeBool _pt = True
 
-instance UnTuple PythonVarType where
+instance UnTupleType PythonVarType where
     unTupleType (PTuple ts) = NE.map PSingle ts
     unTupleType t = t:|[]
+
+instance ListElementType PythonVarType where
+    asListElementType _ = Just (PSingle PythonObject)
      
 type FunTypesMap = HM.HashMap QualifiedBinding (FunType PythonVarType Resolved)
 
