@@ -223,7 +223,7 @@ typeSystem delta imports gamma = \case
           | compromise_compare t argT = do
             (argsAndTy, pendingTy) <- assocArgWithType ts argTs'
             return ((argT,t) : argsAndTy, pendingTy)
-          | otherwise = typeError $ "Declared argument type "<> show t <> " and type of given argument " <> show argT <> " do not match."
+          | otherwise = typeError $ "Function argument type "<> show t <> " and type of given argument " <> show argT <> " do not match."
 
 
   {-
@@ -253,21 +253,17 @@ typeSystem delta imports gamma = \case
       typePatFromGamma (VarP bnd t) = (\ t' -> VarP bnd <$> maxType t t') =<< invariantGetGamma bnd
       typePatFromGamma (TupP ps) = TupP <$> mapM typePatFromGamma ps
     in do
-
-      {-patsNE <- case pats of 
-            [] -> invariantBroken $ "Abstractions need to have at least one argument. The function " <> show e <> " did not. This is a compiler error. Please file a bug"
-            (p:ps) -> return (p:|ps) -}
-
+      
       let gamma' = foldl (\ g (b, t) -> HM.insert b t g) gamma $ join $ map (NE.toList . patTyBnds) pats
-
-      (gamma', expr', tyE, imports' ) <- typeExpr delta imports gamma' expr
-      (pats', gamma'') <- runStateT (mapM typePatFromGamma pats) gamma'
+      traceM $ "Gamma inside Lambda :" <> show gamma'
+      (gammaR', expr', tyE, imports' ) <- typeExpr delta imports gamma' expr
+      (pats', gammaR'') <- runStateT (mapM typePatFromGamma pats) gammaR'
       
       let funty = case pats' of 
            []       -> FunType (IType TypeUnit:| []) tyE
            (p:ps) ->  FunType (NE.map patType (p:|ps)) tyE
       
-      return (gamma'', LamE pats' expr', FType funty, imports' )
+      return (gammaR'', LamE pats' expr', FType funty, imports' )
 
   {-
       Delta, Gamma |- state : S     Delta, Gamma |- method : S -> Tm
@@ -288,23 +284,17 @@ typeSystem delta imports gamma = \case
       Just method_ns -> addStateToNS method_ns methodB
       Nothing -> return (QualifiedBinding (NSRef []) methodB)
 
-    -- At this point we need to make the method an expression, 
-    -- because a) it is an expression in ALang and b) therefore we need to attach it's type to it, which we cannot do with a qualified binding
-    -- FIXME: What's supposed to happen with gamma here?
-    -- FIXME: Ho to properly construct an unresolved stateful function (type)?
+   -- FIXME: Ho to properly construct an unresolved stateful function (type)?
     (gamma'', methodE , methodTy, imports'') <- typeExpr delta imports' gamma (LitE (FunRefLit (FunRef methodQB Nothing (STFunType TStar [] TStar))))
-    
     
     (fty, ty) <- case methodTy of
             -- Question: Why don't we do the partial application type check here?
             FType fty@(STFunType sTy _ resTy) | heq sTy stateTy -> return (fty, resTy)
             FType (STFunType sTy _ resTy) -> typeError $ "State types "<> show sTy <>" and "<> show stateTy <> " do not match."
             _ -> typeError $ "Method type "<> show methodTy <>" is not a stateful function type."
-
-
-    -- if args are empty, we need to pass an explicit unit argument
-    -- FIXME: That shouldn't happen any more so we should error here. 
-    args' <- (unzip4 <$> mapM (typeExpr delta imports'' gamma) args ) >>= (\ (_, argsT, _ , _ ) -> return argsT)
+    
+    
+    args' <- (unzip4 <$> mapM (typeExpr delta imports'' gamma) args) >>= (\ (_, argsT, _ , _ ) -> return argsT)
 
     -- gamma doesn't change (at least in the current system) as args are only usage sites
     -- ToDO: ArgTys should match function tys
@@ -342,9 +332,14 @@ typeSystem delta imports gamma = \case
   -}
   (WhileE cond body) -> do
     (_, cond', condTy, imports' ) <- typeSystem delta imports gamma cond
-    if (heq condTy (IType TypeBool:: OhuaType ty Resolved))
+
+    let is_bool = case condTy of 
+          IType TypeBool -> True
+          HType hTy _ -> canbeBool hTy
+          _ -> False
+    if is_bool
     then return ()
-    else typeError "Condition input for while loop does not have type bool."
+    else typeError$ "Condition input for while loop does not have type bool BUT " <> show condTy
 
     (gamma', body', _bodyTy, imports'' ) <- typeExpr delta imports' gamma body
 
@@ -357,23 +352,55 @@ typeSystem delta imports gamma = \case
   -}
   (MapE loopFun gen) ->  do
     (_, gen', genTy, imports') <- typeExpr delta imports gamma gen
-    _elemTy <- case genTy of
-                IType (TypeList eTy) -> return eTy
-                _ -> typeError "Loop generator is not a list!"
+    
+    -- FIXME: We cannot type or typecheck elelments from the generator based on it's type
+    --        because we don't know how iteration is implemented for arbitrary generator types
 
-    (gamma', loopFun', loopFunTy, imports'' ) <- typeExpr delta imports' gamma loopFun
+    let mElemTy = case genTy of
+          (HType listTy _) -> (asListElementType listTy)
+          _ -> Nothing
+
+    eTy <- case mElemTy of
+                Just ty -> return ty
+                Nothing -> typeError $ "Loop generator is not a list but: " <> show genTy
+    
+    -- The statement <for i in something> is a repeated assigment of i, to pass the type information
+    -- of i to the loop body expression, which will be <Lam i -> actual loop body> we annotate the
+    -- pattern i here  
+    let loopFun' = case loopFun of
+          LamE pats body -> LamE (annotate pats eTy) body
+          -- FIXME: I don't think this should ever happen  
+          otherExpr -> otherExpr
+
+    (gamma', loopFun', loopFunTy, imports'' ) <- typeExpr delta imports' gamma loopFun'
 
     return (gamma', MapE loopFun' gen', IType $ TypeList loopFunTy, imports'')
+    where 
+      annotate [VarP i ty] elemTy = [VarP i (HType elemTy Nothing)]
+      annotate [TupP pats] elemTy = annotate_r (NE.toList pats) (asHtypes elemTy)
+      annotate pats elemTy = annotate_r pats (asHtypes elemTy) 
 
-  {-
+      annotate_r (VarP i _ty: pats) (et:etys) = VarP i et : annotate_r pats etys
+      annotate_r pats@(TupP _:_) _tys = error $ "Found a nested tuple pattern in a Loop expression."
+              <> show pats
+              <>" Please don't nest patterns (currently)" 
+      annotate_r [] [] = []
+      annotate_r pats tys = error $ "Length of patterns " <> show pats  <> " does not match available types " <> show tys <> " in loop header."
+
+      asHtypes elemTy = map (flip HType Nothing) (NE.toList $ unTupleType elemTy)
+
+  {- 
       Delta, Gamma |- e1:T1    Delta, Gamma |- cont : T2
   =======================================================
           Delta, Gamma |- Stmt e1 cont : T2
   -}
   (StmtE e1 cont) -> do
-    (_, e1', _e1Ty, imports' ) <- typeExpr delta imports gamma e1
-    (gamma', cont', contTy, imports'' ) <- typeExpr delta imports' gamma cont
-    return (gamma', StmtE e1' cont', contTy, imports'' )
+    -- traceM $ "Gonna type a Stmt with Gamma " <> show gamma 
+    (gammaR, e1', _e1Ty, imports') <- typeExpr delta imports gamma e1
+    -- traceM $ "Gamma after first expression in Statement" <> show gammaR
+    (gammaR', cont', contTy, imports'' ) <- typeExpr delta imports' gamma cont
+    -- traceM $ "Gamma after second expression in Statement" <> show gammaR'
+    return (gammaR', StmtE e1' cont', contTy, imports'' )
 
   {-
       Delta, Gamma |- e1:T1  Delta, Gamma |- e2:T2   ...   Delta, Gamma |- en: Tn
