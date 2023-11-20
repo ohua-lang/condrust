@@ -245,7 +245,7 @@ typeSystem delta imports gamma = \case
           -- contain the types of used variables
           -- This is because we cannot "forward" gamma through the applications of typeExpr i.e. 
           -- when we give it a gamma containing the patterns types, those types are Unresolved and are not just copied to the
-          -- resolved gamma we return. the rolved gamma will only contain used (and therefor typed) variables
+          -- resolved gamma we return. the resolved gamma will only contain used (and therefor typed) variables
           Nothing -> invariantBroken $ "Pattern deleted while typing. Deleted pattern: " <> show bnd
           Just ty' -> (modify $ HM.delete bnd) >> return ty'
 
@@ -257,6 +257,7 @@ typeSystem delta imports gamma = \case
       let gamma' = foldl (\ g (b, t) -> HM.insert b t g) gamma $ join $ map (NE.toList . patTyBnds) pats
       traceM $ "Gamma inside Lambda :" <> show gamma'
       (gammaR', expr', tyE, imports' ) <- typeExpr delta imports gamma' expr
+      -- traceM $ "Gamma after typing the body :" <> show gammaR'
       (pats', gammaR'') <- runStateT (mapM typePatFromGamma pats) gammaR'
       
       let funty = case pats' of 
@@ -294,12 +295,18 @@ typeSystem delta imports gamma = \case
             _ -> typeError $ "Method type "<> show methodTy <>" is not a stateful function type."
     
     
-    args' <- (unzip4 <$> mapM (typeExpr delta imports'' gamma) args) >>= (\ (_, argsT, _ , _ ) -> return argsT)
+    (gammaRs, args', argTypesR) <- 
+      (unzip4 <$> mapM (typeExpr delta imports'' gamma) args) 
+      >>= (\ (gammaR, argsT, argTy , _ ) -> return (gammaR, argsT, argTy))
 
-    -- gamma doesn't change (at least in the current system) as args are only usage sites
+    -- Now, as in function application, merge the gammas commming from typing subexpressions to compare
+    -- (or typescheck respectively) the types in surrounding expressions
+
+    let gamma_merged = foldl (\gs g -> HM.union gs g) gamma' gammaRs
     -- ToDO: ArgTys should match function tys
+    -- traceM $ "Gamma after typing Statefu function " <> show gamma_merged
 
-    return (gamma', StateFunE stateVar' (MethodRes methodQB fty) args', ty, imports'')
+    return (gamma_merged, StateFunE stateVar' (MethodRes methodQB fty) args', ty, imports'')
 
   {-
       Delta, Gamma |- cond : Bool    Delta, Gamma |- tTrue : T   Delta, Gamma |- tFalse : T
@@ -316,13 +323,13 @@ typeSystem delta imports gamma = \case
     then return ()
     else typeError$ "Condition input does not have type bool BUT " <> show condTy
 
-    (_, tTrue', tTrueTy, imports'') <- typeExpr delta imports' gamma tTrue
-    (gamma', tFalse', tFalseTy, imports''' ) <- typeExpr delta imports'' gamma tFalse
+    (gammaT, tTrue', tTrueTy, imports'') <- typeExpr delta imports' gamma tTrue
+    (gammaF, tFalse', tFalseTy, imports''' ) <- typeExpr delta imports'' gamma tFalse
     if (heq tTrueTy tFalseTy)
     then return ()
     else typeError "Conditional branches have different types."
-
-    return (gamma', IfE cond' tTrue' tFalse', tTrueTy, imports''')
+    let gamma_merged = HM.union gammaT gammaF
+    return (gamma_merged, IfE cond' tTrue' tFalse', tTrueTy, imports''')
 
   {-
    Delta, Gamma |- cond : Bool       Delta, Gamma |- body : T
@@ -400,7 +407,8 @@ typeSystem delta imports gamma = \case
     -- traceM $ "Gamma after first expression in Statement" <> show gammaR
     (gammaR', cont', contTy, imports'' ) <- typeExpr delta imports' gamma cont
     -- traceM $ "Gamma after second expression in Statement" <> show gammaR'
-    return (gammaR', StmtE e1' cont', contTy, imports'' )
+    let gamma_merge = HM.union gammaR gammaR' 
+    return (gamma_merge, StmtE e1' cont', contTy, imports'' )
 
   {-
       Delta, Gamma |- e1:T1  Delta, Gamma |- e2:T2   ...   Delta, Gamma |- en: Tn
