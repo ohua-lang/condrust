@@ -47,10 +47,8 @@ spec =
 
               pub fn test(i:i32) -> i32 {
                   let mut s: State = State::new_state(i);
-                  let stream: Vec<i32> = iter_i32();
-                  for e in stream {
-                      let e1: i32 = e;
-                      s.gs(e1);
+                  for e in iter_i32() {
+                      s.gs(e);
                   }
                   s.gs(5)
               }
@@ -62,14 +60,13 @@ spec =
 
     describe "loop" ( do
         it "deep state simple" $
-            (showCode "Compiled: " =<< compileCode  [sourceFile|
+            (showCode "Compiled: " =<< compileCodeWithDebug [sourceFile|
                 use crate::funs::*;
 
                  fn test(i:i32) -> () {
-                    let stream: Iterator<S> = iter();
+                    let stream: Iterator<State> = iter_states();
                     for e in stream {
-                        let e1: State = e;
-                        e1.gs(5);
+                        e.gs(5);
                     }
                 }
                 |]) >>=
@@ -139,7 +136,7 @@ spec =
                 }
                 |]) >>=
             (\compiled -> do
-                expected <- showCode "Expected:" raw_state_out
+                expected <- showCode "Expected:" rawStateOut
                 compiled `shouldBe` expected)
         )
     describe "Minimal case" (do
@@ -148,7 +145,7 @@ spec =
                  use crate::funs::*;
 
                  fn test(i:i32) -> i32 {
-                    let s: State = State::new_state();
+                    let s: State = State::new_state(i);
                     s.gs(5)
                 }
                 |]) >>=
@@ -559,7 +556,7 @@ pub fn test(i: i32) -> i32 {
       RunError::RecvFailed
     }
   }
-  let (b_0_0_tx, b_0_0_rx) = std::sync::mpsc::channel::< i32,>();
+  let (result_0_0_0_tx, result_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (s_0_0_1_tx, s_0_0_1_rx) = std::sync::mpsc::channel::<  State,>();
   let (ctrl_0_0_tx, ctrl_0_0_rx) =
     std::sync::mpsc::channel::<  (bool, usize),>();
@@ -571,27 +568,27 @@ pub fn test(i: i32) -> i32 {
     .push(Box::new(move || -> _ {
       loop {
         let mut var_0 = s_0_1_1_rx.recv()?;
-        let b_0_0 = var_0.gs(5);
-        b_0_0_tx.send(b_0_0)?;
+        let result_0_0_0 = var_0.gs(5);
+        result_0_0_0_tx.send(result_0_0_0)?;
         ()
       }
     }));
   tasks
     .push(Box::new(move || -> _ {
-      let mut stream_0_0_0 = iter_i32();
+      let mut a_0_0 = crate::funs::iter_i32();
       let hasSize =
         {
-          let tmp_has_size = stream_0_0_0.iter().size_hint();
+          let tmp_has_size = a_0_0.iter().size_hint();
           tmp_has_size.1.is_some()
         };
       Ok(if hasSize {
-        let size = stream_0_0_0.len();
+        let size = a_0_0.len();
         let ctrl = (true, size);
         ctrl_0_0_tx.send(ctrl)?;
-        for d in stream_0_0_0 { d_1_tx.send(d)?; () }
+        for d in a_0_0 { d_1_tx.send(d)?; () }
       } else {
         let mut size = 0;
-        for d in stream_0_0_0 {
+        for d in a_0_0 {
           d_1_tx.send(d)?;
           let ctrl = (false, 1);
           ctrl_0_0_tx.send(ctrl)?;
@@ -605,7 +602,7 @@ pub fn test(i: i32) -> i32 {
     }));
   tasks
     .push(Box::new(move || -> _ {
-      let s_0_0_1 = State::new_state(i);
+      let s_0_0_1 = crate::funs::State::new_state(i);
       s_0_0_1_tx.send(s_0_0_1)?;
       Ok(())
     }));
@@ -640,11 +637,12 @@ pub fn test(i: i32) -> i32 {
       eprintln!("[Error] A worker thread of an Ohua algorithm has panicked!");
     }
   }
-  match b_0_0_rx.recv() {
+  match result_0_0_0_rx.recv() {
     Ok(res) => res,
     Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
   }
 }
+
 |]
 
 threadAndLoop :: SourceFile Span
@@ -667,7 +665,7 @@ fn test(i: i32) -> i32 {
       RunError::RecvFailed
     }
   }
-  let (b_0_0_tx, b_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (result_0_0_0_tx, result_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (s_0_0_2_tx, s_0_0_2_rx) = std::sync::mpsc::channel::<  State,>();
   let (sp_0_0_0_tx, sp_0_0_0_rx) = std::sync::mpsc::channel::<  State,>();
   let (ctrl_0_0_tx, ctrl_0_0_rx) =
@@ -690,7 +688,7 @@ fn test(i: i32) -> i32 {
           let count = sig.1;
           for _ in 0 .. count {
             let var_1 = d_1_rx.recv()?;
-            let x_0_0_0 = f_s(sp_0_0_0_0, var_1);
+            let x_0_0_0 = crate::funs::f_s(sp_0_0_0_0, var_1);
             x_0_0_0_tx.send(x_0_0_0)?;
             ()
           };
@@ -705,14 +703,14 @@ fn test(i: i32) -> i32 {
     .push(Box::new(move || -> _ {
       loop {
         let mut var_0 = s_0_1_1_rx.recv()?;
-        let b_0_0 = var_0.gs(5);
-        b_0_0_tx.send(b_0_0)?;
+        let result_0_0_0 = var_0.gs(5);
+        result_0_0_0_tx.send(result_0_0_0)?;
         ()
       }
     }));
   tasks
     .push(Box::new(move || -> _ {
-      let mut stream_0_0_0 = iter_i32();
+      let mut stream_0_0_0 = crate::funs::iter_i32();
       let hasSize =
         {
           let tmp_has_size = stream_0_0_0.iter().size_hint();
@@ -754,7 +752,7 @@ fn test(i: i32) -> i32 {
     }));
   tasks
     .push(Box::new(move || -> _ {
-      let s_0_0_2 = State::new_state(i);
+      let s_0_0_2 = crate::funs::State::new_state(i);
       s_0_0_2_tx.send(s_0_0_2)?;
       Ok(())
     }));
@@ -789,14 +787,14 @@ fn test(i: i32) -> i32 {
       eprintln!("[Error] A worker thread of an Ohua algorithm has panicked!");
     }
   }
-  match b_0_0_rx.recv() {
+  match result_0_0_0_rx.recv() {
     Ok(res) => res,
     Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
   }
 }|]
 
-raw_state_out :: SourceFile Span
-raw_state_out = [sourceFile|
+rawStateOut :: SourceFile Span
+rawStateOut = [sourceFile|
 use crate::funs::*;
 
 fn test(i: i32) -> State {
@@ -837,7 +835,7 @@ fn test(i: i32) -> State {
           let count = sig.1;
           for _ in 0 .. count {
             let var_1 = d_1_rx.recv()?;
-            let x_0_0_0 = f_s(sp_0_0_0_0, var_1);
+            let x_0_0_0 = crate::funs::f_s(sp_0_0_0_0, var_1);
             x_0_0_0_tx.send(x_0_0_0)?;
             ()
           };
@@ -850,7 +848,7 @@ fn test(i: i32) -> State {
     }));
   tasks
     .push(Box::new(move || -> _ {
-      let mut stream_0_0_0 = iter_i32();
+      let mut stream_0_0_0 = crate::funs::iter_i32();
       let hasSize =
         {
           let tmp_has_size = stream_0_0_0.iter().size_hint();
@@ -892,7 +890,7 @@ fn test(i: i32) -> State {
     }));
   tasks
     .push(Box::new(move || -> _ {
-      let s_0_0_2 = State::new_state(i);
+      let s_0_0_2 = crate::funs::State::new_state(i);
       s_0_0_2_tx.send(s_0_0_2)?;
       Ok(())
     }));
@@ -953,7 +951,7 @@ fn test(i: i32) -> i32 {
       RunError::RecvFailed
     }
   }
-  let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (result_0_0_0_tx, result_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (s_0_0_1_tx, s_0_0_1_rx) = std::sync::mpsc::channel::<  State,>();
   let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
     Vec::new();
@@ -961,14 +959,14 @@ fn test(i: i32) -> i32 {
     .push(Box::new(move || -> _ {
       loop {
         let mut var_0 = s_0_0_1_rx.recv()?;
-        let a_0_0 = var_0.gs(5);
-        a_0_0_tx.send(a_0_0)?;
+        let result_0_0_0 = var_0.gs(5);
+        result_0_0_0_tx.send(result_0_0_0)?;
         ()
       }
     }));
   tasks
     .push(Box::new(move || -> _ {
-      let s_0_0_1 = State::new_state();
+      let s_0_0_1 = crate::funs::State::new_state(i);
       s_0_0_1_tx.send(s_0_0_1)?;
       Ok(())
     }));
@@ -982,7 +980,7 @@ fn test(i: i32) -> i32 {
       eprintln!("[Error] A worker thread of an Ohua algorithm has panicked!");
     }
   }
-  match a_0_0_rx.recv() {
+  match result_0_0_0_rx.recv() {
     Ok(res) => res,
     Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
   }

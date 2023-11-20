@@ -272,6 +272,11 @@ pub fn iter_i32() -> Vec<i32> {
     (1..11).collect()
 }
 
+pub fn iter_states() -> Vec<State> {
+    let i = vec![State::new_state(23), State::new_state(42)];
+    return i
+}
+
 pub type ThisIsActuallyUnit = ();
 
 pub fn make_unit() -> ThisIsActuallyUnit {
