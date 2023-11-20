@@ -12,6 +12,7 @@ module Ohua.Types.Types
     , TruthableType(..)
     , UnTupleType(..)
     , ListElementType(..)
+    , TellUnitType(..)
     , OhuaType(..)
     , InternalType(..)
     , FunType(..)

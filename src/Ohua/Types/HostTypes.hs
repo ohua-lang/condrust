@@ -48,7 +48,7 @@ import qualified Text.Show
 -- | A wrapper type for the types of supported host languages allowing us to specify requried properties (constraints) 
 --   host types must implement to process them properly.
 data HostType ty where
-  HostType::(Pretty ty, Show ty, Eq ty, Pathable ty, TruthableType ty, UnTupleType ty, ListElementType ty) => ty -> HostType ty
+  HostType::(Pretty ty, Show ty, Eq ty, Pathable ty, TruthableType ty, UnTupleType ty, ListElementType ty, TellUnitType ty) => ty -> HostType ty
 
 deriving instance Eq (HostType ty)
 
@@ -76,6 +76,11 @@ class TruthableType ty where
 class ListElementType ty where
   asListElementType :: ty -> Maybe ty
 
+-- | Hosttypes have their own representation of units and we need to be able to compare those 
+--   to the internal unit type upon type checking
+class TellUnitType ty where
+  isHostUnit :: ty -> Bool
+
 instance Show (HostType ty) where
   show (HostType ty) = show ty
 
@@ -96,6 +101,9 @@ instance TruthableType (HostType ty) where
 
 instance ListElementType (HostType ty) where
   asListElementType (HostType ty) = asListElementType ty <&> HostType
+
+instance TellUnitType (HostType ty) where
+  isHostUnit (HostType t) = isHostUnit t
  
 ------------------------------------------------------------------------------------
 --  Generics implementation for GADTS taken from the example described at 
@@ -114,7 +122,7 @@ instance (c, Eq (f x)) => Eq (ECC c f x) where
   ECC x == ECC y = x == y
 
 instance Generic (HostType ty) where
-  type Rep (HostType ty) = (ECC (Pretty ty, Show ty, Eq ty, Pathable ty, UnTupleType ty, TruthableType ty, ListElementType ty) (Rec0 ty))
+  type Rep (HostType ty) = (ECC (Pretty ty, Show ty, Eq ty, Pathable ty, UnTupleType ty, TruthableType ty, ListElementType ty, TellUnitType ty) (Rec0 ty))
 
   from (HostType x) = ECC (K1 x)
   to (ECC (K1 x)) = HostType x
