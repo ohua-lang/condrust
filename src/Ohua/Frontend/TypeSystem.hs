@@ -545,7 +545,11 @@ maxType TStar t2 = return t2
 maxType UType (IType TypeUnit) = return (IType TypeUnit)
 maxType UType t = typeError $ "Comparing incompatible types:\n UType \n and: \n " <> show t
 maxType t1@(HType _ _)  t2@(TType _)        = typeError $ "Comparing incompatible types:\n " <> show t1 <> "\n and: \n " <> show t2
+maxType t1@(HType hty _)  t2@(IType TypeUnit) 
+    | isHostUnit hty = return (HType hty Nothing)
+    | otherwise =  typeError $ "Comparing incompatible types:\n " <> show t1 <> "\n and: \n " <> show t2
 maxType t1@(HType _ _)  t2@(IType _)        = typeError $ "Comparing incompatible types:\n " <> show t1 <> "\n and: \n " <> show t2
+
 maxType t1@(TType tys)  t2@(HType ht _ )  
    | length (unTupleType ht) == length tys = 
       let loweredTuple = (NE.map (flip HType Nothing) (unTupleType ht)) -- The extracted Type was a hosttype representation of a tuple type with the same number of types as in the unresolved Tuple Type
