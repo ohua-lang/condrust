@@ -65,6 +65,10 @@ instance ListElementType RustVarType where
     asListElementType (Normal (Rust.PathTy Nothing (Path False [PathSegment "Vec" (Just (AngleBracketed [TypeArg (itemTy)] _ _ )) _] _) _)) = Just (Normal itemTy) 
     asListElementType other = Nothing 
 
+instance TellUnitType RustVarType where
+    isHostUnit (Normal (Rust.TupTy [] _ )) = True
+    isHostUnit other = False
+
 rustUnitReturn :: Ty ()
 rustUnitReturn = Rust.TupTy [] () -- Nothing (Rust.Path False [Rust.PathSegment "()" Nothing ()] ()) ()
 

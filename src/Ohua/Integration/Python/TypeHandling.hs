@@ -39,6 +39,11 @@ instance UnTupleType PythonVarType where
 
 instance ListElementType PythonVarType where
     asListElementType _ = Just (PSingle PythonObject)
+
+-- FIXME: Do we need a separate Unit type for Python?
+instance TellUnitType PythonVarType where
+    isHostUnit (PSingle _ ) = True
+    isHostUnit _ = False 
      
 type FunTypesMap = HM.HashMap QualifiedBinding (FunType PythonVarType Resolved)
 
