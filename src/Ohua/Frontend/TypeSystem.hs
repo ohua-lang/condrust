@@ -181,7 +181,7 @@ typeSystem delta imports gamma = \case
         
       -- First we type the function
       (gamma', fun', funTy, imports' ) <- typeExpr delta imports gamma fun
-
+      -- traceM $ "Typed function " <> show fun' <> " to " <> show funTy
       -- Then we type it's args
       (gammas , args', argTypesR) <- 
         (unzip4 <$> mapM (typeExpr delta imports gamma) args ) 
@@ -210,8 +210,13 @@ typeSystem delta imports gamma = \case
       where  
         -- We must not have more arguments than argument types in the declaration
         assocArgWithType [] (_:_) =  wfError "Too many arguments in function application."
-        -- We can have less arguments than types because function application can be partial (e.g. through previous transformation) 
-        assocArgWithType l [] = return ([], l)
+        -- We could have less arguments than types because function application could be partial. 
+        -- But our current host languages don't support that and it leads to wrong function aüülications not
+        -- being detected and instead producing typing errors downstream.  
+        -- assocArgWithType l [] = return ([], l)
+        -- FIXME: Agani we have to handle the special case of Unit Functions here and separate it from 'usual one argument functions'
+        assocArgWithType [IType TypeUnit] [] = return ([], [])
+        assocArgWithType argsTy@(_:_) [] = wfError $ "Too few arguments in function application. Remaining argTypes" <> show argsTy
         -- Argument type and type of argument have to match
         -- FIXME: Actually the given argument type has to be a subtype/specialization of the declared argument type actually. ie. we have to 
         --        add (>=) to the constraints of HostType
@@ -224,7 +229,7 @@ typeSystem delta imports gamma = \case
             (argsAndTy, pendingTy) <- assocArgWithType ts argTs'
             return ((argT,t) : argsAndTy, pendingTy)
           | otherwise = typeError $ "Function argument type "<> show t <> " and type of given argument " <> show argT <> " do not match."
-
+        assocArgWithType [] [] = return ([], [])
 
   {-
               Delta, Gamma, p1:T1, p2:T2, ..., pn:Tn |- expr:Te
@@ -271,20 +276,20 @@ typeSystem delta imports gamma = \case
   ========================================================================
                 Delta, Gamma |- Bind state method : Tm
   -}
-  (StateFunE stateVar (MethodUnres methodB) args) -> do
+  e@(StateFunE stateVar (MethodUnres methodB) args) -> do
+    -- traceM $ "Typing statefull call " <> show e <> ". Gamma is " <> show gamma
     -- We need to get the state type before the method type, because the type of the method depends on the
     -- type of the state i.e. obj.clone() -->  Arc::clone ? String::clone ? 
     (gamma', stateVar', stateTy, imports') <- typeExpr delta imports gamma stateVar
-
     let maybeMethodNS = case stateTy of
             HType hty _  -> toPath hty
             _ -> Nothing 
-
+    -- traceM $ "Typed state <"<> show stateVar' <>"> It's namespace is " <> show maybeMethodNS
     -- Now we need to add the name of the state type to the namespace of the method
     methodQB <- case maybeMethodNS of 
       Just method_ns -> addStateToNS method_ns methodB
       Nothing -> return (QualifiedBinding (NSRef []) methodB)
-
+    -- traceM $ "Will type method now " <> show methodQB
    -- FIXME: Ho to properly construct an unresolved stateful function (type)?
     (gamma'', methodE , methodTy, imports'') <- typeExpr delta imports' gamma (LitE (FunRefLit (FunRef methodQB Nothing (STFunType TStar [] TStar))))
     
