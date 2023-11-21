@@ -240,29 +240,37 @@ typeSystem delta imports gamma = \case
     let
       -- FIXME: Replace the check for "_" binding here. We currently introduce it when 
       -- as unit arg representation, but we should have something not stringly typed for that purpose 
-      invariantGetGamma :: Binding -> StateT (Gamma ty Resolved) m (OhuaType ty Resolved)
-      invariantGetGamma bnd | bnd == fromString "_" = return (IType TypeUnit)
-      invariantGetGamma bnd = do
+      invariantGetGamma :: Binding -> OhuaType ty Unresolved -> StateT (Gamma ty Resolved) m (OhuaType ty Resolved)
+      invariantGetGamma bnd _declaredTy | bnd == fromString "_" = return (IType TypeUnit)
+      invariantGetGamma bnd declaredTy = do
         gam <- get
-        case HM.lookup bnd gam of
-          -- FIXME:
-          -- We cannot error if a pattern isn't present in gamma, the reason is, that gamma will only
+        let mDeclaredTypeResolved = unresToRes declaredTy
+        let mContextType = HM.lookup bnd gam
+        case (mDeclaredTypeResolved, mContextType) of
+          -- We cannot error if a pattern isn't present in gamma. The reason is, that gamma will only
           -- contain the types of used variables
           -- This is because we cannot "forward" gamma through the applications of typeExpr i.e. 
           -- when we give it a gamma containing the patterns types, those types are Unresolved and are not just copied to the
           -- resolved gamma we return. the resolved gamma will only contain used (and therefor typed) variables
-          Nothing -> invariantBroken $ "Pattern deleted while typing. Deleted pattern: " <> show bnd
-          Just ty' -> (modify $ HM.delete bnd) >> return ty'
+          -- For now we'll go with checking if the pattern already has a 'resolvable' type and in case
+          -- it is also present in the context, compare both types. If not, we'll go with the type it's annotated with.
+          (Nothing, Nothing) -> invariantBroken $ "Pattern <" <> show bnd <> "> has no resolvable type either from annotation or from usage context."
+          (Just tyD, Nothing) -> (modify $ HM.delete bnd) >> return tyD 
+          (Nothing, Just tyC) -> (modify $ HM.delete bnd) >> return tyC
+          (Just tyD, Just tyC) -> do
+            newTy <- maxType declaredTy tyC 
+            (modify $ HM.delete bnd) >> return newTy
 
       typePatFromGamma :: UnresolvedPat ty -> StateT (Gamma ty Resolved) m (ResolvedPat ty)
-      typePatFromGamma (VarP bnd t) = (\ t' -> VarP bnd <$> maxType t t') =<< invariantGetGamma bnd
+      typePatFromGamma (VarP bnd t) = (pure . VarP bnd) =<< invariantGetGamma bnd t
       typePatFromGamma (TupP ps) = TupP <$> mapM typePatFromGamma ps
+
     in do
-      
+      traceM $ "Typing lambda " <> show e
       let gamma' = foldl (\ g (b, t) -> HM.insert b t g) gamma $ join $ map (NE.toList . patTyBnds) pats
       traceM $ "Gamma inside Lambda :" <> show gamma'
       (gammaR', expr', tyE, imports' ) <- typeExpr delta imports gamma' expr
-      -- traceM $ "Gamma after typing the body :" <> show gammaR'
+      traceM $ "Gamma after typing the body :" <> show gammaR'
       (pats', gammaR'') <- runStateT (mapM typePatFromGamma pats) gammaR'
       
       let funty = case pats' of 
