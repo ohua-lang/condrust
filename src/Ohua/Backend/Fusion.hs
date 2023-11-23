@@ -45,8 +45,8 @@ type FusableExpr ty = Fusable ty (VarCtrl ty) (LitCtrl ty)
 
 fuse :: ErrAndLogM m 
      => Options
-     -> Namespace (TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (VarCtrl ty) (LitCtrl ty))) anno
-     -> m (Namespace (TCProgram (Channel ty) (Com 'Recv ty) (TaskExpr ty)) anno)
+     -> Namespace (TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (VarCtrl ty) (LitCtrl ty))) anno (OhuaType ty 'Resolved)
+     -> m (Namespace (TCProgram (Channel ty) (Com 'Recv ty) (TaskExpr ty)) anno (OhuaType ty 'Resolved))
 fuse options ns =
 
     return $ ns & algos %~ map (\algo -> algo & algoCode %~ go)
