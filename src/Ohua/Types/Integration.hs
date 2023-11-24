@@ -37,9 +37,11 @@ newtype Global = Global Binding deriving (Show, Eq)
 -- compiler because a) there we don't know the concrete language we're compiling and hence not the patterns 
 -- to match on to extract the type and b) we'd carry lots of stuff through the compile steps when all we need is one type.
 
+--FIXME: Make ty more specific and establish dependency between ty and expr
 declareLenses[d|
-     data Algo expr inpt = Algo
+     data Algo expr inpt ty = Algo
           { algoName :: Binding
+          , algoType :: ty
           , algoCode :: expr
           , algoInputCode :: inpt
           } deriving (Show, Eq)
@@ -51,18 +53,18 @@ declareLenses[d|
 --   of the algorithm and (maybe not perfectly named though) the `algoInputCode` carrying the original code of 
 --   each compiled function.
 declareLenses[d|
-     data Namespace expr inpt = Namespace 
+     data Namespace expr inpt ty = Namespace 
           { nsName :: NSRef
           , imports :: [Import]
           , globals :: [Global]
-          , algos :: [Algo expr inpt]
+          , algos :: [Algo expr inpt ty]
           } deriving (Show, Eq)
     |]
 
-updateExprs :: Monad m => Namespace expr1 inpt -> (expr1 -> m expr2) -> m (Namespace expr2 inpt)
+updateExprs :: Monad m => Namespace expr1 inpt ty -> (expr1 -> m expr2) -> m (Namespace expr2 inpt ty)
 updateExprs namespace f = updateExprs' namespace $ \_ e -> f e
 
-updateExprs' :: Monad m => Namespace expr1 inpt -> (Binding -> expr1 -> m expr2) -> m (Namespace expr2 inpt)
+updateExprs' :: Monad m => Namespace expr1 inpt ty -> (Binding -> expr1 -> m expr2) -> m (Namespace expr2 inpt ty)
 updateExprs' namespace f = do
      algos' <-
           forM (namespace^.algos) $ \algo -> do
