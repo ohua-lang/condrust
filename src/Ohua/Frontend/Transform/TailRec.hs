@@ -16,5 +16,5 @@ isRec currentFun expr = execState (contextedTraversal check HS.empty expr) False
     check _ v@(VarE bdg _ty) = modify (\c -> c || bdg == currentFun) >> return v
     check _ e = return e
 
-isRecAlgo :: Algo (UnresolvedExpr ty) a -> Bool
-isRecAlgo (Algo aName code _ ) = isRec aName code
+isRecAlgo :: Algo (UnresolvedExpr ty) a (OhuaType ty 'Resolved) -> Bool
+isRecAlgo (Algo aName _aType code _ ) = isRec aName code

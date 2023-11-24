@@ -39,39 +39,42 @@ import qualified Data.Text as T
 --   @let fun = 'inlined function' in@
 --   @     let x = fun arg@
 
--- QUESTION :  Am I getting this right?
 resolveNS :: forall ty m anno.(MonadError Error m)
-          => (Namespace (UnresolvedExpr ty)  anno, NamespaceRegistry ty)
-          -> m (Namespace (UnresolvedExpr ty)   anno)
+          => (Namespace (UnresolvedExpr ty) anno (OhuaType ty 'Resolved), NamespaceRegistry ty)
+          -> m (Namespace (UnresolvedExpr ty) anno (OhuaType ty 'Resolved))
 resolveNS (ns, registry) =
-    return $ over algos (map (\algo -> over algoCode (work $ view algoName algo) algo)) ns
+    return $ over algos (map (\algo -> over algoCode (work (view algoName algo) ) algo)) ns
     where
         work :: Binding -> UnresolvedExpr ty -> UnresolvedExpr ty
         work algoNm algoExpr =
             let
-                calledFunctions = collectAllFunctionRefs algoNm registry algoExpr
+                calledFunctions = collectCalledAlgos algoNm registry algoExpr
                 expr = foldl (flip addExpr) algoExpr calledFunctions
-                algoExpr' = resolveExpr expr
-            in algoExpr'
+                algoExpr' = (trace $ "Expression" <> quickRender expr) resolveExpr expr
+            in (trace $ "AlgoExpression" <> quickRender algoExpr') algoExpr'
 
-        collectAllFunctionRefs :: Binding -> NamespaceRegistry ty -> UnresolvedExpr ty  -> HS.HashSet (QualifiedBinding, OhuaType ty Unresolved)
-        collectAllFunctionRefs name available =
-            HS.unions .
-            HS.toList .
-            HS.map (\(qb, ty) ->
-                maybe
-                    HS.empty
-                    (HS.insert (qb, ty) . collectAllFunctionRefs name (HM.delete qb available))
-                    $ HM.lookup qb available) .
-            HS.filter (\(qb, ty )-> qb /= QualifiedBinding (makeThrow []) name) .  collectFunctionRefs
+        collectCalledAlgos :: Binding -> NamespaceRegistry ty -> UnresolvedExpr ty  -> HS.HashSet QualifiedBinding
+        collectCalledAlgos algoName availableAlgos expr  =
+            let funsExceptAlgo = HS.filter (\funName -> funName /= QualifiedBinding (makeThrow []) algoName) .  collectFunctionRefs $ expr
+                
+            in
+                HS.unions .
+                HS.toList .
+                HS.map (\funName ->
+                    maybe
+                        HS.empty
+                        (HS.insert funName . collectCalledAlgos algoName (HM.delete funName availableAlgos))
+                        $ HM.lookup funName availableAlgos <&> fst ) 
+                $ funsExceptAlgo
+            
 
-        collectFunctionRefs :: (UnresolvedExpr ty)  -> HS.HashSet (QualifiedBinding, OhuaType ty Unresolved)
+        collectFunctionRefs :: UnresolvedExpr ty  -> HS.HashSet QualifiedBinding
         collectFunctionRefs e =
-            -- FIXME we need to resolve this reference here against the namespace and the registry (for Globs).
+            -- FIXME: we need to resolve this reference here against the namespace and the registry (for Globs).
             -- We can/should not rely on algorithms being function literals or having function types here
             -- So we extract references and vars that are `applied` and match them against the algorithm register later
-            HS.fromList $ [ (fname, FType fTy) |  AppE (LitE (FunRefLit (FunRef fname _ fTy))) _args <- flattenU e] 
-                ++ [(QualifiedBinding (NSRef []) bnd, ty) |  AppE (VarE bnd ty) _args <- flattenU e]
+            HS.fromList $ [ fname |  AppE (LitE (FunRefLit (FunRef fname _ _fTy))) _args <- flattenU e] 
+                ++ [(QualifiedBinding (NSRef []) bnd) |  AppE (VarE bnd _ty) _args <- flattenU e]
         
                         
 
@@ -79,18 +82,17 @@ resolveNS (ns, registry) =
         pathToVar (QualifiedBinding ns bnd) =
             (makeThrow . T.intercalate ".") $ map unwrap $ unwrap ns ++ [bnd]
 
-        addExpr :: (QualifiedBinding, OhuaType ty Unresolved) -> UnresolvedExpr ty  -> UnresolvedExpr ty 
-        -- TODO This is an assumption that fails in Ohua.Compile.Compiler.prepareRootAlgoVars
-        --      We should enforce this via the type system rather than a runtime error!
-        addExpr (otherAlgo, ty) (LamE vars body) = LamE vars $ addExpr  (otherAlgo, ty) body
-        addExpr (otherAlgo, ty) e =
-            -- (trace $"Adding Expression. Assign bind : "<> show bnd <> "\n to expression: "<> quickRender e)
-            LetE
-                (VarP (pathToVar otherAlgo) ty)
-                (fromMaybe
-                    (error "impossible") -- the path was originally retrieved from this list
-                    $ HM.lookup otherAlgo registry)
-                e
+        addExpr :: QualifiedBinding -> UnresolvedExpr ty  -> UnresolvedExpr ty 
+        addExpr otherAlgo (LamE vars body) = trace ("Inlining algo " <> show otherAlgo )LamE vars $ addExpr otherAlgo body
+        addExpr otherAlgo e =
+            -- (trace $ "Inlining Algo: "<> quickRender otherAlgo <> "\nwith type "<> show ty)
+            let (algoExpr, algoTy) = fromMaybe (error "impossible") (HM.lookup otherAlgo registry)
+                -- FIXME: Replace after function type unresolving and unit funcion work properly
+                unresAlgoTy = TStar
+            in LetE
+                    (VarP (pathToVar otherAlgo) unresAlgoTy)
+                    algoExpr
+                    e
 
         -- turns the function literal into a simple (var) binding
         replaceFunLit :: UnresolvedExpr ty -> UnresolvedExpr ty

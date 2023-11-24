@@ -19,7 +19,7 @@ frontend :: forall m lang. (ErrAndLogM m, Integration lang)
          => lang
          -> CompilationScope
          -> FilePath
-         -> m ((HostModule lang, Namespace (FrLang.FuncExpr (Type lang)) (AlgoSrc lang)), HostModule lang)
+         -> m ((HostModule lang, Namespace (FrLang.FuncExpr (Type lang)) (AlgoSrc lang) (OhuaType (Type lang) 'Resolved)) , HostModule lang)
 frontend lang compScope inFile = do
         -- 1. Extract: (input file in host language,
         --              Integration.Namespace containing Integration.Algo's, Integration.Imports's and Integration.Global's of the input module,

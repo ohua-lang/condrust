@@ -28,24 +28,24 @@ import qualified Data.HashMap.Strict as HM
 --   a lazy hashmap, this should only load the algo once actually needed.
 loadDeps :: forall m lang.
     (ErrAndLogM m, Integration lang)
-    => lang -> CompilationScope -> Namespace (UnresolvedExpr (Type lang)) (AlgoSrc lang) -> m (NamespaceRegistry (Type lang))
+    => lang -> CompilationScope -> Namespace (UnresolvedExpr (Type lang)) (AlgoSrc lang) (OhuaType (Type lang) 'Resolved) -> m (NamespaceRegistry (Type lang))
 loadDeps lang scope (Namespace _name imps globs algs) = do
     let currentNs = Namespace (makeThrow []) imps globs algs
     let registry' = registerAlgos HM.empty currentNs
-    modules <- mapM (\path -> (\(_,snd,_) -> snd) <$> loadNs lang (toFilePath path)) $ HM.toList scope
+    modules <- mapM (\path -> (\(_,scnd,_) -> scnd) <$> loadNs lang (toFilePath path)) $ HM.toList scope
     let registry'' = foldl registerAlgos registry' modules
     return registry''
     where
-        registerAlgos :: NamespaceRegistry ty -> Namespace (UnresolvedExpr ty) anno -> NamespaceRegistry ty
-        registerAlgos registry ns =
+        registerAlgos :: NamespaceRegistry ty -> Namespace (UnresolvedExpr ty) anno (OhuaType ty 'Resolved) -> NamespaceRegistry ty
+        registerAlgos registry aNs =
             foldl
                 (\reg algo ->
                     HM.insert
-                        (QualifiedBinding (ns^.nsName) (algo^.algoName))
-                        (algo^.algoCode)
+                        (QualifiedBinding (aNs^.nsName) (algo^.algoName))
+                        (algo^.algoCode, algo^.algoType)
                         reg)
                 registry
-                $ ns^.algos
+                $ aNs^.algos
 
 
 -- | This function calls the language integration to extract defined functions (algorithms) and imports
@@ -56,7 +56,7 @@ loadDeps lang scope (Namespace _name imps globs algs) = do
 loadAlgosAndImports :: forall m lang.
     (ErrAndLogM m, Integration lang)
     => lang -> CompilationScope -> FilePath
-    -> m (HostModule lang, Namespace (UnresolvedExpr (Type lang)) (AlgoSrc lang), NamespaceRegistry (Type lang), HostModule lang)
+    -> m (HostModule lang, Namespace (UnresolvedExpr (Type lang)) (AlgoSrc lang) (OhuaType (Type lang) 'Resolved), NamespaceRegistry (Type lang), HostModule lang)
 loadAlgosAndImports  lang scope inFile = do
     -- logDebugN $ "Loading module: " <> show inFile <> "..."
     (ctxt, ns, placeholder) <- loadNs lang inFile
