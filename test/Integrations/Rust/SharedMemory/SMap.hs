@@ -113,12 +113,11 @@ spec =
             (showCode "Compiled: " =<< compileCode  [sourceFile|
                 use crate::funs::*;
 
-                fn test() -> State {
-                    let s:State = State::new_state();
+                fn test(i:i32) -> State {
+                    let s:State = State::new(i);
                     let stream: Iterator<S> = iter_i32();
                     for e in stream {
-                        let e1: S = e; 
-                        let r: i32 = h(e1);
+                        let r: i32 = h(e);
                         s.gs(r);
                     }
                     s
@@ -132,7 +131,7 @@ spec =
                 use crate::funs::*;
 
                 fn test(stream: Vec<i32>) -> State {
-                    let s:State = State::new_state();
+                    let s:State = State::new_state(42);
                     for e in stream {
                         let e1: i32 = e;
                         let r: i32 = h(e1);
@@ -150,7 +149,7 @@ spec =
                 use crate::funs::*;
 
                 fn test() -> i32 {
-                  let mut s:State = new();
+                  let mut s:State = State::new(23);
                   for num in iter_i32() {
                     let ok: bool = random_bool();
                     let iNum:i32 =
@@ -196,7 +195,7 @@ imperative :: SourceFile Span
 imperative =  [sourceFile|
 use crate::funs::*;
 
-fn test() -> State {
+fn test(i: i32) -> State {
   #[derive(Debug)]
   enum RunError {
     SendFailed,
@@ -224,14 +223,14 @@ fn test() -> State {
     .push(Box::new(move || -> _ {
       loop {
         let var_0 = d_0_rx.recv()?;
-        let r_0_0_0 = h(var_0);
+        let r_0_0_0 = crate::funs::h(var_0);
         r_0_0_0_tx.send(r_0_0_0)?;
         ()
       }
     }));
   tasks
     .push(Box::new(move || -> _ {
-      let mut stream_0_0_0 = iter_i32();
+      let mut stream_0_0_0 = crate::funs::iter_i32();
       let hasSize =
         {
           let tmp_has_size = stream_0_0_0.iter().size_hint();
@@ -258,7 +257,7 @@ fn test() -> State {
     }));
   tasks
     .push(Box::new(move || -> _ {
-      let s_0_0_1 = State::new_state();
+      let s_0_0_1 = crate::funs::State::new(i);
       s_0_0_1_tx.send(s_0_0_1)?;
       Ok(())
     }));
@@ -358,14 +357,14 @@ fn test(stream: Vec<  i32,>) -> State {
     .push(Box::new(move || -> _ {
       loop {
         let var_0 = d_0_rx.recv()?;
-        let r_0_0_0 = h(var_0);
+        let r_0_0_0 = crate::funs::h(var_0);
         r_0_0_0_tx.send(r_0_0_0)?;
         ()
       }
     }));
   tasks
     .push(Box::new(move || -> _ {
-      let s_0_0_1 = State::new_state();
+      let s_0_0_1 = crate::funs::State::new_state(42);
       s_0_0_1_tx.send(s_0_0_1)?;
       Ok(())
     }));
@@ -427,7 +426,7 @@ fn test() -> i32 {
       RunError::RecvFailed
     }
   }
-  let (e_0_0_tx, e_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (result_0_0_0_tx, result_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (s_0_0_1_tx, s_0_0_1_rx) = std::sync::mpsc::channel::<  State,>();
   let (ctrl_0_0_tx, ctrl_0_0_rx) =
     std::sync::mpsc::channel::<  (bool, usize),>();
@@ -447,7 +446,7 @@ fn test() -> i32 {
   let (c_0_0_tx, c_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (b_0_0_tx, b_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (ok_0_0_0_1_tx, ok_0_0_0_1_rx) = std::sync::mpsc::channel::<  bool,>();
-  let (result_1_tx, result_1_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (result_2_tx, result_2_rx) = std::sync::mpsc::channel::<  i32,>();
   let (s_0_1_1_tx, s_0_1_1_rx) = std::sync::mpsc::channel::<  State,>();
   let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
     Vec::new();
@@ -465,7 +464,7 @@ fn test() -> i32 {
               let sig = ctrlFalse_0_rx.recv()?;
               let count = sig.1;
               for _ in 0 .. count {
-                let c_0_0 = otherfun();
+                let c_0_0 = crate::funs::otherfun();
                 c_0_0_tx.send(c_0_0)?;
                 ()
               };
@@ -495,7 +494,7 @@ fn test() -> i32 {
               let sig = ctrlTrue_0_rx.recv()?;
               let count = sig.1;
               for _ in 0 .. count {
-                let b_0_0 = somefun();
+                let b_0_0 = crate::funs::somefun();
                 b_0_0_tx.send(b_0_0)?;
                 ()
               };
@@ -519,7 +518,7 @@ fn test() -> i32 {
           let sig = ctrl_0_1_rx.recv()?;
           let count = sig.1;
           for _ in 0 .. count {
-            let res = random_bool();
+            let res = crate::funs::random_bool();
             ok_0_0_0_0_tx.send(res)?;
             ok_0_0_0_1_tx.send(res)?;
             ()
@@ -534,8 +533,8 @@ fn test() -> i32 {
     .push(Box::new(move || -> _ {
       loop {
         let mut var_0 = s_0_1_1_rx.recv()?;
-        let e_0_0 = var_0.get_num();
-        e_0_0_tx.send(e_0_0)?;
+        let result_0_0_0 = var_0.get_num();
+        result_0_0_0_tx.send(result_0_0_0)?;
         ()
       }
     }));
@@ -545,8 +544,8 @@ fn test() -> i32 {
         let branchSelection = ok_0_0_0_1_rx.recv()?;
         if branchSelection {
           let result = b_0_0_rx.recv()?;
-          result_1_tx.send(result)?
-        } else { let result = c_0_0_rx.recv()?; result_1_tx.send(result)? }
+          result_2_tx.send(result)?
+        } else { let result = c_0_0_rx.recv()?; result_2_tx.send(result)? }
       }
     }));
   tasks
@@ -568,7 +567,7 @@ fn test() -> i32 {
     }));
   tasks
     .push(Box::new(move || -> _ {
-      let mut a_0_0 = iter_i32();
+      let mut a_0_0 = crate::funs::iter_i32();
       let hasSize =
         {
           let tmp_has_size = a_0_0.iter().size_hint();
@@ -612,7 +611,7 @@ fn test() -> i32 {
     }));
   tasks
     .push(Box::new(move || -> _ {
-      let s_0_0_1 = new();
+      let s_0_0_1 = crate::funs::State::new(23);
       s_0_0_1_tx.send(s_0_0_1)?;
       Ok(())
     }));
@@ -625,7 +624,7 @@ fn test() -> i32 {
           let sig = ctrl_0_0_rx.recv()?;
           let count = sig.1;
           for _ in 0 .. count {
-            let var_1 = result_1_rx.recv()?;
+            let var_1 = result_2_rx.recv()?;
             s_0_0_1_0.gs(var_1);
             ()
           };
@@ -647,7 +646,7 @@ fn test() -> i32 {
       eprintln!("[Error] A worker thread of an Ohua algorithm has panicked!");
     }
   }
-  match e_0_0_rx.recv() {
+  match result_0_0_0_rx.recv() {
     Ok(res) => res,
     Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
   }

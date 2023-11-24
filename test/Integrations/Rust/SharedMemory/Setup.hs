@@ -259,6 +259,9 @@ pub fn f2(i:i32) -> i32 {
     i + 3
 }
 
+pub fn one_plus(i:i32) -> i32 {
+    i + 1
+}
 
 pub fn make_char() -> char {
     'ö'
@@ -331,6 +334,11 @@ pub fn fu_tup() -> (i32, i32) {
 pub fn fi_tup(i:i32) -> (i32, i32) {
     return (23+i, 42+i)
 }
+
+pub fn islowerthan23(i:i32) -> bool {
+    i < 23
+}
+pub fn unit() -> () {return ()}
 |]
 
 benchs :: SourceFile Span
