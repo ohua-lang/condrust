@@ -25,7 +25,7 @@ backend ::
         )
         => FilePath
         -> Options
-        -> Namespace (TCProgram (Channel ty) (Com 'Recv ty) (FusableExpr ty)) anno 
+        -> Namespace (TCProgram (Channel ty) (Com 'Recv ty) (FusableExpr ty)) anno (OhuaType ty 'Resolved)
         -> HostModule lang
         -> arch
         -- REMINDER: Replace type of placeholder when needed

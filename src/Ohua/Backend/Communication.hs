@@ -13,8 +13,8 @@ lowerRetCom ::
         , task ~ Task (Lang arch)
         , retChan ~ Expr (Lang arch))
         => arch
-        -> Namespace (Program (Chan arch) (Com 'Recv ty) task ty) anno 
-        -> Namespace (Program (Chan arch) retChan        task ty) anno 
+        -> Namespace (Program (Chan arch) (Com 'Recv ty) task ty) anno (OhuaType ty 'Resolved)
+        -> Namespace (Program (Chan arch) retChan        task ty) anno (OhuaType ty 'Resolved)
 lowerRetCom arch ns = ns & algos %~ map (\algo -> algo & algoCode %~ convertCommunication)
     where
         convertCommunication (Program chans retChan tasks) =
@@ -28,8 +28,8 @@ lowerChannels ::
         , ty ~ Type (Lang arch)
         , task ~ Task (Lang arch))
         => arch
-        -> Namespace (Program (Channel ty) (Com 'Recv ty) task ty) anno
-        -> Namespace (Program (Chan arch)  (Com 'Recv ty) task ty) anno 
+        -> Namespace (Program (Channel ty) (Com 'Recv ty) task ty) anno (OhuaType ty 'Resolved)
+        -> Namespace (Program (Chan arch)  (Com 'Recv ty) task ty) anno (OhuaType ty 'Resolved)
 lowerChannels arch ns = ns & algos %~ map (\algo -> algo & algoCode %~ convert)
     where
         convert (Program chans retChan tasks) =
@@ -40,8 +40,9 @@ lowerChannels arch ns = ns & algos %~ map (\algo -> algo & algoCode %~ convert)
         convertChan retChan chan | retChan == chan = convertRetChannel arch chan
         convertChan _ chan = convertChannel arch chan
 
-intoProgram :: Namespace (TCProgram chan retChan (TaskExpr ty)   ) anno 
-            -> Namespace (Program   chan retChan (TaskExpr ty) ty) anno 
+
+intoProgram :: Namespace (TCProgram chan retChan (TaskExpr ty)) anno (OhuaType ty 'Resolved)
+            -> Namespace (Program   chan retChan (TaskExpr ty) ty) anno (OhuaType ty 'Resolved)
 intoProgram ns = ns & algos %~ map (\algo -> algo & algoCode %~ convert)
     where
         convert (TCProgram chans retChan tasks) =
