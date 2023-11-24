@@ -168,54 +168,54 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
                 :| [])
                 span
 
-        createRef :: NSRef -> Ident -> QualifiedBinding
-        createRef path funIdent = QualifiedBinding path $ toBinding funIdent
+createRef :: NSRef -> Ident -> QualifiedBinding
+createRef path funIdent = QualifiedBinding path $ toBinding funIdent
 
-        getTypes :: FnDecl Span -> m (NonEmpty (OhuaType RustVarType Resolved), OhuaType RustVarType Resolved)
-        getTypes f@(FnDecl _ _ True _) = throwError $ "Currently, we do not support variadic arguments." <> show f
-        getTypes (FnDecl [] retType _ _) = return (IType TypeUnit :| [], fromMaybeRet retType)
-        getTypes (FnDecl (a:args) retType _ _) = return (map toVarType (a:|args), fromMaybeRet retType)
+getTypes :: forall m.ErrAndLogM m =>FnDecl Span -> m (NonEmpty (OhuaType RustVarType Resolved), OhuaType RustVarType Resolved)
+getTypes f@(FnDecl _ _ True _) = throwError $ "Currently, we do not support variadic arguments." <> show f
+getTypes (FnDecl [] retType _ _) = return (IType TypeUnit :| [], fromMaybeRet retType)
+getTypes (FnDecl (a:args) retType _ _) = return (map toVarType (a:|args), fromMaybeRet retType)
 
-        fromMaybeRet:: Maybe (Ty Span) -> OhuaType RustVarType Resolved
-        fromMaybeRet (Just retTy) = asHostNormal retTy
-        fromMaybeRet Nothing = asHostNormal rustUnitReturn
+fromMaybeRet:: Maybe (Ty Span) -> OhuaType RustVarType Resolved
+fromMaybeRet (Just retTy) = asHostNormal retTy
+fromMaybeRet Nothing = asHostNormal rustUnitReturn
 
-        extractFunType ::
-            (Arg Span -> [OhuaType RustVarType Resolved] -> OhuaType RustVarType Resolved -> m (FunType RustVarType Resolved)) ->
-            FnDecl Span ->
-            m (FunType RustVarType Resolved)
-        extractFunType _ f@(FnDecl _ _ True _) = throwError $ "Currently, we do not support variadic arguments." <> show f
-        extractFunType f (FnDecl args retType _ _) =
-            case args of
-                [] -> return $ FunType (IType TypeUnit :| []) (fromMaybeRet retType)
-                (fstArg : args) -> f fstArg (map toVarType args) (fromMaybeRet retType)
+extractFunType :: forall m.ErrAndLogM m =>
+    (Arg Span -> [OhuaType RustVarType Resolved] -> OhuaType RustVarType Resolved -> m (FunType RustVarType Resolved)) ->
+    FnDecl Span ->
+    m (FunType RustVarType Resolved)
+extractFunType _ f@(FnDecl _ _ True _) = throwError $ "Currently, we do not support variadic arguments." <> show f
+extractFunType f (FnDecl args retType _ _) =
+    case args of
+        [] -> return $ FunType (IType TypeUnit :| []) (fromMaybeRet retType)
+        (fstArg : args) -> f fstArg (map toVarType args) (fromMaybeRet retType)
 
-        convertImplArg :: Ty Span -> Arg Span -> OhuaType RustVarType Resolved 
-        convertImplArg selfType (SelfValue _ mut _) = asHostSelf selfType Nothing mut
-        convertImplArg selfType (SelfRegion _ lifeTime mut _) = asHostSelf selfType lifeTime mut -- Type $ Self (void selfType) (void <$>lifeTime) mut
-        convertImplArg selfType (SelfExplicit _ _ty mut _) = asHostSelf selfType Nothing mut
-        convertImplArg _ (Arg _ _ typ _) = asHostNormal typ
+convertImplArg :: Ty Span -> Arg Span -> OhuaType RustVarType Resolved 
+convertImplArg selfType (SelfValue _ mut _) = asHostSelf selfType Nothing mut
+convertImplArg selfType (SelfRegion _ lifeTime mut _) = asHostSelf selfType lifeTime mut -- Type $ Self (void selfType) (void <$>lifeTime) mut
+convertImplArg selfType (SelfExplicit _ _ty mut _) = asHostSelf selfType Nothing mut
+convertImplArg _ (Arg _ _ typ _) = asHostNormal typ
 
-        toVarType :: Arg Span -> OhuaType RustVarType Resolved
-        toVarType (Arg _ _ typ _) = asHostNormal typ
-        toVarType a = error $ "The impossible happened. Self Type outside of struct of trait discovered: " <> show a
+toVarType :: Arg Span -> OhuaType RustVarType Resolved
+toVarType (Arg _ _ typ _) = asHostNormal typ
+toVarType a = error $ "The impossible happened. Self Type outside of struct of trait discovered: " <> show a
 
-        extractFromImplItem :: NSRef -> Ty Span -> ImplItem Span -> m (Maybe (QualifiedBinding, FunType RustVarType Resolved))
-        extractFromImplItem path selfType (MethodI _ _ _ ident _ (MethodSig _ decl) _ _) =
-            Just . (createRef path ident, ) <$> extractFunType (extractFirstArg selfType) decl
-        extractFromImplItem _ _ _ = return Nothing
+extractFromImplItem :: forall m.ErrAndLogM m => NSRef -> Ty Span -> ImplItem Span -> m (Maybe (QualifiedBinding, FunType RustVarType Resolved))
+extractFromImplItem path selfType (MethodI _ _ _ ident _ (MethodSig _ decl) _ _) =
+    Just . (createRef path ident, ) <$> extractFunType (extractFirstArg selfType) decl
+extractFromImplItem _ _ _ = return Nothing
 
-        extractFromTraitItem :: NSRef -> Ty Span -> TraitItem Span -> m (Maybe (QualifiedBinding, FunType RustVarType Resolved))
-        extractFromTraitItem path selfType (MethodT _ ident _ (MethodSig _ decl) _ _) =
-            Just . (createRef path ident, ) <$> extractFunType (extractFirstArg selfType) decl
-        extractFromTraitItem _ _ _ = return Nothing
+extractFromTraitItem :: forall m.ErrAndLogM m => NSRef -> Ty Span -> TraitItem Span -> m (Maybe (QualifiedBinding, FunType RustVarType Resolved))
+extractFromTraitItem path selfType (MethodT _ ident _ (MethodSig _ decl) _ _) =
+    Just . (createRef path ident, ) <$> extractFunType (extractFirstArg selfType) decl
+extractFromTraitItem _ _ _ = return Nothing
 
-        extractFirstArg :: Ty Span -> Arg Span -> [OhuaType RustVarType Resolved] -> OhuaType RustVarType Resolved -> m (FunType RustVarType Resolved)
-        extractFirstArg selfType fstArg args retTy =
-            -- Replace a return type Self with the actual name of the struct
-            let actualReturnType = if retTy == hostReturnSelf then asHostNormal selfType else retTy
-                funType x0 = case x0 of
-                              (HType (HostType Self{}) Nothing) -> STFunType x0 args actualReturnType
-                              _ -> FunType (x0 :| args) actualReturnType
-            in return $ funType $ convertImplArg selfType fstArg
+extractFirstArg :: forall m.ErrAndLogM m => Ty Span -> Arg Span -> [OhuaType RustVarType Resolved] -> OhuaType RustVarType Resolved -> m (FunType RustVarType Resolved)
+extractFirstArg selfType fstArg args retTy =
+    -- Replace a return type Self with the actual name of the struct
+    let actualReturnType = if retTy == hostReturnSelf then asHostNormal selfType else retTy
+        funType x0 = case x0 of
+                        (HType (HostType Self{}) Nothing) -> STFunType x0 args actualReturnType
+                        _ -> FunType (x0 :| args) actualReturnType
+    in return $ funType $ convertImplArg selfType fstArg
 

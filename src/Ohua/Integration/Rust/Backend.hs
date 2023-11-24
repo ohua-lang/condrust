@@ -42,8 +42,8 @@ instance Integration (Language 'Rust) where
       , Lang arch ~ Language 'Rust)
       => HostModule (Language 'Rust)
       -> arch
-      -> Namespace (Program (Channel RustVarType) (Com 'Recv RustVarType) (TaskExpr RustVarType) RustVarType) (AlgoSrc (Language 'Rust)) 
-      -> m (Namespace (Program (Channel RustVarType) (Com 'Recv RustVarType) (Task (Language 'Rust)) RustVarType) (AlgoSrc (Language 'Rust))) 
+      -> Namespace (Program (Channel RustVarType) (Com 'Recv RustVarType) (TaskExpr RustVarType) RustVarType) (AlgoSrc (Language 'Rust)) (OhuaType RustVarType 'Resolved)  
+      -> m (Namespace (Program (Channel RustVarType) (Com 'Recv RustVarType) (Task (Language 'Rust)) RustVarType) (AlgoSrc (Language 'Rust)) (OhuaType RustVarType 'Resolved)) 
   lower (Module _path (SourceFile _ _ items)) arch ns =
     return $
       ns & algos %~ map (\algo -> algo & algoCode %~ convertTasks (algo ^. algoInputCode))

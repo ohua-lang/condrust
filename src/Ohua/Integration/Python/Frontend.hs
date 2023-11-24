@@ -32,9 +32,9 @@ type Context = HM.HashMap Binding Sub.PythonType
 type ConvertM m = (Monad m, MonadState Context m)
 
 
-type PythonNamespace = Namespace (FrLang.UnresolvedExpr PythonVarType) (Py.Statement SrcSpan)
+type PythonNamespace = Namespace (FrLang.UnresolvedExpr PythonVarType) (Py.Statement SrcSpan) (OhuaType PythonVarType 'Resolved)
 
-defaultType:: OhuaType PythonVarType Unresolved
+defaultType:: OhuaType PythonVarType res
 defaultType = HType (HostType (PSingle PythonObject)) Nothing
 
 instance Integration (Language 'Python) where
@@ -43,7 +43,7 @@ instance Integration (Language 'Python) where
     type AlgoSrc (Language 'Python) = Py.Statement SrcSpan
 
     {- | Loading a namespace means extracting
-            a) function defintions to be complied and
+            a) function defintions to be compiled and
             b) imported references
          from a given source file. Any other top-level statements will be
          ignored for now.
@@ -78,26 +78,27 @@ instance Integration (Language 'Python) where
                             mapM
                                 (\case
                                     fun@Py.Fun{} ->
-                                        Just . (\e ->
+                                        Just . (\(expr, ty) ->
                                             Algo
                                                 (toBinding$ Py.fun_name fun)
-                                                e
+                                                ty
+                                                expr
                                                 fun) <$> extractAlgo fun modGlobals
                                     _ -> return Nothing)
                                 statements
                     return $ Namespace (filePathToNsRef srcFile) pyImports modGlobals pyAlgos
 
-                extractAlgo :: ErrAndLogM m => Py.Statement SrcSpan -> [Global] -> m (FrLang.UnresolvedExpr PythonVarType )
+                extractAlgo :: ErrAndLogM m => Py.Statement SrcSpan -> [Global] -> m (FrLang.UnresolvedExpr PythonVarType, OhuaType PythonVarType 'Resolved)
                 extractAlgo function globs = do
                     let _globArgs = map (\(Global bnd) -> VarP bnd defaultType) globs
                     -- ToDo: replace empty context with globals filled context if needed
                     args' <- mapM ((`evalStateT` HM.empty) . subParamToIR <=< paramToSub) (Py.fun_args function)
                     block' <- ((`evalStateT` HM.empty) . subSuiteToIR <=< suiteToSub) (Py.fun_body function)
-                    -- We can't add the Unit argument here before type checking because IType doesn't exist in Unresolved Expressions
+                    -- ToDo: make globals explicit arguments
                     {-let args'' = case globArgs ++ args' of
                                    [] -> VarP "_" TypeUnit :| []
                                    (x:xs) -> x :| xs-}
-                    return $ LamE args' block'
+                    return (LamE args' block', FType (FunType (neOfPyType args') defaultType))
 
                 extractImports::ErrAndLogM m => [Py.ImportItem SrcSpan] -> m [Import]
                 extractImports [] = throwError "Invalid: Empty import should not have passed the python parser"
@@ -410,7 +411,7 @@ subUnOpToIR Sub.Invert = toFunRefLit "~" simpleUnarySignature
 listOfPyType :: [a] -> [OhuaType PythonVarType Unresolved] 
 listOfPyType args = map (const defaultType) args
 
-neOfPyType ::  [a] -> NonEmpty (OhuaType PythonVarType Unresolved)
+neOfPyType ::  [a] -> NonEmpty (OhuaType PythonVarType res)
 neOfPyType [] = defaultType :| []
 neOfPyType (_:xs) = (defaultType :| map (const defaultType) xs)
 

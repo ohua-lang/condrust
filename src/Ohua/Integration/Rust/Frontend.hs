@@ -48,7 +48,7 @@ instance Integration (Language 'Rust) where
     ErrAndLogM m =>
     Language 'Rust ->
     FilePath ->
-    m (Module, Namespace (FrLang.UnresolvedExpr RustVarType) (Item Span), Module)
+    m (Module, Namespace (FrLang.UnresolvedExpr RustVarType) (Item Span) (OhuaType RustVarType 'Resolved), Module)
   loadNs _ srcFile = do
     rustMod <- liftIO $ loadRustFile srcFile
     rustNS <- extractNs rustMod
@@ -57,7 +57,7 @@ instance Integration (Language 'Rust) where
       extractNs ::
         ErrAndLogM m =>
         SourceFile Span ->
-        m (Namespace (FrLang.UnresolvedExpr RustVarType) (Item Span))
+        m (Namespace (FrLang.UnresolvedExpr RustVarType) (Item Span) (OhuaType RustVarType 'Resolved))
       extractNs input = do
         globalDefs <- collectGlobals input
         extractWithGlobals globalDefs input
@@ -86,7 +86,7 @@ instance Integration (Language 'Rust) where
         rustAlgos <-
           catMaybes <$> mapM (\case
                                  f@(Fn _ _ ident decl _ _ block _) ->
-                                   Just . (\e -> Algo (toBinding ident) e f) <$> extractAlgo ident decl block
+                                   Just . (\(e, ty) -> Algo (toBinding ident) ty e f) <$> extractAlgo ident decl block
                                  _ -> return Nothing) items
         return $ Namespace (filePathToNsRef srcFile) rustImports (map Global $ HM.keys globs) rustAlgos
 
@@ -117,17 +117,18 @@ instance Integration (Language 'Rust) where
         Ident ->
         FnDecl Span ->
         Block Span ->
-        m (FrLang.UnresolvedExpr RustVarType)
+        m (FrLang.UnresolvedExpr RustVarType, OhuaType RustVarType 'Resolved)
       extractAlgo _algoName (FnDecl _ _ True _) _block = error "We do not support compilation of variadic functions for the moment"
-      extractAlgo _algoName  (FnDecl args mReturnTy _ _) block = do
+      extractAlgo _algoName  decl@(FnDecl args mReturnTy _ _) block = do
         args' <- mapM (convertPat <=< SubC.convertArg) args
         block' <- convertIntoFrExpr block
         let returnType = maybe UType asHostNormalU mReturnTy
-        -- FIXME: We use dto do this as a transformation in the Frontend i.e. Transform.Env (prepareRootAlgoVars)
+        -- FIXME: We used to do this as a transformation in the Frontend i.e. Transform.Env (prepareRootAlgoVars)
         --        I really think that this is the way we should do it instead of expecting the integrations to do this quirk for us.
         --        We need this transformation to have the return type of the algo inside the algo i.e. for type checking.
         let wrappedBlock = LetE (VarP "result" returnType) block' (VarE "result" returnType)
-        return $ LamE {- implGlobalArgs ++ -} args' wrappedBlock
+        (argTys, retTy) <- TH.getTypes decl
+        return (LamE {- implGlobalArgs ++ -} args' wrappedBlock, FType (FunType  argTys retTy))
 
       convertIntoFrExpr :: SubC.ConvertM m => Block Span -> m (FrLang.UnresolvedExpr RustVarType)
       convertIntoFrExpr rustBlock = do
@@ -150,8 +151,9 @@ instance Integration (Language 'Rust) where
     ErrAndLogM m =>
     Language 'Rust ->
     Module ->
-    Namespace (FrLang.UnresolvedExpr RustVarType) (Item Span) ->
+    Namespace (FrLang.UnresolvedExpr RustVarType) (Item Span) (OhuaType RustVarType 'Resolved)->
     m (Delta RustVarType Resolved)
+  -- FIXME:: Add algo types to Delta
   loadTypes _ (Module ownFile _) ohuaNs = do
     filesAndPaths <- concat <$> mapM funsForAlgo (ohuaNs ^. algos)
     -- To enable the type extraction to find local algorithms, we add the filepath to the current file as their namespace 
@@ -163,8 +165,8 @@ instance Integration (Language 'Rust) where
     let fixedLocalScope =  foldr (\(qb, ty) hm -> HM.insert (convertPathToLocal qb) ty hm) HM.empty (HM.toList importedFnTypes)
     return fixedLocalScope
     where
-      funsForAlgo :: ErrAndLogM m => Algo (FrLang.UnresolvedExpr RustVarType) (Item Span) -> m [([NSRef], QualifiedBinding)]
-      funsForAlgo (Algo _name code _inputCode ) = do
+      funsForAlgo :: ErrAndLogM m => Algo (FrLang.UnresolvedExpr RustVarType) (Item Span) (OhuaType RustVarType 'Resolved) -> m [([NSRef], QualifiedBinding)]
+      funsForAlgo (Algo _name _ty code _inputCode ) = do
           mapM
             lookupFunTypes
             $ [f                 | LitE (FunRefLit (FunRef f _ _)) <- flattenU code] ++
@@ -175,7 +177,7 @@ instance Integration (Language 'Rust) where
       convertLocalToPath n = n
 
       convertPathToLocal :: QualifiedBinding -> QualifiedBinding
-      convertPathToLocal qb@(QualifiedBinding (NSRef spaces) bnd) = 
+      convertPathToLocal qb@(QualifiedBinding (NSRef spaces) bnd) =
         case stripPrefix (filePathToList ownFile) spaces of
                   Just localspaces -> QualifiedBinding (NSRef localspaces) bnd
                   Nothing -> {-local path wasn't a prefix-} qb

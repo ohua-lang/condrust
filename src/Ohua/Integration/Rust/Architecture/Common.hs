@@ -18,13 +18,13 @@ import Language.Rust.Data.Ident
 serialize ::
   ErrAndLogM m =>
   TH.Module ->
-  Namespace (Program chan expr stmts TH.RustVarType) anno ->
+  Namespace (Program chan expr stmts TH.RustVarType) anno (OhuaType ty 'Resolved) ->
   (Program chan expr stmts TH.RustVarType -> Block ()) ->
   TH.Module ->
   m (NonEmpty (FilePath, L.ByteString))
 -- REMINDER: Replace Placeholder. Output new library file
 serialize (TH.Module path (SourceFile modName atts items)) ns createProgram placeholder =
-  let algos' = HM.fromList $ map (\(Algo name expr _ ) -> (name, expr)) $ ns ^. algos
+  let algos' = HM.fromList $ map (\(Algo name _ty expr _ ) -> (name, expr)) $ ns ^. algos
       src = SourceFile modName atts $ map (replaceAlgo algos') items
       path' = takeFileName path -- TODO verify this!
       (TH.Module libname lib) = placeholder

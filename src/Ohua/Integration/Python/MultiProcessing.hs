@@ -106,7 +106,7 @@ instance Architecture (Architectures 'MultiProcessing) where
         where
 
             convertedAlgoInfos =
-                map (\(Algo aName expr srcFun) ->
+                map (\(Algo aName _aType expr srcFun) ->
                         (bndToStr aName, subToPython expr, Py.fun_args srcFun)) $ modNS ^. algos
 
             algoNames = map (^. algoName) $ modNS^.algos
