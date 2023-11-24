@@ -50,8 +50,8 @@ resolveNS (ns, registry) =
             let
                 calledFunctions = collectCalledAlgos algoNm registry algoExpr
                 expr = foldl (flip addExpr) algoExpr calledFunctions
-                algoExpr' = (trace $ "Expression" <> quickRender expr) resolveExpr expr
-            in (trace $ "AlgoExpression" <> quickRender algoExpr') algoExpr'
+                algoExpr' = resolveExpr expr
+            in algoExpr'
 
         collectCalledAlgos :: Binding -> NamespaceRegistry ty -> UnresolvedExpr ty  -> HS.HashSet QualifiedBinding
         collectCalledAlgos algoName availableAlgos expr  =
@@ -87,8 +87,9 @@ resolveNS (ns, registry) =
         addExpr otherAlgo e =
             -- (trace $ "Inlining Algo: "<> quickRender otherAlgo <> "\nwith type "<> show ty)
             let (algoExpr, algoTy) = fromMaybe (error "impossible") (HM.lookup otherAlgo registry)
-                -- FIXME: Replace after function type unresolving and unit funcion work properly
-                unresAlgoTy = TStar
+                -- FIXME: Replace after function type unresolving and unit function work properly
+                unresAlgoTy = fromMaybe TStar (resToUnres algoTy)
+
             in LetE
                     (VarP (pathToVar otherAlgo) unresAlgoTy)
                     algoExpr

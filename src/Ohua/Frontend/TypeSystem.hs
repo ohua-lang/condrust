@@ -141,8 +141,16 @@ typeSystem delta imports gamma = \case
              Delta, Gamma |– let (x:X) e1 e2 : T2
   -}
   (LetE pat e1 e2) -> do
-    
-    (gamma', e1', tyT1', imports') <- typeExpr delta imports gamma e1
+
+    -- Recursive algorithms are inlined as 
+    -- @let rec = <algo code>
+    --      in rec(something)
+    -- inlining will type annotate the pattern correctly, but not the function call
+    -- to type that, we need to add rec to the context with the correct type 
+
+    let gammaR = foldl (\ g (b, ty) -> HM.insert b ty g) gamma (patTyBnds pat)
+
+    (gamma', e1', tyT1', imports') <- typeExpr delta imports gammaR e1
     
     pat' <- typePat pat tyT1'
     
