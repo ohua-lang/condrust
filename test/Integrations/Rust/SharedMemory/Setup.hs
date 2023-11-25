@@ -298,6 +298,10 @@ pub fn take_string(s:String) -> usize {
     s.len()
 }
 
+pub fn take_state(s:State) -> String {
+    return String::from("Thank you")
+}
+
 pub fn int_and_string(i:i32, s:String) -> i32 {
     i+j
 }
@@ -327,7 +331,7 @@ pub fn f_tup(i:i32) -> (i32, i32, String) {
 }
 
 pub fn fu_tup() -> (i32, i32) {
-    return (1, 2, String::from("Hello, world!") )
+    return (1, 2)
 }
 
 

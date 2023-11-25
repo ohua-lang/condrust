@@ -695,7 +695,7 @@ fn test() -> i32 {
       RunError::RecvFailed
     }
   }
-  let (a_0_0_tx, a_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
+  let (result_0_0_0_tx, result_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (x_1_0_0_tx, x_1_0_0_rx) = std::sync::mpsc::channel::<  String,>();
   let (x_0_0_0_tx, x_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
@@ -705,20 +705,20 @@ fn test() -> i32 {
       loop {
         let var_0 = x_0_0_0_rx.recv()?;
         let var_1 = x_1_0_0_rx.recv()?;
-        let a_0_0 = int_and_string(var_0, var_1);
-        a_0_0_tx.send(a_0_0)?;
+        let result_0_0_0 = crate::funs::int_and_string(var_0, var_1);
+        result_0_0_0_tx.send(result_0_0_0)?;
         ()
       }
     }));
   tasks
     .push(Box::new(move || -> _ {
-      let x_1_0_0 = from_int(42);
+      let x_1_0_0 = crate::funs::from_int(42);
       x_1_0_0_tx.send(x_1_0_0)?;
       Ok(())
     }));
   tasks
     .push(Box::new(move || -> _ {
-      let x_0_0_0 = some_int();
+      let x_0_0_0 = crate::funs::some_int();
       x_0_0_0_tx.send(x_0_0_0)?;
       Ok(())
     }));
@@ -732,7 +732,7 @@ fn test() -> i32 {
       eprintln!("[Error] A worker thread of an Ohua algorithm has panicked!");
     }
   }
-  match a_0_0_rx.recv() {
+  match result_0_0_0_rx.recv() {
     Ok(res) => res,
     Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
   }
