@@ -25,14 +25,18 @@ prettyFunType :: FunType ty res -> Doc ann
 prettyFunType =
     \case
         FunType argsTys retTy ->
-            let pArgs = hsep (punctuate comma $ toList $ map pretty argsTys)
+            let pArgs = prettyArgs argsTys
                 pRet = pretty retTy
             in parens pArgs <> " -> " <> pRet
-        STFunType stateTy [] retTy -> pretty stateTy  <> "-> () -> " <> pretty retTy
+        -- STFunType stateTy [] retTy -> pretty stateTy  <> "-> () -> " <> pretty retTy
         STFunType stateTy argsTys retTy ->
-            let pArgs = hsep (punctuate comma $ toList $ map pretty argsTys)
+            let pArgs = prettyArgs argsTys
                 pRet = pretty retTy
             in pretty stateTy <>" -> "<> parens pArgs <> " -> " <> pRet
+
+prettyArgs :: Either () (NonEmpty (OhuaType ty res)) -> Doc ann
+prettyArgs (Left _ ) = "[]"
+prettyArgs (Right argsTys) = hsep (punctuate comma $ toList $ map pretty argsTys)
 
 instance Pretty (OhuaType ty res) where
     pretty = flexText . show

@@ -53,6 +53,8 @@ import Ohua.Types.HostTypes
 
 import qualified Text.Show
 import qualified GHC.TypeLits as Bool
+import Data.Bifoldable (Bifoldable(bifoldMap))
+import Data.Maybe (fromMaybe)
 
 
 -- | Internal type representations. While Type and TType capture types from the
@@ -89,7 +91,7 @@ instance Hashable (OhuaType ty res) where
 
 -- We need that for hashing
 instance Eq (OhuaType ty res) where
-  (==) = heq 
+  (==) = heq
 
 deriving instance Show (OhuaType ty s)
 instance Heq (OhuaType ty s1) (OhuaType ty s2) where
@@ -97,7 +99,7 @@ instance Heq (OhuaType ty s1) (OhuaType ty s2) where
   heq (IType ty1) (IType ty2) = heq ty1 ty2
   heq (FType fTy1)(FType fTy2) = heq fTy1 fTy2
   heq (TType tys1)(TType tys2) = length tys1 == length tys2 && all (uncurry heq) (NE.zip tys1 tys2)
-  heq UType UType = True 
+  heq UType UType = True
   heq TStar TStar = True
   heq _ _ = False
 
@@ -117,7 +119,7 @@ instance Hashable (InternalType ty res) where
 
 -- We need that for hashing
 instance Eq (InternalType ty res) where
-  (==) = heq 
+  (==) = heq
 
 deriving instance Show (InternalType ty s)
 instance Heq (InternalType ty s1) (InternalType ty s2) where
@@ -135,34 +137,32 @@ instance Heq (InternalType ty s1) (InternalType ty s2) where
 
 type FunType :: Type -> Resolution -> Type
 data FunType ty s where
-     FunType :: NonEmpty (OhuaType ty s) -> OhuaType ty s -> FunType ty s
+     FunType :: Either () (NonEmpty (OhuaType ty s)) -> OhuaType ty s -> FunType ty s
      -- FIXME This is not properly defined.
      -- STFunType s [] t
      -- versus
      -- STFunType s [TypeUnit] t
      -- Yet formally, STFunType s [] t :: S -> T and that is ok.
-     STFunType :: OhuaType ty s -> [OhuaType ty s] -> OhuaType ty s -> FunType ty s
+     STFunType :: OhuaType ty s -> Either () (NonEmpty (OhuaType ty s)) -> OhuaType ty s -> FunType ty s
 
 deriving instance Show (FunType ty s)
 
 -- We need hashes for HM 
 instance Hashable (FunType ty res) where
-    hashWithSalt s ft = s 
+    hashWithSalt s ft = s
 
 -- We need that for hashing
 instance Eq (FunType ty res) where
-  (==) = heq 
+  (==) = heq
 
 
 instance Heq (FunType ty s1) (FunType ty s2) where
   heq (FunType args1 res1) (FunType args2 res2) =
-    NE.length args1 == NE.length args2 &&
-    all (uncurry heq) (NE.zip args1 args2) &&
+    heqArgs args1 args2 &&
     heq res1 res2
   heq (STFunType s1 args1 res1) (STFunType s2 args2 res2) =
     heq s1 s2 &&
-    length args1 == length args2 &&
-    all (uncurry heq) (zip args1 args2) &&
+    heqArgs args1 args2 &&
     heq res1 res2
   heq _ _ = False
 
@@ -174,10 +174,10 @@ resToUnres (TType tys) = case mapM resToUnres tys of
       Just rTys -> Just $ TType rTys
       Nothing -> Nothing
 resToUnres (FType (FunType argsTys retTy))  = do
-  fTy <- FunType  <$> mapM resToUnres argsTys <*> resToUnres retTy
-  return (FType fTy)  
+  fTy <- FunType  <$> mapArgs resToUnres argsTys <*> resToUnres retTy
+  return (FType fTy)
 resToUnres (FType (STFunType stTy argsTys retTy))  = do
-  fTy <- STFunType <$> resToUnres stTy <*> mapM resToUnres argsTys <*> resToUnres retTy
+  fTy <- STFunType <$> resToUnres stTy <*> mapArgs resToUnres argsTys <*> resToUnres retTy
   return (FType fTy)
 resToUnres (IType _ )    = Nothing
 
@@ -187,32 +187,50 @@ unresToRes (HType hty _miTy)   = Just $ HType hty Nothing
 unresToRes (TType tys) = case mapM unresToRes tys of
       Just rTys -> Just $ TType rTys
       Nothing -> Nothing
-
-unresToRes (FType (STFunType sin ins out)) = do 
+unresToRes (FType (STFunType sin ins out)) = do
       sin' <- unresToRes sin
-      ins' <- mapM unresToRes ins 
+      ins' <- case ins of
+        Left _ -> Just $ Left ()
+        Right tys -> mapM unresToRes tys <&> Right
       out' <- unresToRes out
       return (FType (STFunType sin' ins' out'))
-unresToRes (FType (FunType ins out)) = do 
-      ins' <- mapM unresToRes ins 
+unresToRes (FType (FunType ins out)) = do
+      ins' <- mapArgs unresToRes ins
       out' <- unresToRes out
       return (FType (FunType ins' out'))
 
 unresToRes UType       = Just $ IType TypeUnit
-unresToRes TStar       = Nothing 
+unresToRes TStar       = Nothing
 
 
 isUnresolved :: OhuaType ty Unresolved -> Bool
 isUnresolved t = case t of
          (HType _ _) -> True
          (TType tys) -> any isUnresolved tys
-         (FType (FunType ins out)) -> any isUnresolved (out NE.<| ins)
-         (FType (STFunType state ins out)) -> any isUnresolved (state NE.<| (out :| ins ))
-         --(IType _) -> False -- Error/Warning: inaccesible code
+         (FType (FunType (Left _) out)) -> isUnresolved out
+         (FType (FunType (Right ins) out)) -> any isUnresolved (out NE.<| ins )
+         (FType (STFunType state (Left _ ) out)) -> any isUnresolved (state :| [out])
+         (FType (STFunType state (Right ins) out)) -> any isUnresolved (state NE.<| (out NE.<|  ins ))
          UType -> True
          TStar -> True
 
 
+mapArgs ::Monad m => 
+  (OhuaType ty sI -> m (OhuaType ty sO))
+  -> Either () (NonEmpty (OhuaType ty sI)) 
+  -> m (Either () (NonEmpty (OhuaType ty sO)))
+mapArgs fun (Left _ )     = return $ Left ()
+mapArgs fun (Right args)  = mapM fun args <&> Right
+
+heqArgs ::
+  Either () (NonEmpty (OhuaType ty s1))
+  -> Either () (NonEmpty (OhuaType ty s2)) 
+  -> Bool
+heqArgs (Left _ )     (Left _ )      = True
+heqArgs (Right args1) (Right args2)  = 
+    length args1 == length args2 &&
+    all (uncurry heq) (NE.zip args1 args2)
+heqArgs a1            a2             = False 
 --------------------------------------------------------------
 --               Representation of Variables
 --------------------------------------------------------------
@@ -251,36 +269,14 @@ getReturnType :: OhuaType ty res -> Maybe (OhuaType ty res)
 getReturnType (FType (FunType _ins out)) = Just out
 getReturnType (FType (STFunType _s _ins out)) = Just out
 getReturnType _ = Nothing
-{-
--- Actually we can only do it this way, i.e. without involving the argument type
--- at each call side because we assume that either generics are not allowed or
--- are also allowed in the backend such that we can consider a generic return type 
--- as fully resolved.
 
-
-pureArgTypes :: FunType ty -> NonEmpty (VarType ty)
-pureArgTypes (FunType ins _out) = ins
-pureArgTypes (STFunType s ins _out) = ins
-
-stateArgTypes :: FunType ty -> Maybe (VarType ty)
-stateArgTypes (FunType _ins _out) = Nothing
-stateArgTypes (STFunType s _ins _out) = Just s
-
-setReturnType :: VarType ty -> FunType ty -> FunType ty
-setReturnType ty (FunType ins out) = FunType ins ty
-setReturnType ty (STFunType s ins out) = STFunType s ins ty
-
-setFunType :: NonEmpty (VarType ty) -> VarType ty -> FunType ty -> FunType ty
-setFunType intys outty (FunType _i _out) = FunType intys outty
-setFunType intys outty (STFunType s _ins _out) = STFunType s intys outty 
--}
 
 type FunRef :: Type -> Resolution -> Type
 data FunRef ty s where
     FunRef :: QualifiedBinding -> Maybe FnId -> FunType ty s -> FunRef ty s
 
-instance Hashable (FunRef ty s) where 
-  hashWithSalt s (FunRef qbnd _ _ ) = hashWithSalt s qbnd 
+instance Hashable (FunRef ty s) where
+  hashWithSalt s (FunRef qbnd _ _ ) = hashWithSalt s qbnd
 
 getRefType :: FunRef ty s -> FunType ty s
 getRefType (FunRef _q _i funTy) = funTy
