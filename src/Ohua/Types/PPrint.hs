@@ -9,7 +9,7 @@ import Prettyprinter as PP
 
 
 prettyFunRef :: FunRef ty res -> Doc ann
-prettyFunRef (FunRef sf fid ty) = pretty sf <> angles (pretty ty)  <> maybe emptyDoc (angles . pretty) fid
+prettyFunRef (FunRef sf ty) = pretty sf <> angles (pretty ty)
 
 prettyLit :: Lit ty res -> Doc ann
 prettyLit =
