@@ -71,7 +71,7 @@ data OhuaType ty s where
   -- Why does HostType have a Maybe Internal Type: We usually don't want to convert any types form the
   -- host language to the interanl types. The only exception is, when we need to type check that conditions are really Bool.
   -- Therefor we can add an internal type that allows the type system to check this.
-  HType :: HostType ty -> Maybe (InternalType ty s) -> OhuaType ty s
+  HType :: HostType ty -> OhuaType ty s
   -- Tuple and Function types can capture both resolved an unresolved host types
   -- ToDo: Check if we need to introduce another layer of typing 
   TType :: NonEmpty (OhuaType ty s)                 -> OhuaType ty s
@@ -93,7 +93,7 @@ instance Eq (OhuaType ty res) where
 
 deriving instance Show (OhuaType ty s)
 instance Heq (OhuaType ty s1) (OhuaType ty s2) where
-  heq (HType ty1 _) (HType ty2 _) = ty1 == ty2
+  heq (HType ty1) (HType ty2) = ty1 == ty2
   heq (IType ty1) (IType ty2) = heq ty1 ty2
   heq (FType fTy1)(FType fTy2) = heq fTy1 fTy2
   heq (TType tys1)(TType tys2) = length tys1 == length tys2 && all (uncurry heq) (NE.zip tys1 tys2)
@@ -169,7 +169,7 @@ instance Heq (FunType ty s1) (FunType ty s2) where
 
 resToUnres :: OhuaType ty Resolved -> Maybe (OhuaType ty Unresolved)
 -- HTpye gets it's resolution from Internal Type, which can only be resolved at this point so I can't pass it back
-resToUnres (HType hty _miTy)   = Just $ HType hty Nothing
+resToUnres (HType hty )   = Just $ HType hty 
 resToUnres (TType tys) = case mapM resToUnres tys of
       Just rTys -> Just $ TType rTys
       Nothing -> Nothing
@@ -183,7 +183,7 @@ resToUnres (IType _ )    = Nothing
 
 unresToRes :: OhuaType ty Unresolved -> Maybe (OhuaType ty Resolved)
 -- HTpye gets it's resolution from Internal Type, which can only be resolved at this point so I can't pass it back
-unresToRes (HType hty _miTy)   = Just $ HType hty Nothing
+unresToRes (HType hty)   = Just $ HType hty 
 unresToRes (TType tys) = case mapM unresToRes tys of
       Just rTys -> Just $ TType rTys
       Nothing -> Nothing
@@ -204,7 +204,7 @@ unresToRes TStar       = Nothing
 
 isUnresolved :: OhuaType ty Unresolved -> Bool
 isUnresolved t = case t of
-         (HType _ _) -> True
+         (HType _ ) -> True
          (TType tys) -> any isUnresolved tys
          (FType (FunType ins out)) -> any isUnresolved (out NE.<| ins)
          (FType (STFunType state ins out)) -> any isUnresolved (state NE.<| (out :| ins ))
@@ -277,13 +277,13 @@ setFunType intys outty (STFunType s _ins _out) = STFunType s intys outty
 
 type FunRef :: Type -> Resolution -> Type
 data FunRef ty s where
-    FunRef :: QualifiedBinding -> Maybe FnId -> FunType ty s -> FunRef ty s
+    FunRef :: QualifiedBinding -> FunType ty s -> FunRef ty s
 
 instance Hashable (FunRef ty s) where 
-  hashWithSalt s (FunRef qbnd _ _ ) = hashWithSalt s qbnd 
+  hashWithSalt s (FunRef qbnd _ ) = hashWithSalt s qbnd 
 
 getRefType :: FunRef ty s -> FunType ty s
-getRefType (FunRef _q _i funTy) = funTy
+getRefType (FunRef _q funTy) = funTy
 --getRefReturnType (FunRef _q _i funTy) = getReturnType funTy
 
 --------------------------------------------------------------
@@ -292,7 +292,7 @@ getRefType (FunRef _q _i funTy) = funTy
 
 deriving instance Show (FunRef ty s)
 instance Eq (FunRef ty s) where
-  (FunRef qb1 _ ty1) == (FunRef qb2 _ ty2) = qb1 == qb2 && heq ty1 ty2
+  (FunRef qb1 ty1) == (FunRef qb2 ty2) = qb1 == qb2 && heq ty1 ty2
 
 -- Shortcut to generate controle node types
 controlSignalType :: OhuaType ty Resolved

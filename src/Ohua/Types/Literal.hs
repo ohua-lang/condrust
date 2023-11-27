@@ -61,5 +61,5 @@ getLitType (BoolLit _)    = IType TypeBool
 getLitType UnitLit        = IType TypeUnit
 getLitType (StringLit _)  = IType TypeString
 getLitType (EnvRefLit _b vTy)  = vTy
-getLitType (FunRefLit (FunRef _ _ vty))  = IType $ TypeFunction vty
+getLitType (FunRefLit (FunRef _  vty))  = IType $ TypeFunction vty
 -}
