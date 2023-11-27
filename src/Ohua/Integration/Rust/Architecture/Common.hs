@@ -47,8 +47,8 @@ toRustTy ty = case ty of
     IType TypeBool ->  Just $ Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "bool" Nothing ()] ()) ()
     IType TypeString ->  Just $ Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "String" Nothing ()] ()) ()
 
-    (HType (HostType (TH.Self rty _ _ )) _ ) ->  Just rty
-    (HType (HostType (TH.Normal rty)) _ ) -> Just rty
+    (HType (HostType (TH.Self rty _ _ ))) ->  Just rty
+    (HType (HostType (TH.Normal rty))) -> Just rty
 
     (TType typez) ->  do
       types' <- mapM toRustTy typez

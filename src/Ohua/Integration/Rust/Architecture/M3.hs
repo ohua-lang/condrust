@@ -51,9 +51,9 @@ convertChan rxMutability (SRecv _ty (SChan bnd)) =
 convertReceive :: Binding -> Com 'Recv TH.RustVarType -> Sub.Expr
 convertReceive suffix (SRecv argType (SChan channel)) =
   let ty' = case argType of
-              (HType (HostType( TH.Self ty _ _mut)) _ ) -> noSpan <$ ty
+              (HType (HostType( TH.Self ty _ _mut)) ) -> noSpan <$ ty
               -- error "Not yet implemented: Recv of reference type"
-              (HType (HostType(TH.Normal ty)) _ ) -> noSpan <$ ty
+              (HType (HostType(TH.Normal ty)) ) -> noSpan <$ ty
               internalType -> case convertToRustType internalType of 
                   Just (Sub.RustType ty) -> ty
                   Nothing -> error $ "Couldn't handle type " <> show argType <> " for channel " <> show channel

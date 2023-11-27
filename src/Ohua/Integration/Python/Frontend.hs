@@ -35,7 +35,7 @@ type ConvertM m = (Monad m, MonadState Context m)
 type PythonNamespace = Namespace (FrLang.UnresolvedExpr PythonVarType) (Py.Statement SrcSpan) (OhuaType PythonVarType 'Resolved)
 
 defaultType:: OhuaType PythonVarType res
-defaultType = HType (HostType (PSingle PythonObject)) Nothing
+defaultType = HType (HostType (PSingle PythonObject))
 
 instance Integration (Language 'Python) where
     type HostModule (Language 'Python) = Module
@@ -156,10 +156,10 @@ instance Integration (Language 'Python) where
 
             assignTypes :: ErrAndLogM m => FunTypesMap -> FrLang.UnresolvedExpr PythonVarType -> m (FrLang.UnresolvedExpr PythonVarType)
             assignTypes funTypes function = case function of
-                (AppE (LitE (FunRefLit (FunRef qBinding funID _))) args) ->
+                (AppE (LitE (FunRefLit (FunRef qBinding  _))) args) ->
                     return $
                     -- Question: (To me) -> can we do better with the return type? i.e. it might be a tuple and we can know that
-                         AppE (LitE $ FunRefLit $ FunRef qBinding funID $ FunType (neOfPyType args) defaultType) args
+                         AppE (LitE $ FunRefLit $ FunRef qBinding  $ FunType (neOfPyType args) defaultType) args
                     {-
                     case args of
                         -- Note: In Rust this type assignment happens based on the function definitions, while the
@@ -167,11 +167,11 @@ instance Integration (Language 'Python) where
                         -- Therefore contrary to the Rust way, args might be empty here.
                         -- TODO: When I return to type extraction from defintions, make non-empty args an invariant again
                         {- [] -> throwError "Empty call unfilled."
-                        --[LitE UnitLit] -> return $ AppE (LitE $ FunRefLit $ FunRef qBinding funID $ FunType $ Left Unit) args-}
+                        --[LitE UnitLit] -> return $ AppE (LitE $ FunRefLit $ FunRef qBinding  $ FunType $ Left Unit) args-}
                         (a:args') ->
                             return $
-                                AppE (LitE $ FunRefLit (FunRef qBinding funID FunType $ (listofPyType args))) args
-                        _ -> return $ AppE (LitE $ FunRefLit $ FunRef qBinding funID $ FunType $ Left Unit) args
+                                AppE (LitE $ FunRefLit (FunRef qBinding FunType $ (listofPyType args))) args
+                        _ -> return $ AppE (LitE $ FunRefLit $ FunRef qBinding  $ FunType $ Left Unit) args
                     -}
                 e ->  return e
 
@@ -424,7 +424,7 @@ toFunRefLit :: Monad m => Binding -> (NonEmpty (OhuaType PythonVarType Unresolve
 toFunRefLit funBind (argTys, retTy) =
   return $
   LitE $ FunRefLit $
-  FunRef (QualifiedBinding (makeThrow []) funBind) Nothing $ FunType argTys retTy
+  FunRef (QualifiedBinding (makeThrow []) funBind) $ FunType argTys retTy
 
 simpleBinarySignature :: (NonEmpty (OhuaType PythonVarType Unresolved), OhuaType PythonVarType Unresolved)
 simpleBinarySignature = (defaultType :| [defaultType], defaultType)

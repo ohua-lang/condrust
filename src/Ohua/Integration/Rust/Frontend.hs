@@ -169,7 +169,7 @@ instance Integration (Language 'Rust) where
       funsForAlgo (Algo _name _ty code _inputCode ) = do
           mapM
             lookupFunTypes
-            $ [f                 | LitE (FunRefLit (FunRef f _ _)) <- flattenU code] ++
+            $ [f                 | LitE (FunRefLit (FunRef f _)) <- flattenU code] ++
               [toQualBinding bnd | VarE bnd _                      <- flattenU code]
 
       convertLocalToPath :: [NSRef] -> [NSRef]
@@ -308,7 +308,7 @@ instance ConvertExpr Sub.Expr where
     return $ LamE args' body'
   convertExpr (Sub.BlockExpr block) = convertExpr block
   convertExpr (Sub.PathExpr (Sub.CallRef ref _tyInfo)) = do
-    return $ LitE $ FunRefLit $ FunRef ref Nothing $ FunType (TStar :| []) TStar
+    return $ LitE $ FunRefLit $ FunRef ref $ FunType (TStar :| []) TStar
   convertExpr (Sub.Var bnd (Just (Sub.RustType ty))) = return $ VarE bnd (asHostNormalU ty)
   convertExpr (Sub.Var bnd Nothing) = return $ VarE bnd TStar
 
@@ -377,7 +377,7 @@ instance ConvertPat Sub.Arg where
   convertPat (Sub.Arg pat (Sub.RustType rustTy)) =  do
     pat' <- convertPat pat
     case pat' of
-      VarP bnd TStar -> return $ VarP bnd (HType (HostType (TH.Normal rustTy)) Nothing)
+      VarP bnd TStar -> return $ VarP bnd (HType (HostType (TH.Normal rustTy)))
       -- FIXME: We need to pass on the type to tuples as well I assume
       --        The most critical part are varaibes though, because we use this function to convert 
       --        the algo argumets, and we need their types obviously
@@ -408,7 +408,7 @@ unOpInfo Sub.Neg =  ("-",  TStar)
 asFunRef :: Monad m => Binding -> NonEmpty (OhuaType RustVarType Unresolved) -> OhuaType RustVarType Unresolved -> m (FrLang.UnresolvedExpr RustVarType)
 asFunRef op tys retTy = return $
       LitE $ FunRefLit $
-        FunRef (QualifiedBinding (makeThrow []) op) Nothing (FunType tys retTy)
+        FunRef (QualifiedBinding (makeThrow []) op) (FunType tys retTy)
 
 
 toQualBinding :: Binding -> QualifiedBinding

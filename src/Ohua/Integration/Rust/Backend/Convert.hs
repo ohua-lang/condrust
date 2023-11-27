@@ -28,7 +28,7 @@ convertExp (Sub.Lit UnitLit) =
 -- Question: Why is this an error?
 convertExp (Sub.Lit (EnvRefLit _hostExpr _ty)) =
   error "Host expression encountered! This is a compiler error. Please report!"
-convertExp (Sub.Lit (FunRefLit (FunRef qBnd _ _type))) =
+convertExp (Sub.Lit (FunRefLit (FunRef qBnd _type))) =
   PathExpr [] Nothing (convertQualBnd qBnd) noSpan
 convertExp (Sub.Call cr args) =
   Call

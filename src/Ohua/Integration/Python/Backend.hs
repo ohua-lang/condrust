@@ -24,7 +24,7 @@ import Data.Maybe
 -- import Data.List.NonEmpty ((<|))
 
 defaultType :: OhuaType PythonVarType Resolved
-defaultType = HType (HostType (PSingle PythonObject)) Nothing
+defaultType = HType (HostType (PSingle PythonObject))
 
 {-| Convert a task to a function block of the
     subset Language.
@@ -78,7 +78,7 @@ instance Integration (Language 'Python) where
     -- Question: Why is it an error?
     convertExpr _ (TCLang.Lit (EnvRefLit _hostExpr _ty)) = error "Host expression encountered! This is a compiler error. Please report!"
 
-    convertExpr _ (TCLang.Lit (FunRefLit (FunRef qBnd _mFunID _type))) = case qBnd of
+    convertExpr _ (TCLang.Lit (FunRefLit (FunRef qBnd _type))) = case qBnd of
         (QualifiedBinding (NSRef []) bnd) -> wrapSubExpr (Sub.Var bnd)
         (QualifiedBinding refNames bnd)  -> wrapSubExpr $ Sub.Var $ dotConcat refNames bnd
 
@@ -304,7 +304,7 @@ dotConcat (NSRef refs) bind =
 
 asFunctionLiteral :: QualifiedBinding -> SNat ('Succ n) -> TaskExpr PythonVarType
 asFunctionLiteral qBinding n =
-  TCLang.Lit $ FunRefLit $ FunRef qBinding Nothing $ FunType (replicateNE n defaultType) (defaultType)
+  TCLang.Lit $ FunRefLit $ FunRef qBinding $ FunType (replicateNE n defaultType) (defaultType)
 
 
 hasAttrArgs :: Binding -> [Sub.Argument]

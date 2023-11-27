@@ -79,19 +79,19 @@ rustI32 :: Ty ()
 rustI32 = PathTy Nothing (Path False [PathSegment "i32" Nothing ()] ()) ()
 
 hostReturnSelf :: OhuaType RustVarType Resolved
-hostReturnSelf = HType (HostType $ Normal $ PathTy Nothing (Path False [PathSegment "Self" Nothing ()] ()) ()) Nothing
+hostReturnSelf = HType (HostType $ Normal $ PathTy Nothing (Path False [PathSegment "Self" Nothing ()] ()) ())
 
 rustInfer :: Ty ()
 rustInfer = Infer ()
 
 asHostNormal :: Ty a -> OhuaType RustVarType Resolved 
-asHostNormal ty = HType (HostType $ Normal (deSpan ty)) Nothing
+asHostNormal ty = HType (HostType $ Normal (deSpan ty)) 
 
 asHostNormalU :: Ty a -> OhuaType RustVarType Unresolved 
-asHostNormalU ty = HType (HostType $ Normal (deSpan ty)) Nothing
+asHostNormalU ty = HType (HostType $ Normal (deSpan ty)) 
 
 asHostSelf :: Ty a -> (Maybe (Lifetime a)) -> Mutability-> OhuaType RustVarType Resolved 
-asHostSelf ty lt mut = HType ((HostType $ Self (deSpan ty) (map deSpan lt) mut)) Nothing 
+asHostSelf ty lt mut = HType ((HostType $ Self (deSpan ty) (map deSpan lt) mut))
 
 
 -- | Load the given file as AST, pattern match on the content and collect
@@ -215,7 +215,7 @@ extractFirstArg selfType fstArg args retTy =
     -- Replace a return type Self with the actual name of the struct
     let actualReturnType = if retTy == hostReturnSelf then asHostNormal selfType else retTy
         funType x0 = case x0 of
-                        (HType (HostType Self{}) Nothing) -> STFunType x0 args actualReturnType
+                        (HType (HostType Self{})) -> STFunType x0 args actualReturnType
                         _ -> FunType (x0 :| args) actualReturnType
     in return $ funType $ convertImplArg selfType fstArg
 

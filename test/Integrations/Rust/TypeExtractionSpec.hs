@@ -86,13 +86,13 @@ spec =
         --         }
         --         |]) >>= (`shouldBe` 
         --             HM.fromList [
-        --                 ( FunRef (QualifiedBinding (makeThrow []) "void_input") Nothing
+        --                 ( FunRef (QualifiedBinding (makeThrow []) "void_input") 
         --                 , FunType [] $ Just $ void [ty| String |]
         --                 ) ,
-        --                 ( FunRef (QualifiedBinding (makeThrow []) "void_output") Nothing
+        --                 ( FunRef (QualifiedBinding (makeThrow []) "void_output") 
         --                 , FunType [ Normal $ void [ty| i32 |] ] Nothing
         --                 ) ,
-        --                 ( FunRef (QualifiedBinding (makeThrow []) "simple") Nothing
+        --                 ( FunRef (QualifiedBinding (makeThrow []) "simple") 
         --                 , FunType [ Normal $ void [ty| i32 |] ] $ Just $ void [ty| String |]
         --                 )
         --             ]
@@ -108,19 +108,19 @@ spec =
         --         }
         --         |]) >>= (`shouldBe` 
         --             HM.fromList [
-        --                 ( FunRef (QualifiedBinding (makeThrow []) "void_input") Nothing
+        --                 ( FunRef (QualifiedBinding (makeThrow []) "void_input")
         --                 , FunType [] $ Just $ void [ty| String |]
         --                 ) ,
-        --                 ( FunRef (QualifiedBinding (makeThrow []) "void_output") Nothing
+        --                 ( FunRef (QualifiedBinding (makeThrow []) "void_output") 
         --                 , FunType [ Normal $ void [ty| i32 |] ] Nothing
         --                 ) ,
-        --                 ( FunRef (QualifiedBinding (makeThrow []) "simple") Nothing
+        --                 ( FunRef (QualifiedBinding (makeThrow []) "simple") 
         --                 , FunType [ Normal $ void [ty| i32 |] ] $ Just $ void [ty| String |]
         --                 ),
-        --                 ( FunRef (QualifiedBinding (makeThrow []) "simple_self") Nothing
+        --                 ( FunRef (QualifiedBinding (makeThrow []) "simple_self") 
         --                 , FunType [Self (void [ty| Foo |]) Immutable, Normal $ void [ty| i32 |] ] $ Just $ void [ty| String |]
         --                 ),
-        --                 ( FunRef (QualifiedBinding (makeThrow []) "simple_mut_self") Nothing
+        --                 ( FunRef (QualifiedBinding (makeThrow []) "simple_mut_self") 
         --                 , FunType [Self (void [ty| Foo |]) Mutable, Normal $ void [ty| i32 |] ] $ Just $ void [ty| String |]
         --                 )
         --             ]

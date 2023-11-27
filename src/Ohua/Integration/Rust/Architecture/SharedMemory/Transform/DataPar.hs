@@ -95,7 +95,7 @@ spawnWork (SSharedMemory Options{..}) block =
     Nothing -> block
   where
     -- (fun:rt:args') -> -- would be cleaner
-    go (Call (CallRef f _) (Lit (FunRefLit (FunRef qb _ _)) : args))
+    go (Call (CallRef f _) (Lit (FunRefLit (FunRef qb _)) : args))
       | f == spawnFuture = do
         modify $ const True
         return $ BlockExpr $ RustBlock Normal $ spawnComp $ Call (CallRef qb Nothing) args
