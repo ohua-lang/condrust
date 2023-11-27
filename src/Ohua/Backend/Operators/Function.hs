@@ -129,7 +129,7 @@ genFun' ct = \case
     (PureFusable receives f out) ->
         let varsAndReceives = zipWith (curry generateReceiveCode) [0 ..] receives
             call = case f of
-                     (Call (FunRef app _ ty)) ->
+                     (Call (FunRef app ty)) ->
                        Apply $ Stateless app $ getCallArgs Var ty varsAndReceives
                      (Tup ty) ->
                        case getCallArgs id ty varsAndReceives of
@@ -138,7 +138,7 @@ genFun' ct = \case
                            b -> Left b
         in flip letReceives varsAndReceives $
            callWithResult (toList out) call ct
-    (STFusable stateRecv receives (FunRef app _ funTy) sendRes _sendState) ->
+    (STFusable stateRecv receives (FunRef app funTy) sendRes _sendState) ->
         let varsAndReceives =
               NE.zipWith (curry generateReceiveCode) (0 :| [1 ..]) $ stateRecv :| receives
             callArgs = getCallArgs Var funTy $ NE.tail varsAndReceives
