@@ -77,7 +77,7 @@ unstructure (valBnd, valTy) pats = go (toInteger $ length pats) (NE.toList pats)
 
 -- ToDo: Replace by Alang definition
 nthFun :: ResolvedType ty -> OhuaType ty Resolved -> FR.FuncExpr ty
-nthFun collTy elemTy = LitE $ FunRefLit $ FunRef IFuns.nth Nothing $ FunType (IType TypeNat :| [IType TypeNat, collTy]) elemTy
+nthFun collTy elemTy = LitE $ FunRefLit $ FunRef IFuns.nth $ FunType (IType TypeNat :| [IType TypeNat, collTy]) elemTy
 
 -- | The function actualy lowering Frontend IR to ALang
 trans :: FR.FuncExpr ty -> ALang.Expr ty
@@ -107,7 +107,7 @@ trans =
                 Nothing -> error $ "Function type is not available for expression:\n "<> show function <> "\n Please report this error."
 
         StateFunE stateE (MethodRes mName fty) args -> 
-            let method' = BindState (trans stateE) (Lit $ FunRefLit (FunRef mName Nothing fty) )
+            let method' = BindState (trans stateE) (Lit $ FunRefLit (FunRef mName fty) )
             in foldl Apply method' (map trans args)
 
         StmtE e1 cont -> Let (TBind "_" $ IType TypeUnit) (trans e1) (trans cont)
@@ -116,7 +116,7 @@ trans =
                 exprTys = NE.map ALang.exprType alExprs
             in foldl 
                     Apply 
-                    (pureFunction IFuns.mkTuple Nothing (FunType exprTys (TType exprTys))) 
+                    (pureFunction IFuns.mkTuple (FunType exprTys (TType exprTys))) 
                     alExprs
                  
                 
