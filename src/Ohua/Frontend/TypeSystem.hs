@@ -298,7 +298,7 @@ typeSystem delta imports gamma = \case
     -- type of the state i.e. obj.clone() -->  Arc::clone ? String::clone ? 
     (gamma', stateVar', stateTy, imports') <- typeExpr delta imports gamma stateVar
     let maybeMethodNS = case stateTy of
-            HType hty _  -> toPath hty
+            HType hty -> toPath hty
             _ -> Nothing 
     -- traceM $ "Typed state <"<> show stateVar' <>"> It's namespace is " <> show maybeMethodNS
     -- Now we need to add the name of the state type to the namespace of the method
@@ -307,7 +307,7 @@ typeSystem delta imports gamma = \case
       Nothing -> return (QualifiedBinding (NSRef []) methodB)
     -- traceM $ "Will type method now " <> show methodQB
    -- FIXME: Ho to properly construct an unresolved stateful function (type)?
-    (gamma'', methodE , methodTy, imports'') <- typeExpr delta imports' gamma (LitE (FunRefLit (FunRef methodQB Nothing (STFunType TStar [] TStar))))
+    (gamma'', methodE , methodTy, imports'') <- typeExpr delta imports' gamma (LitE (FunRefLit (FunRef methodQB (STFunType TStar [] TStar))))
     
     (fty, ty) <- case methodTy of
             -- Question: Why don't we do the partial application type check here?
@@ -338,7 +338,7 @@ typeSystem delta imports gamma = \case
     (_, cond', condTy, imports') <- typeExpr delta imports gamma cond
     let is_bool = case condTy of 
             IType TypeBool -> True
-            HType hTy _ -> canbeBool hTy
+            HType hTy -> canbeBool hTy
             _ -> False
     if is_bool
     then return ()
@@ -363,7 +363,7 @@ typeSystem delta imports gamma = \case
 
     let is_bool = case condTy of 
           IType TypeBool -> True
-          HType hTy _ -> canbeBool hTy
+          HType hTy -> canbeBool hTy
           _ -> False
     if is_bool
     then return ()
@@ -385,7 +385,7 @@ typeSystem delta imports gamma = \case
     --        because we don't know how iteration is implemented for arbitrary generator types
 
     let mElemTy = case genTy of
-          (HType listTy _) -> (asListElementType listTy)
+          (HType listTy) -> (asListElementType listTy)
           _ -> Nothing
 
     eTy <- case mElemTy of
@@ -404,7 +404,7 @@ typeSystem delta imports gamma = \case
 
     return (gamma', MapE loopFun' gen', IType $ TypeList loopFunTy, imports'')
     where 
-      annotate [VarP i ty] elemTy = [VarP i (HType elemTy Nothing)]
+      annotate [VarP i ty] elemTy = [VarP i (HType elemTy)]
       annotate [TupP pats] elemTy = annotate_r (NE.toList pats) (asHtypes elemTy)
       annotate pats elemTy = annotate_r pats (asHtypes elemTy) 
 
@@ -415,7 +415,7 @@ typeSystem delta imports gamma = \case
       annotate_r [] [] = []
       annotate_r pats tys = error $ "Length of patterns " <> show pats  <> " does not match available types " <> show tys <> " in loop header."
 
-      asHtypes elemTy = map (flip HType Nothing) (NE.toList $ unTupleType elemTy)
+      asHtypes elemTy = map HType (NE.toList $ unTupleType elemTy)
 
   {- 
       Delta, Gamma |- e1:T1    Delta, Gamma |- cont : T2
@@ -455,7 +455,7 @@ typeSystem delta imports gamma = \case
   ========================
     Delta, Gamma |- l : T
   -}
-  (LitE (FunRefLit (FunRef qBnd@(QualifiedBinding ns bnd) id ty))) -> do
+  (LitE (FunRefLit (FunRef qBnd@(QualifiedBinding ns bnd) ty))) -> do
     -- Currently we get function literals mostly/only from the context of method calls, because when we translate (pure) call expressions
     -- the call can be different things (closures, variables, list indices ...) and will mostly be a variable
     -- So the qualified binding should contain the object type the method is called on and we need to do a name resolution i.e. cannot
@@ -467,7 +467,7 @@ typeSystem delta imports gamma = \case
         -- for the last option we'd also need to able to identify generics in HostTypes to know when alternatives are valid
         -- I'll go with accepting lookup miss first if we can convert ty to a resolved function type
       case unresToRes (FType ty) of
-          Just ty'@(FType fty)  -> return (HM.empty, LitE (FunRefLit (FunRef qBnd id fty)), ty', imports)
+          Just ty'@(FType fty)  -> return (HM.empty, LitE (FunRefLit (FunRef qBnd  fty)), ty', imports)
           _ -> do 
             (g, e, t, i) <- handleRef bnd (Just ns) (FType ty)
             return (g,e,t,i)
@@ -508,10 +508,10 @@ typeSystem delta imports gamma = \case
                       -- now check if that namespace is "imported", because the function returns the last part of it
                       Just (NSRef spaces)  -> 
                         case getReturnType new_ty of 
-                          Just (HType hTy _) | (Just (last spaces)) == (getBinding . toPath $ hTy) -> imports ++ [Full (NSRef $ init spaces) (last spaces)]
+                          Just (HType hTy) | (Just (last spaces)) == (getBinding . toPath $ hTy) -> imports ++ [Full (NSRef $ init spaces) (last spaces)]
                           _ -> imports
                       Nothing -> imports
-                return  (HM.empty, LitE $ FunRefLit $ FunRef qBnd Nothing ty1, new_ty, imports')
+                return  (HM.empty, LitE $ FunRefLit $ FunRef qBnd ty1, new_ty, imports')
 
           Right (BndError b) -> symResError $ "Unresolved symbol: " <> quickRender b
           Right (QBndError qb) -> symResError $ "Unresolved qualified symbol: " <> quickRender qb
@@ -549,9 +549,9 @@ maxType :: (ErrAndLogM m, TypeErrorM m ty) => OhuaType ty Unresolved -> OhuaType
 -- maxType TypeUnit TypeUnit = return TypeUnit
 -- maxType TypeString TypeString = return TypeString
 -- maxType (TypeList x) (TypeList y) = TypeList <$> maxType x y
-maxType (HType t1 _) (HType t2 _) | t1 == t2 = return $ HType t2 Nothing
+maxType (HType t1) (HType t2) | t1 == t2 = return $ HType t2 
 -- ^ unequal host types -> for know thats an error, but actually we need to resort to Rust here e.g Self vs ActualType => ActuaType
-maxType (HType t1 _) (HType t2 _) = typeError $ "Comparing types " <> show t1 <> " and " <> show t2 <> " failed."
+maxType (HType t1) (HType t2 ) = typeError $ "Comparing types " <> show t1 <> " and " <> show t2 <> " failed."
 maxType (TType (x:|xs)) (TType (y:|ys)) =
    if length xs == length ys
    then do
@@ -565,15 +565,15 @@ maxType (FType fty1) (FType fty2) = do
 maxType TStar t2 = return t2
 maxType UType (IType TypeUnit) = return (IType TypeUnit)
 maxType UType t = typeError $ "Comparing incompatible types:\n UType \n and: \n " <> show t
-maxType t1@(HType _ _)  t2@(TType _)        = typeError $ "Comparing incompatible types:\n " <> show t1 <> "\n and: \n " <> show t2
-maxType t1@(HType hty _)  t2@(IType TypeUnit) 
-    | isHostUnit hty = return (HType hty Nothing)
+maxType t1@(HType _ )  t2@(TType _)        = typeError $ "Comparing incompatible types:\n " <> show t1 <> "\n and: \n " <> show t2
+maxType t1@(HType hty )  t2@(IType TypeUnit) 
+    | isHostUnit hty = return (HType hty )
     | otherwise =  typeError $ "Comparing incompatible types:\n " <> show t1 <> "\n and: \n " <> show t2
-maxType t1@(HType _ _)  t2@(IType _)        = typeError $ "Comparing incompatible types:\n " <> show t1 <> "\n and: \n " <> show t2
+maxType t1@(HType _)  t2@(IType _)        = typeError $ "Comparing incompatible types:\n " <> show t1 <> "\n and: \n " <> show t2
 
-maxType t1@(TType tys)  t2@(HType ht _ )  
+maxType t1@(TType tys)  t2@(HType ht)  
    | length (unTupleType ht) == length tys = 
-      let loweredTuple = (NE.map (flip HType Nothing) (unTupleType ht)) -- The extracted Type was a hosttype representation of a tuple type with the same number of types as in the unresolved Tuple Type
+      let loweredTuple = (NE.map HType  (unTupleType ht)) -- The extracted Type was a hosttype representation of a tuple type with the same number of types as in the unresolved Tuple Type
       in return (TType loweredTuple)
    | otherwise = typeError $ "Comparing incompatible types:\n " <> show t1 <> "\n and: \n " <> show t2 <> "\n Untupled hosttype to " <> show (unTupleType ht) 
 maxType t1@(TType _)    t2@(IType _)        = typeError $ "Comparing incompatible types:\n " <> show t1 <> "\n and: \n " <> show t2
@@ -621,13 +621,13 @@ getBinding = \case
 
 --FIXME: Remove/Replace this when we have the ability to actually copare host types in terms of subtyping and generics
 compromise_compare :: OhuaType ty Resolved -> OhuaType ty Resolved -> Bool
-compromise_compare (HType _ _ ) (HType _ _) = True
+compromise_compare (HType _  ) (HType _ ) = True
 -- We need to distiguish unit funtions (i.e. with an added unit argument) from actual one argument functions
 -- Also we have the problem, that literals get internal types currently, which cannot be compared to HostTypes
-compromise_compare (HType _ _ ) (IType iTy) 
+compromise_compare (HType _ ) (IType iTy) 
     | iTy == TypeUnit = False
     | otherwise = True
-compromise_compare (IType iTy) (HType _ _ ) 
+compromise_compare (IType iTy) (HType _) 
     | iTy == TypeUnit = False
     | otherwise = True
 compromise_compare (TType _  )  (TType _) = True

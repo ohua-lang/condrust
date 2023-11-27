@@ -73,7 +73,7 @@ resolveNS (ns, registry) =
             -- FIXME: we need to resolve this reference here against the namespace and the registry (for Globs).
             -- We can/should not rely on algorithms being function literals or having function types here
             -- So we extract references and vars that are `applied` and match them against the algorithm register later
-            HS.fromList $ [ fname |  AppE (LitE (FunRefLit (FunRef fname _ _fTy))) _args <- flattenU e] 
+            HS.fromList $ [ fname |  AppE (LitE (FunRefLit (FunRef fname _fTy))) _args <- flattenU e] 
                 ++ [(QualifiedBinding (NSRef []) bnd) |  AppE (VarE bnd _ty) _args <- flattenU e]
         
                         
@@ -100,7 +100,7 @@ resolveNS (ns, registry) =
         replaceFunLit = \case
             -- If the algorithm was a function literal before we need to replace it with a variable since it is bound in a local 
             -- let expression now, if it was a variable anyway, we have to do nothing
-            LitE (FunRefLit (FunRef fName _id funTy)) | HM.member fName registry -> VarE (pathToVar fName) (FType funTy)
+            LitE (FunRefLit (FunRef fName funTy)) | HM.member fName registry -> VarE (pathToVar fName) (FType funTy)
             e -> e
 
         resolveExpr :: UnresolvedExpr ty -> UnresolvedExpr ty

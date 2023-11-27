@@ -59,7 +59,7 @@ contextedTraversal f = go
 makeWellScoped :: Binding -> Expr ty -> Expr ty
 makeWellScoped currentFun expr = runIdentity $ contextedTraversal intoFunLit (HS.singleton currentFun) expr
   where
-    intoFunLit _ (VarE bdg (TypeFunction fTy)) = return $ LitE $ FunRefLit $ FunRef (QualifiedBinding (makeThrow []) bdg) Nothing fTy
-    intoFunLit _ (VarE bnd TypeVar) = return $ LitE $ FunRefLit $ FunRef (QualifiedBinding (makeThrow []) bdg) Nothing $ FunType [TypeVar] TypeVar
+    intoFunLit _ (VarE bdg (TypeFunction fTy)) = return $ LitE $ FunRefLit $ FunRef (QualifiedBinding (makeThrow []) bdg)  fTy
+    intoFunLit _ (VarE bnd TypeVar) = return $ LitE $ FunRefLit $ FunRef (QualifiedBinding (makeThrow []) bdg)  $ FunType [TypeVar] TypeVar
     intoFunLit _ e = return e
 -}

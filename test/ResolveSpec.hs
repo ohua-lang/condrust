@@ -15,54 +15,54 @@ spec =
         let resolve = runErrAndLogM LevelWarn . R.resolveNS
         it "loading a 'normal' expression" $
             resolve
-                ( Namespace 
+                ( Namespace
                     (NSRef ["some_ns"])
                     [Full (makeThrow ["other_ns"]) "g"]
-                    [Algo 
+                    [Algo
                         "f"
-                        (LamE ["x"] 
-                            ((LitE $ FunRefLit $ FunRef (QualifiedBinding (makeThrow []) "other_ns/g") Nothing Untyped) `AppE` ["x"]))
+                        (LamE ["x"]
+                            (LitE (FunRefLit $ FunRef (QualifiedBinding (makeThrow []) "other_ns/g") Untyped) `AppE` ["x"]))
                         "pointlessStringAnno"
                     "sometype"]
 
                 , HM.fromList
-                    [("other_ns/g", 
-                        LamE ["y"] 
-                            ((LitE $ FunRefLit $ FunRef (QualifiedBinding (makeThrow []) "h") Nothing Untyped) `AppE` ["y"]))]
+                    [("other_ns/g",
+                        LamE ["y"]
+                            (LitE (FunRefLit $ FunRef (QualifiedBinding (makeThrow []) "h") Untyped) `AppE` ["y"]))]
                 )
             >>= (`shouldBe`
-                    Namespace 
+                    Namespace
                         (NSRef ["some_ns"])
                         [Full (makeThrow ["other_ns"]) "g"]
-                        [Algo 
+                        [Algo
                             "f"
                             (LamE ["x"]
-                                $ LetE 
-                                    "other_ns.g" (LamE ["y"] 
-                                                ((LitE $ FunRefLit $ FunRef (QualifiedBinding (makeThrow []) "h") Nothing Untyped) `AppE` ["y"]))
+                                $ LetE
+                                    "other_ns.g" (LamE ["y"]
+                                                (LitE (FunRefLit $ FunRef (QualifiedBinding (makeThrow []) "h") Nothing Untyped) `AppE` ["y"]))
                                     ("other_ns.g" `AppE` ["x"]))
                             "pointlessStringAnno" "madeUpType"])
-                
+
         it "loading a recursive expression" $
             resolve
-                ( Namespace 
+                ( Namespace
                     (NSRef ["some_ns"])
                     [Full (makeThrow ["other_ns"]) "g"]
-                    [Algo 
+                    [Algo
                         "f"
-                        (LamE ["x"] 
-                            ((LitE $ FunRefLit $ FunRef "other_ns/g" Nothing Untyped) `AppE` ["x"]))
+                        (LamE ["x"]
+                            (LitE (FunRefLit $ FunRef "other_ns/g"  Untyped) `AppE` ["x"]))
                         "pointlessStringAnno" "madeUpType"]
                 , HM.fromList
-                    [("other_ns/g", 
-                        LamE ["y"] 
-                            ((LitE $ FunRefLit $ FunRef (QualifiedBinding (makeThrow ["other_ns"]) "g") Nothing Untyped) `AppE` ["y"]))]
+                    [("other_ns/g",
+                        LamE ["y"]
+                            (LitE (FunRefLit $ FunRef (QualifiedBinding (makeThrow ["other_ns"]) "g") Untyped) `AppE` ["y"]))]
                 )
             >>= (`shouldBe`
-                    Namespace 
+                    Namespace
                         (NSRef ["some_ns"])
                         [Full (makeThrow ["other_ns"]) "g"]
-                        [Algo 
+                        [Algo
                             "f"
                             (LamE ["x"]
                                 $ LetE "other_ns.g" (LamE ["y"] ("other_ns.g" `AppE` ["y"]))
