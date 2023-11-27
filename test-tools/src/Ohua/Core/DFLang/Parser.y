@@ -118,7 +118,7 @@ Lit :: { Lit NoType }
     : int { NumericLit $1 }
     | env_ref { EnvRefLit $1 }
     | unit { UnitLit }
-    | qualid { FunRefLit $ FunRef $1 Nothing Untyped }
+    | qualid { FunRefLit $ FunRef $1 Untyped }
 
 FnRef :: { QualifiedBinding }
 FnRef : qualid { $1 }

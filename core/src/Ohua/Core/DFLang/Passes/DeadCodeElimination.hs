@@ -22,7 +22,7 @@ eliminateExprs expr = do
     eliminateDeadExprs = transformExprM f
 
     f :: NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
-    f (Let app@(PureDFFun out (FunRef fun _ _) _) cont) = do
+    f (Let app@(PureDFFun out (FunRef fun _) _) cont) = do
       (if isUsed out then pure $ Let app cont else warn fun >> return cont)
     f e = pure e
 

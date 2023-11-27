@@ -232,7 +232,7 @@ recurHof = "ohua.lang/recur_hof"
 -- Wraps a function a and "returns" it's evaluation type so it's type should be
 -- exprType a -> exprType a
 recurSf :: OhuaType ty Resolved -> Expr ty
-recurSf ty = pureFunction recur Nothing $ FunType (ty :| []) ty
+recurSf ty = pureFunction recur $ FunType (ty :| []) ty
 
 recurStartMarker :: QualifiedBinding
 recurStartMarker = "ohua.lang.marker/recur_start"
@@ -246,11 +246,11 @@ y = "ohua.lang/Y"
 
 -- Just as recurSF this is a marker for a an execution contex -> its type is ty-> ty
 ySf :: OhuaType ty Resolved -> Expr ty
-ySf ty = pureFunction y Nothing $ FunType (ty :| []) ty
+ySf ty = pureFunction y $ FunType (ty :| []) ty
 
 -- see above 
 recurFunPureFunction :: OhuaType ty Resolved -> Expr ty
-recurFunPureFunction ty = pureFunction IFuns.recurFun Nothing $ FunType (ty :| []) ty
+recurFunPureFunction ty = pureFunction IFuns.recurFun $ FunType (ty :| []) ty
 
 
 
@@ -326,7 +326,7 @@ verifyTailRecursion expr
     -- failOnRecur (Let _ e ie) | isCall recur e || isCall recur ie = error "Recursion is not tail recursive!"
     failOnRecur (Let _ e ie) = failOnRecur e >> failOnRecur ie
     failOnRecur (Lambda _v e) = failOnRecur e -- TODO maybe throw a better error message when this happens
-    failOnRecur (Apply (PureFunction _recur _) _) =
+    failOnRecur (Apply (PureFunction _recur) _) =
         error "Recursion is not tail recursive!"
     failOnRecur (Apply _ _) = return ()
     failOnRecur e = error $ "Invariant broken! Found pattern: " <> show e
@@ -340,7 +340,7 @@ verifyTailRecursion expr
             let lastFnOnBranch =
                     traverseToLastCall
                         (return .
-                         (\(FunRef f _ _) -> f :: QualifiedBinding) .
+                         (\(FunRef f _) -> f :: QualifiedBinding) .
                          fst . fromApplyToList)
             tFn <- lastFnOnBranch et
             fFn <- lastFnOnBranch ef
@@ -381,7 +381,7 @@ rewriteAll = rewriteM $ \case
     _ -> pure Nothing
 
 isCall :: QualifiedBinding -> Expr ty -> Bool
-isCall f (Apply (PureFunction f' _) _) | f == f' = True
+isCall f (Apply (PureFunction f') _) | f == f' = True
 isCall f (Apply e@(Apply _ _) _) = isCall f e
 isCall _ _ = False
 
@@ -419,7 +419,7 @@ rewriteCallExpr e = do
             [] -> error "Invariant broken: It seems you called a recursion with no arguments" -- FIXME fromApplyToList needs to return a NonEmpty
             (a:as) -> (trace $ "Got "<> show callArgs <> " callArgs here and recurVars are\n " <> show recurVars)  genFunType (a:|as) inputsType
     return $
-        Let inputs (fromListToApply (FunRef recurStartMarker Nothing $ funTy) callArgs) $
+        Let inputs (fromListToApply (FunRef recurStartMarker $ funTy) callArgs) $
         mkDestructured (recurCtrl : recurVars) inputs expr'
   where
     rewriteLastCond :: Expr ty -> Expr ty
@@ -440,7 +440,7 @@ rewriteCallExpr e = do
     -- implementing this correctly however is going to require some effort, thus
     -- I think we should do so later.
     rewriteCond :: Expr ty -> Expr ty
-    rewriteCond fullExpr@(Apply (Apply (Apply (PureFunction f0 _) cond) (Lambda _ trueB)) (Lambda _ falseB)) | f0 == IFuns.ifThenElse =
+    rewriteCond fullExpr@(Apply (Apply (Apply (PureFunction f0) cond) (Lambda _ trueB)) (Lambda _ falseB)) | f0 == IFuns.ifThenElse =
         let trueB' = rewriteBranch trueB
             falseB' = rewriteBranch falseB
             (fixRef, recurVars) =
@@ -450,7 +450,7 @@ rewriteCallExpr e = do
                     _ -> error "invariant broken"
             callArgs = cond :| fixRef : recurVars
             returnTy = TType $ exprType cond :| (exprType fixRef : (map exprType recurVars))
-            finalExpr = fromListToApply (FunRef recurEndMarker Nothing $ genFunType callArgs returnTy) $ toList callArgs
+            finalExpr = fromListToApply (FunRef recurEndMarker $ genFunType callArgs returnTy) $ toList callArgs
         in finalExpr
 
     rewriteCond _ =
@@ -458,7 +458,7 @@ rewriteCallExpr e = do
             "invariant broken: recursive function does not have the proper structure."
     rewriteBranch :: Expr ty -> Either (Expr ty) [Expr ty]
     -- normally this is "fix" instead of `id`
-    rewriteBranch (Let _v (Apply (PureFunction "ohua.lang/id" _) result) _) = Left result
+    rewriteBranch (Let _v (Apply (PureFunction "ohua.lang/id") result) _) = Left result
     rewriteBranch (Let _v ex _)
         | isCall recur ex = (Right . snd . fromApplyToList) ex
     rewriteBranch ex = error $ "invariant broken: " <> quickRender ex

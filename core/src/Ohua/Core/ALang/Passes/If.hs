@@ -114,15 +114,15 @@ import Ohua.Core.ALang.Util (mkDestructured)
 import qualified Data.Text as T
 
 selectSf :: OhuaType ty Resolved -> Expr ty
-selectSf vty = Lit $ FunRefLit $ FunRef IFuns.select Nothing $ FunType (IType TypeBool :| [vty, vty]) vty
+selectSf vty = Lit $ FunRefLit $ FunRef IFuns.select$ FunType (IType TypeBool :| [vty, vty]) vty
 
 -- | The controle node that triggers either the then or the else branch, depending on the input bool
 ifFunSf :: Expr ty
-ifFunSf = Lit $ FunRefLit $ FunRef IFuns.ifFun Nothing $ FunType (IType TypeBool :| []) (TType $ controlSignalType:|[controlSignalType])
+ifFunSf = Lit $ FunRefLit $ FunRef IFuns.ifFun $ FunType (IType TypeBool :| []) (TType $ controlSignalType:|[controlSignalType])
 
 -- | Just a literal representing an if-function i.e. \con t1 t2 : if cond then t1 else t2
 ifSf :: OhuaType ty Resolved -> Expr ty
-ifSf vty = Lit $ FunRefLit $ FunRef IFuns.ifThenElse Nothing $ FunType (IType TypeBool :| [vty, vty]) vty
+ifSf vty = Lit $ FunRefLit $ FunRef IFuns.ifThenElse $ FunType (IType TypeBool :| [vty, vty]) vty
 
 
 -- This is a proposal for `ifRewrite` that uses plated to make sure the
@@ -133,7 +133,7 @@ ifSf vty = Lit $ FunRefLit $ FunRef IFuns.ifThenElse Nothing $ FunType (IType Ty
 --             a transformM though.
 ifRewrite :: (Monad m, MonadGenBnd m, MonadError Error m) => Expr ty -> m (Expr ty)
 ifRewrite = transformM $ \case
-    Lit (FunRefLit (FunRef f _ _)) `Apply` cond `Apply` trueBranch `Apply` falseBranch
+    Lit (FunRefLit (FunRef f _)) `Apply` cond `Apply` trueBranch `Apply` falseBranch
         | f == IFuns.ifThenElse -> do
             case (trueBranch,falseBranch) of
               (Lambda trueIn trueBody, Lambda falseIn falseBody) | isUnit trueIn && isUnit falseIn -> do

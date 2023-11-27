@@ -18,7 +18,7 @@ import Ohua.Core.Compile.Configuration
 intoFusable :: Monad m => NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
 intoFusable = mapFunsM (pure . f)
   where
-    f (PureDFFun out r@(FunRef fun _ _) (_:| [sIn]))
+    f (PureDFFun out r@(FunRef fun _) (_:| [sIn]))
       | fun == IFuns.runSTCLangSMap = PureDFFun out r (sIn :| [])
     f e = e
 

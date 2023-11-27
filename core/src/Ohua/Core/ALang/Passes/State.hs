@@ -51,11 +51,11 @@ postControlPasses = transformCtxtExits -- . traceShow "transforming ctxt exists!
 
 
 runSTCLangSMapFun :: OhuaType ty Resolved -> Expr ty
-runSTCLangSMapFun stateTy = Lit $ FunRefLit $ FunRef IFuns.runSTCLangSMap Nothing $ FunType (IType TypeNat :| [stateTy]) stateTy -- size and the state, i.e., there is one per state
+runSTCLangSMapFun stateTy = Lit $ FunRefLit $ FunRef IFuns.runSTCLangSMap $ FunType (IType TypeNat :| [stateTy]) stateTy -- size and the state, i.e., there is one per state
 
 
 runSTCLangIfFun :: OhuaType ty Resolved -> Expr ty
-runSTCLangIfFun stateTy = Lit $ FunRefLit $ FunRef IFuns.runSTCLangIf Nothing $ FunType (IType TypeBool :| [stateTy, stateTy]) stateTy
+runSTCLangIfFun stateTy = Lit $ FunRefLit $ FunRef IFuns.runSTCLangIf $ FunType (IType TypeBool :| [stateTy, stateTy]) stateTy
 
 -- invariant: this type of node has at least one var as input (the computation result)
 ctxtExit :: QualifiedBinding
@@ -63,7 +63,7 @@ ctxtExit = "ohua.lang/ctxtExit"
 
 -- To type-encode the assumption of at least one input a Nonempty is sufficient. We don't need a 'Nat for this.
 ctxtExitFunRef :: NE.NonEmpty (OhuaType ty Resolved)  -> OhuaType ty Resolved -> Expr ty
-ctxtExitFunRef  inputTys retTy = Lit $ FunRefLit $ FunRef ctxtExit Nothing $ FunType inputTys retTy
+ctxtExitFunRef  inputTys retTy = Lit $ FunRefLit $ FunRef ctxtExit $ FunType inputTys retTy
 
 -- | Transforms every stateful function into a fundamental state thread.
 --   Corrects the reference to the state for the rest of the computation.
@@ -91,7 +91,7 @@ transformFundamentalStateThreads = transformM f
         [] -> Nothing
         _ -> Just b
 
-    stBndForStatefulFun (StatefulFunction _ _ (Var tBnd@(TBind bnd ty))) = do Just . (\newBnd -> (tBnd, TBind newBnd ty)) <$> generateBindingWith bnd
+    stBndForStatefulFun (StatefulFunction _ (Var tBnd@(TBind bnd ty))) = do Just . (\newBnd -> (tBnd, TBind newBnd ty)) <$> generateBindingWith bnd
     -- FIXME Once again, this stupid over-generalization of the language is a pain!
     stBndForStatefulFun e@(StatefulFunction {}) = error $ "state should have been var: " <> show e
     stBndForStatefulFun (e1 `Apply` _)            = stBndForStatefulFun e1
@@ -169,7 +169,7 @@ transformFundamentalStateThreads = transformM f
 transformControlStateThreads :: MonadGenBnd m => Expr ty -> m (Expr ty)
 transformControlStateThreads = transformM f
   where
-    f (Let v (fun@(PureFunction op _) `Apply` trueBranch `Apply` falseBranch) cont)
+    f (Let v (fun@(PureFunction op) `Apply` trueBranch `Apply` falseBranch) cont)
       | op == IFuns.ifThenElse =
           let
             trueBranchStates = HS.fromList $ collectStates trueBranch
@@ -181,7 +181,7 @@ transformControlStateThreads = transformM f
               HS.foldr
               (\missingState c ->
                  Let missingState
-                 (pureFunction IFuns.id Nothing (FunType (asType missingState :| []) (asType missingState))
+                 (pureFunction IFuns.id (FunType (asType missingState :| []) (asType missingState))
                    `Apply` Var missingState)
                  c)
             trueBranch' = applyToBody (`addMissing` trueBranchStatesMissing) trueBranch
@@ -198,7 +198,7 @@ transformControlStateThreads = transformM f
               Let ctxtOut (fun `Apply` trueBranch'' `Apply` falseBranch'') $
               mkDestructured (v:allStates) ctxtOut
               cont
-    f (Let v (fun@(PureFunction op _) `Apply` lam `Apply` ds) cont)
+    f (Let v (fun@(PureFunction op) `Apply` lam `Apply` ds) cont)
       | op == IFuns.smap =
           let (args, expr) = lambdaArgsAndBody lam
               states = filter (not . (`HS.member` HS.fromList args)) $ collectStates expr
@@ -254,7 +254,7 @@ transformCtxtExits = evictOrphanedDestructured . f
 --            | op == ctxtExit =
         f l@(Let v e@(Apply _ _) cont) =
            case fromApplyToList' e of
-             (FunRef op _ _, Nothing, compOut:stateArgs) | op == ctxtExit ->
+             (FunRef op _, Nothing, compOut:stateArgs) | op == ctxtExit ->
                let g' = g v compOut stateArgs
                    cont' = g' cont
                in descend f cont'
@@ -265,12 +265,12 @@ transformCtxtExits = evictOrphanedDestructured . f
         g compound compOut stateArgs l@(Let v e@(Apply _ _) cont) =
            case fromApplyToList' e of
              -- Must be a conditional (second ctxtExit)
-             (FunRef op _ _, Nothing, compOut':stateArgs') | op == ctxtExit ->
+             (FunRef op _, Nothing, compOut':stateArgs') | op == ctxtExit ->
                let h' = h compound compOut stateArgs v compOut' stateArgs'
                    cont' = h' cont
                in descend h' cont'
              -- collect case
-             (fun@(FunRef op _ _), Nothing, [size, Var exitRes]) | op == IFuns.collect && exitRes == compound ->
+             (fun@(FunRef op _), Nothing, [size, Var exitRes]) | op == IFuns.collect && exitRes == compound ->
                let (compOut':stateOuts') = findDestructured cont v
                    stateExits ct =
                      foldr
@@ -290,7 +290,7 @@ transformCtxtExits = evictOrphanedDestructured . f
           -> Expr ty
           -> Expr ty
         h compound compOut stateOuts _compound' compOut' stateOuts'
-            (Let v (fun@(PureFunction op _) `Apply` cond `Apply` Var trueBranch `Apply` _falseBranch) cont)
+            (Let v (fun@(PureFunction op) `Apply` cond `Apply` Var trueBranch `Apply` _falseBranch) cont)
             | op == IFuns.select =
                 let (tbCompOut, tbStateArgs, fbCompOut, fbStateArgs) =
                         if compound == trueBranch

@@ -194,7 +194,7 @@ ensureFinalLetInLambdas =
 ensureAtLeastOneCall :: (Monad m, MonadGenBnd m) => Expr ty -> m (Expr ty)
 ensureAtLeastOneCall e@(Var (TBind _bnd ety)) = do
     newBnd <- generateBinding
-    pure $ Let (TBind newBnd ety) (pureFunction IFuns.id Nothing (FunType (ety :| []) ety )`Apply` e) $ Var (TBind newBnd ety)
+    pure $ Let (TBind newBnd ety) (pureFunction IFuns.id (FunType (ety :| []) ety )`Apply` e) $ Var (TBind newBnd ety)
 ensureAtLeastOneCall e = cata f e
   where
     f (LambdaF tbnd body) =
@@ -203,7 +203,7 @@ ensureAtLeastOneCall e = cata f e
                 newBnd <- generateBinding
                 pure $
                     Lambda tbnd $
-                    Let (TBind newBnd vty) (pureFunction IFuns.id Nothing (FunType (vty :| []) vty ) `Apply` v) $
+                    Let (TBind newBnd vty) (pureFunction IFuns.id (FunType (vty :| []) vty ) `Apply` v) $
                     Var (TBind newBnd vty)
             eInner -> pure $ Lambda tbnd eInner
     f eInner = embed <$> sequence eInner
@@ -308,6 +308,8 @@ hasFinalLet =
         VarF {} -> return ()
         _ -> failWith "Final value is not a var"
 
+
+{-
 -- | Ensures all of the optionally provided stateful function ids are unique.
 noDuplicateIds :: MonadError Error m => Expr ty -> m ()
 noDuplicateIds = flip evalStateT mempty . cata go
@@ -317,6 +319,7 @@ noDuplicateIds = flip evalStateT mempty . cata go
         when isMember $ failWith $ "Duplicate id " <> show funid
         modify (HS.insert funid)
     go e = sequence_ e
+-}
 
 -- | Checks that no apply to a local variable is performed.  This is a
 -- simple check and it will pass on complex expressions even if they
@@ -350,7 +353,7 @@ noUndefinedBindings = flip runReaderT mempty . cata go
 checkProgramValidity :: MonadOhua m => Expr ty -> m ()
 checkProgramValidity e = do
     hasFinalLet e
-    noDuplicateIds e
+    -- noDuplicateIds e
     applyToPureFunction e
     noUndefinedBindings e
 

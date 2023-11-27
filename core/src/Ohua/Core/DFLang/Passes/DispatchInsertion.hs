@@ -64,7 +64,7 @@ insertDispatch e = evalStateT (transformExprM go e) HM.empty
           (cont', trueOut') <- dispatchOutput cont trueOut
           (cont'', falseOut') <- dispatchOutput cont' falseOut
           return $ Let (IfFun (trueOut', falseOut') dIn) cont''
-        (PureDFFun _ (FunRef f _ _) _)
+        (PureDFFun _ (FunRef f _) _)
           | f == IFuns.ctrl
             || f == IFuns.select
             || f == IFuns.collect

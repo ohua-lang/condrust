@@ -201,7 +201,7 @@ liftIntoCtrlCtxt ctrlIn e0 = do
           Let
             (TBind ctrlOut controlSignalType)
             ( fromListToApply
-                ( FunRef IFuns.ctrl Nothing $
+                ( FunRef IFuns.ctrl  $
                     FunType (controlSignalType :| actualsTypes) retTy
                 )
                 $ toList actuals'
@@ -238,7 +238,7 @@ splitCtrls = transform go
     go :: Expr ty -> Expr ty
     go l@(Let v e cont) =
       case fromApplyToList' e of
-        (FunRef op i _, Nothing, ctrlSig : vars)
+        (FunRef op _, Nothing, ctrlSig : vars)
           | op == IFuns.ctrl ->
             let outs = findDestructured cont v
              in foldr
@@ -247,7 +247,7 @@ splitCtrls = transform go
                         bound
                         ( Lit
                             ( FunRefLit $
-                                FunRef op i $ FunType (controlSignalType :| [ty]) ty
+                                FunRef op $ FunType (controlSignalType :| [ty]) ty
                             )
                             `Apply` ctrlSig
                             `Apply` varIn
@@ -291,7 +291,7 @@ uniqueCtrls = transformM go
   where
     go :: MonadGenBnd m => Expr ty -> m (Expr ty)
     -- this pattern works because now every control has this form due to the above transformation (TODO reflect this in the type)
-    go e@(Let v ctrl@((PureFunction op _ `Apply` _ctrlSig) `Apply` _ctrled) cont)
+    go e@(Let v ctrl@((PureFunction op `Apply` _ctrlSig) `Apply` _ctrled) cont)
       | op == IFuns.ctrl =
         let usages =
               [ bnd | Var bnd <- universe cont, bnd == v

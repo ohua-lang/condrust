@@ -252,8 +252,8 @@ extractBndsAndTypesFromInputs =
   mapMaybe (\case (DFVar atbnd) -> Just $ unwrapTB atbnd; _ -> Nothing)
 
 fnApp :: App fty ty -> QualifiedBinding
-fnApp (PureFun _ (FunRef f _ _) _) = f
-fnApp (StateFun _ (FunRef f _ _) _ _) = f
+fnApp (PureFun _ (FunRef f _) _) = f
+fnApp (StateFun _ (FunRef f _) _ _) = f
 
 unwrapTB :: ATypedBinding bty ty -> TypedBinding ty
 unwrapTB (DataBinding tbnd) = tbnd
@@ -370,8 +370,8 @@ instance Function DFApp where
   inBindings = insDFApp
   funRef f =
     case f of
-      (PureDFFun _ (FunRef fr _ _) _) -> fr
-      (StateDFFun _ (FunRef fr _ _) _ _) -> fr
+      (PureDFFun _ (FunRef fr _) _) -> fr
+      (StateDFFun _ (FunRef fr _) _ _) -> fr
       RecurFun {} -> IFuns.recurFun
       SMapFun {} -> IFuns.smapFun
       IfFun {} -> IFuns.ifFun

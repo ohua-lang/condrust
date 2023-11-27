@@ -116,11 +116,12 @@ funType e = case e of
 
 -------------------- Convenience functions ------------------------------
 
-pureFunction :: QualifiedBinding -> Maybe FnId -> FunType ty Resolved-> Expr ty
-pureFunction bnd ident ty = Lit (FunRefLit (FunRef bnd ident ty))
+pureFunction :: QualifiedBinding -> FunType ty Resolved-> Expr ty
+pureFunction bnd ty = Lit (FunRefLit (FunRef bnd ty))
 
 mkFunLit :: QualifiedBinding -> FunType ty Resolved-> Expr ty
-mkFunLit qBnd = pureFunction qBnd Nothing
+mkFunLit qBnd = pureFunction qBnd 
+
 
 
 -- Specific Functions, that should become part of the language ---------
@@ -149,23 +150,23 @@ instance Container (ExprF ty a)
 
 -------------------- Convenience patterns ------------------------------
 
-pattern PureFunction :: QualifiedBinding -> Maybe FnId -> Expr ty
-pattern PureFunction bnd ident <- Lit (FunRefLit (FunRef bnd ident _))
+pattern PureFunction :: QualifiedBinding -> Expr ty
+pattern PureFunction bnd  <- Lit (FunRefLit (FunRef bnd  _))
 
-pattern PureFunctionTy :: QualifiedBinding -> Maybe FnId -> FunType ty Resolved-> Expr ty
-pattern PureFunctionTy bnd ident ty <- Lit (FunRefLit (FunRef bnd ident ty))
+pattern PureFunctionTy :: QualifiedBinding  -> FunType ty Resolved-> Expr ty
+pattern PureFunctionTy bnd  ty <- Lit (FunRefLit (FunRef bnd  ty))
 
-pattern PureFunctionF :: QualifiedBinding -> Maybe FnId -> ExprF ty a
-pattern PureFunctionF bnd ident <- LitF (FunRefLit (FunRef bnd ident _))
+pattern PureFunctionF :: QualifiedBinding  -> ExprF ty a
+pattern PureFunctionF bnd  <- LitF (FunRefLit (FunRef bnd  _))
 
-pattern StatefulFunction :: QualifiedBinding -> Maybe FnId -> Expr ty -> Expr ty
-pattern StatefulFunction bnd ident expr <- BindState expr (Lit (FunRefLit (FunRef bnd ident _)))
+pattern StatefulFunction :: QualifiedBinding  -> Expr ty -> Expr ty
+pattern StatefulFunction bnd  expr <- BindState expr (Lit (FunRefLit (FunRef bnd  _)))
 
-pattern StatefulFunctionTy :: QualifiedBinding -> Maybe FnId ->FunType ty Resolved-> Expr ty -> Expr ty
-pattern StatefulFunctionTy bnd ident ty expr <- BindState expr (Lit (FunRefLit (FunRef bnd ident ty)))
+pattern StatefulFunctionTy :: QualifiedBinding  -> FunType ty Resolved-> Expr ty -> Expr ty
+pattern StatefulFunctionTy bnd  ty expr <- BindState expr (Lit (FunRefLit (FunRef bnd  ty)))
 
-pattern StatefulFunctionF :: QualifiedBinding -> Maybe FnId -> Expr ty -> ExprF ty (Expr ty)
-pattern StatefulFunctionF bnd ident expr <- BindStateF expr (Lit (FunRefLit (FunRef bnd ident _)))
+pattern StatefulFunctionF :: QualifiedBinding -> Expr ty -> ExprF ty (Expr ty)
+pattern StatefulFunctionF bnd  expr <- BindStateF expr (Lit (FunRefLit (FunRef bnd  _)))
 
 
 -------------------- Additional type class instances --------------------
@@ -190,7 +191,7 @@ instance Embed (Expr ty) (TypedBinding ty) where
 instance Embed (Expr ty) (FunRef ty Resolved) where
     embedE = embedE . FunRefLit
 -- instance Embed (Expr ty) QualifiedBinding where
---     embedE = embedE . (\qb -> FunRef qb Nothing Untyped)
+--     embedE = embedE . (\qb -> FunRef qb Untyped)
 
 -------------------- Additional Traversals --------------------
 

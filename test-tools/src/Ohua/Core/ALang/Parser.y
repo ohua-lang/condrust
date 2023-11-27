@@ -108,10 +108,10 @@ SimpleExp
     : '(' many_sep(Exp, ',') ')' { case $2 of
                                        [] -> Lit UnitLit
                                        [x] -> x
-                                       xs -> foldl (\e arg -> e `Apply` arg) (Lit $ FunRefLit $ FunRef mkTuple Nothing Untyped) xs }
+                                       xs -> foldl (\e arg -> e `Apply` arg) (Lit $ FunRefLit $ FunRef mkTuple  Untyped) xs }
     | opt('-') number            { Lit $ NumericLit $ maybe id (const negate) $1 $2 }
     | envRef                     { Lit $ EnvRefLit $1 }
-    | qualid                     { Lit $ FunRefLit $ FunRef $1 Nothing Untyped }
+    | qualid                     { Lit $ FunRefLit $ FunRef $1  Untyped }
     | id                         { Var $1 }
 -- ToDo: This will not work any more because WildP a) should be represented as '_' and b) has a type now although i don't know how to incorporate this here
 Exp :: { Exp }

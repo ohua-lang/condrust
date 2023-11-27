@@ -90,7 +90,7 @@ instance Arbitrary HostExpr where
     arbitrary = genFromMake
 
 instance Arbitrary (FunRef ty Resolve) where
-    arbitrary = liftM2 (\a b -> FunRef a b Untyped) arbitrary arbitrary
+    arbitrary = liftM2 (`FunRef` Untyped) arbitrary
 
 instance Arbitrary (Lit ty) where
     arbitrary =

@@ -95,7 +95,7 @@ checkHigherOrderFunctionSupport (ALang.Let _ e rest) = do
             "Lambdas may only be input to higher order functions, not " <>
             show f
         pure True
-    checkNestedExpr (PureFunction n _) = pure $ HS.member n hofNames
+    checkNestedExpr (PureFunction n) = pure $ HS.member n hofNames
     checkNestedExpr (ALang.Var _) = pure False
     checkNestedExpr (ALang.BindState e1 e2) = checkNestedExpr e1 >> checkNestedExpr e2
     checkNestedExpr a = failWith $ "Expected var or apply expr, got " <> show a

@@ -72,9 +72,9 @@ removeNth expr = do
                -> State
                (HM.HashMap (TypedBinding ty) (NonEmpty (Integer, TypedBinding ty)))
                (Maybe (DFApp a ty))
-    toDFAppFun (PureFun tgt (FunRef "ohua.lang/nth" _ _) (DFEnvVar _ (NumericLit i) :| [_, DFVar srcATB ]) ) =
+    toDFAppFun (PureFun tgt (FunRef "ohua.lang/nth" _) (DFEnvVar _ (NumericLit i) :| [_, DFVar srcATB ]) ) =
       modify (HM.insertWith (<>) (unwrapTB srcATB) ((i, unwrapVarTB tgt) :| [])) >> pure Nothing
-    toDFAppFun (PureFun out (FunRef fr _ _) ins) | fr == IFuns.ifFun = do
+    toDFAppFun (PureFun out (FunRef fr _) ins) | fr == IFuns.ifFun = do
       hm <- get
       let out' =
             case toDFOuts (unwrapVarTB out) DataBinding hm of
@@ -84,7 +84,7 @@ removeNth expr = do
                   (d :| []) -> d
                   _ -> error $ "Invariant broken: IfFun has wrong input:" <> show ins
       return $ Just $ IfFun out' dIn
-    toDFAppFun (PureFun out (FunRef fr _ _) ins) | fr == IFuns.smapFun = do
+    toDFAppFun (PureFun out (FunRef fr _) ins) | fr == IFuns.smapFun = do
       hm <- get
       let out' =
             case toDFOuts (unwrapVarTB out) DataBinding hm of
@@ -258,14 +258,14 @@ handleApplyExpr (Apply fn a) = go (a :| []) fn
       case e of
         Apply f arg -> do
           go (arg NE.<| args) f
-        Lit (FunRefLit fr@(FunRef f _ident (FunType argTypes retTy))) -> do
+        Lit (FunRefLit fr@(FunRef f  (FunType argTypes retTy))) -> do
           assertTermTypes args argTypes "function" f
           return (fr, Nothing, NE.zip argTypes args)
-        Lit (FunRefLit (FunRef qb _ STFunType {})) ->
+        Lit (FunRefLit (FunRef qb STFunType {})) ->
           failWith $ "Wrong function type 'st' for pure function: " <> show qb
-        BindState _state0 (Lit (FunRefLit (FunRef f _ FunType {}))) ->
+        BindState _state0 (Lit (FunRefLit (FunRef f FunType {}))) ->
           failWith $ "Wrong function type 'pure' for st function: " <> show f
-        BindState state0 (Lit (FunRefLit fr@(FunRef f _ (STFunType sType argTypes retTy)))) -> do
+        BindState state0 (Lit (FunRefLit fr@(FunRef f (STFunType sType argTypes retTy)))) -> do
           assertTermTypes args argTypes "stateful function" f
           state' <- expectStateBnd state0
           return (fr, Just state', zip' argTypes args)

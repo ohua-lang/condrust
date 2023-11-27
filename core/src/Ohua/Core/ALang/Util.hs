@@ -48,7 +48,7 @@ destructure source bnds =
     map (\(idx, tbnd) -> Let tbnd $ mkNthExpr idx source (asType tbnd)) (zip [0 ..] bnds)
   where
     mkNthExpr idx source0 bTy =
-        pureFunction IFuns.nth Nothing (FunType (IType TypeNat :| [IType TypeNat, bTy]) bTy) `Apply` (Lit $ NumericLit idx) `Apply`
+        pureFunction IFuns.nth (FunType (IType TypeNat :| [IType TypeNat, bTy]) bTy) `Apply` (Lit $ NumericLit idx) `Apply`
         (Lit $ NumericLit $ toInteger $ length bnds) `Apply`
         source0
 
@@ -288,7 +288,7 @@ findDestructured expr tbnd = map (\(v,_,_) -> v) $ findDestructuredWithExpr expr
             sortOn (\(i,_,_,_) -> i)
                 [ (i,v,l,c) 
                 | l@(Let v 
-                    (PureFunction "ohua.lang/nth" _ `Apply` 
+                    (PureFunction "ohua.lang/nth" `Apply` 
                         Lit (NumericLit i) `Apply` 
                         _ `Apply` 
                         Var tbnd')
@@ -303,7 +303,7 @@ replaceExpr (old,new) = transform f
         f expr = expr
 
 pattern NthFunction :: TypedBinding ty -> Expr ty
-pattern NthFunction tbnd <- PureFunction "ohua.lang/nth" _ `Apply` _ `Apply` _ `Apply` Var tbnd
+pattern NthFunction tbnd <- PureFunction "ohua.lang/nth" `Apply` _ `Apply` _ `Apply` Var tbnd
 
 evictOrphanedDestructured :: Expr ty -> Expr ty
 evictOrphanedDestructured e = 
