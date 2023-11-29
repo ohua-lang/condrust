@@ -7,6 +7,7 @@ import qualified Data.HashSet as HS
 
 import Ohua.Frontend.Lang as FR 
 import Ohua.Frontend.PPrint ()
+import qualified Ohua.Core.InternalFunctions as FunRefs
 import Ohua.Core.ALang.Lang hiding (Expr, ExprF)
 import qualified Ohua.Core.ALang.Lang as ALang
 import qualified Ohua.Core.InternalFunctions as IFuns
@@ -76,8 +77,12 @@ unstructure (valBnd, valTy) pats = go (toInteger $ length pats) (NE.toList pats)
         zip [0 ..]
 
 -- ToDo: Replace by Alang definition
-nthFun :: ResolvedType ty -> OhuaType ty Resolved -> FR.FuncExpr ty
+nthFun :: ResolvedType ty -> ResolvedType ty -> FR.FuncExpr ty
 nthFun collTy elemTy = LitE $ FunRefLit $ FunRef IFuns.nth $ FunType (IType TypeNat :| [IType TypeNat, collTy]) elemTy
+
+seqFunSf ::  ResolvedType ty -> ResolvedType ty -> FR.FuncExpr ty
+seqFunSf t1 t2 = LitE $ FunRefLit $ FunRef FunRefs.seqFun $ FunType (t1 :| [t2]) t2
+
 
 -- | The function actualy lowering Frontend IR to ALang
 trans :: FR.FuncExpr ty -> ALang.Expr ty
@@ -85,6 +90,9 @@ trans =
     \case
         VarE b ty -> Var $ TBind b ty
         LitE l -> Lit l
+        LetE p e1 e2@LitE{} -> 
+            let litReplaced = constLit  e1 e2 
+            in trans litReplaced
         LetE p e1 e2 -> Let (patToTBind p) (trans e1) (trans e2)
 
         AppE e1 args -> foldl Apply (trans e1) (map trans args)
@@ -110,7 +118,13 @@ trans =
             let method' = BindState (trans stateE) (Lit $ FunRefLit (FunRef mName fty) )
             in foldl Apply method' (map trans args)
 
+        StmtE e1 e2@LitE{} -> 
+            let litReplaced = constLit e1 e2 
+            in trans litReplaced
+
         StmtE e1 cont -> Let (TBind "_" $ IType TypeUnit) (trans e1) (trans cont)
+        SeqE e1 e2 -> error $ "Hit SeqE during lowering to Alang. Please handle"
+
         TupE exprs -> 
             let alExprs = NE.map trans exprs
                 exprTys = NE.map ALang.exprType alExprs
@@ -129,6 +143,13 @@ trans =
              "Invariant broken: At this point any patterns" <>
              "(function arguments or let bound variables) should be single vars but " <> show p <>
              "is not. Please file a bug."
+
+    constLit:: FR.FuncExpr ty -> FR.FuncExpr ty -> FR.FuncExpr ty
+    constLit eS eT =
+        let pType = FR.exprType eS
+            tType = FR.exprType eT 
+        in  LetE (VarP "x_lit" pType) eS $
+            AppE (seqFunSf pType tType)  ((VarE "x_lit" pType) :| [eT])
 
 
 tupTypeFrom :: NonEmpty (ResolvedPat ty) -> (ResolvedType ty)
