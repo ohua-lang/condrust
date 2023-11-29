@@ -265,10 +265,10 @@ instance Eq (TypedBinding ty) where
 
 
 -- This is not very elegant but saves me a ton of pattern matching in the TypeSystem
-getReturnType :: OhuaType ty res -> Maybe (OhuaType ty res)
-getReturnType (FType (FunType _ins out)) = Just out
-getReturnType (FType (STFunType _s _ins out)) = Just out
-getReturnType _ = Nothing
+getReturnType :: OhuaType ty res -> OhuaType ty res
+getReturnType (FType (FunType _ins out)) = out
+getReturnType (FType (STFunType _s _ins out)) = out
+getReturnType other = other
 
 
 type FunRef :: Type -> Resolution -> Type
