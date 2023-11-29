@@ -274,11 +274,11 @@ typeSystem delta imports gamma = \case
       typePatFromGamma (TupP ps) = TupP <$> mapM typePatFromGamma ps
 
     in do
-      traceM $ "Typing lambda " <> show e
+      -- traceM $ "Typing lambda " <> show e
       let gamma' = foldl (\ g (b, t) -> HM.insert b t g) gamma $ join $ map (NE.toList . patTyBnds) pats
-      traceM $ "Gamma inside Lambda :" <> show gamma'
+      -- traceM $ "Gamma inside Lambda :" <> show gamma'
       (gammaR', expr', tyE, imports' ) <- typeExpr delta imports gamma' expr
-      traceM $ "Gamma after typing the body :" <> show gammaR'
+      -- traceM $ "Gamma after typing the body :" <> show gammaR'
       (pats', gammaR'') <- runStateT (mapM typePatFromGamma pats) gammaR'
       
       let funty = case pats' of 
@@ -430,6 +430,22 @@ typeSystem delta imports gamma = \case
     -- traceM $ "Gamma after second expression in Statement" <> show gammaR'
     let gamma_merge = HM.union gammaR gammaR' 
     return (gamma_merge, StmtE e1' cont', contTy, imports'' )
+ 
+  {- 
+  -- FIXME: Check the required type of cont and e1.
+
+      Delta, Gamma |- e1:T1    Delta, Gamma |- cont : T2
+  =======================================================
+          Delta, Gamma |- SeqE e1 cont : T2
+  -}
+  (SeqE e1 cont) -> do
+    -- traceM $ "Gonna type a Stmt with Gamma " <> show gamma 
+    (gammaR, e1', _e1Ty, imports') <- typeExpr delta imports gamma e1
+    -- traceM $ "Gamma after first expression in Statement" <> show gammaR
+    (gammaR', cont', contTy, imports'' ) <- typeExpr delta imports' gamma cont
+    -- traceM $ "Gamma after second expression in Statement" <> show gammaR'
+    let gamma_merge = HM.union gammaR gammaR' 
+    return (gamma_merge, SeqE e1' cont', contTy, imports'' )
 
   {-
       Delta, Gamma |- e1:T1  Delta, Gamma |- e2:T2   ...   Delta, Gamma |- en: Tn
@@ -508,7 +524,7 @@ typeSystem delta imports gamma = \case
                       -- now check if that namespace is "imported", because the function returns the last part of it
                       Just (NSRef spaces)  -> 
                         case getReturnType new_ty of 
-                          Just (HType hTy) | (Just (last spaces)) == (getBinding . toPath $ hTy) -> imports ++ [Full (NSRef $ init spaces) (last spaces)]
+                          (HType hTy) | (Just (last spaces)) == (getBinding . toPath $ hTy) -> imports ++ [Full (NSRef $ init spaces) (last spaces)]
                           _ -> imports
                       Nothing -> imports
                 return  (HM.empty, LitE $ FunRefLit $ FunRef qBnd ty1, new_ty, imports')

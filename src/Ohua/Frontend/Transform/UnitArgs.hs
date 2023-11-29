@@ -23,5 +23,6 @@ noEmptyArgs e =  case e of
             WhileE c body -> WhileE (noEmptyArgs c) (noEmptyArgs body)
             MapE e1 e2 -> MapE (noEmptyArgs e1) (noEmptyArgs e2)
             StmtE e1 e2 -> StmtE (noEmptyArgs e1) (noEmptyArgs e2)
+            SeqE e1 e2 -> SeqE (noEmptyArgs e1) (noEmptyArgs e2)
             TupE es -> TupE (map noEmptyArgs es)
 
