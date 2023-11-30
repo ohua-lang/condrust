@@ -3,7 +3,7 @@
 {-# LANGUAGE TypeApplications #-}
 module Ohua.Integration.Rust.Types.Extraction where
 
-import Ohua.Prelude
+import Ohua.Prelude 
 
 import Ohua.Integration.Rust.Util
 import Ohua.Integration.Rust.Common.Subset as Sub (TyRef (..), CallRef (..), GenericArgs ( Parenthesized ), RustType(..) )
@@ -20,11 +20,16 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text.Prettyprint.Doc as Doc (Pretty(..))
 import qualified Data.List.NonEmpty as NE
 import Data.Text (pack)
+import qualified Text.Show
 
 -- ToDo: Should we move this to the Common subset and replace the RustType in Subset?
 data Module = Module FilePath (SourceFile Span)
 
-data RustVarType = Self (Ty ()) (Maybe (Lifetime ())) Mutability | Normal (Ty ()) deriving (Show)
+data RustVarType = Self (Ty ()) (Maybe (Lifetime ())) Mutability | Normal (Ty ()) 
+
+instance Show RustVarType where 
+    show (Self ty _ _) = show $ RustP.pretty' ty
+    show (Normal ty) = show $ RustP.pretty' ty
 
 -- In the type system we need to compare types of states to input types of methods.
 -- The former will be something like `Normal Arc` while the later will be `Self Arc`, but we want them to be equal
