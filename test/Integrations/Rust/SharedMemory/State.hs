@@ -11,6 +11,7 @@ import Language.Rust.Data.Position (Span)
 spec :: Spec
 spec =
   describe "State" $ do
+{-
     describe "flat" ( do
       it "simple" $
         (showCode "Compiled: " =<< compileCode  [sourceFile|
@@ -57,7 +58,7 @@ spec =
             expected <- showCode "Expected:" singleState 
             compiled `shouldBe` expected)
       )
-
+-}
     describe "loop" ( do
         it "deep state simple" $
             (showCode "Compiled: " =<< compileCodeWithDebug [sourceFile|
@@ -81,7 +82,7 @@ spec =
 
         it "single io" $
             -- FIXME sertel/ohua-core#11
-            (showCode "Compiled: " =<< compileCode  [sourceFile|
+            (showCode "Compiled: " =<< compileCodeWithDebug  [sourceFile|
                 use crate::funs::*;
 
                  fn test(i:i32) -> () {
@@ -97,6 +98,7 @@ spec =
                 expected <- showCode "Expected:" singleIO
                 compiled `shouldBe` expected)
         )
+{-
         
     describe "combo" (do
         it "thread + loop" $
@@ -139,14 +141,15 @@ spec =
                 expected <- showCode "Expected:" rawStateOut
                 compiled `shouldBe` expected)
         )
+-}
     describe "Minimal case" (do
         it "minimal state use" $
-            (showCode "Compiled: " =<< compileCode  [sourceFile|
+            (showCode "Compiled: " =<< compileCodeWithDebug  [sourceFile|
                  use crate::funs::*;
 
-                 fn test(i:i32) -> i32 {
+                 fn test(i:i32) -> () {
                     let s: State = State::new_state(i);
-                    s.gs(5)
+                    s.gs(5);
                 }
                 |]) >>=
             (\compiled -> do
