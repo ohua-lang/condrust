@@ -431,22 +431,6 @@ typeSystem delta imports gamma = \case
     let gamma_merge = HM.union gammaR gammaR' 
     return (gamma_merge, StmtE e1' cont', contTy, imports'' )
  
-  {- 
-  -- FIXME: Check the required type of cont and e1.
-
-      Delta, Gamma |- e1:T1    Delta, Gamma |- cont : T2
-  =======================================================
-          Delta, Gamma |- SeqE e1 cont : T2
-  -}
-  (SeqE e1 cont) -> do
-    -- traceM $ "Gonna type a Stmt with Gamma " <> show gamma 
-    (gammaR, e1', _e1Ty, imports') <- typeExpr delta imports gamma e1
-    -- traceM $ "Gamma after first expression in Statement" <> show gammaR
-    (gammaR', cont', contTy, imports'' ) <- typeExpr delta imports' gamma cont
-    -- traceM $ "Gamma after second expression in Statement" <> show gammaR'
-    let gamma_merge = HM.union gammaR gammaR' 
-    return (gamma_merge, SeqE e1' cont', contTy, imports'' )
-
   {-
       Delta, Gamma |- e1:T1  Delta, Gamma |- e2:T2   ...   Delta, Gamma |- en: Tn
   ======================================================================================

@@ -39,6 +39,5 @@ noFunLitReturns (StateFunE e1 _state e2) = noFunLitReturns e1 >> concatMapM noFu
 -- noFunLitReturns e@(StmtE _f l@LitE{}) =  throwError $ "The literal [" <> show l <> "] does not depend on a previously computed value in the expression \n" 
 --   <> show e
 --   <>"\nIn the host program this meant that it depends on the previous statements. This compiler does not yet support creating this dependency implicity. Hence, we kindly ask you to add it explicitly to your code."
-noFunLitReturns e@(SeqE e1 e2) =  throwError "Hit Seq, please handle"
 noFunLitReturns (StmtE f cont) = noFunLitReturns f >> noFunLitReturns cont
 noFunLitReturns (TupE es) = mapM_ noFunLitReturns es

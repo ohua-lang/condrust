@@ -71,7 +71,6 @@ instance Pretty (Expr ty res []) where
                              ])]
     pretty (StateFunE s _qb mCall) = pretty s <+> "." <+> pretty mCall
     pretty (StmtE e c) = vsep $ hsep [pretty e, ";"] : [pretty c]
-    pretty (SeqE e c) = vsep $ hsep ["seq"] : [pretty e, pretty c]
     pretty (TupE (e:|es)) = hsep [align $ tupled $ map pretty (e:es)]
 
 instance Pretty (Expr ty res NonEmpty) where
@@ -116,5 +115,4 @@ instance Pretty (Expr ty res NonEmpty) where
                              ])]
     pretty (StateFunE s _qb mCall) = pretty s <+> "." <+> pretty mCall
     pretty (StmtE e c) = vsep $ hsep [pretty e, ";"] : [pretty c]
-    pretty (SeqE e c) = vsep $ hsep ["seq"] : [pretty e, pretty c]
     pretty (TupE (e:|es)) = hsep [align $ tupled $ map pretty (e:es)]

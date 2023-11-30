@@ -81,7 +81,6 @@ data Expr ty res lists where
   -- StateFunE state method args
   StateFunE :: (Traversable lists) => Expr ty res lists -> MethodRepr ty res -> lists (Expr ty res lists) -> Expr ty res lists
   StmtE     :: Expr ty res lists -> Expr ty res lists                                    -> Expr ty res lists
-  SeqE      :: Expr ty res lists -> Expr ty res lists                                    -> Expr ty res lists
   TupE      :: NonEmpty (Expr ty res lists)                                              -> Expr ty res lists
 
 
@@ -139,10 +138,6 @@ preWalkM f e = case e of
           e1' <- preWalkM f e1
           e2' <- preWalkM f e2
           f (StmtE e1' e2')
-      SeqE e1 e2 -> do 
-          e1' <- preWalkM f e1
-          e2' <- preWalkM f e2
-          f (SeqE e1' e2')
       TupE es ->  do
           es' <- mapM (preWalkM f) es
           f (TupE es')
@@ -182,11 +177,9 @@ exprType = \case
     (WhileE c body) -> IType TypeUnit 
     -- The return of a map (t1->t2) (c t1) should be (c t2), currently we expect any container to show list like behaviour 
     -- and therefor will use the internal list type to represent c 
-    (MapE fun container) -> IType $ TypeList (exprType fun)
+    (MapE fun container) -> IType $ TypeList (returnType fun)
     (StmtE e1 e2) -> IType TypeUnit
     (StateFunE _st (MethodRes _ fty) _args) -> FType fty
-    -- This just makes sure e1 is evaluated although its result is ignored
-    (SeqE e1 e2) -> exprType e2
     (TupE es) -> TType (NE.map exprType es)
 
 returnType :: FuncExpr ty -> ResolvedType ty
@@ -239,7 +232,6 @@ freeVars e = go HS.empty e
     -- Question: Can a method be a free variable ? 
     go  ctxt (StateFunE s _method args ) = go ctxt s {-++ go ctxt method -} ++ foldl (\vs e1 -> vs ++ go ctxt e1) [] args
     go  ctxt (StmtE e1 e2) = go ctxt e1 ++ go ctxt e2
-    go  ctxt (SeqE e1 e2)  = go ctxt e1 ++ go ctxt e2
     go  ctxt (TupE es) = foldl (\vs e1 -> vs ++ go ctxt e1) [] es
 
 -- FIXME: Same problem as with pattern extraction. Making the function generic over lists 
@@ -261,7 +253,6 @@ flattenU e = case e of
         --           the way code using this function acts on StateFunE
         (StateFunE s _method args)-> [e] ++ flattenU s {- ++ flattenU method -} ++ concatMap flattenU args
         (StmtE e1 e2)-> [e] ++ flattenU e1 ++ flattenU e2
-        (SeqE e1 e2) -> [e] ++ flattenU e1 ++ flattenU e2
         (TupE es)-> [e] ++ concatMap flattenU es
 
 flattenR :: Expr ty res NonEmpty -> [Expr ty res NonEmpty]
@@ -279,7 +270,6 @@ flattenR e = case e of
         -- (BindE s _ xs)-> [e] ++ flattenR s ++ concatMap flattenR xs 
         (StateFunE s _method args)-> [e] ++ flattenR s {- ++ flattenR method-} ++ concatMap flattenR args
         (StmtE e1 e2)-> [e] ++ flattenR e1 ++ flattenR e2
-        (SeqE e1 e2)-> [e] ++ flattenR e1 ++ flattenR e2
         (TupE es)-> [e] ++ concatMap flattenR es
 
 preWalkE :: (Traversable lists) => (Expr ty res lists -> Expr ty res lists) -> Expr ty res lists -> Expr ty res lists
@@ -318,10 +308,6 @@ preWalkE f e = case e of
           let e1' = preWalkE f e1
               e2' = preWalkE f e2
           in  f (StmtE e1' e2')
-      SeqE e1 e2 -> 
-          let e1' = preWalkE f e1
-              e2' = preWalkE f e2
-          in  f (SeqE e1' e2')
       TupE es -> 
           let es' = map (preWalkE f) es
           in  f (TupE es')

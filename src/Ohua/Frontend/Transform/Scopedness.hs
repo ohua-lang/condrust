@@ -44,7 +44,6 @@ contextedTraversal f = go
         -- In case of such errors, build ad hoc VarE's and treat them again 
         go ctxt (StateFunE state method args) = flip StateFunE method <$> go ctxt state <*> TR.mapM (go ctxt) args
         go ctxt (StmtE e1 e2) = StmtE <$> go ctxt e1 <*> go ctxt e2
-        go ctxt (SeqE e1 e2) = SeqE <$> go ctxt e1 <*> go ctxt e2
         go ctxt (TupE es) = TupE <$> TR.mapM (go ctxt) es
 
         -- goPat:: 
