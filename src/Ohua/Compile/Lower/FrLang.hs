@@ -7,7 +7,6 @@ import qualified Data.HashSet as HS
 
 import Ohua.Frontend.Lang as FR 
 import Ohua.Frontend.PPrint ()
-import qualified Ohua.Core.InternalFunctions as FunRefs
 import Ohua.Core.ALang.Lang hiding (Expr, ExprF)
 import qualified Ohua.Core.ALang.Lang as ALang
 import qualified Ohua.Core.InternalFunctions as IFuns
@@ -81,7 +80,7 @@ nthFun :: ResolvedType ty -> ResolvedType ty -> FR.FuncExpr ty
 nthFun collTy elemTy = LitE $ FunRefLit $ FunRef IFuns.nth $ FunType (IType TypeNat :| [IType TypeNat, collTy]) elemTy
 
 seqFunSf ::  ResolvedType ty -> ResolvedType ty -> FR.FuncExpr ty
-seqFunSf t1 t2 = LitE $ FunRefLit $ FunRef FunRefs.seqFun $ FunType (t1 :| [t2]) t2
+seqFunSf t1 t2 = LitE $ FunRefLit $ FunRef IFuns.seqFun $ FunType (t1 :| [t2]) t2
 
 
 -- | The function actualy lowering Frontend IR to ALang
@@ -123,8 +122,6 @@ trans =
             in trans litReplaced
 
         StmtE e1 cont -> Let (TBind "_" $ IType TypeUnit) (trans e1) (trans cont)
-        SeqE e1 e2 -> error $ "Hit SeqE during lowering to Alang. Please handle"
-
         TupE exprs -> 
             let alExprs = NE.map trans exprs
                 exprTys = NE.map ALang.exprType alExprs

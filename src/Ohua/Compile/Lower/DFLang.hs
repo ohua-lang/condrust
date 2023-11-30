@@ -200,6 +200,20 @@ generateNodeCode e@(PureDFFun out (FunRef funName  _fType) inp) | funName == sel
         EndlessLoop $
             Ops.select condIn trueIn falseIn out'
 
+generateNodeCode e@(PureDFFun out (FunRef fun _) inp) | fun == IFuns.seqFun = do
+  out' <- case out of
+           Direct x -> return $ SChan $ unwrapABnd x
+           _ -> invariantBroken $ "Seq must only have one output:\n" <> show e
+  case inp of
+    DFVar stmtInATBind :| [DFEnvVar _ty lit] ->
+      return $
+        Unfusable $
+        Stmt (ReceiveData $ asRecv stmtInATBind) $
+        BLang.Let "x" (Lit lit) $
+        SendData $ SSend out' $ Left "x"
+    _ -> invariantBroken $
+            "Seq must have two inputs where the second is a literal:\n" <> show e
+
 generateNodeCode e@(PureDFFun out (FunRef funName _fType) inp) | funName == IFuns.runSTCLangSMap = do
 --    (sizeIn, stateIn) <-
     out' <-
