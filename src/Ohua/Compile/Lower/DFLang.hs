@@ -17,7 +17,7 @@ import qualified Data.HashSet as HS
 import Ohua.Core.DFLang.PPrint (prettyExpr)
 
 -- Invariant in the result type: the result channel is already part of the list of channels.
-toTCLang :: ErrAndLogM m => NormalizedDFExpr ty -> m (TCProgram (Channel ty) (Com 'Recv ty) (FusableExpr ty))
+toTCLang :: (ErrAndLogM m, Show ty) => NormalizedDFExpr ty -> m (TCProgram (Channel ty) (Com 'Recv ty) (FusableExpr ty))
 toTCLang gr = do
     let channels = generateArcsCode gr
     (tasks, resultChan) <- generateNodesCode gr
@@ -28,11 +28,13 @@ type LoweringM m a = m a
 invariantBroken :: ErrAndLogM m => Text -> LoweringM m a
 invariantBroken msg = throwError $ "Compiler invariant broken! " <> msg
 
-generateNodesCode :: ErrAndLogM m => NormalizedDFExpr ty ->  LoweringM m ([FusableExpr ty], Com 'Recv ty)
+generateNodesCode :: (ErrAndLogM m, Show (FusableExpr ty)) => NormalizedDFExpr ty ->  LoweringM m ([FusableExpr ty], Com 'Recv ty)
 generateNodesCode = go
     where
+        go :: (ErrAndLogM m, Show (FusableExpr ty)) => NormalizedDFExpr ty -> LoweringM m ([FusableExpr ty], Com 'Recv ty)
         go (DFLang.Let app cont) = do
             task <- generateNodeCode app
+            traceM $"Generated Task :\n" <> show task <> "\n"
             (tasks, resRecv) <- go cont
             return (task:tasks,resRecv)
         go (DFLang.Var atBnd) = 
