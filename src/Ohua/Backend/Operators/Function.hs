@@ -12,7 +12,7 @@ import qualified Data.List.NonEmpty as NE
 -- FIXME Seems to be like this: Arg Recv (Either Recv TaskExpr) | Drop (Either Recv TaskExpr)
 data CallArg ty
     = Arg (Com 'Recv ty) | Drop (Either (Com 'Recv ty) (TaskExpr ty)) | Converted (TaskExpr ty)
-    deriving (Eq, Generic)
+    deriving (Eq, Generic, Show)
 
 instance Hashable (CallArg ty)
 
@@ -51,6 +51,8 @@ data FusFunction sin ty
         (CallArg ty)
         (NonEmpty (Result ty))
     deriving (Generic)
+
+deriving instance (Show (sin ty), Show ty) => Show (FusFunction sin ty) 
 
 -- using a vector would have been so much nicer, but implementing Eq and Hashable
 -- manually is just a pain.

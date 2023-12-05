@@ -26,6 +26,8 @@ deriving instance Eq (RecFun ty)
 
 deriving instance Hashable (RecFun ty)
 
+deriving instance Show (RecFun ty)
+
 finalResult = "finalResult"
 
 mkRecFun :: RecFun ty -> TaskExpr ty

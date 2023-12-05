@@ -29,6 +29,8 @@ data Fusable ty ctrl0 ctrl1
     --  Select
     deriving (Eq, Functor, Generic)
 
+deriving instance (Show ty, Show ctrl0, Show ctrl1) => Show (Fusable ty ctrl0 ctrl1)
+
 instance (Hashable ctrl0, Hashable ctrl1) => Hashable (Fusable ty ctrl0 ctrl1)
 
 instance Bifunctor (Fusable ty) where
@@ -41,7 +43,7 @@ instance Bifunctor (Fusable ty) where
     first _ (SMap s) = SMap s
     second = fmap
 
-type FusableExpr ty = Fusable ty (VarCtrl ty) (LitCtrl ty)
+type FusableExpr ty = Fusable ty (VarCtrl ty) (LitCtrl ty) 
 
 fuse :: ErrAndLogM m 
      => Options

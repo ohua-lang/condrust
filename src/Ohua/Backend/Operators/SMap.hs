@@ -25,7 +25,7 @@ type DataInput = Com 'Recv
 type CollectedOutput = Com 'Channel
 
 data DataIn ty = Var Binding | Receive (Input ty) | Expr (TaskExpr ty)
-  deriving (Generic,Eq)
+  deriving (Generic,Eq, Show)
 
 deriving instance Hashable (DataIn ty)
 
@@ -37,6 +37,8 @@ data Op ty
   deriving (Generic,Eq)
 
 deriving instance Hashable (Op ty)
+
+deriving instance Show (Op ty)
 
 smapFun :: DataIn ty -> DataOut ty -> CtrlOut ty -> CollectOut ty -> Op ty
 smapFun = SMap
