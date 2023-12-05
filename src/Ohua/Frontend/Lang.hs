@@ -179,7 +179,7 @@ exprType = \case
     -- and therefor will use the internal list type to represent c 
     (MapE fun container) -> IType $ TypeList (returnType fun)
     (StmtE e1 e2) -> IType TypeUnit
-    (StateFunE _st (MethodRes _ fty) _args) -> FType fty
+    (StateFunE _st (MethodRes _ fty) _args) -> getReturnType (FType fty)
     (TupE es) -> TType (NE.map exprType es)
 
 returnType :: FuncExpr ty -> ResolvedType ty
