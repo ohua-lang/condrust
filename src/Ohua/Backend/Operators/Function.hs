@@ -72,8 +72,8 @@ toFuseFun (PureFusable recvs qb outs) = PureFusable recvs qb outs
 toFuseFun (STFusable a b c d e) = STFusable (Arg a) b c d e
 toFuseFun (IdFusable recv outs) = IdFusable recv outs
 
-genFun :: FusableFunction ty -> TaskExpr ty
-genFun fun = loop (funReceives fun) $ (\f -> genFun' (genSend f) f) $ toFuseFun fun
+genFun :: (Show ty) => FusableFunction ty -> TaskExpr ty
+genFun fun = trace ("Processing task in genFun: \n" <> show fun) loop (funReceives fun) $ (\f -> genFun' (genSend f) f) $ toFuseFun fun
 
 funReceives :: FusableFunction ty -> [Com 'Recv ty]
 funReceives (PureFusable vars _ _)   = extractAll vars
@@ -183,7 +183,7 @@ extractOne (Drop _) = Nothing
 extractOne (Converted _) = Nothing
 
 data FusedFun ty
-    = FusedFun (FusedFunction ty) (TaskExpr ty)
+    = FusedFun (FusedFunction ty) (TaskExpr ty) deriving Show
 
 genFused :: FusedFunction ty -> TaskExpr ty
 genFused fun = genFun' (genSend fun) fun
@@ -191,8 +191,8 @@ genFused fun = genFun' (genSend fun) fun
 genFusedFun' :: FusedFun ty -> TaskExpr ty
 genFusedFun' (FusedFun fun ct) = genFun' ct fun
 
-genFusedFun :: FusedFun ty -> TaskExpr ty
-genFusedFun f@(FusedFun fun ct) = loop (fusedFunReceives fun) $ genFusedFun' f
+genFusedFun :: (Show ty) => FusedFun ty -> TaskExpr ty
+genFusedFun f@(FusedFun fun ct) = trace ("Processing task in genFusedFun: \n" <> show fun) loop (fusedFunReceives fun) $ genFusedFun' f
 
 fusedFunReceives :: FusedFunction ty -> [Com 'Recv ty]
 fusedFunReceives (PureFusable vars _ _)   = extractAll vars

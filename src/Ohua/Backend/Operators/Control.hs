@@ -316,7 +316,7 @@ genCtrl (FunCtrl ctrlInput vars) =
             foldr (\(bnd, OutputChannel ch) c -> Stmt (SendData $ SSend ch $ Left bnd) c) (Lit UnitLit) sendVars
         sendVars = NE.map (bimap (("var_" <>) . show) fst) $ NE.zip [0..] vars
 
-genLitCtrl :: FusedLitCtrl ty -> TaskExpr ty
+genLitCtrl :: (Show ty) => FusedLitCtrl ty -> TaskExpr ty
 genLitCtrl (FusedLitCtrl ctrlInput (OutputChannel (SChan output), input) comp) =
     EndlessLoop $
         genCtrl' ctrlInput (Let output (Lit input)) (genComp comp) Nothing

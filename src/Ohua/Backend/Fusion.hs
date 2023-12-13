@@ -45,7 +45,7 @@ instance Bifunctor (Fusable ty) where
 
 type FusableExpr ty = Fusable ty (VarCtrl ty) (LitCtrl ty) 
 
-fuse :: ErrAndLogM m 
+fuse :: (ErrAndLogM m, Show ty)
      => Options
      -> Namespace (TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (VarCtrl ty) (LitCtrl ty))) anno (OhuaType ty 'Resolved)
      -> m (Namespace (TCProgram (Channel ty) (Com 'Recv ty) (TaskExpr ty)) anno (OhuaType ty 'Resolved))
@@ -53,7 +53,7 @@ fuse options ns =
 
     return $ ns & algos %~ map (\algo -> algo & algoCode %~ go)
     where
-        go :: TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (VarCtrl ty) (LitCtrl ty))
+        go :: (Show ty) => TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (VarCtrl ty) (LitCtrl ty))
            -> TCProgram (Channel ty) (Com 'Recv ty) (TaskExpr ty)
         go = evictUnusedChannels . concludeFusion . (fuseFunctions options) . fuseStateThreads . fuseSMaps
 {-
@@ -65,7 +65,7 @@ removeIdFun (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ ma
 -}
 
 
-concludeFusion :: TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty))
+concludeFusion ::(Show ty) => TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty))
                -> TCProgram (Channel ty) (Com 'Recv ty) (TaskExpr ty)
 concludeFusion (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ map go exprs
     where
@@ -87,18 +87,18 @@ evictUnusedChannels (TCProgram chans resultChan exprs) =
     in TCProgram (resultChan :| chans') resultChan exprs
 
 
-fuseFunctions :: Options
+fuseFunctions ::(Show ty) => Options
               -> TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty))
               -> TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty))
-fuseFunctions Options{stateInitFusion=False} t = t
+fuseFunctions Options{stateInitFusion=False} t = trace ("fuseFunction isn't going to do anything about the program\n") t
 fuseFunctions Options{stateInitFusion=True} (TCProgram chans resultChan exprs) =
   let
     exprs' = map funClassify exprs
     funs = lefts exprs'
     other = rights exprs'
     (fusedFuns, unfusedFuns) = go funs
-    fusedFuns' = map (Unfusable . genFusedFun) $ catMaybes fusedFuns
-    unfusedFuns' = map Fun unfusedFuns
+    fusedFuns' = trace ("Fused funs: \n" <> show fusedFuns) map (Unfusable . genFusedFun) $ catMaybes fusedFuns
+    unfusedFuns' = trace ("\nUnfused funs: \n" <> show unfusedFuns) map Fun unfusedFuns
   in
     TCProgram chans resultChan (other ++ fusedFuns' ++ unfusedFuns')
   where
@@ -235,6 +235,8 @@ fuseCtrls (TCProgram chans resultChan exprs) =
                     -> [ (Either (FunCtrl ty) (LitCtrl ty)
                        , Either (FusableFunction ty) (FusedFunCtrl ty))]
         srcsAndTgts es = mapMaybe (`findTarget` es)
+
+
         fuseIt :: Either (FunCtrl ty) (LitCtrl ty)
                -> Either (FusableFunction ty) (FusedFunCtrl ty)
                -> Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty)
@@ -242,6 +244,8 @@ fuseCtrls (TCProgram chans resultChan exprs) =
         fuseIt (Left ctrl) (Right c) = Control $ Left $ fuseCtrl ctrl c
         fuseIt (Right ctrl) (Left c) = Control $ Right $ fuseLitCtrlIntoFun ctrl c
         fuseIt (Right ctrl) (Right c) = Control $ Right $ fuseLitCtrlIntoCtrl ctrl c
+
+
         findTarget :: Either (FunCtrl ty) (LitCtrl ty)
                    -> [Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty)]
                    -> Maybe ( Either (FunCtrl ty) (LitCtrl ty)
@@ -258,6 +262,8 @@ fuseCtrls (TCProgram chans resultChan exprs) =
                                 (Control (Left c)) -> Just (fc, Right c)
                                 _ -> error "Invariant broken!"
                 _ -> error $ "Invariant broken: a control always has exactly one target!\nI was looking for a target for channel: " <> show chan
+        
+        
         isTarget :: Com 'Channel ty -> Fusable ty (FusedCtrl anno ty) ctrl1 -> Bool
         isTarget bnd (Control (Left (FusedFunCtrl _ vars _ _))) =
             HS.member bnd $ HS.fromList $
