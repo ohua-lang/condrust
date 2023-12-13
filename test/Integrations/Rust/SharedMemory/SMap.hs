@@ -213,8 +213,7 @@ fn test(i: i32) -> State {
   }
   let (s_0_1_0_tx, s_0_1_0_rx) = std::sync::mpsc::channel::<  State,>();
   let (s_0_0_1_tx, s_0_0_1_rx) = std::sync::mpsc::channel::<  State,>();
-  let (ctrl_0_0_tx, ctrl_0_0_rx) =
-    std::sync::mpsc::channel::<  (bool, usize),>();
+  let (ctrl_0_tx, ctrl_0_rx) = std::sync::mpsc::channel::<  (bool, usize),>();
   let (d_0_tx, d_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (r_0_0_0_tx, r_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
@@ -239,19 +238,19 @@ fn test(i: i32) -> State {
       Ok(if hasSize {
         let size = stream_0_0_0.len();
         let ctrl = (true, size);
-        ctrl_0_0_tx.send(ctrl)?;
+        ctrl_0_tx.send(ctrl)?;
         for d in stream_0_0_0 { d_0_tx.send(d)?; () }
       } else {
         let mut size = 0;
         for d in stream_0_0_0 {
           d_0_tx.send(d)?;
           let ctrl = (false, 1);
-          ctrl_0_0_tx.send(ctrl)?;
+          ctrl_0_tx.send(ctrl)?;
           size = size + 1;
           ()
         };
         let ctrl = (true, 0);
-        ctrl_0_0_tx.send(ctrl)?;
+        ctrl_0_tx.send(ctrl)?;
         ()
       })
     }));
@@ -267,7 +266,7 @@ fn test(i: i32) -> State {
         let mut renew = false;
         let mut s_0_0_1_0 = s_0_0_1_rx.recv()?;
         while !renew {
-          let sig = ctrl_0_0_rx.recv()?;
+          let sig = ctrl_0_rx.recv()?;
           let count = sig.1;
           for _ in 0 .. count {
             let var_1 = r_0_0_0_rx.recv()?;
@@ -321,8 +320,7 @@ fn test(stream: Vec<  i32,>) -> State {
   }
   let (s_0_1_0_tx, s_0_1_0_rx) = std::sync::mpsc::channel::<  State,>();
   let (s_0_0_1_tx, s_0_0_1_rx) = std::sync::mpsc::channel::<  State,>();
-  let (ctrl_0_0_tx, ctrl_0_0_rx) =
-    std::sync::mpsc::channel::<  (bool, usize),>();
+  let (ctrl_0_tx, ctrl_0_rx) = std::sync::mpsc::channel::<  (bool, usize),>();
   let (d_0_tx, d_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let (r_0_0_0_tx, r_0_0_0_rx) = std::sync::mpsc::channel::<  i32,>();
   let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
@@ -337,19 +335,19 @@ fn test(stream: Vec<  i32,>) -> State {
       Ok(if hasSize {
         let size = stream.len();
         let ctrl = (true, size);
-        ctrl_0_0_tx.send(ctrl)?;
+        ctrl_0_tx.send(ctrl)?;
         for d in stream { d_0_tx.send(d)?; () }
       } else {
         let mut size = 0;
         for d in stream {
           d_0_tx.send(d)?;
           let ctrl = (false, 1);
-          ctrl_0_0_tx.send(ctrl)?;
+          ctrl_0_tx.send(ctrl)?;
           size = size + 1;
           ()
         };
         let ctrl = (true, 0);
-        ctrl_0_0_tx.send(ctrl)?;
+        ctrl_0_tx.send(ctrl)?;
         ()
       })
     }));
@@ -374,7 +372,7 @@ fn test(stream: Vec<  i32,>) -> State {
         let mut renew = false;
         let mut s_0_0_1_0 = s_0_0_1_rx.recv()?;
         while !renew {
-          let sig = ctrl_0_0_rx.recv()?;
+          let sig = ctrl_0_rx.recv()?;
           let count = sig.1;
           for _ in 0 .. count {
             let var_1 = r_0_0_0_rx.recv()?;
