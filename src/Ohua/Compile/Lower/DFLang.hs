@@ -48,7 +48,7 @@ generateFunctionCode = \case
         out' <- pureOut fn out
         return $ Fusion.Fun $ Ops.PureFusable [] (Ops.Call fn) out'
      -- Question: UnitLits can sneak in, in different forms but we never want them to appear in the output
-     -- However I can't filterm them out here, because that breaks something in the downstream fusion and this something seems to be resposible to
+     -- However I can't filter them out here, because that breaks something in the downstream fusion and this something seems to be resposible to
      -- filter out unit literals in MOST cases. What's that something and shouldn't we have a common elimiation for ohua-introduces unit lits?
     {-(PureDFFun out fn (DFVar ( DataBinding (TBind _bnd TypeUnit)) :|[]) ) -> do
         out' <- pureOut fn out
@@ -203,6 +203,7 @@ generateNodeCode e@(PureDFFun out (FunRef funName  _fType) inp) | funName == sel
             Ops.select condIn trueIn falseIn out'
 
 generateNodeCode e@(PureDFFun out (FunRef fun _) inp) | fun == IFuns.seqFun = do
+  traceM $ "Lowering SeqFun:\n " <> show e <> "\n" 
   out' <- case out of
            Direct x -> return $ SChan $ unwrapABnd x
            _ -> invariantBroken $ "Seq must only have one output:\n" <> show e
@@ -210,6 +211,7 @@ generateNodeCode e@(PureDFFun out (FunRef fun _) inp) | fun == IFuns.seqFun = do
     DFVar stmtInATBind :| [DFEnvVar _ty lit] ->
       return $
         Unfusable $
+        EndlessLoop $
         Stmt (ReceiveData $ asRecv stmtInATBind) $
         BLang.Let "x" (Lit lit) $
         SendData $ SSend out' $ Left "x"
