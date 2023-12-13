@@ -143,7 +143,7 @@ trans =
 
     constLit:: FR.FuncExpr ty -> FR.FuncExpr ty -> FR.FuncExpr ty
     constLit eS eT =
-        let pType = IType TypeUnit -- FR.exprType eS
+        let pType = FR.exprType eS
             tType = FR.exprType eT 
         in  LetE (VarP "x_lit" pType) eS $
             AppE (seqFunSf pType tType)  ((VarE "x_lit" pType) :| [eT])
