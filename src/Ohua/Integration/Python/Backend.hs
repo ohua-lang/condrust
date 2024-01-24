@@ -10,9 +10,9 @@ import Ohua.Backend.Types as B
 
 import Ohua.Integration.Lang hiding (Lang)
 import Ohua.Integration.Python.Util
-import Ohua.Integration.Python.TypeHandling
+import Ohua.Integration.Python.TypeHandling as TH
 import qualified Ohua.Integration.Python.Backend.Subset as Sub
-import qualified Ohua.Integration.Python.SpecialFunctions as SF
+
 
 import qualified Language.Python.Common.AST as Py
 import Language.Python.Common (SrcSpan)
@@ -23,8 +23,6 @@ import Data.Functor.Foldable (cata, embed)
 import Data.Maybe
 -- import Data.List.NonEmpty ((<|))
 
-defaultType :: OhuaType PythonVarType Resolved
-defaultType = HType (HostType (PSingle PythonObject))
 
 {-| Convert a task to a function block of the
     subset Language.
@@ -84,8 +82,8 @@ instance Integration (Language 'Python) where
 
     convertExpr arch (Apply (Stateless bnd args)) = convertFunCall arch bnd args
     convertExpr arch (Apply sOp@(Stateful stateBnd funBnd args)) = case funBnd of
-        SF.SetItemFunction -> transformToSubscript arch sOp
-        SF.GetItemFunction -> transformToSubscript arch sOp
+        TH.SetItemFunction -> transformToSubscript arch sOp
+        TH.GetItemFunction -> transformToSubscript arch sOp
         _any_statefull_function ->  wrapSubExpr $
              Sub.Call
                 (Sub.DotExpr (unwrapSubStmt $ convertExpr arch stateBnd) funBnd)
@@ -152,7 +150,7 @@ instance Integration (Language 'Python) where
         convertFunCall arch (toQualBinding "len") [Var bnd]
 
     convertExpr arch (TCLang.ListOp Create) =
-        convertFunCall arch (toQualBinding SF.listConstructor) []
+        convertFunCall arch (toQualBinding TH.listConstructor) []
 
     convertExpr arch (TCLang.ListOp (Append bnd expr)) =
         convertExpr arch $ Apply $ Stateful (Var bnd) (toQualBinding "append") [expr]
@@ -184,13 +182,13 @@ transformToSubscript :: (Integration (Lang arch), Architecture arch, Expr (Lang 
                         arch -> App (TaskExpr (B.Type (Lang arch))) -> Sub.Stmt
 
 -- | l.__getitem__(0) => l[0]
-transformToSubscript arch (Stateful stateBnd SF.GetItemFunction [indexArg]) = 
+transformToSubscript arch (Stateful stateBnd TH.GetItemFunction [indexArg]) = 
     let subscriptee = unwrapSubStmt $ convertExpr arch stateBnd
         index = unwrapSubStmt $ convertExpr arch indexArg
     in wrapSubExpr $ Sub.Subscript subscriptee index
 
 -- | l.__setitem(0, x) => l[0] = x
-transformToSubscript arch (Stateful stateBnd SF.SetItemFunction [indexArg, itemExpr]) =
+transformToSubscript arch (Stateful stateBnd TH.SetItemFunction [indexArg, itemExpr]) =
     let subscriptee = unwrapSubStmt $ convertExpr arch stateBnd
         index = unwrapSubStmt $ convertExpr arch indexArg
         assignedExpr = unwrapSubStmt $ convertExpr arch itemExpr
@@ -239,19 +237,19 @@ convertFunCall arch op [arg1, arg2] | isJust $ binOp op =
             _ -> Nothing
 
 
-convertFunCall arch SF.ListConstructor args =
+convertFunCall arch TH.ListConstructor args =
     wrapSubExpr $ Sub.List items
     where items = map (unwrapSubStmt . convertExpr arch) args
 
-convertFunCall arch SF.DictConstructor args =
+convertFunCall arch TH.DictConstructor args =
     wrapSubExpr $ Sub.Dict items
     where items = map (convertDictItem arch) args
 
-convertFunCall arch SF.TupleConstructor args =
+convertFunCall arch TH.TupleConstructor args =
     wrapSubExpr $ Sub.Tuple items
     where items = map (unwrapSubStmt . convertExpr arch) args
 
-convertFunCall arch SF.SetConstructor args =
+convertFunCall arch TH.SetConstructor args =
     wrapSubExpr $ Sub.Set items
     where items = map (unwrapSubStmt . convertExpr arch) args
 
@@ -269,12 +267,9 @@ convertFunCall arch funRef args =
     let args' = case args of
                     [TCLang.Lit UnitLit] -> []
                     _ -> map (convertArgument arch) args
-        n = nlength args'
     in
-      withSuccSing n $ \m ->
       wrapSubExpr $
-      Sub.Call
-      ( unwrapSubStmt $ convertExpr arch $ asFunctionLiteral funRef m) args'
+        Sub.Call ( unwrapSubStmt $ convertExpr arch $ asFunctionLiteral funRef (length args)) args'
 
 
 convertArgument :: (Architecture arch, Lang arch ~ Language 'Python) =>
@@ -302,9 +297,11 @@ dotConcat (NSRef refs) bind =
     let concatName = foldr (\ref rname -> bndToStr ref ++ "." ++ rname) (bndToStr bind) refs
     in fromString concatName
 
-asFunctionLiteral :: QualifiedBinding -> SNat ('Succ n) -> TaskExpr PythonVarType
+asFunctionLiteral :: QualifiedBinding -> Int -> TaskExpr PythonVarType
+asFunctionLiteral qBinding 0 =
+  TCLang.Lit $ FunRefLit $ FunRef qBinding $ FunType (Left ()) (defaultType)
 asFunctionLiteral qBinding n =
-  TCLang.Lit $ FunRefLit $ FunRef qBinding $ FunType (replicateNE n defaultType) (defaultType)
+  TCLang.Lit $ FunRefLit $ FunRef qBinding $ FunType (Right (defaultType :| replicate (n-1) defaultType )) (defaultType)
 
 
 hasAttrArgs :: Binding -> [Sub.Argument]

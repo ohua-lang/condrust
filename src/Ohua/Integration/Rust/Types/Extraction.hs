@@ -56,8 +56,8 @@ instance Pathable RustVarType where
     toPath other = error $ "Compiler is traing to transform the Rust type "<> show other <> " to a path. This hasn't been implemented. Please file a bug."
     
 instance TruthableType RustVarType where
-    canbeBool (Normal (Rust.PathTy _ (Rust.Path False [Rust.PathSegment "bool" Nothing ()] _) _)) = True
-    canbeBool other = False
+    isHostTruthy (Normal (Rust.PathTy _ (Rust.Path False [Rust.PathSegment "bool" Nothing ()] _) _)) = True
+    isHostTruthy other = False
 
 instance UnTupleType RustVarType where
     unTupleType st@(Self ty _ _ ) = (st :|[])
@@ -176,10 +176,10 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
 createRef :: NSRef -> Ident -> QualifiedBinding
 createRef path funIdent = QualifiedBinding path $ toBinding funIdent
 
-getTypes :: forall m.ErrAndLogM m =>FnDecl Span -> m (NonEmpty (OhuaType RustVarType Resolved), OhuaType RustVarType Resolved)
+getTypes :: forall m.ErrAndLogM m =>FnDecl Span -> m (Either () (NonEmpty (OhuaType RustVarType Resolved)), OhuaType RustVarType Resolved)
 getTypes f@(FnDecl _ _ True _) = throwError $ "Currently, we do not support variadic arguments." <> show f
-getTypes (FnDecl [] retType _ _) = return (IType TypeUnit :| [], fromMaybeRet retType)
-getTypes (FnDecl (a:args) retType _ _) = return (map toVarType (a:|args), fromMaybeRet retType)
+getTypes (FnDecl [] retType _ _) = return (Left (), fromMaybeRet retType)
+getTypes (FnDecl (a:args) retType _ _) = return (Right $ map toVarType (a:|args), fromMaybeRet retType)
 
 fromMaybeRet:: Maybe (Ty Span) -> OhuaType RustVarType Resolved
 fromMaybeRet (Just retTy) = asHostNormal retTy
@@ -192,7 +192,7 @@ extractFunType :: forall m.ErrAndLogM m =>
 extractFunType _ f@(FnDecl _ _ True _) = throwError $ "Currently, we do not support variadic arguments." <> show f
 extractFunType f (FnDecl args retType _ _) =
     case args of
-        [] -> return $ FunType (IType TypeUnit :| []) (fromMaybeRet retType)
+        [] -> return $ FunType (Left ()) (fromMaybeRet retType)
         (fstArg : args) -> f fstArg (map toVarType args) (fromMaybeRet retType)
 
 convertImplArg :: Ty Span -> Arg Span -> OhuaType RustVarType Resolved 
@@ -219,8 +219,11 @@ extractFirstArg :: forall m.ErrAndLogM m => Ty Span -> Arg Span -> [OhuaType Rus
 extractFirstArg selfType fstArg args retTy =
     -- Replace a return type Self with the actual name of the struct
     let actualReturnType = if retTy == hostReturnSelf then asHostNormal selfType else retTy
+        argsTys = case args of 
+            [] -> Left ()
+            (x:xs) -> Right (x:|xs)
         funType x0 = case x0 of
-                        (HType (HostType Self{})) -> STFunType x0 args actualReturnType
-                        _ -> FunType (x0 :| args) actualReturnType
+                        (HType (HostType Self{})) -> STFunType x0 argsTys actualReturnType
+                        _ -> FunType (Right $ x0 :| args) actualReturnType
     in return $ funType $ convertImplArg selfType fstArg
 

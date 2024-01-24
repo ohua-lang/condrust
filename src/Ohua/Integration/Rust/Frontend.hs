@@ -308,7 +308,7 @@ instance ConvertExpr Sub.Expr where
     return $ LamE args' body'
   convertExpr (Sub.BlockExpr block) = convertExpr block
   convertExpr (Sub.PathExpr (Sub.CallRef ref _tyInfo)) = do
-    return $ LitE $ FunRefLit $ FunRef ref $ FunType (TStar :| []) TStar
+    return $ LitE $ FunRefLit $ FunRef ref $ FunType (Right $ TStar :| []) TStar
   convertExpr (Sub.Var bnd (Just (Sub.RustType ty))) = return $ VarE bnd (asHostNormalU ty)
   convertExpr (Sub.Var bnd Nothing) = return $ VarE bnd TStar
 
@@ -408,7 +408,7 @@ unOpInfo Sub.Neg =  ("-",  TStar)
 asFunRef :: Monad m => Binding -> NonEmpty (OhuaType RustVarType Unresolved) -> OhuaType RustVarType Unresolved -> m (FrLang.UnresolvedExpr RustVarType)
 asFunRef op tys retTy = return $
       LitE $ FunRefLit $
-        FunRef (QualifiedBinding (makeThrow []) op) (FunType tys retTy)
+        FunRef (QualifiedBinding (makeThrow []) op) (FunType (Right tys) retTy)
 
 
 toQualBinding :: Binding -> QualifiedBinding

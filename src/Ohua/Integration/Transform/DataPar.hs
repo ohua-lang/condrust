@@ -254,7 +254,7 @@ liftFunction collectTy retTy (PureDFFun out fun inp) cont = do
       DFL.Let
         ( PureDFFun
             out
-            (FunRef joinFuture (FunType (collectTy :| []) retTy))
+            (FunRef joinFuture (FunType (Right $ collectTy :| []) retTy))
             (DFVar futuresATBnd :| [])
         )
         cont
@@ -268,8 +268,10 @@ liftFunction collectTy retTy (PureDFFun out fun inp) cont = do
         (DFEnvVar (FType funTy) (FunRefLit fun) NE.<| inp)
 
 
-    getSpawnFunType (FunRef _ (FunType (IType TypeUnit :| []) rty)) funTy = FunType (FType funTy :| []) rty
-    getSpawnFunType (FunRef _ (FunType xs               rty)) funTy = FunType (FType funTy <| xs) rty
+    --FIXME: This shouldn't happen (or should it?)
+    getSpawnFunType (FunRef _ (FunType (Right (IType TypeUnit :| [])) rty)) funTy = FunType (Right $ FType funTy :| []) rty
+    getSpawnFunType (FunRef _ (FunType (Left ())  rty)) funTy = FunType (Right $ FType funTy :| []) rty
+    getSpawnFunType (FunRef _ (FunType (Right xs)              rty)) funTy = FunType (Right $ FType funTy <| xs) rty
 
 -- |
 -- All that the language and backend requires to support this transformations are
@@ -300,13 +302,13 @@ takeN :: QualifiedBinding
 takeN = "ohua.lang/takeN"
 
 takeNLit :: OhuaType ty 'Resolved -> AL.Expr ty
-takeNLit ty = Lit $ FunRefLit $ FunRef takeN $ FunType  (ty :| [IType TypeNat]) ty
+takeNLit ty = Lit $ FunRefLit $ FunRef takeN $ FunType  (Right (ty :| [IType TypeNat])) ty
 
 concat :: QualifiedBinding
 concat = "ohua.lang/concat"
 
 concatLit :: OhuaType ty 'Resolved -> AL.Expr ty
-concatLit ty = Lit $ FunRefLit $ FunRef concat  $ FunType (ty :| [ty]) ty
+concatLit ty = Lit $ FunRefLit $ FunRef concat  $ FunType (Right (ty :| [ty])) ty
 
 -- | This transformation adds a limit on the tries per round and therewith provides
 --   a tuning knob to control the number of invalid (colliding) computation per round.
@@ -494,7 +496,7 @@ amorphous numRetries = transformM go
       ( AL.Let
           v
           (Apply f@(Apply
-                    (PureFunctionTy smapF (FunType (inpTy :| _) _retTy ) )
+                    (PureFunctionTy smapF (FunType (Right (inpTy :| _)) _retTy ) )
                     _)
                  (AL.Var loopInp'))
           cont
@@ -528,7 +530,7 @@ amorphous numRetries = transformM go
       ( AL.Let
           v
            (Apply f@(Apply
-                    (PureFunctionTy smapF (FunType (inpTy :| _) _retTy ))
+                    (PureFunctionTy smapF (FunType (Right (inpTy :| _)) _retTy ))
                     _)
                  (AL.Var loopInp'))
           cont
@@ -578,8 +580,8 @@ third3 (_,_,c) = c
 typeAmorphous :: NormalizedDFExpr ty -> OhuaM (NormalizedDFExpr ty)
 typeAmorphous = return . mapFuns go
     where
-        go (PureDFFun outs (FunRef f (FunType (a:|b:c) retTy) ) ins) | f == concat =
-            PureDFFun outs (FunRef f (FunType ((IType $ TypeList a) :| (IType $ TypeList b) : c ) retTy)) ins
-        go (PureDFFun outs (FunRef f (FunType (a :| b) retTy ) ) ins) | f == takeN =
-            PureDFFun outs (FunRef f (FunType ((IType $ TypeList a ) :| b) retTy) ) ins
+        go (PureDFFun outs (FunRef f (FunType (Right (a:|b:c)) retTy) ) ins) | f == concat =
+            PureDFFun outs (FunRef f (FunType (Right ((IType $ TypeList a) :| (IType $ TypeList b) : c )) retTy)) ins
+        go (PureDFFun outs (FunRef f (FunType (Right (a :| b)) retTy ) ) ins) | f == takeN =
+            PureDFFun outs (FunRef f (FunType (Right ((IType $ TypeList a ) :| b)) retTy) ) ins
         go a = a
