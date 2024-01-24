@@ -191,10 +191,10 @@ ensureFinalLetInLambdas =
         LambdaF bnd body -> Lambda bnd <$> (ensureFinalLet' =<< body)
         a -> embed <$> sequence a
 
-ensureAtLeastOneCall :: (Monad m, MonadGenBnd m) => Expr ty -> m (Expr ty)
+ensureAtLeastOneCall :: MonadGenBnd m => Expr ty -> m (Expr ty)
 ensureAtLeastOneCall e@(Var (TBind _bnd ety)) = do
     newBnd <- generateBinding
-    pure $ Let (TBind newBnd ety) (pureFunction IFuns.id (FunType (ety :| []) ety )`Apply` e) $ Var (TBind newBnd ety)
+    pure $ Let (TBind newBnd ety) (pureFunction IFuns.id (FunType (Right $ ety :| []) ety )`Apply` e) $ Var (TBind newBnd ety)
 ensureAtLeastOneCall e = cata f e
   where
     f (LambdaF tbnd body) =
@@ -203,7 +203,7 @@ ensureAtLeastOneCall e = cata f e
                 newBnd <- generateBinding
                 pure $
                     Lambda tbnd $
-                    Let (TBind newBnd vty) (pureFunction IFuns.id (FunType (vty :| []) vty ) `Apply` v) $
+                    Let (TBind newBnd vty) (pureFunction IFuns.id (FunType (Right $ vty :| []) vty ) `Apply` v) $
                     Var (TBind newBnd vty)
             eInner -> pure $ Lambda tbnd eInner
     f eInner = embed <$> sequence eInner

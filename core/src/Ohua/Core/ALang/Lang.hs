@@ -107,7 +107,7 @@ funType :: Expr ty -> Maybe (FunType ty Resolved)
 funType e = case e of
         (Var (TBind _bnd (FType fTy)))          -> Just fTy
         (Lit (FunRefLit fRef))                  -> Just $ getRefType fRef
-        (Lambda tBnd term)                      -> Just $ FunType (asType tBnd :| []) (exprType term)
+        (Lambda tBnd term)                      -> Just $ FunType (Right $ asType tBnd :| []) (exprType term)
         (BindState _state method)               -> funType method
         -- Question: What's the type of BindState at this point?
         _other                                   -> Nothing
@@ -128,7 +128,7 @@ mkFunLit qBnd = pureFunction qBnd
 
 
 ifBuiltin :: OhuaType ty Resolved -> Expr ty
-ifBuiltin vTy = mkFunLit IFuns.ifThenElse (FunType (IType TypeBool :| [vTy ,vTy]) vTy)
+ifBuiltin vTy = mkFunLit IFuns.ifThenElse (FunType (Right $ IType TypeBool :| [vTy ,vTy]) vTy)
 
 {-
 seqBuiltin :: OhuaType ty Resolved ->  OhuaType ty Resolved ->  Expr ty
@@ -139,7 +139,7 @@ seqBuiltin fstTy scndTy =  mkFunLit IFuns.seq (FunType [fstTy, scndTy] scndTy)
 
 smapBuiltin :: OhuaType ty Resolved ->  OhuaType ty Resolved -> OhuaType ty Resolved -> Expr ty
 -- HO for-loop: function -> collection to apply function to -> typeOfCollection ( return Type function)
-smapBuiltin fnTy collTy resTy = mkFunLit IFuns.smap (FunType (fnTy :| [collTy]) resTy )
+smapBuiltin fnTy collTy resTy = mkFunLit IFuns.smap (FunType (Right $ fnTy :| [collTy]) resTy )
 
 
 -------------------- Recursion schemes support -------------------------

@@ -259,16 +259,18 @@ handleApplyExpr (Apply fn a) = go (a :| []) fn
         Apply f arg -> do
           go (arg NE.<| args) f
         Lit (FunRefLit fr@(FunRef f  (FunType argTypes retTy))) -> do
-          assertTermTypes args argTypes "function" f
-          return (fr, Nothing, NE.zip argTypes args)
+          let expInpTypes = expectedInputTypesResolved argTypes
+          assertTermTypes args expInpTypes "function" f
+          return (fr, Nothing, NE.zip expInpTypes args)
         Lit (FunRefLit (FunRef qb STFunType {})) ->
           failWith $ "Wrong function type 'st' for pure function: " <> show qb
         BindState _state0 (Lit (FunRefLit (FunRef f FunType {}))) ->
           failWith $ "Wrong function type 'pure' for st function: " <> show f
         BindState state0 (Lit (FunRefLit fr@(FunRef f (STFunType sType argTypes retTy)))) -> do
-          assertTermTypes args argTypes "stateful function" f
+          let expInpTypes = expectedInputTypesResolved argTypes
+          assertTermTypes args expInpTypes "stateful function" f
           state' <- expectStateBnd state0
-          return (fr, Just state', zip' argTypes args)
+          return (fr, Just state', NE.zip expInpTypes args)
         x -> failWith $ "Expected Apply or Var but got: " <> show (x :: ALang.Expr ty)
     assertTermTypes termArgs typeArgs funType f =
       assertE

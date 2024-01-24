@@ -202,7 +202,7 @@ liftIntoCtrlCtxt ctrlIn e0 = do
             (TBind ctrlOut controlSignalType)
             ( fromListToApply
                 ( FunRef IFuns.ctrl  $
-                    FunType (controlSignalType :| actualsTypes) retTy
+                    FunType (Right $ controlSignalType :| actualsTypes) retTy
                 )
                 $ toList actuals'
             )
@@ -247,7 +247,7 @@ splitCtrls = transform go
                         bound
                         ( Lit
                             ( FunRefLit $
-                                FunRef op $ FunType (controlSignalType :| [ty]) ty
+                                FunRef op $ FunType (Right $ controlSignalType :| [ty]) ty
                             )
                             `Apply` ctrlSig
                             `Apply` varIn

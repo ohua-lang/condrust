@@ -232,7 +232,7 @@ recurHof = "ohua.lang/recur_hof"
 -- Wraps a function a and "returns" it's evaluation type so it's type should be
 -- exprType a -> exprType a
 recurSf :: OhuaType ty Resolved -> Expr ty
-recurSf ty = pureFunction recur $ FunType (ty :| []) ty
+recurSf ty = pureFunction recur $ FunType (Right $ ty :| []) ty
 
 recurStartMarker :: QualifiedBinding
 recurStartMarker = "ohua.lang.marker/recur_start"
@@ -246,11 +246,11 @@ y = "ohua.lang/Y"
 
 -- Just as recurSF this is a marker for a an execution contex -> its type is ty-> ty
 ySf :: OhuaType ty Resolved -> Expr ty
-ySf ty = pureFunction y $ FunType (ty :| []) ty
+ySf ty = pureFunction y $ FunType (Right $ ty :| []) ty
 
 -- see above 
 recurFunPureFunction :: OhuaType ty Resolved -> Expr ty
-recurFunPureFunction ty = pureFunction IFuns.recurFun $ FunType (ty :| []) ty
+recurFunPureFunction ty = pureFunction IFuns.recurFun $ FunType (Right $ ty :| []) ty
 
 
 
@@ -429,7 +429,7 @@ rewriteCallExpr e = do
     rewriteLastCond (Let v ex ie) = Let v ex $ rewriteLastCond ie
 
 
-    genFunType callArgs retTy =  FunType (map exprType callArgs) retTy
+    genFunType callArgs retTy =  FunType (Right $ map exprType callArgs) retTy
 
     -- This whole rewriteCond and rewriteBranch algorithm is not correct. That
     -- is to say it only works in the specific case where a single `if` is the

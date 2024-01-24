@@ -114,15 +114,15 @@ import Ohua.Core.ALang.Util (mkDestructured)
 import qualified Data.Text as T
 
 selectSf :: OhuaType ty Resolved -> Expr ty
-selectSf vty = Lit $ FunRefLit $ FunRef IFuns.select$ FunType (IType TypeBool :| [vty, vty]) vty
+selectSf vty = Lit $ FunRefLit $ FunRef IFuns.select$ FunType (Right $ IType TypeBool :| [vty, vty]) vty
 
 -- | The controle node that triggers either the then or the else branch, depending on the input bool
 ifFunSf :: Expr ty
-ifFunSf = Lit $ FunRefLit $ FunRef IFuns.ifFun $ FunType (IType TypeBool :| []) (TType $ controlSignalType:|[controlSignalType])
+ifFunSf = Lit $ FunRefLit $ FunRef IFuns.ifFun $ FunType (Right $ IType TypeBool :| []) (TType $ controlSignalType:|[controlSignalType])
 
 -- | Just a literal representing an if-function i.e. \con t1 t2 : if cond then t1 else t2
 ifSf :: OhuaType ty Resolved -> Expr ty
-ifSf vty = Lit $ FunRefLit $ FunRef IFuns.ifThenElse $ FunType (IType TypeBool :| [vty, vty]) vty
+ifSf vty = Lit $ FunRefLit $ FunRef IFuns.ifThenElse $ FunType (Right $ IType TypeBool :| [vty, vty]) vty
 
 
 -- This is a proposal for `ifRewrite` that uses plated to make sure the

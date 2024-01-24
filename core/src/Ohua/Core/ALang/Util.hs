@@ -48,7 +48,7 @@ destructure source bnds =
     map (\(idx, tbnd) -> Let tbnd $ mkNthExpr idx source (asType tbnd)) (zip [0 ..] bnds)
   where
     mkNthExpr idx source0 bTy =
-        pureFunction IFuns.nth (FunType (IType TypeNat :| [IType TypeNat, bTy]) bTy) `Apply` (Lit $ NumericLit idx) `Apply`
+        pureFunction IFuns.nth (FunType (Right $ IType TypeNat :| [IType TypeNat, bTy]) bTy) `Apply` (Lit $ NumericLit idx) `Apply`
         (Lit $ NumericLit $ toInteger $ length bnds) `Apply`
         source0
 
