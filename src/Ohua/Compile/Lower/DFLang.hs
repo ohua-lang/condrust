@@ -34,7 +34,7 @@ generateNodesCode = go
         go :: (ErrAndLogM m, Show (FusableExpr ty)) => NormalizedDFExpr ty -> LoweringM m ([FusableExpr ty], Com 'Recv ty)
         go (DFLang.Let app cont) = do
             task <- generateNodeCode app
-            traceM $"Generated Task :\n" <> show task <> "\n"
+            -- traceM $"Generated Task :\n" <> show task <> "\n"
             (tasks, resRecv) <- go cont
             return (task:tasks,resRecv)
         go (DFLang.Var atBnd) = 
