@@ -68,7 +68,7 @@ class UnTupleType ty where
 --   as a boolean in the host language, the HostType has to implement a function by which we can query whether
 --   a type is (equivalent to) a boolean
 class TruthableType ty where
-  canbeBool :: ty -> Bool  
+  isHostTruthy :: ty -> Bool  
 
 -- | To type(check) map expressions, we (currently) need to know which element type 
 --   iterated objects return and need to be able to check that they return a "list like"
@@ -97,7 +97,7 @@ instance UnTupleType (HostType ty) where
   unTupleType (HostType ty) = NE.map HostType (unTupleType ty)
 
 instance TruthableType (HostType ty) where
-  canbeBool (HostType ty) = canbeBool ty
+  isHostTruthy (HostType ty) = isHostTruthy ty
 
 instance ListElementType (HostType ty) where
   asListElementType (HostType ty) = asListElementType ty <&> HostType
