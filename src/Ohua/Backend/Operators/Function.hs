@@ -73,7 +73,7 @@ toFuseFun (STFusable a b c d e) = STFusable (Arg a) b c d e
 toFuseFun (IdFusable recv outs) = IdFusable recv outs
 
 genFun :: (Show ty) => FusableFunction ty -> TaskExpr ty
-genFun fun = trace ("Processing task in genFun: \n" <> show fun) loop (funReceives fun) $ (\f -> genFun' (genSend f) f) $ toFuseFun fun
+genFun fun = loop (funReceives fun) $ (\f -> genFun' (genSend f) f) $ toFuseFun fun
 
 funReceives :: FusableFunction ty -> [Com 'Recv ty]
 funReceives (PureFusable vars _ _)   = extractAll vars
@@ -153,8 +153,8 @@ genFun' ct = \case
         in flip letReceives [varAndReceive]
            $ callWithResult (NE.toList o) (Var v) ct
     where
-        getCallArgs p (FunType (IType TypeUnit :| []) _ ) _ = []
-        getCallArgs p (STFunType _ [] _retTy) _ = []
+        getCallArgs p (FunType (Left ()) _ ) _ = []
+        getCallArgs p (STFunType _ (Left ()) _retTy) _ = []
         getCallArgs p _ vrs =
           map (\(_,v,_) -> p v) $
           filter (\case (Drop _, _, _) -> False; _ -> True)

@@ -90,7 +90,7 @@ evictUnusedChannels (TCProgram chans resultChan exprs) =
 fuseFunctions ::(Show ty) => Options
               -> TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty))
               -> TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty))
-fuseFunctions Options{stateInitFusion=False} t = trace ("fuseFunction isn't going to do anything about the program\n") t
+fuseFunctions Options{stateInitFusion=False} t = t
 fuseFunctions Options{stateInitFusion=True} (TCProgram chans resultChan exprs) =
   let
     exprs' = map funClassify exprs
