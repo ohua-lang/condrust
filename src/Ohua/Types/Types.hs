@@ -23,6 +23,8 @@ module Ohua.Types.Types
     , getReturnType
     , toFilePath
     , symbolFromString
+    , expectedInputTypesResolved
+    , expectedInputTypesUnresolved
     , FunRef(..)
     , getRefType
     , Lit(..)

@@ -174,10 +174,10 @@ resToUnres (TType tys) = case mapM resToUnres tys of
       Just rTys -> Just $ TType rTys
       Nothing -> Nothing
 resToUnres (FType (FunType argsTys retTy))  = do
-  fTy <- FunType  <$> mapArgs resToUnres argsTys <*> resToUnres retTy
+  fTy <- FunType  <$> mapArgTypes resToUnres argsTys <*> resToUnres retTy
   return (FType fTy)
 resToUnres (FType (STFunType stTy argsTys retTy))  = do
-  fTy <- STFunType <$> resToUnres stTy <*> mapArgs resToUnres argsTys <*> resToUnres retTy
+  fTy <- STFunType <$> resToUnres stTy <*> mapArgTypes resToUnres argsTys <*> resToUnres retTy
   return (FType fTy)
 resToUnres (IType _ )    = Nothing
 
@@ -195,7 +195,7 @@ unresToRes (FType (STFunType sin ins out)) = do
       out' <- unresToRes out
       return (FType (STFunType sin' ins' out'))
 unresToRes (FType (FunType ins out)) = do
-      ins' <- mapArgs unresToRes ins
+      ins' <- mapArgTypes unresToRes ins
       out' <- unresToRes out
       return (FType (FunType ins' out'))
 
@@ -215,12 +215,12 @@ isUnresolved t = case t of
          TStar -> True
 
 
-mapArgs ::Monad m => 
+mapArgTypes ::Monad m => 
   (OhuaType ty sI -> m (OhuaType ty sO))
   -> Either () (NonEmpty (OhuaType ty sI)) 
   -> m (Either () (NonEmpty (OhuaType ty sO)))
-mapArgs fun (Left _ )     = return $ Left ()
-mapArgs fun (Right args)  = mapM fun args <&> Right
+mapArgTypes fun (Left _ )     = return $ Left ()
+mapArgTypes fun (Right args)  = mapM fun args <&> Right
 
 heqArgs ::
   Either () (NonEmpty (OhuaType ty s1))
@@ -231,7 +231,16 @@ heqArgs (Right args1) (Right args2)  =
     length args1 == length args2 &&
     all (uncurry heq) (NE.zip args1 args2)
 heqArgs a1            a2             = False 
---------------------------------------------------------------
+
+expectedInputTypesResolved :: Either () (NonEmpty (OhuaType ty Resolved)) ->  NonEmpty (OhuaType ty Resolved) 
+expectedInputTypesResolved (Left ()) = IType TypeUnit:|[]
+expectedInputTypesResolved (Right tys) = tys
+ 
+expectedInputTypesUnresolved :: Either () (NonEmpty (OhuaType ty s)) -> [OhuaType ty s] 
+expectedInputTypesUnresolved (Left ()) = []
+expectedInputTypesUnresolved (Right (t:|tys)) = t:tys
+
+
 --               Representation of Variables
 --------------------------------------------------------------
 
