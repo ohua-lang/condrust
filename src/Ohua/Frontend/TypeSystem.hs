@@ -73,12 +73,15 @@ toWellTyped delta modImports e@(LamE pats expr) =
       _ -> error $ "Could not resolve the types of function arguments in " <> show e
     gamma_with_inpts = foldl (\ g (b, ty) -> HM.insert b ty g) gamma patBndsAndTypes
   in do
-    traceM "Gamma (pretty):"
+    {-traceM "Gamma (pretty):"
     traceM $ renderStrict $ layoutSmart defaultLayoutOptions $ pretty $ HM.toList gamma_with_inpts
+    traceM ""
+    traceM "Delta :"
+    traceM $ renderStrict $ layoutSmart defaultLayoutOptions $ pretty $ HM.toList delta
     traceM ""
     traceM "Algo :"
     traceM $ renderStrict $ layoutSmart defaultLayoutOptions $ pretty e
-    traceM ""
+    traceM ""-}
     (_gamma', e', _ty, imports') <- flip runReaderT (e :| []) $ typeSystem  delta modImports gamma_with_inpts expr
     return (LamE resolvedPats e')
 toWellTyped _ _ e = throwError $ "Algorithm was not a lambda expression. Please file a bug. " <> show e
@@ -185,11 +188,8 @@ typeSystem delta imports gamma = \case
                   Delta, Gamma |– fun t1 t2 ... tn : Tf
   -}
   (AppE fun args) -> do
-      -- traceM $ "Typing application of " <> show fun <> " with args " <> show args
-        
       -- First we type the function
       (gamma', fun', funTy, imports' ) <- typeExpr delta imports gamma fun
-      -- traceM $ "Typed function " <> show fun' <> " to " <> show funTy
       -- Then we type it's args
       (gammas , args', argTypesR) <- 
         (unzip4 <$> mapM (typeExpr delta imports gamma) args ) 
@@ -201,29 +201,33 @@ typeSystem delta imports gamma = \case
       -- Then we check if function decalaration and arg types match
       resTy <- case funTy of
         FType (FunType ins out) -> do
-            (_, pendingArgsTy) <- assocArgWithType (toList ins) $ toList argTypesR
+            pendingArgsTy <- assocArgWithType (expectedInputTypesUnresolved ins) $ toList argTypesR
             case pendingArgsTy of
               [] -> return out
-              -- FIXME: We need a syntax to represent Unit Function that's clearly separate from Functions with one actual argument
-              (IType TypeUnit: []) -> return out
-              (x:xs)  -> return $ FType  (FunType (x:|xs) out)
+              -- FIXME: assocArgWithType should realy just be an assertion as long as we do not allow partial function application 
+              -- (i.e. as long as we do not support a host language with that concept and introduce a proper way to handle potentially resulting type errors)
+              (x:xs)  -> wfError $ "Too few arguments in function application. Remaining argTypes" <> show pendingArgsTy -- return $ FType  (FunType (Right $ x:|xs) out)
         FType (STFunType sin ins out) -> do
-            (_, pendingArgsTy) <- assocArgWithType ins $ toList argTypesR
-            return $ FType  (STFunType sin pendingArgsTy out)
+            -- What is the result type of applying a stateful function? It's the new state of the state and the result of the function. 
+            -- However, we only introduce state threads i.e. the explicit handling of new states as a result of stateful calls downstream in the compiler
+            -- So at this point, the result of a stateful call should just be the result type of the method.
+            -- 
+            pendingArgsTy <- assocArgWithType (expectedInputTypesUnresolved ins) $ toList argTypesR
+            case pendingArgsTy of
+              [] -> return out
+              (x:xs)  -> wfError $ "Too few arguments in stateful function application. Remaining argTypes" <> show pendingArgsTy -- return $ FType  (STFunType sin pendingArgsTy out)
         t -> typeError $ "First argument of function application is not a function, but has type: " <> show t
       
       -- traceM $ "Found return type to be " <> show resTy
       -- traceM $  renderStrict $ layoutSmart defaultLayoutOptions $ pretty $ HM.toList gamma''
       return (gamma'', AppE fun' args', resTy, imports')
       where  
+        assocArgWithType :: (ErrAndLogM m, TypeErrorM m ty) => [OhuaType ty Resolved] -> [OhuaType ty Resolved] -> m [OhuaType ty Resolved]
         -- We must not have more arguments than argument types in the declaration
         assocArgWithType [] (_:_) =  wfError "Too many arguments in function application."
         -- We could have less arguments than types because function application could be partial. 
-        -- But our current host languages don't support that and it leads to wrong function aüülications not
+        -- But our current host languages do not support this and it leads to wrong function applications not
         -- being detected and instead producing typing errors downstream.  
-        -- assocArgWithType l [] = return ([], l)
-        -- FIXME: Agani we have to handle the special case of Unit Functions here and separate it from 'usual one argument functions'
-        assocArgWithType [IType TypeUnit] [] = return ([], [])
         assocArgWithType argsTy@(_:_) [] = wfError $ "Too few arguments in function application. Remaining argTypes" <> show argsTy
         -- Argument type and type of argument have to match
         -- FIXME: Actually the given argument type has to be a subtype/specialization of the declared argument type actually. ie. we have to 
@@ -231,13 +235,11 @@ typeSystem delta imports gamma = \case
         -- for now I'll replace this with a 'compromise compare' function to make sure that we at least not accept the added UnitArg as equal to a 
         -- to the type of an argument wrongly passed to a unit function
         assocArgWithType (t:ts) (argT:argTs')
-           {- (argsAndTy, pendingTy) <- assocArgWithType ts argTs'
-            return ((argT,t) : argsAndTy, pendingTy)-}
           | compromise_compare t argT = do
-            (argsAndTy, pendingTy) <- assocArgWithType ts argTs'
-            return ((argT,t) : argsAndTy, pendingTy)
+            pendingTys <- assocArgWithType ts argTs'
+            return pendingTys
           | otherwise = typeError $ "Function argument type "<> show t <> " and type of given argument " <> show argT <> " do not match."
-        assocArgWithType [] [] = return ([], [])
+        assocArgWithType [] [] = return []
 
   {-
               Delta, Gamma, p1:T1, p2:T2, ..., pn:Tn |- expr:Te
@@ -282,8 +284,8 @@ typeSystem delta imports gamma = \case
       (pats', gammaR'') <- runStateT (mapM typePatFromGamma pats) gammaR'
       
       let funty = case pats' of 
-           []       -> FunType (IType TypeUnit:| []) tyE
-           (p:ps) ->  FunType (NE.map patType (p:|ps)) tyE
+           []       -> FunType (Right $ IType TypeUnit:| []) tyE
+           (p:ps)   -> FunType (Right $ NE.map patType (p:|ps)) tyE
       
       return (gammaR'', LamE pats' expr', FType funty, imports' )
 
@@ -306,8 +308,8 @@ typeSystem delta imports gamma = \case
       Just method_ns -> addStateToNS method_ns methodB
       Nothing -> return (QualifiedBinding (NSRef []) methodB)
     -- traceM $ "Will type method now " <> show methodQB
-   -- FIXME: Ho to properly construct an unresolved stateful function (type)?
-    (gamma'', methodE , methodTy, imports'') <- typeExpr delta imports' gamma (LitE (FunRefLit (FunRef methodQB (STFunType TStar [] TStar))))
+   -- FIXME: How to properly construct an unresolved stateful function (type)?
+    (gamma'', methodE , methodTy, imports'') <- typeExpr delta imports' gamma (LitE (FunRefLit (FunRef methodQB (STFunType TStar (Left ()) TStar))))
     
     (fty, ty) <- case methodTy of
             -- Question: Why don't we do the partial application type check here?
@@ -338,7 +340,7 @@ typeSystem delta imports gamma = \case
     (_, cond', condTy, imports') <- typeExpr delta imports gamma cond
     let is_bool = case condTy of 
             IType TypeBool -> True
-            HType hTy -> canbeBool hTy
+            HType hTy -> isHostTruthy hTy
             _ -> False
     if is_bool
     then return ()
@@ -363,7 +365,7 @@ typeSystem delta imports gamma = \case
 
     let is_bool = case condTy of 
           IType TypeBool -> True
-          HType hTy -> canbeBool hTy
+          HType hTy -> isHostTruthy hTy
           _ -> False
     if is_bool
     then return ()
@@ -469,6 +471,7 @@ typeSystem delta imports gamma = \case
       case unresToRes (FType ty) of
           Just ty'@(FType fty)  -> return (HM.empty, LitE (FunRefLit (FunRef qBnd  fty)), ty', imports)
           _ -> do 
+            traceM ("handling function reference " <> show qBnd)
             (g, e, t, i) <- handleRef bnd (Just ns) (FType ty)
             return (g,e,t,i)
 
@@ -544,11 +547,6 @@ typePat pat newTy = do
     go (TupP _) _ = invariantBroken "Tuple pattern with zero sub-patterns encountered. Please file a bug"
 
 maxType :: (ErrAndLogM m, TypeErrorM m ty) => OhuaType ty Unresolved -> OhuaType ty Resolved -> m (OhuaType ty Resolved)
--- maxType TypeNat TypeNat = return TypeNat
--- maxType TypeBool TypeBool = return TypeBool
--- maxType TypeUnit TypeUnit = return TypeUnit
--- maxType TypeString TypeString = return TypeString
--- maxType (TypeList x) (TypeList y) = TypeList <$> maxType x y
 maxType (HType t1) (HType t2) | t1 == t2 = return $ HType t2 
 -- ^ unequal host types -> for know thats an error, but actually we need to resort to Rust here e.g Self vs ActualType => ActuaType
 maxType (HType t1) (HType t2 ) = typeError $ "Comparing types " <> show t1 <> " and " <> show t2 <> " failed."
@@ -569,6 +567,10 @@ maxType t1@(HType _ )  t2@(TType _)        = typeError $ "Comparing incompatible
 maxType t1@(HType hty )  t2@(IType TypeUnit) 
     | isHostUnit hty = return (HType hty )
     | otherwise =  typeError $ "Comparing incompatible types:\n " <> show t1 <> "\n and: \n " <> show t2
+maxType t1@(HType hty )  t2@(IType TypeBool) 
+    | isHostTruthy hty = return (HType hty )
+    | otherwise =  typeError $ "Comparing incompatible types:\n " <> show t1 <> "\n and: \n " <> show t2
+
 maxType t1@(HType _)  t2@(IType _)        = typeError $ "Comparing incompatible types:\n " <> show t1 <> "\n and: \n " <> show t2
 
 maxType t1@(TType tys)  t2@(HType ht)  
@@ -583,34 +585,31 @@ maxType t1              t2@(FType _)        = typeError $ "Comparing incompatibl
 
 maxFunType :: (ErrAndLogM m, TypeErrorM m ty) => FunType ty Unresolved -> FunType ty Resolved -> m (FunType ty Resolved)
 maxFunType (FunType ins out) (FunType rIns rout) = do
-  -- If we didn't know the function type, the length of input types given and resolved will not match
-  -- On the other hand, if we knew the function type we want to compare each input type with the resolved type
-  -- So we check, if input types are convertible to resolved types and if so compare them to our resolution
-  -- Otherwise we just take the resolution
-
-  max_intypes <- case mapM unresToRes ins of
-             Nothing -> return rIns
-             (Just resolvedIns) 
-                  | length resolvedIns == 0 -> return rIns
-                  | length resolvedIns == length rIns -> mapM (uncurry maxType) (NE.zip ins rIns)
-                  | otherwise -> typeError $ "Comparing given and extracted function input types yielded unequal number of arguments in " 
-                                                    <> show ins <> " vs " <> show rIns
-             
+  max_intypes <- maxInputs ins rIns
   FunType max_intypes <$> maxType out rout
-
--- maxFunType (STFunType sIn ins out) (STFunType rsIn rIns rout) =
---     STFunType <$> maxType sIn rsIn <*> mapM (uncurry maxType) (zip ins rIns) <*> maxType out rout
 maxFunType (STFunType sIn ins out) (STFunType rsIn rIns rout) = do 
-  max_intypes <- case mapM unresToRes ins of
-             Nothing -> return rIns
-             (Just resolvedIns) 
-                  | length resolvedIns == 0 -> return rIns
-                  | length resolvedIns == length rIns -> mapM (uncurry maxType) (zip ins rIns)
-                  | otherwise -> typeError $ "Comparing given and extracted function input types yielded unequal number of arguments in " 
-                                                    <> show ins <> " vs " <> show rIns
-             
+  max_intypes <- maxInputs ins rIns
   STFunType <$> maxType sIn rsIn <*> pure max_intypes <*> maxType out rout
 maxFunType fun otherfun = typeError $ "Comparing stateful to stateless function type " <> show fun <> " with " <> show otherfun
+
+-- If we didn't know the function type, the length of input types given and resolved will not match
+-- On the other hand, if we knew the function type we want to compare each input type with the resolved type
+-- So we check, if input types are convertible to resolved types and if so compare them to our resolution
+-- Otherwise we just take the resolution
+maxInputs ::  (ErrAndLogM m, TypeErrorM m ty) => Either () (NonEmpty (OhuaType ty 'Unresolved)) -> Either () (NonEmpty (OhuaType ty 'Resolved)) -> m (Either () (NonEmpty (OhuaType ty 'Resolved)))
+maxInputs ins rIns = do  
+    let expectedInsU = expectedInputTypesUnresolved ins
+    let expectedInsR = expectedInputTypesUnresolved rIns
+    maxtypes <- case mapM unresToRes expectedInsU of
+        Nothing -> return expectedInsR
+        (Just resolvedIns) 
+              | length resolvedIns == 0 -> return expectedInsR
+              | length resolvedIns == length expectedInsR -> mapM (uncurry maxType) (zip expectedInsU expectedInsR)
+              | otherwise -> typeError $ "Comparing given and extracted function input types yielded unequal number of arguments in " 
+                                                <> show expectedInsU <> " vs " <> show expectedInsR
+    case maxtypes of 
+      [] -> return $ Left ()
+      (t:tys) -> return $ Right (t:| tys)
 
 
 getBinding:: Maybe (Either Binding QualifiedBinding) -> Maybe Binding

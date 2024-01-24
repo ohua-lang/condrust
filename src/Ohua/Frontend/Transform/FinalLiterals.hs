@@ -24,10 +24,10 @@ noFunLitReturns e = preWalkM replaceLitReturn e
 noFunLitReturns :: (ErrAndLogM m) => UnresolvedExpr ty -> m ()
 noFunLitReturns (VarE _ _) = return ()
 noFunLitReturns (LitE _) = return ()
-noFunLitReturns e@(LetE _p _f l@LitE{}) = 
+{-noFunLitReturns e@(LetE _p _f l@LitE{}) = 
   throwError $ "The literal [" <> show l <> "] does not depend on a previously computed value in the expression \n" 
   <> show e
-  <>"\nIn the host program this meant that it depends on the previous statements. This compiler does not yet support creating this dependency implicity. Hence, we kindly ask you to add it explicitly to your code."
+  <>"\nIn the host program this meant that it depends on the previous statements. This compiler does not yet support creating this dependency implicity. Hence, we kindly ask you to add it explicitly to your code."-}
 noFunLitReturns (LetE _p f cont) = noFunLitReturns f >> noFunLitReturns cont
 noFunLitReturns (AppE e1 e2) = mapM_ noFunLitReturns (e1 : toList e2)
 noFunLitReturns (LamE _ e) = noFunLitReturns e

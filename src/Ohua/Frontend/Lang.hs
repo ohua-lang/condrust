@@ -172,7 +172,7 @@ exprType = \case
     (LitE  lit) -> getLitType lit
     (LetE _p _e cont) -> exprType cont
     (AppE fun args) -> returnType fun
-    (LamE ps term) -> FType $ FunType (map patType ps) (exprType term)
+    (LamE ps term) -> FType $ FunType (Right $ map patType ps) (exprType term)
     (IfE c t1 t2) -> exprType t1 
     (WhileE c body) -> IType TypeUnit 
     -- The return of a map (t1->t2) (c t1) should be (c t2), currently we expect any container to show list like behaviour 
@@ -191,7 +191,7 @@ funType :: FuncExpr ty -> Maybe (ResolvedType ty)
 funType e = case e of
         (VarE _bnd (FType fTy))          -> Just (FType fTy)
         (LitE (FunRefLit fRef))          -> Just $ FType (getRefType fRef)
-        (LamE pats body)                 -> Just $ FType (FunType (map patType pats) (exprType body))
+        (LamE pats body)                 -> Just $ FType (FunType (Right $ map patType pats) (exprType body))
         other                            -> trace ("funtype called with " <> show other) Nothing
 
    
