@@ -50,6 +50,9 @@ stmtToSub forE@(Py.For _ _ _ _elseBlock _) = unsupPyError "else blocks in for ex
     -> I assume rust function execution continues, when an if-block return a value, this is not the case in python 
     -> I'll need a separate handling for non-function blocks
 -}
+
+stmtToSub ite@(Py.Conditional ifsAndSuites [] _annot ) = unsupPyError "if-statements without else blocks" ite
+
 stmtToSub (Py.Conditional ifsAndSuites elseSuite _annot ) = do
     ifs <- mapM (exprToSubExpr . fst) ifsAndSuites
     blocks <-  mapM (suiteToBlock . snd) ifsAndSuites

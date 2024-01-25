@@ -8,7 +8,7 @@
 module Ohua.Integration.Python.Frontend where
 
 import Ohua.Prelude
--- import GHC.Exts
+
 import Ohua.Frontend.Types
 import Ohua.Frontend.Lang as FrLang
 import Ohua.Frontend.TypeSystem (Delta)
@@ -16,10 +16,10 @@ import Ohua.Frontend.TypeSystem (Delta)
 import Ohua.Integration.Lang
 
 import Ohua.Integration.Python.Util
-import Ohua.Integration.Python.TypeHandling 
+import Ohua.Integration.Python.TypeHandling as TH
 import Ohua.Integration.Python.Frontend.Convert (suiteToSub, paramToSub)
 import qualified Ohua.Integration.Python.Frontend.Subset as Sub
-import qualified Ohua.Integration.Python.SpecialFunctions as SF
+
 
 import Language.Python.Common (SrcSpan)
 import qualified Language.Python.Common.AST as Py
@@ -34,8 +34,6 @@ type ConvertM m = (Monad m, MonadState Context m)
 
 type PythonNamespace = Namespace (FrLang.UnresolvedExpr PythonVarType) (Py.Statement SrcSpan) (OhuaType PythonVarType 'Resolved)
 
-defaultType:: OhuaType PythonVarType res
-defaultType = HType (HostType (PSingle PythonObject))
 
 instance Integration (Language 'Python) where
     type HostModule (Language 'Python) = Module
@@ -98,7 +96,7 @@ instance Integration (Language 'Python) where
                     {-let args'' = case globArgs ++ args' of
                                    [] -> VarP "_" TypeUnit :| []
                                    (x:xs) -> x :| xs-}
-                    return (LamE args' block', FType (FunType (neOfPyType args') defaultType))
+                    return (LamE args' block', FType (FunType (asInputTypes args') defaultType))
 
                 extractImports::ErrAndLogM m => [Py.ImportItem SrcSpan] -> m [Import]
                 extractImports [] = throwError "Invalid: Empty import should not have passed the python parser"
@@ -118,66 +116,26 @@ instance Integration (Language 'Python) where
                             -- incompatible python paths (or dark magic :-/)
                         Nothing -> throwError  "Currently we do not support relative import paths"
 
-    -- | This function assigns types to the functions called inside an algorithm. In Rust, it
-    --   would do so, by checking the given namespace for definitions of those functions.
-    --   As we currently do not 'type' any of the arguments in Python and the number of
-    --   (explicit) arguments may vary for each function due to default values, we just assign
-    --   a type of [PyObject] to every function call site.
+    -- | In Python we do not actually type things. But we need to provide function types for the resolution step.
+    --   For pure function calls this work by annotating the functions with resolved types upon lowering. For methods this
+    --   doesn't work, because methods are jsut Bindings and carry no type information. Hence we need to
+    --   transfer type infromation for methods via the Delta context (This step would be done in Rust as well. But the type information there
+    --   is exptracted from the compilation scope, while we skip the scope extraction in Python)
     loadTypes :: ErrAndLogM m => Language 'Python ->
                     Module ->
                     PythonNamespace ->
                     m (Delta PythonVarType Resolved)
-    loadTypes lang (Module _filepath _pymodule) _ohuaNS = do
-        {-filesAndPaths <- concat <$> mapM funsForAlgo (ohuaNS^.algos)
-        let filesAndPaths' = map (first convertOwn) filesAndPaths
-        fun_types <- typesFromNS $ concatMap fst filesAndPaths'
-        types' <- HM.fromList <$> mapM (verifyAndRegister fun_types) filesAndPaths'-}
-        -- ns <- updateExprs ohuaNS (transformM (assignTypes HM.empty))
-        return HM.empty
-        {-
+    loadTypes lang (Module _filepath _pymodule) ohuaNS = do
+        methodCalls <- concat <$> mapM methods (ohuaNS^.algos)
+        let defaults_and_used = foldr (\(qb, ty) hm -> HM.insert qb ty hm) TH.defaultMethods methodCalls
+        return defaults_and_used
         where
-            funsForAlgo :: ErrAndLogM m => Algo (FrLang.UnresolvedExpr PythonVarType) (Py.Statement SrcSpan)
-                    -> m [([NSRef], QualifiedBinding)]
-            funsForAlgo (Algo _name code _annotation) = do
-                return []
-
-
-            convertOwn :: [NSRef] -> [NSRef]
-            convertOwn [] = [filePathToNsRef filepath]
-            convertOwn n = n
-
-            typesFromNS :: ErrAndLogM m => [NSRef] -> m FunTypesMap
-            typesFromNS nsRefs = HM.unions <$> mapM (extractFromFile . toFilePath . (,".py") ) nsRefs
-
-            verifyAndRegister :: ErrAndLogM m => FunTypesMap -> ([NSRef], QualifiedBinding)
-                        -> m (QualifiedBinding, FunType PythonVarType)
-            verifyAndRegister fun_types ([candidate], qB@(QualifiedBinding _ qBName)) = undefined
-            verifyAndRegister fun_types ( _ , qB@(QualifiedBinding _ qBName)) = undefine
-
-            assignTypes :: ErrAndLogM m => FunTypesMap -> FrLang.UnresolvedExpr PythonVarType -> m (FrLang.UnresolvedExpr PythonVarType)
-            assignTypes funTypes function = case function of
-                (AppE (LitE (FunRefLit (FunRef qBinding  _))) args) ->
-                    return $
-                    -- Question: (To me) -> can we do better with the return type? i.e. it might be a tuple and we can know that
-                         AppE (LitE $ FunRefLit $ FunRef qBinding  $ FunType (neOfPyType args) defaultType) args
-                    {-
-                    case args of
-                        -- Note: In Rust this type assignment happens based on the function definitions, while the
-                        -- Python integration does this based on function calls right now.
-                        -- Therefore contrary to the Rust way, args might be empty here.
-                        -- TODO: When I return to type extraction from defintions, make non-empty args an invariant again
-                        {- [] -> throwError "Empty call unfilled."
-                        --[LitE UnitLit] -> return $ AppE (LitE $ FunRefLit $ FunRef qBinding  $ FunType $ Left Unit) args-}
-                        (a:args') ->
-                            return $
-                                AppE (LitE $ FunRefLit (FunRef qBinding FunType $ (listofPyType args))) args
-                        _ -> return $ AppE (LitE $ FunRefLit $ FunRef qBinding  $ FunType $ Left Unit) args
-                    -}
-                e ->  return e
-
-            globs :: [NSRef]
-            globs = mapMaybe (\case (Glob n) -> Just n; _ -> Nothing) (ohuaNS^.imports)
--}
+            methods::ErrAndLogM m => Algo (FrLang.UnresolvedExpr PythonVarType) (Py.Statement SrcSpan) (OhuaType PythonVarType 'Resolved) -> m [(QualifiedBinding, FunType PythonVarType Resolved)]
+            methods (Algo _name _ty frlangCode _inputCode ) = do 
+                mapM asMethodType $ [ (m, args) | StateFunE _obj m args <- flattenU frlangCode]
+            
+            asMethodType::ErrAndLogM m =>  (MethodRepr PythonVarType 'Unresolved, [FrLang.UnresolvedExpr PythonVarType]) -> m (QualifiedBinding, FunType PythonVarType Resolved)
+            asMethodType ((MethodUnres bnd), args) = return ((asQualified bnd), (STFunType defaultType (asInputTypes args) defaultType))
 
 fullByNameOrAlias :: Py.DottedName SrcSpan -> Py.FromItem SrcSpan -> Import
 fullByNameOrAlias dotted (Py.FromItem  ident Nothing _annot) = flip Full (toBinding ident) . makeThrow $ toBindings dotted
@@ -205,25 +163,28 @@ subSuiteToIR (Sub.PySuite stmts) =
         stmtToIR assign@(Sub.Assign target expr) = do
             case target of
                 (Sub.Single bnd) -> modify (HM.insert bnd Sub.PythonType)
-                _ ->return ()
+                _ -> return ()
             case target of
                 (Sub.Subscr _expr) -> stmtToIR (subscriptToCall assign)
                 _ -> do
                         pat' <- subTargetToIR target
-                        expr' <- subExprToIR expr
+                        let retTy = case pat' of 
+                                VarP _ _ -> defaultType
+                                TupP (p:|ps) -> pythonTupleType (p:ps) 
+                        expr' <- subExprToIR retTy expr
                         let pat'' =  case (expr', pat')  of
-                            -- FIXME: We explicitely add the unit parameter to the function type in the language integration here
-                            --        But unit typ args should be handled internally
-                                    (LamE tars _expr, VarP bnd _ty) -> VarP bnd (FType (FunType (neOfPyType tars) defaultType))
+                                    (LamE tars _expr, VarP bnd _ty) -> VarP bnd (FType (FunType (asInputTypes tars) defaultType))
                                     _ -> pat'
+                        traceM ("Got pattern " <> show pat'')
                         return $ LetE pat'' expr'
 
-        stmtToIR stmt = StmtE <$> subStmtToIR stmt
+        stmtToIR stmt = StmtE <$> subStmtToIR defaultType stmt
 
         lastStmtToIR :: (ConvertM m) => Sub.Stmt -> m (FrLang.UnresolvedExpr PythonVarType)
         lastStmtToIR (Sub.Return maybeExpr) =
             case maybeExpr of
-                    Just expr -> subExprToIR expr
+                -- FIXME: We need the algo return type here
+                    Just expr -> subExprToIR defaultType expr
                     Nothing -> return $ LitE UnitLit
         lastStmtToIR stmt = (\e -> e $ LitE UnitLit) <$> stmtToIR stmt
 
@@ -233,15 +194,15 @@ subSuiteToIR (Sub.PySuite stmts) =
 -- when we use real function names here ?
 subscriptToCall :: Sub.Stmt -> Sub.Stmt
 subscriptToCall (Sub.Assign (Sub.Subscr (Sub.Subscript bnd keyExpr)) expr)  =
-    let funRef = Sub.Dotted bnd (toQualBinding SF.setItemFunction)
+    let funRef = Sub.Dotted bnd (toQualBinding TH.setItemFunction)
     in Sub.StmtExpr (Sub.Call funRef [Sub.Arg keyExpr, Sub.Arg expr])
 subscriptToCall (Sub.StmtExpr (Sub.Subscript bnd keyExpr)) =
-    let funRef = Sub.Dotted bnd (toQualBinding SF.getItemFunction)
+    let funRef = Sub.Dotted bnd (toQualBinding TH.getItemFunction)
     in Sub.StmtExpr (Sub.Call funRef [Sub.Arg keyExpr])
 
 
-subStmtToIR :: ConvertM m=> Sub.Stmt -> m (FrLang.UnresolvedExpr PythonVarType)
-subStmtToIR (Sub.WhileStmt _expr _suite) = error "Currently we do not support while-loops. Please use a recursion while we implement it."
+subStmtToIR :: ConvertM m => OhuaType PythonVarType 'Unresolved ->  Sub.Stmt -> m (FrLang.UnresolvedExpr PythonVarType)
+subStmtToIR _t (Sub.WhileStmt _expr _suite) = error "Currently we do not support while-loops. Please use a recursion while we implement it."
     {-do
     cond <- subExprToIR expr
     suite' <- subSuiteToIR (Sub.PySuite suite)
@@ -250,14 +211,14 @@ subStmtToIR (Sub.WhileStmt _expr _suite) = error "Currently we do not support wh
     return $ LetE (VarP loopRef defaultType) (LamE [] $ StmtE suite' recursivePart) recursivePart
 -}
 
-subStmtToIR (Sub.ForStmt target generator suite) = do
+subStmtToIR t (Sub.ForStmt target generator suite) = do
     target' <- subTargetToIR target
-    generator' <- subExprToIR generator
+    generator' <- subExprToIR t generator
     suite' <- subSuiteToIR (Sub.PySuite suite)
     return $ MapE (LamE [target'] suite') generator'
 
-subStmtToIR (Sub.CondStmt [(cond, suite)] elseSuite) = do
-    cond' <- subExprToIR cond
+subStmtToIR _t (Sub.CondStmt [(cond, suite)] elseSuite) = do
+    cond' <- subExprToIR defaultType cond
     suite' <- subSuiteToIR (Sub.PySuite suite)
     elseSuite' <- do
         case elseSuite of
@@ -267,97 +228,81 @@ subStmtToIR (Sub.CondStmt [(cond, suite)] elseSuite) = do
 
 -- FIXME patterns are non exhaaustive here because CondStmt is not specific enough 
 --       it has to be a NonEmpt of ifsAndSuits
-subStmtToIR (Sub.CondStmt ifsAndSuits elseSuite) = do
+subStmtToIR t (Sub.CondStmt ifsAndSuits elseSuite) = do
     let ((ifE, suite):elifs) = ifsAndSuits
-    condE <- subExprToIR ifE
+    condE <- subExprToIR t ifE
     trueBranch <-  subSuiteToIR (Sub.PySuite suite)
-    falseBranch <-  subStmtToIR (Sub.CondStmt elifs elseSuite)
+    falseBranch <-  subStmtToIR t (Sub.CondStmt elifs elseSuite)
     return $ IfE condE trueBranch falseBranch
 
-subStmtToIR (Sub.StmtExpr expr) = subExprToIR expr
-subStmtToIR Sub.Pass = return $ LitE UnitLit
+subStmtToIR _t (Sub.StmtExpr expr) = subExprToIR defaultType expr
+subStmtToIR _t Sub.Pass = return $ LitE UnitLit
 
 
-subExprToIR :: ConvertM m => Sub.Expr -> m (FrLang.UnresolvedExpr PythonVarType)
-subExprToIR (Sub.Var bnd) = return $ VarE bnd defaultType
-subExprToIR (Sub.Int int) = return $ LitE $ NumericLit int
-subExprToIR (Sub.Bool bl) = return $ LitE $ BoolLit bl
-subExprToIR Sub.None = return $  LitE  UnitLit
+subExprToIR :: ConvertM m => OhuaType PythonVarType 'Unresolved -> Sub.Expr -> m (FrLang.UnresolvedExpr PythonVarType)
+subExprToIR _t  (Sub.Var bnd) = return $ VarE bnd defaultType
+subExprToIR _t  (Sub.Int int) = return $ LitE $ NumericLit int
+subExprToIR _t  (Sub.Bool bl) = return $ LitE $ BoolLit bl
+subExprToIR _t  Sub.None = return $  LitE  UnitLit
 
-subExprToIR (Sub.Call (Sub.Pure bnd) args) = do
-    -- args'<- FrLang.unitArgs <$> mapM subArgToIR args
-    args'<- mapM subArgToIR args
-    -- FIXME: again we're constructing a function type with the unti argument added, this leaks internals and shouldn't happen in the integration
-    let argTypes = neOfPyType args'
-    funLit <- toFunRefLit bnd (argTypes, defaultType)
+subExprToIR t (Sub.Call (Sub.Pure bnd) args) = do
+    args'<- mapM (subArgToIR t) args
+    let argTypes = asInputTypes args'
+    funLit <- toFunRefLit bnd (argTypes, t)
     return $ AppE funLit args'
-subExprToIR (Sub.Call (Sub.Dotted objBnd (QualifiedBinding _nsref funBnd)) args) = do
-    args' <- mapM subArgToIR args
-     -- FIXME: again we're constructing a function type with the unti argument added, this leaks internals and shouldn't happen in the integration
-    let argTypes = listOfPyType args
+subExprToIR t (Sub.Call (Sub.Dotted objBnd (QualifiedBinding _nsref funBnd)) args) = do
+    args' <- mapM (subArgToIR t) args
     return $ StateFunE (VarE objBnd defaultType) (MethodUnres funBnd) args'
-subExprToIR (Sub.Call (Sub.Direct lambdaExpr) args) = do
-    args' <- mapM subArgToIR args
-    fun <- subExprToIR lambdaExpr
+subExprToIR t (Sub.Call (Sub.Direct lambdaExpr) args) = do
+    args' <- mapM (subArgToIR t) args
+    fun <- (subExprToIR t) lambdaExpr
     return $ AppE fun args'
-subExprToIR (Sub.CondExpr condE trueExpr falseExpr) = do
-    cond <- subExprToIR condE
-    true <- subExprToIR trueExpr
-    false <- subExprToIR falseExpr
+subExprToIR t  (Sub.CondExpr condE trueExpr falseExpr) = do
+    cond <- subExprToIR defaultType condE
+    true <- subExprToIR t trueExpr
+    false <- subExprToIR t falseExpr
     return $ IfE cond true false
-subExprToIR (Sub.BinaryOp binOp expr1 expr2) = do
+subExprToIR _t (Sub.BinaryOp binOp expr1 expr2) = do
     op' <- subBinOpToIR binOp
-    expr1' <- subExprToIR expr1
-    expr2' <- subExprToIR expr2
+    expr1' <- subExprToIR defaultType expr1
+    expr2' <- subExprToIR defaultType expr2
     return $ op' `AppE` [expr1', expr2']
-subExprToIR (Sub.UnaryOp unOp expr1) = do
+subExprToIR _t (Sub.UnaryOp unOp expr1) = do
     op' <- subUnOpToIR unOp
-    expr1' <- subExprToIR expr1
+    expr1' <- subExprToIR defaultType expr1
     return $ op' `AppE` [expr1']
-subExprToIR (Sub.Lambda params expr) = do
+subExprToIR t (Sub.Lambda params expr) = do
     ctxt <- get
-    -- We cannot do this unitParams thing (i.e. adding a unit param if params are empty), because this unit params only live in Resolved
-    -- params' <- FrLang.unitParams <$> mapM subParamToIR params
     params' <-  mapM subParamToIR params
-    expr' <- subExprToIR expr
+    -- FIXME: THis needs to be param -> t, not t
+    expr' <- subExprToIR t expr
     put ctxt
     return $ LamE params' expr'
-subExprToIR (Sub.Tuple exprs) = do
-    -- We cannot do unitArgs here, reson is the same as for params 
-    -- exprs' <- FrLang.unitArgs <$> mapM subExprToIR exprs
-    exprs' <- mapM subExprToIR exprs
-    tupleCall <- toFunRefLit SF.tupleConstructor (neOfPyType exprs', defaultType)
+subExprToIR t (Sub.Tuple exprs) = do
+    exprs' <- mapM (subExprToIR defaultType) exprs
+    tupleCall <- toFunRefLit TH.tupleConstructor (asInputTypes exprs', pythonTupleType exprs )
     return $ AppE tupleCall exprs'
-subExprToIR (Sub.List exprs) = do
-    -- again .. no unit args
-    exprs' <- mapM subExprToIR exprs
-    listCall <- toFunRefLit SF.listConstructor (neOfPyType exprs', defaultType)
+subExprToIR _t (Sub.List exprs) = do
+    exprs' <- mapM (subExprToIR defaultType) exprs
+    listCall <- toFunRefLit TH.listConstructor (asInputTypes exprs', defaultType)
     return $ AppE listCall exprs'
 -- | Mapping d = {1:2, 3:4} to d = dict(((1,2), (3,4)))
-subExprToIR (Sub.Dict mappings) = do
-     -- again .. no unit args
-    exprs' <-  mapM (\(k,v) -> subExprToIR $ Sub.Tuple [k,v]) mappings
-    dictCall <- toFunRefLit SF.dictConstructor (neOfPyType exprs', defaultType)
+subExprToIR t (Sub.Dict mappings) = do
+    exprs' <-  mapM (\(k,v) -> subExprToIR t $ Sub.Tuple [k,v]) mappings
+    dictCall <- toFunRefLit TH.dictConstructor (asInputTypes exprs', defaultType)
     return $ AppE dictCall exprs'
-subExprToIR (Sub.Set  exprs) = do
-     -- again .. no unit args
-    exprs' <-  mapM subExprToIR exprs
-    setCall <- toFunRefLit SF.setConstructor (neOfPyType exprs', defaultType)
+subExprToIR _t (Sub.Set  exprs) = do
+    exprs' <-  mapM (subExprToIR defaultType) exprs
+    setCall <- toFunRefLit TH.setConstructor (asInputTypes exprs', defaultType)
     return $ AppE setCall exprs'
-subExprToIR subExpr@(Sub.Subscript _bnd _expr) = do
+subExprToIR t subExpr@(Sub.Subscript _bnd _expr) = do
     -- FIXME: This is to unspecific. We can only get a StmtExpr here (because its the only Python Statement jsut wrapping and expression),
     --        yet we get a warning for incomplete patterns -> introduce a separate wrapper in the subset instead of using a StmtExpr?
     let (Sub.StmtExpr call) = subscriptToCall (Sub.StmtExpr subExpr)
-    subExprToIR call
+    subExprToIR t call
 
-mappingToTuple ::ConvertM m => (Sub.Expr, Sub.Expr) -> m (FrLang.UnresolvedExpr PythonVarType)
-mappingToTuple (key, val) = do
-    key' <- subExprToIR key
-    val' <- subExprToIR val
-    return $ FrLang.TupE (key' :|[val'])
-
-subArgToIR :: ConvertM m => Sub.Argument -> m ( FrLang.UnresolvedExpr PythonVarType)
-subArgToIR (Sub.Arg expr) = subExprToIR expr
+subArgToIR :: ConvertM m => OhuaType PythonVarType 'Unresolved -> Sub.Argument -> m ( FrLang.UnresolvedExpr PythonVarType)
+subArgToIR t (Sub.Arg expr) = subExprToIR t expr
 
 subParamToIR :: ConvertM m => Sub.Param -> m (FrLang.Pat PythonVarType Unresolved)
 subParamToIR (Sub.Param bnd) = do
@@ -411,26 +356,26 @@ subUnOpToIR Sub.Invert = toFunRefLit "~" simpleUnarySignature
 listOfPyType :: [a] -> [OhuaType PythonVarType Unresolved] 
 listOfPyType args = map (const defaultType) args
 
-neOfPyType ::  [a] -> NonEmpty (OhuaType PythonVarType res)
-neOfPyType [] = defaultType :| []
-neOfPyType (_:xs) = (defaultType :| map (const defaultType) xs)
+asInputTypes ::  [a] -> Either () (NonEmpty (OhuaType PythonVarType res))
+asInputTypes [] = Left ()
+asInputTypes (_:xs) = Right (defaultType :| map (const defaultType) xs)
 
 
 
 {- | Turns given string representation into literal expression representig an untyped,
      'unscoped' (the empty list in as Binding argument) function reference
 -}
-toFunRefLit :: Monad m => Binding -> (NonEmpty (OhuaType PythonVarType Unresolved), OhuaType PythonVarType Unresolved) -> m (FrLang.UnresolvedExpr PythonVarType)
+toFunRefLit :: Monad m => Binding -> (Either () (NonEmpty (OhuaType PythonVarType Unresolved)), OhuaType PythonVarType Unresolved) -> m (FrLang.UnresolvedExpr PythonVarType)
 toFunRefLit funBind (argTys, retTy) =
   return $
   LitE $ FunRefLit $
   FunRef (QualifiedBinding (makeThrow []) funBind) $ FunType argTys retTy
 
-simpleBinarySignature :: (NonEmpty (OhuaType PythonVarType Unresolved), OhuaType PythonVarType Unresolved)
-simpleBinarySignature = (defaultType :| [defaultType], defaultType)
+simpleBinarySignature :: (Either () (NonEmpty (OhuaType PythonVarType Unresolved)), OhuaType PythonVarType Unresolved)
+simpleBinarySignature = (Right $ defaultType :| [defaultType], defaultType)
 
-simpleUnarySignature :: (NonEmpty (OhuaType PythonVarType Unresolved), OhuaType PythonVarType Unresolved)
-simpleUnarySignature = (defaultType :| [], defaultType)
+simpleUnarySignature :: (Either () (NonEmpty (OhuaType PythonVarType Unresolved)), OhuaType PythonVarType Unresolved)
+simpleUnarySignature = (Right $ defaultType :| [], defaultType)
 
 toBindings:: [Py.Ident a] -> [Binding]
 toBindings = map toBinding
