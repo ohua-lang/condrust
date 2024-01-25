@@ -471,7 +471,6 @@ typeSystem delta imports gamma = \case
       case unresToRes (FType ty) of
           Just ty'@(FType fty)  -> return (HM.empty, LitE (FunRefLit (FunRef qBnd  fty)), ty', imports)
           _ -> do 
-            traceM ("handling function reference " <> show qBnd)
             (g, e, t, i) <- handleRef bnd (Just ns) (FType ty)
             return (g,e,t,i)
 
@@ -547,9 +546,11 @@ typePat pat newTy = do
     go (TupP _) _ = invariantBroken "Tuple pattern with zero sub-patterns encountered. Please file a bug"
 
 maxType :: (ErrAndLogM m, TypeErrorM m ty) => OhuaType ty Unresolved -> OhuaType ty Resolved -> m (OhuaType ty Resolved)
-maxType (HType t1) (HType t2) | t1 == t2 = return $ HType t2 
+maxType (HType t1) (HType t2)  | t1 == t2 = return $ HType t2 
 -- ^ unequal host types -> for know thats an error, but actually we need to resort to Rust here e.g Self vs ActualType => ActuaType
-maxType (HType t1) (HType t2 ) = typeError $ "Comparing types " <> show t1 <> " and " <> show t2 <> " failed."
+maxType (HType t1) (HType t2 ) | t1 <= t2 = return $ HType t1 
+maxType (HType t1) (HType t2 ) | t2 <= t1 = return $ HType t2 
+maxType (HType t1) (HType t2 )            = typeError $ "Comparing types " <> show t1 <> " and " <> show t2 <> " failed."
 maxType (TType (x:|xs)) (TType (y:|ys)) =
    if length xs == length ys
    then do
