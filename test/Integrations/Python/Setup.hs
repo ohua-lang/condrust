@@ -139,7 +139,7 @@ successMsg::String
 successMsg = "running works, results are equal"
 
 
-{-
+
 newMainStr :: String
 newMainStr = "\nNew__MainModule_____________\n"
 
@@ -151,4 +151,4 @@ filesHint = "\n\nPRODUCED THE FOLLOWING FILES _______________:\n\n"
 
 cd::String
 cd = "current Dir\n"
--}
+

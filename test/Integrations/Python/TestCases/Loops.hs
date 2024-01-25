@@ -48,18 +48,6 @@ spec =
 
         it "ERROR: Nested For-Loop, updating State"$
             compileCode nested `shouldThrow` anyException
-            {-
-            (showCode "Compiled: " =<< compileCode nested) >>=
-            (\compiled -> do
-                expected <- showCode "Expected:" Expect.loopIterObj
-                compiled `shouldBe` expected)
-            -}
-
-        it "FAIL: ForLoop with tuple pattern - Tuple not send to looping task " $
-            (showCode "Compiled: " =<< compileCode loopTuplePattern) >>=
-            (\compiled -> do
-                _expected <- showCode "Expected:" Expect.loopTuplePattern
-                compiled `shouldBe` compiled)
 
 
         it "ERROR: ForLoop with comma separated vars" $
@@ -89,7 +77,7 @@ def algo():
     s = MObs(42)
     stream = some_invented_iter_function()
     for e in stream:
-        r = h(e)
+        r = fun1(e)
         s.addNum(r)
     return s
 |]
@@ -108,7 +96,7 @@ def algo(a):
 
 loop3 :: ModuleSpan
 loop3 = [pythonModule|
-from helpers.library_proxy import *
+from testLib import *
 
 
 def algo(i):
@@ -162,18 +150,6 @@ def algo(n):
       store.update(res)
 |]
 
-
-loopTuplePattern :: ModuleSpan
-loopTuplePattern = [pythonModule|
-from testLib import *
-def algo(a):
-    g = {1:2, 3:4}
-    mOb = MObs(42)
-    for (i,j) in g.items():
-        n = f(i)
-        mOb.addNum(n)
-    return mOb
-|]
 
 loopCommaPattern :: ModuleSpan
 loopCommaPattern= [pythonModule|

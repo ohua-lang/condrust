@@ -51,7 +51,7 @@ tailRecExpr :: ModuleSpan
 tailRecExpr = [pythonModule|
 from testLib import *
 def algo_rec(i):
-    j,k = double(i)
+    (j,k) = double(i)
     recursionFlag = g0(j)
     returnV = g0(k)
     return  algo_rec(returnV) if check(recursionFlag) else returnV

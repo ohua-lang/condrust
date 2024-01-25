@@ -17,10 +17,11 @@ import qualified Integrations.Python.TestCases.WIP as WIP
 
 spec :: Spec
 spec = 
-    Basic.spec  {->> 
+    
+    Basic.spec  >> 
     IfElse.spec  >>
     Loops.spec >>
-    TailRec.spec >>
-    State.spec  >>
+    TailRec.spec>>
+    State.spec {- >>
     ToDos.spec  >>
     WIP.spec-}
