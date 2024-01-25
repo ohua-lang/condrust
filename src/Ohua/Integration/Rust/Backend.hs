@@ -15,7 +15,7 @@ import qualified Ohua.Integration.Rust.Backend.Subset as Sub
 import Ohua.Integration.Rust.Types.Extraction as TH (Module(..), RustVarType (Normal))
 import Ohua.Integration.Rust.Util
 import Ohua.Prelude
-import Ohua.Types.Vector (Nat (..), intToNat)
+import Ohua.Types.Vector (intToNat)
 
 convertIntoBlock ::
   (Architecture arch, Lang arch ~ Language 'Rust) =>

@@ -175,7 +175,6 @@ subSuiteToIR (Sub.PySuite stmts) =
                         let pat'' =  case (expr', pat')  of
                                     (LamE tars _expr, VarP bnd _ty) -> VarP bnd (FType (FunType (asInputTypes tars) defaultType))
                                     _ -> pat'
-                        traceM ("Got pattern " <> show pat'')
                         return $ LetE pat'' expr'
 
         stmtToIR stmt = StmtE <$> subStmtToIR defaultType stmt
