@@ -40,6 +40,9 @@ instance Eq RustVarType where
     (Normal tyN  ) == (Normal tyN'  )   =  tyN == tyN'
     (Self tyS _ _ ) == (Self tyS' _ _ ) =  tyS == tyS'
 
+-- ToDo: If we have generics at some point we can hook in more fine grained comparison here
+instance Ord RustVarType where
+    t1 <= t2 = t1 == t2
 
 type RustHostType = HostType RustVarType
 type FunTypesMap = HM.HashMap QualifiedBinding (FunType RustVarType Resolved)

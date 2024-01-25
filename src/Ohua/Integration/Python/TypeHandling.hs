@@ -102,6 +102,9 @@ instance Pretty PythonVarType where
     pretty (PSingle t) = "obj"
     pretty (PTuple ts) = "("<> foldr (\o s -> "obj, " <> s) "" ts <>")"
 
+instance Ord PythonVarType where 
+    t1 <= t2 = True
+
 -- Most builtin Python types can be interpreted as truth values in a way
 -- FIXME: If requried in any way, make this more specific (will require changes to the PythonVarType)
 instance TruthableType PythonVarType where 
