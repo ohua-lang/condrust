@@ -83,7 +83,7 @@ resolveNS (ns, registry) =
             (makeThrow . T.intercalate ".") $ map unwrap $ unwrap ns ++ [bnd]
 
         addExpr :: QualifiedBinding -> UnresolvedExpr ty  -> UnresolvedExpr ty 
-        addExpr otherAlgo (LamE vars body) = trace ("Inlining algo " <> show otherAlgo )LamE vars $ addExpr otherAlgo body
+        addExpr otherAlgo (LamE vars body) = LamE vars $ addExpr otherAlgo body
         addExpr otherAlgo e =
             -- (trace $ "Inlining Algo: "<> quickRender otherAlgo <> "\nwith type "<> show ty)
             let (algoExpr, algoTy) = fromMaybe (error "impossible") (HM.lookup otherAlgo registry)
