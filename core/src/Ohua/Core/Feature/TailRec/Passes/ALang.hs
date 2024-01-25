@@ -417,7 +417,7 @@ rewriteCallExpr e = do
         funTy = case callArgs of
             -- Question is this a problem/error? Why? 
             [] -> error "Invariant broken: It seems you called a recursion with no arguments" -- FIXME fromApplyToList needs to return a NonEmpty
-            (a:as) -> (trace $ "Got "<> show callArgs <> " callArgs here and recurVars are\n " <> show recurVars)  genFunType (a:|as) inputsType
+            (a:as) -> genFunType (a:|as) inputsType
     return $
         Let inputs (fromListToApply (FunRef recurStartMarker $ funTy) callArgs) $
         mkDestructured (recurCtrl : recurVars) inputs expr'
