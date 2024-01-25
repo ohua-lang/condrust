@@ -77,10 +77,10 @@ unstructure (valBnd, valTy) pats = go (toInteger $ length pats) (NE.toList pats)
 
 -- ToDo: Replace by Alang definition
 nthFun :: ResolvedType ty -> ResolvedType ty -> FR.FuncExpr ty
-nthFun collTy elemTy = LitE $ FunRefLit $ FunRef IFuns.nth $ FunType (IType TypeNat :| [IType TypeNat, collTy]) elemTy
+nthFun collTy elemTy = LitE $ FunRefLit $ FunRef IFuns.nth $ FunType (Right $ IType TypeNat :| [IType TypeNat, collTy]) elemTy
 
 seqFunSf ::  ResolvedType ty -> ResolvedType ty -> FR.FuncExpr ty
-seqFunSf t1 t2 = LitE $ FunRefLit $ FunRef IFuns.seqFun $ FunType (t1 :| [t2]) t2
+seqFunSf t1 t2 = LitE $ FunRefLit $ FunRef IFuns.seqFun $ FunType (Right $ t1 :| [t2]) t2
 
 
 -- | The function actualy lowering Frontend IR to ALang
@@ -127,7 +127,7 @@ trans =
                 exprTys = NE.map ALang.exprType alExprs
             in foldl 
                     Apply 
-                    (pureFunction IFuns.mkTuple (FunType exprTys (TType exprTys))) 
+                    (pureFunction IFuns.mkTuple (FunType (Right exprTys) (TType exprTys))) 
                     alExprs
                  
                 

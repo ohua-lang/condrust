@@ -203,7 +203,6 @@ generateNodeCode e@(PureDFFun out (FunRef funName  _fType) inp) | funName == sel
             Ops.select condIn trueIn falseIn out'
 
 generateNodeCode e@(PureDFFun out (FunRef fun _) inp) | fun == IFuns.seqFun = do
-  traceM $ "Lowering SeqFun:\n " <> show e <> "\n" 
   out' <- case out of
            Direct x -> return $ SChan $ unwrapABnd x
            _ -> invariantBroken $ "Seq must only have one output:\n" <> show e
