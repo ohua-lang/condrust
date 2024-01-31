@@ -17,7 +17,7 @@ import qualified Data.HashSet as HS
 import Ohua.Core.DFLang.PPrint (prettyExpr)
 
 -- Invariant in the result type: the result channel is already part of the list of channels.
-toTCLang :: (ErrAndLogM m, Show ty) => NormalizedDFExpr ty -> m (TCProgram (Channel ty) (Com 'Recv ty) (FusableExpr ty))
+toTCLang :: (ErrAndLogM m, Show ty) => NormalizedDFExpr ty -> m (TCProgram (Channel ty) (Com 'Recv embExpr ty) (FusableExpr ty))
 toTCLang gr = do
     let channels = generateArcsCode gr
     (tasks, resultChan) <- generateNodesCode gr
@@ -28,10 +28,10 @@ type LoweringM m a = m a
 invariantBroken :: ErrAndLogM m => Text -> LoweringM m a
 invariantBroken msg = throwError $ "Compiler invariant broken! " <> msg
 
-generateNodesCode :: (ErrAndLogM m, Show (FusableExpr ty)) => NormalizedDFExpr ty ->  LoweringM m ([FusableExpr ty], Com 'Recv ty)
+generateNodesCode :: (ErrAndLogM m, Show (FusableExpr ty)) => NormalizedDFExpr ty ->  LoweringM m ([FusableExpr ty], Com 'Recv embExpr ty)
 generateNodesCode = go
     where
-        go :: (ErrAndLogM m, Show (FusableExpr ty)) => NormalizedDFExpr ty -> LoweringM m ([FusableExpr ty], Com 'Recv ty)
+        go :: (ErrAndLogM m, Show (FusableExpr ty)) => NormalizedDFExpr ty -> LoweringM m ([FusableExpr ty], Com 'Recv embExpr ty)
         go (DFLang.Let app cont) = do
             task <- generateNodeCode app
             -- traceM $"Generated Task :\n" <> show task <> "\n"
@@ -120,7 +120,7 @@ generateArcsCode = go
             let (TBind bnd ty) = unwrapTB atBnd
             in SRecv ty (SChan bnd) :|[] -- result channel
 
-        manuallyDedup :: [Com 'Recv ty] -> [Com 'Recv ty]
+        manuallyDedup :: [Com 'Recv embExpr ty] -> [Com 'Recv embExpr ty]
         manuallyDedup = foldr (\x acc -> if x `elem` acc then acc else x : acc) []
 -- FIXME see sertel/ohua-core#7: all these errors would immediately go away
 generateNodeCode :: ErrAndLogM m => DFApp bty ty ->  LoweringM m (FusableExpr ty)
@@ -137,13 +137,13 @@ generateNodeCode e@(SMapFun (dOut,ctrlOut,sizeOut) inp) = do
     sizeOut' <- maybe [] toList <$> intoChan sizeOut
     return $ SMap $ Ops.smapFun input dOut'' ctrlOut' sizeOut'
     where
-      intoChan :: ErrAndLogM m => Maybe (OutData bty ty ) -> m (Maybe (NonEmpty (Com 'Channel ty)))
+      intoChan :: ErrAndLogM m => Maybe (OutData bty ty ) -> m (Maybe (NonEmpty (Com 'Channel embExpr ty)))
       intoChan o = do
         o' <- sequence (serializeOut <$> o)
         let o'' = map (SChan. asBnd) <$> o'
         return o''
 
-      serializeDataOut :: ErrAndLogM m => NonEmpty (Com 'Channel ty) -> m (Com 'Channel ty)
+      serializeDataOut :: ErrAndLogM m => NonEmpty (Com 'Channel embExpr ty) -> m (Com 'Channel embExpr ty)
       serializeDataOut (a :| []) = pure a
       serializeDataOut _ = throwError "We currently do not support destructuring and dispatch for loop data."
 
@@ -354,12 +354,12 @@ generateNodeCode e@(RecurFun resultOut ctrlOut recArgsOuts recInitArgsIns recArg
         -- stronger typing needed on OutData to prevent this error handling here.
         -- (as a matter of fact it might be possible for some output to be destructured etc.
         --  we need a function here that turns such a thing into the appropriate backend code!)
-        directOut :: ErrAndLogM m => OutData bty ty -> LoweringM m (Com 'Channel ty)
+        directOut :: ErrAndLogM m => OutData bty ty -> LoweringM m (Com 'Channel embExpr ty)
         directOut x = case x of
                         Direct x' -> return $ SChan $ unwrapABnd x'
                         _ -> invariantBroken $ "Control outputs don't match:\n" <> show e
         -- directOut' Nothing = pure Nothing
-        varToChanOrLit :: DFVar bty ty -> Either (Com 'Recv ty) (Lit ty 'Resolved)
+        varToChanOrLit :: DFVar bty ty -> Either (Com 'Recv embExpr ty) (Lit ty 'Resolved)
         varToChanOrLit (DFVar atbnd) = Left $ asRecv atbnd
         varToChanOrLit (DFEnvVar _ l) = Right l
 
@@ -371,7 +371,7 @@ generateNodeCode e@(RecurFun resultOut ctrlOut recArgsOuts recInitArgsIns recArg
 
 generateNodeCode e = generateFunctionCode e
 
-asRecv :: ATypedBinding bty ty -> Com 'Recv ty
+asRecv :: ATypedBinding bty ty -> Com 'Recv embExpr ty
 asRecv  atBnd = 
   let (TBind bnd ty) = unwrapTB atBnd
   in SRecv ty $ SChan bnd 
