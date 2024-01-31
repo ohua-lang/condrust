@@ -231,7 +231,7 @@ recurHof = "ohua.lang/recur_hof"
 
 -- Wraps a function a and "returns" it's evaluation type so it's type should be
 -- exprType a -> exprType a
-recurSf :: OhuaType ty Resolved -> Expr ty
+recurSf :: OhuaType ty Resolved -> Expr embExpr ty
 recurSf ty = pureFunction recur $ FunType (Right $ ty :| []) ty
 
 recurStartMarker :: QualifiedBinding
@@ -245,11 +245,11 @@ y :: QualifiedBinding
 y = "ohua.lang/Y"
 
 -- Just as recurSF this is a marker for a an execution contex -> its type is ty-> ty
-ySf :: OhuaType ty Resolved -> Expr ty
+ySf :: OhuaType ty Resolved -> Expr embExpr ty
 ySf ty = pureFunction y $ FunType (Right $ ty :| []) ty
 
 -- see above 
-recurFunPureFunction :: OhuaType ty Resolved -> Expr ty
+recurFunPureFunction :: OhuaType ty Resolved -> Expr embExpr ty
 recurFunPureFunction ty = pureFunction IFuns.recurFun $ FunType (Right $ ty :| []) ty
 
 
@@ -258,16 +258,16 @@ recurFunPureFunction ty = pureFunction IFuns.recurFun $ FunType (Right $ ty :| [
 findTailRecs ::
        (Monad m, MonadGenBnd m, MonadError Error m)
     => Bool
-    -> Expr ty
-    -> m (Expr ty)
+    -> Expr embExpr ty
+    -> m (Expr embExpr ty)
 findTailRecs enabled e =
     snd <$> runReaderT (findRecCall e HS.empty) enabled
 
 findRecCall ::
        (MonadGenBnd m, MonadError Error m)
-    => Expr ty
+    => Expr embExpr ty
     -> HS.HashSet (TypedBinding ty)
-    -> ReaderT Bool m (HS.HashSet (TypedBinding ty), Expr ty)
+    -> ReaderT Bool m (HS.HashSet (TypedBinding ty), Expr embExpr ty)
 findRecCall (Let bound expr inExpr) algosInScope
     -- for the assigment expr I add the reference and check the expression for references to the identifier
  = do
@@ -309,8 +309,8 @@ findRecCall other _ = return (HS.empty, other)
 -- performed after normalization
 verifyTailRecursion ::
        (MonadGenBnd m, MonadError Error m)
-    => Expr ty
-    -> m (Expr ty)
+    => Expr embExpr ty
+    -> m (Expr embExpr ty)
 verifyTailRecursion expr
     | isCall y expr = performChecks (snd $ fromApplyToList expr) >> return expr
   where
@@ -375,18 +375,18 @@ verifyTailRecursion e =
 -- Its important here that we pattern match on `Let` because `rewriteM` is a
 -- bottom up traversal an hence `isCall` would match on partial applications on
 -- the `Y` combinator. By pattern matching on `Let` here that can be avoided.
-rewriteAll :: (MonadGenBnd m) => Expr ty -> m (Expr ty)
+rewriteAll :: (MonadGenBnd m) => Expr embExpr ty -> m (Expr embExpr ty)
 rewriteAll = rewriteM $ \case
     Let b e r | isCall y e -> (\e' -> Just $ Let b e' r) <$> rewriteCallExpr e
     _ -> pure Nothing
 
-isCall :: QualifiedBinding -> Expr ty -> Bool
+isCall :: QualifiedBinding -> Expr embExpr ty -> Bool
 isCall f (Apply (PureFunction f') _) | f == f' = True
 isCall f (Apply e@(Apply _ _) _) = isCall f e
 isCall _ _ = False
 
-rewriteCallExpr :: forall m ty.
-       (MonadGenBnd m) => Expr ty -> m (Expr ty)
+rewriteCallExpr :: forall m embExpr ty.
+       (MonadGenBnd m) => Expr embExpr ty -> m (Expr embExpr ty)
 rewriteCallExpr e = do
     -- callArgs are the values, the recursive algorithm is called with, e.g. 2 in rec(2)
     let (lam@(Lambda _ _): callArgs) = snd $ fromApplyToList e
@@ -422,7 +422,7 @@ rewriteCallExpr e = do
         Let inputs (fromListToApply (FunRef recurStartMarker $ funTy) callArgs) $
         mkDestructured (recurCtrl : recurVars) inputs expr'
   where
-    rewriteLastCond :: Expr ty -> Expr ty
+    rewriteLastCond :: Expr embExpr ty -> Expr embExpr ty
     rewriteLastCond (Let v ex o@(Var b))
         | v == b = Let v (rewriteCond ex) o
         | otherwise = error "Value returned from recursive function was not last value bound, this is not tail recursive!"
@@ -439,7 +439,7 @@ rewriteCallExpr e = do
     -- least one branch that recurses and one branch that does not. I feel
     -- implementing this correctly however is going to require some effort, thus
     -- I think we should do so later.
-    rewriteCond :: Expr ty -> Expr ty
+    rewriteCond :: Expr embExpr ty -> Expr embExpr ty
     rewriteCond fullExpr@(Apply (Apply (Apply (PureFunction f0) cond) (Lambda _ trueB)) (Lambda _ falseB)) | f0 == IFuns.ifThenElse =
         let trueB' = rewriteBranch trueB
             falseB' = rewriteBranch falseB
@@ -456,7 +456,7 @@ rewriteCallExpr e = do
     rewriteCond _ =
         error
             "invariant broken: recursive function does not have the proper structure."
-    rewriteBranch :: Expr ty -> Either (Expr ty) [Expr ty]
+    rewriteBranch :: Expr embExpr ty -> Either (Expr embExpr ty) [Expr embExpr ty]
     -- normally this is "fix" instead of `id`
     rewriteBranch (Let _v (Apply (PureFunction "ohua.lang/id") result) _) = Left result
     rewriteBranch (Let _v ex _)

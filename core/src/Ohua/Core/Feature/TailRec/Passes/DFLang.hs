@@ -16,7 +16,7 @@ import Data.List.NonEmpty as NE (toList)
 -- | Here, we are actually tying the knot and create the final
 --   recurFun node (replacing recurStart) the has the loop-back
 --   connection to the start of the recursion.
-recurLowering :: forall m ty.MonadOhua m => NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
+recurLowering :: forall m embExpr ty.MonadOhua m => NormalizedDFExpr embExpr ty -> m (NormalizedDFExpr embExpr ty)
 recurLowering expr
  = checkDefinedUsage expr >> -- expresses a precondition for the below transformation
       do
@@ -24,7 +24,7 @@ recurLowering expr
         let expr'' = filterEnds expr'
         return expr''
   where
-      recurStartToRecurFun :: NormalizedDFExpr ty -> m (NormalizedDFExpr ty)
+      recurStartToRecurFun :: NormalizedDFExpr embExpr ty -> m (NormalizedDFExpr embExpr ty)
       -- TODO What was the assumption here that recurStart can only have one argument?!
       -- recurStartToRecurFun (Let app@(PureDFFun (Destruct [_, _]) fun inp) rest)
       recurStartToRecurFun (Let app@(PureDFFun Destruct{} _fun inp) rest)
@@ -47,8 +47,8 @@ recurLowering expr
       outsANew = map (Direct . DataBinding) . outsDFApp
       
       -- FIXME: Make it BuiltIn again if we we need that
-      findEnd :: NonEmpty (OutData 'Data ty) -> NonEmpty (DFVar 'Data ty)
-              -> NormalizedDFExpr ty -> m (DFApp 'Fun ty ) -- BuiltIn ty)
+      findEnd :: NonEmpty (OutData 'Data ty) -> NonEmpty (DFVar 'Data embExpr ty)
+              -> NormalizedDFExpr embExpr ty -> m (DFApp 'Fun embExpr ty ) -- BuiltIn ty)
       findEnd outs inp (Let app@PureDFFun{} _) | funRef app == ALangPass.recurEndMarker =
           let cond:(fixRef:recurArgs) = insDFApp app
               -- FIXME we don't need the var lists when we use the assertion
@@ -65,9 +65,9 @@ recurLowering expr
 
               -- FIXME: Make it BuiltIn again if we we need that
               fun :: OutData 'Data ty
-                  -> [(OutData 'Data ty, DFVar 'Data ty, DFVar 'Data ty)]
+                  -> [(OutData 'Data ty, DFVar 'Data embExpr ty, DFVar 'Data embExpr ty)]
                   -> V.SNat n
-                  -> DFApp 'Fun ty -- BuiltIn ty 
+                  -> DFApp 'Fun embExpr ty -- BuiltIn ty 
               fun finalResultOut xs snat =
                 let vec = V.fromList snat xs
                     recurArgsOuts' = V.map (\(x,_,_) -> x) vec

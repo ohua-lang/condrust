@@ -178,7 +178,7 @@ import Ohua.Core.Prelude
 -- if e0 == Lambda args body then Lambda args body'
 -- otherwise Lambda [] e0'
 liftIntoCtrlCtxt ::
-  (Monad m, MonadGenBnd m) => TypedBinding ty -> Expr ty -> m (Expr ty)
+  (Monad m, MonadGenBnd m) => TypedBinding ty -> Expr embExpr ty -> m (Expr embExpr ty)
 liftIntoCtrlCtxt ctrlIn e0 = do
   (lam', actuals) <- lambdaLifting e0
   let (originalFormals, _) = lambdaArgsAndBody e0
@@ -210,7 +210,7 @@ liftIntoCtrlCtxt ctrlIn e0 = do
 
 -- | The following passes belong together.
 --  They are meant to make fusion of control nodes in the backend easier.
-fusionPasses :: MonadGenBnd m => Expr ty -> m (Expr ty)
+fusionPasses :: MonadGenBnd m => Expr embExpr ty -> m (Expr embExpr ty)
 fusionPasses = uniqueCtrls . evictOrphanedDestructured . splitCtrls
 
 -- |
@@ -232,10 +232,10 @@ fusionPasses = uniqueCtrls . evictOrphanedDestructured . splitCtrls
 --                    v                   |      |
 --           y ---> ctrl2 ----------------+------+
 --  This removes all destructuring (nth-nodes) for the output of ctrl!
-splitCtrls :: Expr ty -> Expr ty
+splitCtrls :: Expr embExpr ty -> Expr embExpr ty
 splitCtrls = transform go
   where
-    go :: Expr ty -> Expr ty
+    go :: Expr embExpr ty -> Expr embExpr ty
     go l@(Let v e cont) =
       case fromApplyToList' e of
         (FunRef op _, Nothing, ctrlSig : vars)
@@ -286,10 +286,10 @@ splitCtrls = transform go
 --        |           ^
 --        |           |
 --        +-----------+
-uniqueCtrls :: MonadGenBnd m => Expr ty -> m (Expr ty)
+uniqueCtrls :: MonadGenBnd m => Expr embExpr ty -> m (Expr embExpr ty)
 uniqueCtrls = transformM go
   where
-    go :: MonadGenBnd m => Expr ty -> m (Expr ty)
+    go :: MonadGenBnd m => Expr embExpr ty -> m (Expr embExpr ty)
     -- this pattern works because now every control has this form due to the above transformation (TODO reflect this in the type)
     go e@(Let v ctrl@((PureFunction op `Apply` _ctrlSig) `Apply` _ctrled) cont)
       | op == IFuns.ctrl =
@@ -304,7 +304,7 @@ uniqueCtrls = transformM go
                   foldr (\newBnd c -> Let newBnd ctrl c) cont' newBnds
     go e = return e
 
-    renameUsages :: MonadGenBnd m => TypedBinding ty -> Expr ty -> WriterT [TypedBinding ty] m (Expr ty)
+    renameUsages :: MonadGenBnd m => TypedBinding ty -> Expr embExpr ty -> WriterT [TypedBinding ty] m (Expr embExpr ty)
     renameUsages (TBind bnd ty) (Var (TBind bnd' _ty)) | bnd == bnd' = do
       newBnd <- lift $ generateBindingWith bnd
       tell [TBind newBnd ty]

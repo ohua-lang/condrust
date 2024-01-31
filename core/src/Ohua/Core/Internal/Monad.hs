@@ -129,8 +129,8 @@ type MonadOhua m
 -- If there are any errors during the compilation they are reported together at the end
 runFromExpr ::
        Options
-    -> (Expr ty -> OhuaM result)
-    -> Expr ty
+    -> (Expr embExpr ty -> OhuaM result)
+    -> Expr embExpr ty
     -> LoggingT IO (Either Error result)
 runFromExpr opts f tree =
     runFromBindings opts (f tree) $ HS.fromList [b | Var (TBind b _t) <- universe tree]
@@ -141,9 +141,9 @@ runFromExpr opts f tree =
 runFromExprAndType ::
     Options -> 
     -- | a (compiler step) function on an algorithm and it's return type
-    (HostType ty -> Expr ty -> OhuaM result) ->
+    (HostType ty -> Expr embExpr ty -> OhuaM result) ->
     -- | an algorithm in its current compile step representation
-    Expr ty -> 
+    Expr embExpr ty -> 
     -- | the algorithms output type
     HostType ty ->
     LoggingT IO (Either Error result)

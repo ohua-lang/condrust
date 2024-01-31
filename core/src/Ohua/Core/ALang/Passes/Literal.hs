@@ -25,7 +25,7 @@ For example:
 @
 Here, f has side-effects to a and we sequence further execution.
 -}
-literalsToFunctions :: MonadOhua m => Expr ty -> m (Expr ty)
+literalsToFunctions :: MonadOhua m => Expr embExpr ty -> m (Expr embExpr ty)
 literalsToFunctions e =
     flip transformM e $ \case
         Let v (Lit lit) ie ->
@@ -34,6 +34,8 @@ literalsToFunctions e =
                 NumericLit _ -> mkFun v lit ie
                 StringLit _ -> mkFun v lit ie
                 BoolLit _ -> mkFun v lit ie
+                -- ToDo: Verify that we want to do this (in any case of hostcode embedding)
+                HostLit _ _ -> mkFun v lit ie
                 EnvRefLit _ _ -> mkFun v lit ie
                 FunRefLit (FunRef qb _) -> throwError $ "Compiler invariant broken. Trying to convert function literal to function: " <> show qb
         other -> return other

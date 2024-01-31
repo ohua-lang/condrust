@@ -36,7 +36,7 @@ import Control.Lens.Plated (plate)
 -- | The SSA pass after transforming control state threads is vital.
 --   It makes sure that all succeeding state threads after a control
 --   state thread, take the state outputs of the control state threads.
-preControlPasses :: MonadOhua m => Expr ty -> m (Expr ty)
+preControlPasses :: MonadOhua m => Expr embExpr ty -> m (Expr embExpr ty)
 preControlPasses =
   transformControlStateThreads >=>
   performSSA >=>
@@ -46,15 +46,15 @@ preControlPasses =
 -- FIXME there is code missing that turns the basic state threads into real state threads! this is the very first transformation that needs to run.
 -- the transformation is: make state threads and then rebind the state -> alpha renaming on the rest of the term.
 
-postControlPasses :: Expr ty -> Expr ty
+postControlPasses :: Expr embExpr ty -> Expr embExpr ty
 postControlPasses = transformCtxtExits -- . traceShow "transforming ctxt exists!" -- TODO assert here that no more ctxt exits remain in the code
 
 
-runSTCLangSMapFun :: OhuaType ty Resolved -> Expr ty
+runSTCLangSMapFun :: OhuaType ty Resolved -> Expr embExpr ty
 runSTCLangSMapFun stateTy = Lit $ FunRefLit $ FunRef IFuns.runSTCLangSMap $ FunType (Right $ IType TypeNat :| [stateTy]) stateTy -- size and the state, i.e., there is one per state
 
 
-runSTCLangIfFun :: OhuaType ty Resolved -> Expr ty
+runSTCLangIfFun :: OhuaType ty Resolved -> Expr embExpr ty
 runSTCLangIfFun stateTy = Lit $ FunRefLit $ FunRef IFuns.runSTCLangIf $ FunType (Right $ IType TypeBool :| [stateTy, stateTy]) stateTy
 
 -- invariant: this type of node has at least one var as input (the computation result)
@@ -62,7 +62,7 @@ ctxtExit :: QualifiedBinding
 ctxtExit = "ohua.lang/ctxtExit"
 
 -- To type-encode the assumption of at least one input a Nonempty is sufficient. We don't need a 'Nat for this.
-ctxtExitFunRef :: NE.NonEmpty (OhuaType ty Resolved)  -> OhuaType ty Resolved -> Expr ty
+ctxtExitFunRef :: NE.NonEmpty (OhuaType ty Resolved)  -> OhuaType ty Resolved -> Expr embExpr ty
 ctxtExitFunRef  inputTys retTy = Lit $ FunRefLit $ FunRef ctxtExit $ FunType (Right inputTys) retTy
 
 -- | Transforms every stateful function into a fundamental state thread.
@@ -77,7 +77,7 @@ ctxtExitFunRef  inputTys retTy = Lit $ FunRefLit $ FunRef ctxtExit $ FunType (Ri
 -- @
 --  let (state', v) = state.f () in c[state'/state]
 -- @
-transformFundamentalStateThreads :: (MonadOhua m) => Expr ty -> m (Expr ty)
+transformFundamentalStateThreads :: (MonadOhua m) => Expr embExpr ty -> m (Expr embExpr ty)
 transformFundamentalStateThreads = transformM f
   where
     f e@(Let v app cont) = do
@@ -166,7 +166,7 @@ transformFundamentalStateThreads = transformM f
 --   let state1' = ohua.lang/nth 1 2 ctxtOut in
 --   [state |-> state']cont
 -- @
-transformControlStateThreads :: MonadGenBnd m => Expr ty -> m (Expr ty)
+transformControlStateThreads :: MonadGenBnd m => Expr embExpr ty -> m (Expr embExpr ty)
 transformControlStateThreads = transformM f
   where
     f (Let v (fun@(PureFunction op) `Apply` trueBranch `Apply` falseBranch) cont)
@@ -245,10 +245,10 @@ transformControlStateThreads = transformM f
 --   b
 -- @
 -- The goal of this transformation is to simplify fusion in the backend.
-transformCtxtExits :: forall ty. Expr ty -> Expr ty
+transformCtxtExits :: forall embExpr ty. Expr embExpr ty -> Expr embExpr ty
 transformCtxtExits = evictOrphanedDestructured . f
     where
-        f :: Expr ty -> Expr ty
+        f :: Expr embExpr ty -> Expr embExpr ty
         -- FIXME This does not work because the ctxtExit has a variable number of arguments! So for two arguments it actually is (Apply (Apply f x) y). Once more this is a problem of our weak definition!
 --        f (Let v e@(PureFunction op _ `Apply` _) cont)
 --            | op == ctxtExit =
@@ -261,7 +261,7 @@ transformCtxtExits = evictOrphanedDestructured . f
              _ -> descend f l
         f e = descend f e
 
-        g :: TypedBinding ty -> Expr ty -> [Expr ty] -> Expr ty -> Expr ty
+        g :: TypedBinding ty -> Expr embExpr ty -> [Expr embExpr ty] -> Expr embExpr ty -> Expr embExpr ty
         g compound compOut stateArgs l@(Let v e@(Apply _ _) cont) =
            case fromApplyToList' e of
              -- Must be a conditional (second ctxtExit)
@@ -285,10 +285,10 @@ transformCtxtExits = evictOrphanedDestructured . f
              _ -> descend (g compound compOut stateArgs) l
         g co c s e = descend (g co c s) e
 
-        h :: TypedBinding ty -> Expr ty -> [Expr ty]
-          -> TypedBinding ty-> Expr ty -> [Expr ty]
-          -> Expr ty
-          -> Expr ty
+        h :: TypedBinding ty -> Expr embExpr ty -> [Expr embExpr ty]
+          -> TypedBinding ty-> Expr embExpr ty -> [Expr embExpr ty]
+          -> Expr embExpr ty
+          -> Expr embExpr ty
         h compound compOut stateOuts _compound' compOut' stateOuts'
             (Let v (fun@(PureFunction op) `Apply` cond `Apply` Var trueBranch `Apply` _falseBranch) cont)
             | op == IFuns.select =
@@ -311,14 +311,14 @@ transformCtxtExits = evictOrphanedDestructured . f
 
         descend = over plate -- note composOp = descend = over plate -> https://www.stackage.org/haddock/lts-14.25/lens-4.17.1/Control-Lens-Plated.html#v:para (below)
 
-applyToBody :: (Expr ty -> Expr ty) -> Expr ty -> Expr ty
+applyToBody :: (Expr embExpr ty -> Expr embExpr ty) -> Expr embExpr ty -> Expr embExpr ty
 applyToBody f (Lambda _ body) = applyToBody f body
 applyToBody f e = f e
 
-collectStates :: Expr ty -> [TypedBinding ty]
+collectStates :: Expr embExpr ty -> [TypedBinding ty]
 collectStates e = [ stb | (BindState (Var stb) _) <- universe e ]
 
-mkST :: (MonadGenBnd m) => [Expr ty] -> Expr ty -> m (Expr ty)
+mkST :: (MonadGenBnd m) => [Expr embExpr ty] -> Expr embExpr ty -> m (Expr embExpr ty)
 mkST states = \case
     Let v e res -> Let v e <$> mkST states res
     e -> do

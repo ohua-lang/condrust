@@ -24,7 +24,7 @@ import Data.Functor.Foldable (embed, para)
 import qualified Data.HashSet as HS
 
 
-substitute :: Binding -> Expr ty -> Expr ty -> Expr ty
+substitute :: Binding -> Expr embExpr ty -> Expr embExpr ty -> Expr embExpr ty
 -- Postwalk avoids an infinite recursion in a case where `val` uses a
 -- `var` binding.  This should never happen but might if this
 -- invariant is violated for some reason and the violation is not
@@ -42,7 +42,7 @@ substitute !var val =
 -- this is always true.
 -- This is also the reason why I keep this in Util intead of making it an own pass.
 
-destructure :: Expr ty -> [TypedBinding ty] -> Expr ty -> Expr ty
+destructure :: Expr embExpr ty -> [TypedBinding ty] -> Expr embExpr ty -> Expr embExpr ty
 destructure source bnds =
     foldl (.) id $
     map (\(idx, tbnd) -> Let tbnd $ mkNthExpr idx source (asType tbnd)) (zip [0 ..] bnds)
@@ -53,17 +53,17 @@ destructure source bnds =
         source0
 
 
-lambdaLifting :: forall ty m.
-       (MonadGenBnd m) => Expr ty -> m (Expr ty, [Expr ty])
+lambdaLifting :: forall embExpr ty m.
+       (MonadGenBnd m) => Expr embExpr ty -> m (Expr embExpr ty, [Expr embExpr ty])
 lambdaLifting e = do
     (e', actuals) <- go findFreeVariables renameVar e
     (e'', actuals') <- go findLonelyLiterals replaceLit e'
     return (e'', actuals ++ actuals')
   where
-    go :: (Expr ty -> [Expr ty])
-       -> (Expr ty -> (Expr ty, TypedBinding ty) -> Expr ty)
-       -> Expr ty
-       -> m (Expr ty, [Expr ty])
+    go :: (Expr embExpr ty -> [Expr embExpr ty])
+       -> (Expr embExpr ty -> (Expr embExpr ty, TypedBinding ty) -> Expr embExpr ty)
+       -> Expr embExpr ty
+       -> m (Expr embExpr ty, [Expr embExpr ty])
     go findFreeExprs rewriteFreeExprs expr
         | null freeExprs = pure (expr, [])
         | otherwise = do
@@ -101,14 +101,14 @@ lambdaLifting e = do
     bindingFromAny anyE = error $ "Sorry, we forgott to implement bindingFromAny for " <> show anyE
 
 
-mkLambda :: [TypedBinding ty] -> Expr ty -> Expr ty
+mkLambda :: [TypedBinding ty] -> Expr embExpr ty -> Expr embExpr ty
 mkLambda args expr = go expr $ reverse args
   where
     go e (a:as) = flip go as $ Lambda a e
     go e [] = e
 
 -- FIXME pattern match failure because ALang not precise enough (see issue #8)
-replaceLit :: Expr ty -> (Expr ty, TypedBinding ty) -> Expr ty
+replaceLit :: Expr embExpr ty -> (Expr embExpr ty, TypedBinding ty) -> Expr embExpr ty
 replaceLit e (Lit old, new) =
     flip transform e $ \case
         f@Apply{} -> case isPureAndAllArgsLit f of
@@ -123,7 +123,7 @@ replaceLit _e other = error $ "Called 'replaceLit' with " <> show other
 
 
 -- FIXME pattern match failure because ALang not precise enough (see issue #8)
-renameVar :: Expr ty -> (Expr ty, TypedBinding ty) -> Expr ty
+renameVar :: Expr embExpr ty -> (Expr embExpr ty, TypedBinding ty) -> Expr embExpr ty
 renameVar e (Var old, new) =
     flip transform e $ \case
         Var v
@@ -133,7 +133,7 @@ renameVar _e other = error $ "Called 'renameVar' with " <> show other
                         <> ", which is not a Variable. Please report"
 
 -- | All bindings defined in an expression *with duplicates*
-definedBindings :: Expr ty -> [TypedBinding ty]
+definedBindings :: Expr embExpr ty -> [TypedBinding ty]
 definedBindings e =
     [ v
     | e' <- universe e
@@ -148,17 +148,17 @@ definedBindings e =
 -- expression but not defined in it. This is implemented as a simple set
 -- intersection, therefore it relies on the fact that the expression is in SSA
 -- form.
-findFreeVariables :: Expr ty -> [Expr ty]
+findFreeVariables :: Expr embExpr ty -> [Expr embExpr ty]
 findFreeVariables e = map Var (findFreeBindings e)
 
 -- This version of findFreeVaraibles doesn't sort but oder is deterministic because we do not convert lists to set
-findFreeBindings:: Expr ty -> [TypedBinding ty]
+findFreeBindings:: Expr embExpr ty -> [TypedBinding ty]
 findFreeBindings e = 
     let usedInE = [v | Var v <- universe e]
         boundInE = definedBindings e
     in filter (\bnd -> not (elem bnd boundInE)) usedInE
 
-findLiterals :: Expr ty -> [Expr ty]
+findLiterals :: Expr embExpr ty -> [Expr embExpr ty]
 findLiterals e =
     [ Lit lit
     | Lit l <- universe e
@@ -173,7 +173,7 @@ findLiterals e =
     ]
 
 -- | A literal is lonely if it does not accompany a var in the argument list to a call.
-findLonelyLiterals :: HasCallStack => Expr ty -> [Expr ty]
+findLonelyLiterals :: HasCallStack => Expr embExpr ty -> [Expr embExpr ty]
 findLonelyLiterals =
 --     Lens.para $ \case
 --         f@Apply {} ->
@@ -217,29 +217,29 @@ findLonelyLiterals =
             where args = getFunctionArgs f
         _ -> join
 
-isPureAndAllArgsLit :: Expr ty -> (Bool, Bool)
+isPureAndAllArgsLit :: Expr embExpr ty -> (Bool, Bool)
 isPureAndAllArgsLit e =
   case fromApplyToList' e of
     (_, Nothing, args) -> (True , areAllLits args)
     (_, _, args)       -> (False, areAllLits args)
 
-areAllLits :: [Expr ty] -> Bool
+areAllLits :: [Expr embExpr ty] -> Bool
 areAllLits =
   all $ \case
     Lit _ -> True
     _ -> False
 
-mkApply :: Expr ty -> [Expr ty] -> Expr ty
+mkApply :: Expr embExpr ty -> [Expr embExpr ty] -> Expr embExpr ty
 mkApply f args = go $ reverse args
   where
     go [v] = Apply f v
     go (v:vs) = Apply (go vs) v
     go [] = f
 
-fromListToApply :: FunRef ty Resolved -> [Expr ty] -> Expr ty
+fromListToApply :: FunRef ty Resolved -> [Expr embExpr ty] -> Expr embExpr ty
 fromListToApply f = mkApply $ Lit $ FunRefLit f
 
-getFunctionArgs :: HasCallStack => Expr ty -> [Expr ty]
+getFunctionArgs :: HasCallStack => Expr embExpr ty -> [Expr embExpr ty]
 getFunctionArgs e = args
   where
     (_, _, args) = fromApplyToList' e
@@ -247,7 +247,7 @@ getFunctionArgs e = args
 -- FIXME The errors in these functions should not be here. Either we enforce these things
 --       via other means in the type system or we should change the return type to Maybe.
 -- FIXME Using this function always creates more warnings because the type is not expressive enough.
-fromApplyToList :: HasCallStack => Expr ty -> (FunRef ty Resolved , [Expr ty])
+fromApplyToList :: HasCallStack => Expr embExpr ty -> (FunRef ty Resolved , [Expr embExpr ty])
 fromApplyToList e =
     case stateExpr of
         Just s ->
@@ -256,7 +256,7 @@ fromApplyToList e =
   where
     (f, stateExpr, args) = fromApplyToList' e
 
-fromApplyToList' :: HasCallStack => Expr ty -> (FunRef ty Resolved , Maybe (Expr ty), [Expr ty])
+fromApplyToList' :: HasCallStack => Expr embExpr ty -> (FunRef ty Resolved , Maybe (Expr embExpr ty), [Expr embExpr ty])
 fromApplyToList' =
     para $ \case
         ApplyF (extract -> (f, s, args)) (arg, _) -> (f, s, args ++ [arg])
@@ -273,16 +273,16 @@ fromApplyToList' =
             "Expected apply or function reference, got: " <>
             show (embed $ fmap fst other)
 
-mkDestructured :: [TypedBinding ty] -> TypedBinding ty -> Expr ty -> Expr ty
+mkDestructured :: [TypedBinding ty] -> TypedBinding ty -> Expr embExpr ty -> Expr embExpr ty
 mkDestructured formals compound = destructure (Var compound) formals
 
-findDestructured :: Expr ty -> TypedBinding ty -> [TypedBinding ty]
+findDestructured :: Expr embExpr ty -> TypedBinding ty -> [TypedBinding ty]
 findDestructured expr tbnd = map (\(v,_,_) -> v) $ findDestructuredWithExpr expr
     where
         -- | Returns the letted nth nodes and their continuations such that they can later on be
         --   removed. Assumes SSA form.
         --   Be careful with this function because the returned expressions maybe nested with each other!
-        -- findDestructuredWithExpr :: Expr ty -> [(TypedBinding ty, Expr ty, Expr ty)]
+        -- findDestructuredWithExpr :: Expr embExpr ty -> [(TypedBinding ty, Expr embExpr ty, Expr embExpr ty)]
         findDestructuredWithExpr e = 
             map (\(_,v,l,c) -> (v,l,c)) $
             sortOn (\(i,_,_,_) -> i)
@@ -296,25 +296,25 @@ findDestructured expr tbnd = map (\(v,_,_) -> v) $ findDestructuredWithExpr expr
                     <- universe e
                 , tbnd == tbnd']
 
-replaceExpr :: (Expr ty, Expr ty) -> Expr ty -> Expr ty
+replaceExpr :: (Expr embExpr ty, Expr embExpr ty) -> Expr embExpr ty -> Expr embExpr ty
 replaceExpr (old,new) = transform f
     where 
         f expr | expr == old = new
         f expr = expr
 
-pattern NthFunction :: TypedBinding ty -> Expr ty
+pattern NthFunction :: TypedBinding ty -> Expr embExpr ty
 pattern NthFunction tbnd <- PureFunction "ohua.lang/nth" `Apply` _ `Apply` _ `Apply` Var tbnd
 
-evictOrphanedDestructured :: Expr ty -> Expr ty
+evictOrphanedDestructured :: Expr embExpr ty -> Expr embExpr ty
 evictOrphanedDestructured e = 
     let allBnds = HS.fromList [v | Let v _ _ <- universe e]
     in transform (f allBnds) e
     where 
-        f :: HS.HashSet (TypedBinding ty) -> Expr ty -> Expr ty
+        f :: HS.HashSet (TypedBinding ty) -> Expr embExpr ty -> Expr embExpr ty
         f bnds (Let _v (NthFunction bnd) cont) | not $ HS.member bnd bnds = cont
         f _ expr = expr
 
-lambdaArgsAndBody :: Expr ty -> ([TypedBinding ty], Expr ty)
+lambdaArgsAndBody :: Expr embExpr ty -> ([TypedBinding ty], Expr embExpr ty)
 lambdaArgsAndBody (Lambda arg l@(Lambda _ _)) =
     let (args, body) = lambdaArgsAndBody l
      in (arg : args, body)

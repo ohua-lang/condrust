@@ -63,19 +63,19 @@ import Control.Lens.Plated
 -------------------- Basic ALang types --------------------
 -- ToDo: This needs to include the functions from Alang Refs as constructors
 -- | An expression in the algorithm language.
-data Expr ty
+data Expr embExpr ty 
     = Var (TypedBinding ty)  -- ^ Reference to a value via binding: @x@ -> @Var "x"@
-    | Lit (Lit ty Resolved) -- ^ A literal: @2@, @ns/func@ etc -> @Lit (NumericLit 2)@
-    | Let (TypedBinding ty) (Expr ty) (Expr ty) -- ^ Create and assign a binding: @let bnd = val in expr@ -> @Let "bnd" val expr@
-    | Apply (Expr ty) (Expr ty) -- ^ Function application: @function arg@ -> @Apply function arg@
-    | Lambda (TypedBinding ty) (Expr ty) -- ^ A lambda function: @\\arg -> body@ -> @Lambda "arg" body@
-    | BindState (Expr ty) (Expr ty) -- ^ Binding a state value @state#method@ -> @BindState state method@
+    | Lit (Lit embExpr ty Resolved) -- ^ A literal: @2@, @ns/func@ etc -> @Lit (NumericLit 2)@
+    | Let (TypedBinding ty) (Expr embExpr ty) (Expr embExpr ty) -- ^ Create and assign a binding: @let bnd = val in expr@ -> @Let "bnd" val expr@
+    | Apply (Expr embExpr ty) (Expr embExpr ty) -- ^ Function application: @function arg@ -> @Apply function arg@
+    | Lambda (TypedBinding ty) (Expr embExpr ty) -- ^ A lambda function: @\\arg -> body@ -> @Lambda "arg" body@
+    | BindState (Expr embExpr ty) (Expr embExpr ty) -- ^ Binding a state value @state#method@ -> @BindState state method@
     deriving (Show, Eq, Generic)
 
 type AExpr = Expr
 
 
-exprType :: Expr ty -> OhuaType ty Resolved
+exprType :: Expr embExpr ty -> OhuaType ty Resolved
 exprType e = case e of
     Var (TBind _bnd varTy) -> varTy
     -- We aim for "return types" here so if the literal is a function, this will evaluate to the functions return type
@@ -93,7 +93,7 @@ exprType e = case e of
     -- explicitely evaluate to in the host language so it is T2
     BindState _objE methodcallE -> exprType methodcallE
 
-returnType :: Expr ty -> OhuaType ty Resolved
+returnType :: Expr embExpr ty -> OhuaType ty Resolved
 returnType e = case funType e of
     Just (FunType _ out) -> out
     Just (STFunType _ _ out) -> out
@@ -103,7 +103,7 @@ returnType e = case funType e of
 --       Lambda Expression, while in others we only care about the type the term will evaluate to.
 --       I'm currently not sure, what the best way to handle this would be?!
 
-funType :: Expr ty -> Maybe (FunType ty Resolved)
+funType :: Expr embExpr ty -> Maybe (FunType ty Resolved)
 funType e = case e of
         (Var (TBind _bnd (FType fTy)))          -> Just fTy
         (Lit (FunRefLit fRef))                  -> Just $ getRefType fRef
@@ -116,10 +116,10 @@ funType e = case e of
 
 -------------------- Convenience functions ------------------------------
 
-pureFunction :: QualifiedBinding -> FunType ty Resolved-> Expr ty
+pureFunction :: QualifiedBinding -> FunType ty Resolved-> Expr embExpr ty
 pureFunction bnd ty = Lit (FunRefLit (FunRef bnd ty))
 
-mkFunLit :: QualifiedBinding -> FunType ty Resolved-> Expr ty
+mkFunLit :: QualifiedBinding -> FunType ty Resolved-> Expr embExpr ty
 mkFunLit qBnd = pureFunction qBnd 
 
 
@@ -127,17 +127,17 @@ mkFunLit qBnd = pureFunction qBnd
 -- Specific Functions, that should become part of the language ---------
 
 
-ifBuiltin :: OhuaType ty Resolved -> Expr ty
+ifBuiltin :: OhuaType ty Resolved -> Expr embExpr ty
 ifBuiltin vTy = mkFunLit IFuns.ifThenElse (FunType (Right $ IType TypeBool :| [vTy ,vTy]) vTy)
 
 {-
-seqBuiltin :: OhuaType ty Resolved ->  OhuaType ty Resolved ->  Expr ty
+seqBuiltin :: OhuaType ty Resolved ->  OhuaType ty Resolved ->  Expr embExpr ty
 -- Operator to sequence statements igrnoring the result of the first one
 -- ToDo: check if we still need that anywhere
 seqBuiltin fstTy scndTy =  mkFunLit IFuns.seq (FunType [fstTy, scndTy] scndTy)
 --}
 
-smapBuiltin :: OhuaType ty Resolved ->  OhuaType ty Resolved -> OhuaType ty Resolved -> Expr ty
+smapBuiltin :: OhuaType ty Resolved ->  OhuaType ty Resolved -> OhuaType ty Resolved -> Expr embExpr ty
 -- HO for-loop: function -> collection to apply function to -> typeOfCollection ( return Type function)
 smapBuiltin fnTy collTy resTy = mkFunLit IFuns.smap (FunType (Right $ fnTy :| [collTy]) resTy )
 
@@ -146,51 +146,51 @@ smapBuiltin fnTy collTy resTy = mkFunLit IFuns.smap (FunType (Right $ fnTy :| [c
 
 makeBaseFunctor ''Expr
 
-instance Container (ExprF ty a)
+instance Container (ExprF embExpr ty a)
 
 -------------------- Convenience patterns ------------------------------
 
-pattern PureFunction :: QualifiedBinding -> Expr ty
+pattern PureFunction :: QualifiedBinding -> Expr embExpr ty
 pattern PureFunction bnd  <- Lit (FunRefLit (FunRef bnd  _))
 
-pattern PureFunctionTy :: QualifiedBinding  -> FunType ty Resolved-> Expr ty
+pattern PureFunctionTy :: QualifiedBinding  -> FunType ty Resolved-> Expr embExpr ty
 pattern PureFunctionTy bnd  ty <- Lit (FunRefLit (FunRef bnd  ty))
 
-pattern PureFunctionF :: QualifiedBinding  -> ExprF ty a
+pattern PureFunctionF :: QualifiedBinding  -> ExprF embExpr ty a
 pattern PureFunctionF bnd  <- LitF (FunRefLit (FunRef bnd  _))
 
-pattern StatefulFunction :: QualifiedBinding  -> Expr ty -> Expr ty
+pattern StatefulFunction :: QualifiedBinding  -> Expr embExpr ty -> Expr embExpr ty
 pattern StatefulFunction bnd  expr <- BindState expr (Lit (FunRefLit (FunRef bnd  _)))
 
-pattern StatefulFunctionTy :: QualifiedBinding  -> FunType ty Resolved-> Expr ty -> Expr ty
+pattern StatefulFunctionTy :: QualifiedBinding  -> FunType ty Resolved-> Expr embExpr ty -> Expr embExpr ty
 pattern StatefulFunctionTy bnd  ty expr <- BindState expr (Lit (FunRefLit (FunRef bnd  ty)))
 
-pattern StatefulFunctionF :: QualifiedBinding -> Expr ty -> ExprF ty (Expr ty)
+pattern StatefulFunctionF :: QualifiedBinding -> Expr embExpr ty -> ExprF embExpr ty (Expr embExpr ty)
 pattern StatefulFunctionF bnd  expr <- BindStateF expr (Lit (FunRefLit (FunRef bnd  _)))
 
 
 -------------------- Additional type class instances --------------------
 
 {-Actually AEprx isn't a string any more, it's at least a string and a type
-instance IsString (AExpr ty) where
+instance IsString (AExpr embExpr ty) where
     fromString = fromString >>> \case
         Unqual bnd -> Var bnd
         Qual q -> pureFunction q Nothing Untyped
 -}
 
-instance Plated (Expr ty) where plate = gplate
+instance Plated (Expr embExpr ty) where plate = gplate
 
--- instance Embed (Expr ty) Int where
+-- instance Embed (Expr embExpr ty) Int where
 --     embedE = embedE . fromIntegral @Int @Integer
--- instance Embed (Expr ty) Integer where
+-- instance Embed (Expr embExpr ty) Integer where
 --     embedE = embedE . NumericLit 
-instance Embed (Expr ty) (Lit ty Resolved) where
+instance Embed (Expr embExpr ty) (Lit embExpr ty Resolved) where
     embedE = Lit
-instance Embed (Expr ty) (TypedBinding ty) where
+instance Embed (Expr embExpr ty) (TypedBinding ty) where
     embedE = Var
-instance Embed (Expr ty) (FunRef ty Resolved) where
-    embedE = embedE . FunRefLit
--- instance Embed (Expr ty) QualifiedBinding where
+instance Embed (Expr embExpr ty) (FunRef ty Resolved) where
+    embedE frLit = Lit (FunRefLit frLit)
+-- instance Embed (Expr embExpr ty) QualifiedBinding where
 --     embedE = embedE . (\qb -> FunRef qb Untyped)
 
 -------------------- Additional Traversals --------------------
@@ -198,9 +198,9 @@ instance Embed (Expr ty) (FunRef ty Resolved) where
 -- | Traverse an ALang expression from left to right and top down, building a new expression.
 lrPrewalkExprM ::
        Monad m
-    => (Expr ty -> m (Expr ty))
-    -> Expr ty
-    -> m (Expr ty)
+    => (Expr embExpr ty -> m (Expr embExpr ty))
+    -> Expr embExpr ty
+    -> m (Expr embExpr ty)
 lrPrewalkExprM f e =
     f e >>= \case
         Let bnd val body ->
@@ -212,9 +212,9 @@ lrPrewalkExprM f e =
 -- | Traverse an ALang expression from left to right and from the bottom up.
 lrPostwalkExprM ::
        Monad m
-    => (Expr ty -> m (Expr ty))
-    -> Expr ty
-    -> m (Expr ty)
+    => (Expr embExpr ty -> m (Expr embExpr ty))
+    -> Expr embExpr ty
+    -> m (Expr embExpr ty)
 lrPostwalkExprM f e =
     f =<<
     case e of
@@ -225,7 +225,7 @@ lrPostwalkExprM f e =
         _ -> return e
 
 -- | Same as 'lrPostwalkExprM' but does not carry a monad.
-lrPostwalkExpr :: (Expr ty -> Expr ty) -> Expr ty -> Expr ty
+lrPostwalkExpr :: (Expr embExpr ty -> Expr embExpr ty) -> Expr embExpr ty -> Expr embExpr ty
 lrPostwalkExpr f = runIdentity . lrPostwalkExprM (return . f)
 
 

@@ -113,15 +113,15 @@ import Ohua.Core.ALang.Util (mkDestructured)
 -- import Control.Category ((>>>))
 import qualified Data.Text as T
 
-selectSf :: OhuaType ty Resolved -> Expr ty
+selectSf :: OhuaType ty Resolved -> Expr embExpr ty
 selectSf vty = Lit $ FunRefLit $ FunRef IFuns.select$ FunType (Right $ IType TypeBool :| [vty, vty]) vty
 
 -- | The controle node that triggers either the then or the else branch, depending on the input bool
-ifFunSf :: Expr ty
+ifFunSf :: Expr embExpr ty
 ifFunSf = Lit $ FunRefLit $ FunRef IFuns.ifFun $ FunType (Right $ IType TypeBool :| []) (TType $ controlSignalType:|[controlSignalType])
 
 -- | Just a literal representing an if-function i.e. \con t1 t2 : if cond then t1 else t2
-ifSf :: OhuaType ty Resolved -> Expr ty
+ifSf :: OhuaType ty Resolved -> Expr embExpr ty
 ifSf vty = Lit $ FunRefLit $ FunRef IFuns.ifThenElse $ FunType (Right $ IType TypeBool :| [vty, vty]) vty
 
 
@@ -131,7 +131,7 @@ ifSf vty = Lit $ FunRefLit $ FunRef IFuns.ifThenElse $ FunType (Right $ IType Ty
 -- (Sebastian) The recursion is handled properly below and this version is incorrect.
 --             However scrapping the boilerplate is definitely a good thing. It should be
 --             a transformM though.
-ifRewrite :: (Monad m, MonadGenBnd m, MonadError Error m) => Expr ty -> m (Expr ty)
+ifRewrite :: (Monad m, MonadGenBnd m, MonadError Error m) => Expr embExpr ty -> m (Expr embExpr ty)
 ifRewrite = transformM $ \case
     Lit (FunRefLit (FunRef f _)) `Apply` cond `Apply` trueBranch `Apply` falseBranch
         | f == IFuns.ifThenElse -> do

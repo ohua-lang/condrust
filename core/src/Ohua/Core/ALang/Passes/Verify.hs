@@ -5,7 +5,7 @@ import Ohua.Core.Prelude
 import Ohua.Core.ALang.Lang
 
 
-ensureNthStructure :: MonadOhua m => Expr ty -> m ()
+ensureNthStructure :: MonadOhua m => Expr embExpr ty -> m ()
 ensureNthStructure e =
     mapM_
         (failWith .
@@ -15,5 +15,5 @@ ensureNthStructure e =
               universe e
         ]
 
-checkInvariants :: MonadOhua m => Expr ty -> m ()
+checkInvariants :: MonadOhua m => Expr embExpr ty -> m ()
 checkInvariants = ensureNthStructure
