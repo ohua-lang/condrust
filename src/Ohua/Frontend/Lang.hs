@@ -66,10 +66,12 @@ patTyBnds = \case
     VarP bnd ty -> (bnd, ty) :| []
     TupP (ps) -> neConcat $ map patTyBnds ps
 
+-- FIXME: Do we need to include the type of HostExpressions (not ty, but the type of the representation of host expressions (rust items or pythos exprs ...))
+-- in the definition of Expr?
 type Expr :: Type -> Resolution -> (Type -> Type) -> Type
 data Expr ty res lists where
   VarE      :: Binding -> OhuaType ty res                                               -> Expr ty res lists
-  LitE      :: Lit ty res                                                               -> Expr ty res lists
+  LitE      :: Lit embExpr ty res                                                      -> Expr ty res lists
   LetE      :: Pat ty res -> Expr ty res lists -> Expr ty res lists                     -> Expr ty res lists
   AppE      :: (Traversable lists) => Expr ty res lists -> lists (Expr ty res lists)    -> Expr ty res lists
   LamE      :: (Traversable lists) => lists (Pat ty res) -> Expr ty res lists           -> Expr ty res lists

@@ -206,7 +206,7 @@ typeSystem delta imports gamma = \case
               [] -> return out
               -- FIXME: assocArgWithType should realy just be an assertion as long as we do not allow partial function application 
               -- (i.e. as long as we do not support a host language with that concept and introduce a proper way to handle potentially resulting type errors)
-              (x:xs)  -> wfError $ "Too few arguments in function application. Remaining argTypes" <> show pendingArgsTy -- return $ FType  (FunType (Right $ x:|xs) out)
+              (_:_)  -> wfError $ "Too few arguments in function application. Remaining argTypes" <> show pendingArgsTy -- return $ FType  (FunType (Right $ x:|xs) out)
         FType (STFunType sin ins out) -> do
             -- What is the result type of applying a stateful function? It's the new state of the state and the result of the function. 
             -- However, we only introduce state threads i.e. the explicit handling of new states as a result of stateful calls downstream in the compiler
@@ -215,7 +215,7 @@ typeSystem delta imports gamma = \case
             pendingArgsTy <- assocArgWithType (expectedInputTypesUnresolved ins) $ toList argTypesR
             case pendingArgsTy of
               [] -> return out
-              (x:xs)  -> wfError $ "Too few arguments in stateful function application. Remaining argTypes" <> show pendingArgsTy -- return $ FType  (STFunType sin pendingArgsTy out)
+              (_:_)  -> wfError $ "Too few arguments in stateful function application. Remaining argTypes" <> show pendingArgsTy -- return $ FType  (STFunType sin pendingArgsTy out)
         t -> typeError $ "First argument of function application is not a function, but has type: " <> show t
       
       -- traceM $ "Found return type to be " <> show resTy
@@ -246,7 +246,7 @@ typeSystem delta imports gamma = \case
   ============================================================================
       Delta, Gamma |- Lambda p1 p2 .. pn. expr : T1 -> T2 -> ... -> Tn -> Te
   -}
-  e@(LamE pats expr) ->
+  (LamE pats expr) ->
     let
       -- FIXME: Replace the check for "_" binding here. We currently introduce it when 
       -- as unit arg representation, but we should have something not stringly typed for that purpose 
@@ -478,9 +478,10 @@ typeSystem delta imports gamma = \case
   ==================
     Gamma |- l : HostType
   -}
-  (LitE (NumericLit n)) -> return (HM.empty, LitE $ NumericLit n, IType TypeNat, imports) -- FIXME incorrect. we should not have this in this language!
+  (LitE (NumericLit n)) -> return (HM.empty, LitE $ NumericLit n, IType TypeNat , imports) -- FIXME incorrect. we should not have this in this language!
   (LitE (BoolLit b))    -> return (HM.empty, LitE $ BoolLit b   , IType TypeBool, imports)
   (LitE UnitLit)        -> return (HM.empty, LitE UnitLit       , IType TypeUnit, imports)
+  (LitE (HostLit hostExpr hty))   -> return (HM.empty, LitE (HostLit hostExpr hty), hty, imports)
   (LitE (StringLit s))  -> return (HM.empty, LitE $ StringLit s , IType TypeString, imports)
   where
     -- When we encounter a variable, we first try to get it's type from 
