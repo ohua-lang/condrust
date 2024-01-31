@@ -21,24 +21,24 @@ instance (Hashable expr) => Hashable (App expr)
 
 data ComType = Channel | Recv | Send deriving (Show, Eq, Generic)
 
-data Com (f::ComType) (ty::Type) :: Type where
-  SChan :: Binding -> Com 'Channel ty
-  SRecv :: OhuaType ty Resolved -> Com 'Channel ty -> Com 'Recv ty
-  SSend :: Com 'Channel ty -> Either Binding (Lit ty Resolved) -> Com 'Send ty
+data Com (f::ComType) (embExpr::Type)  (ty::Type) :: Type where
+  SChan :: Binding -> Com 'Channel embExpr ty
+  SRecv :: OhuaType ty Resolved -> Com 'Channel embExpr ty -> Com 'Recv embExpr ty
+  SSend :: Com 'Channel embExpr ty -> Either Binding (Lit embExpr ty Resolved) -> Com 'Send embExpr ty
 
-instance Eq (Com semTy ty) where
+instance Eq (Com semTy eLang ty) where
   SChan bnd0 == SChan bnd1 = bnd0 == bnd1
   SRecv _ chan0 == SRecv _ chan1 = chan0 == chan1
   SSend chan0 bnd0 == SSend chan1 bnd1 = chan0 == chan1 && bnd0 == bnd1
 
-instance Show (Com a t) where
+instance Show (Com semTy eLang ty) where
   show (SChan bnd) = "Chan: " <> show bnd
   show (SRecv ty chan) = "Recv: <" <> show ty <> "> " <>show chan
   show (SSend chan bnd) = "Send: " <> show chan <> " bnd:" <> show bnd
 
 type Channel = Com 'Recv
 
-instance Hashable (Com a t) where
+instance Hashable (Com semTy eLang ty) where
   hashWithSalt s (SChan bnd) = s `hashWithSalt` bnd
   hashWithSalt s (SRecv _ chan) = s `hashWithSalt` chan
   hashWithSalt s (SSend chan bnd) = s `hashWithSalt` chan `hashWithSalt` bnd
@@ -48,59 +48,58 @@ data List expr = Create | Append Binding expr
 
 instance (Hashable expr) => Hashable (List expr)
 
--- TODO this expression language should be typed, probably using a GADT
-data TaskExpr ty
+data TaskExpr embExpr ty
   = Var Binding
-  | Lit (Lit ty Resolved) -- true, false  etc.
-  | Apply (App (TaskExpr ty))
+  | Lit (Lit embExpr ty Resolved) -- true, false  etc.
+  | Apply (App (TaskExpr embExpr ty))
   | Let Binding
-        (TaskExpr ty)
-        (TaskExpr ty) -- cont
+        (TaskExpr embExpr ty)
+        (TaskExpr embExpr ty) -- cont
   | Stmt
-      (TaskExpr ty)
-      (TaskExpr ty) -- cont
+      (TaskExpr embExpr ty)
+      (TaskExpr embExpr ty) -- cont
   | Assign -- side-effect
       Binding
-      (TaskExpr ty)
-  | ReceiveData (Com 'Recv ty)
-  | SendData (Com 'Send ty)
+      (TaskExpr embExpr ty)
+  | ReceiveData (Com 'Recv embExpr ty)
+  | SendData (Com 'Send embExpr ty)
 
   -- specific control flow:
-  | EndlessLoop (TaskExpr ty)
-  | ForEach Binding Binding (TaskExpr ty) -- ^ a.k.a. map
-  | Repeat (Either Binding Int) (TaskExpr ty)
-  | While (TaskExpr ty) (TaskExpr ty)
-  | Cond (TaskExpr ty) (TaskExpr ty) (TaskExpr ty)
+  | EndlessLoop (TaskExpr embExpr ty)
+  | ForEach Binding Binding (TaskExpr embExpr ty) -- ^ a.k.a. map
+  | Repeat (Either Binding Int) (TaskExpr embExpr ty)
+  | While (TaskExpr embExpr ty) (TaskExpr embExpr ty)
+  | Cond (TaskExpr embExpr ty) (TaskExpr embExpr ty) (TaskExpr embExpr ty)
 
   -- specific functions:
   | HasSize Binding -- :: [a] -> Bool
   | Size Binding -- :: [a] -> Int
 
-  | ListOp (List (TaskExpr ty))
+  | ListOp (List (TaskExpr embExpr ty))
 
-  | Tuple ( NonEmpty (Either Binding (Lit ty Resolved)))
+  | Tuple ( NonEmpty (Either Binding (Lit embExpr ty Resolved)))
   | Indexing Binding Integer
 
   | Increment Binding -- a + 1;
   | Decrement Binding -- a - 1;
-  | Not (TaskExpr ty)
+  | Not (TaskExpr embExpr ty)
 
   deriving (Show,Eq,Generic)
 
-instance Hashable (TaskExpr ty)
+instance Hashable (TaskExpr embExpr ty)
 
 -- To ease adaption of code sites using the former First and Second
 -- TODO: Obviously doing it this way we loose the 'type-control' of indexing
 -- maybe we can restore that later using Singletons? 
-firstIndexing:: Binding -> TaskExpr ty
+firstIndexing:: Binding -> TaskExpr embExpr ty
 firstIndexing bnd = Indexing bnd 0
 
-secondIndexing:: Binding -> TaskExpr ty
+secondIndexing:: Binding -> TaskExpr embExpr ty
 secondIndexing bnd = Indexing bnd 1
 
 
 -- FIXME remove this code ASAP
-containsBinding :: TaskExpr ty -> Binding -> Bool
+containsBinding :: TaskExpr embExpr ty -> Binding -> Bool
 containsBinding (Var bnd ) b = b == bnd
 containsBinding Lit{} _ = False
 containsBinding (Apply app) b = case app of
@@ -128,7 +127,7 @@ containsBinding (Increment bnd) b = bnd == b
 containsBinding (Decrement bnd) b = bnd == b
 containsBinding (Not expr) b = containsBinding expr b
 
-containsB:: Either Binding (Lit ty Resolved)-> Binding -> Bool
+containsB:: Either Binding (Lit embExpr ty Resolved)-> Binding -> Bool
 containsB v b = case v of
   Left bnd -> bnd == b
   Right _ -> False
@@ -140,4 +139,4 @@ containsB v b = case v of
 makeBaseFunctor ''App
 makeBaseFunctor ''TaskExpr
 
-instance Plated (TaskExpr ty) where plate = gplate
+instance Plated (TaskExpr embExpr ty) where plate = gplate

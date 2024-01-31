@@ -8,29 +8,29 @@ import Ohua.Backend.Lang
 import Ohua.Prelude
 import Ohua.Backend.Operators.Common (ctrlTuple)
 
-data RecFun ty where
+data RecFun embExpr ty where
   RecFun ::
-    Com 'Channel ty ->
-    Maybe (Com 'Channel ty) ->
+    Com 'Channel embExpr ty ->
+    Maybe (Com 'Channel embExpr ty) ->
     -- I'm loosing the type info here because getting the instances below is a pain otherwise :(
-    [Com 'Channel ty] ->
-    [Either (Com 'Recv ty) (Lit ty Resolved)] ->
-    [Com 'Recv ty] ->
-    Com 'Recv ty ->
-    Com 'Recv ty ->
-    RecFun ty
+    [Com 'Channel embExpr ty] ->
+    [Either (Com 'Recv embExpr ty) (Lit embExpr ty Resolved)] ->
+    [Com 'Recv embExpr ty] ->
+    Com 'Recv embExpr ty ->
+    Com 'Recv embExpr ty ->
+    RecFun embExpr ty
 
-deriving instance Generic (RecFun ty)
+deriving instance Generic (RecFun embExpr ty)
 
-deriving instance Eq (RecFun ty)
+deriving instance Eq (RecFun embExpr ty)
 
-deriving instance Hashable (RecFun ty)
+deriving instance Hashable (RecFun embExpr ty)
 
-deriving instance Show (RecFun ty)
+deriving instance Show (RecFun embExpr ty)
 
 finalResult = "finalResult"
 
-mkRecFun :: RecFun ty -> TaskExpr ty
+mkRecFun :: RecFun embExpr ty -> TaskExpr embExpr ty
 mkRecFun (RecFun resultOut ctrlOut recArgsOuts recInitArgsIns recArgsIns recCondIn recResultIn) =
   let innerBody =
         dispatchCtrlSig contSig $
@@ -105,7 +105,7 @@ mkRecFun (RecFun resultOut ctrlOut recArgsOuts recInitArgsIns recArgsIns recCond
       foldr (\(o, v) c' -> Stmt (SendData $ SSend o $ Left v) c') c $
         zip recArgsOuts $
           map fst loopArgsRecv
-    dedupChans :: [Com 'Recv ty] -> [Com 'Recv ty] -> [Com 'Recv ty]
+    dedupChans :: [Com 'Recv embExpr ty] -> [Com 'Recv embExpr ty] -> [Com 'Recv embExpr ty]
     dedupChans [] _ = []
     dedupChans (x : xs) ys
       | x `elem` ys = dedupChans xs ys

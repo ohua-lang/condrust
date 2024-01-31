@@ -18,22 +18,22 @@ import qualified Data.List.NonEmpty as NE
 import qualified Data.Foldable as DF
 import Data.Set.Ordered ((\\))
 
-data Fusable ty ctrl0 ctrl1
-    = Fun (FusableFunction ty)
-    | STC (STCLangSMap 'S.Fusable ty)
+data Fusable embExpr ty ctrl0 ctrl1 
+    = Fun (FusableFunction embExpr ty)
+    | STC (STCLangSMap 'S.Fusable embExpr ty)
     | Control (Either ctrl0 ctrl1)
-    | Recur (RecFun ty)
-    | SMap (Op ty)
-    | Unfusable (TaskExpr ty) -- TODO this is only here until the below was implemented properly
+    | Recur (RecFun embExpr ty)
+    | SMap (Op embExpr ty)
+    | Unfusable (TaskExpr embExpr ty) -- TODO this is only here until the below was implemented properly
     --  IfFun
     --  Select
     deriving (Eq, Functor, Generic)
 
-deriving instance (Show ty, Show ctrl0, Show ctrl1) => Show (Fusable ty ctrl0 ctrl1)
+deriving instance (Show ty, Show ctrl0, Show ctrl1, Show embExpr) => Show (Fusable embExpr ty ctrl0 ctrl1)
 
-instance (Hashable ctrl0, Hashable ctrl1) => Hashable (Fusable ty ctrl0 ctrl1)
+instance (Hashable ctrl0, Hashable ctrl1) => Hashable (Fusable embExpr ty ctrl0 ctrl1)
 
-instance Bifunctor (Fusable ty) where
+instance Bifunctor (Fusable embExpr ty) where
     first f (Control (Left l)) = Control $ Left $ f l
     first _ (Control (Right c)) = Control $ Right c
     first _ (Fun fun) = Fun fun
@@ -43,21 +43,21 @@ instance Bifunctor (Fusable ty) where
     first _ (SMap s) = SMap s
     second = fmap
 
-type FusableExpr ty = Fusable ty (VarCtrl ty) (LitCtrl ty) 
+type FusableExpr embExpr ty = Fusable embExpr ty (VarCtrl embExpr ty) (LitCtrl embExpr ty) 
 
-fuse :: (ErrAndLogM m, Show ty)
+fuse :: (ErrAndLogM m, Show ty, Show embExpr)
      => Options
-     -> Namespace (TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (VarCtrl ty) (LitCtrl ty))) anno (OhuaType ty 'Resolved)
-     -> m (Namespace (TCProgram (Channel ty) (Com 'Recv ty) (TaskExpr ty)) anno (OhuaType ty 'Resolved))
+     -> Namespace (TCProgram (Channel embExpr ty) (Com 'Recv embExpr ty)  embExpr  (Fusable  embExpr  ty (VarCtrl  embExpr  ty) (LitCtrl embExpr ty))) anno (OhuaType ty 'Resolved)
+     -> m (Namespace (TCProgram (Channel embExpr ty) (Com 'Recv embExpr ty)  embExpr  (TaskExpr embExpr ty)) anno (OhuaType ty 'Resolved))
 fuse options ns =
 
     return $ ns & algos %~ map (\algo -> algo & algoCode %~ go)
     where
-        go :: (Show ty) => TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (VarCtrl ty) (LitCtrl ty))
-           -> TCProgram (Channel ty) (Com 'Recv ty) (TaskExpr ty)
+        go :: (Show ty, Show embExpr) => TCProgram (Channel embExpr ty) (Com 'Recv embExpr ty)  embExpr  (Fusable embExpr ty (VarCtrl embExpr ty) (LitCtrl embExpr ty))
+           -> TCProgram (Channel embExpr ty) (Com 'Recv embExpr ty)  embExpr  (TaskExpr embExpr ty)
         go = evictUnusedChannels . concludeFusion . (fuseFunctions options) . fuseStateThreads . fuseSMaps
 {-
-removeIdFun :: TCProgram (Channel ty1) (Com 'Recv ty1) (TaskExpr ty1) -> TCProgram (Channel ty1) (Com 'Recv ty1) (TaskExpr ty1)
+removeIdFun :: TCProgram (Channel embExpr ty1) (Com 'Recv embExpr ty1) (TaskExpr embExpr ty1) -> TCProgram (Channel embExpr ty1) (Com 'Recv embExpr ty1) (TaskExpr embExpr ty1)
 removeIdFun (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ map idTraversal exprs
     where 
         idTraversal expr = traverse remID expr
@@ -65,8 +65,8 @@ removeIdFun (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ ma
 -}
 
 
-concludeFusion ::(Show ty) => TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty))
-               -> TCProgram (Channel ty) (Com 'Recv ty) (TaskExpr ty)
+concludeFusion ::(Show ty, Show embExpr) => TCProgram (Channel embExpr ty) (Com 'Recv embExpr ty) embExpr (Fusable embExpr ty (FusedFunCtrl embExpr ty) (FusedLitCtrl embExpr ty))
+               -> TCProgram (Channel embExpr ty) (Com 'Recv embExpr ty) embExpr (TaskExpr embExpr ty)
 concludeFusion (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ map go exprs
     where
         go (Fun function) = genFun function
@@ -78,8 +78,8 @@ concludeFusion (TCProgram chans resultChan exprs) = TCProgram chans resultChan $
         go (Unfusable e) = e
 
 -- invariant length in >= length out -- TODO use length-indexed vectors
-evictUnusedChannels :: TCProgram (Channel ty) (Com 'Recv ty) (TaskExpr ty)
-                    -> TCProgram (Channel ty) (Com 'Recv ty) (TaskExpr ty)
+evictUnusedChannels :: TCProgram (Channel embExpr ty) (Com 'Recv embExpr ty) embExpr (TaskExpr embExpr ty)
+                    -> TCProgram (Channel embExpr ty) (Com 'Recv embExpr ty) embExpr (TaskExpr embExpr ty)
 evictUnusedChannels (TCProgram chans resultChan exprs) =
     let findChannels e = [ chan | ReceiveData chan <- universe e]
         usedChans = HS.fromList $ concatMap findChannels exprs      -- Order?: We don't need order here as the set is just a filter
@@ -87,9 +87,9 @@ evictUnusedChannels (TCProgram chans resultChan exprs) =
     in TCProgram (resultChan :| chans') resultChan exprs
 
 
-fuseFunctions ::(Show ty) => Options
-              -> TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty))
-              -> TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty))
+fuseFunctions ::(Show ty, Show embExpr) => Options
+              -> TCProgram (Channel embExpr ty) (Com 'Recv embExpr ty) embExpr (Fusable embExpr ty (FusedFunCtrl embExpr ty) (FusedLitCtrl embExpr ty))
+              -> TCProgram (Channel embExpr ty) (Com 'Recv embExpr ty) embExpr (Fusable embExpr ty (FusedFunCtrl embExpr ty) (FusedLitCtrl embExpr ty))
 fuseFunctions Options{stateInitFusion=False} t = t
 fuseFunctions Options{stateInitFusion=True} (TCProgram chans resultChan exprs) =
   let
@@ -102,12 +102,12 @@ fuseFunctions Options{stateInitFusion=True} (TCProgram chans resultChan exprs) =
   in
     TCProgram chans resultChan (other ++ fusedFuns' ++ unfusedFuns')
   where
-    funClassify :: Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty) ->
-                   Either (FusableFunction ty) (Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty))
+    funClassify :: Fusable embExpr ty (FusedFunCtrl embExpr ty) (FusedLitCtrl embExpr ty) ->
+                   Either (FusableFunction embExpr ty) (Fusable embExpr ty (FusedFunCtrl embExpr ty) (FusedLitCtrl embExpr ty))
     funClassify (Fun f) = Left f
     funClassify e = Right e
 
-    go :: [FusableFunction ty] -> ([Maybe (FusedFun ty)], [FusableFunction ty])
+    go :: (Show embExpr) => [FusableFunction embExpr ty] -> ([Maybe (FusedFun embExpr ty)], [FusableFunction embExpr ty])
     go [] = ([],[])
     go (f : fs) =
       let (fusedFun  , fs' ) = fuseFunction f fs
@@ -117,7 +117,7 @@ fuseFunctions Options{stateInitFusion=True} (TCProgram chans resultChan exprs) =
                     a -> fs''
      in (fusedFun : fusedFuns, fs''')
 
-    fuseFunction :: FusableFunction ty -> [FusableFunction ty] -> (Maybe (FusedFun ty), [FusableFunction ty])
+    fuseFunction :: (Show embExpr) => FusableFunction embExpr ty -> [FusableFunction embExpr ty] -> (Maybe (FusedFun embExpr ty), [FusableFunction embExpr ty])
     fuseFunction f [] = (Nothing, [])
     fuseFunction f (g : gs) =
       case F.fuseFuns f g of
@@ -126,18 +126,19 @@ fuseFunctions Options{stateInitFusion=True} (TCProgram chans resultChan exprs) =
                      Just g' -> (Just g', gs)
                      Nothing -> second ([g] ++ ) $ fuseFunction f gs
 
-fuseStateThreads :: TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (VarCtrl ty) (LitCtrl ty))
-                 -> TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty))
+fuseStateThreads :: (Show embExpr) => 
+                TCProgram (Channel embExpr ty) (Com 'Recv embExpr ty) embExpr (Fusable embExpr ty (VarCtrl embExpr ty) (LitCtrl embExpr ty))
+                -> TCProgram (Channel embExpr ty) (Com 'Recv embExpr ty) embExpr (Fusable embExpr ty (FusedFunCtrl embExpr ty) (FusedLitCtrl embExpr ty))
 fuseStateThreads = fuseSTCLang . fuseCtrls . mergeCtrls
 
-mergeCtrls :: forall ty.
-              TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (VarCtrl ty) (LitCtrl ty))
-           -> TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (FunCtrl ty) (LitCtrl ty))
+mergeCtrls :: forall ty embExpr . (Show embExpr) => 
+              TCProgram (Channel embExpr ty) (Com 'Recv embExpr ty) embExpr (Fusable embExpr ty (VarCtrl embExpr ty) (LitCtrl embExpr ty))
+           -> TCProgram (Channel embExpr ty) (Com 'Recv embExpr ty) embExpr (Fusable embExpr ty (FunCtrl embExpr ty) (LitCtrl embExpr ty))
 mergeCtrls (TCProgram chans resultChan exprs) =
     let (ctrls',mergedCtrls) = mergeLevel funReceives (OrdMap.fromList ctrls) [f | (Fun f) <- exprs]
         mergedCtrls' =
             mergedCtrls ++ mergeNextLevel (NE.toList . ctrlReceives) ctrls' mergedCtrls
-        mergedCtrls'' = map (Control . Left) mergedCtrls' :: [Fusable ty (FunCtrl ty) (LitCtrl ty)]
+        mergedCtrls'' = map (Control . Left) mergedCtrls' :: [Fusable embExpr ty (FunCtrl embExpr ty) (LitCtrl embExpr ty)]
         noCtrlExprs = filter (isNothing . findCtrl) exprs
     in TCProgram chans resultChan $
         foldl
@@ -145,10 +146,10 @@ mergeCtrls (TCProgram chans resultChan exprs) =
             mergedCtrls''
             noCtrlExprs
     where
-        mergeNextLevel :: (FunCtrl ty -> [Com 'Recv ty])
-                        -> OrdMap.OMap (OutputChannel ty) (VarCtrl ty)
-                        -> [FunCtrl ty]
-                        -> [FunCtrl ty]
+        mergeNextLevel :: (FunCtrl embExpr ty -> [Com 'Recv embExpr ty])
+                        -> OrdMap.OMap (OutputChannel embExpr ty) (VarCtrl embExpr ty)
+                        -> [FunCtrl embExpr ty]
+                        -> [FunCtrl embExpr ty]
         mergeNextLevel receives cs mcs =
             let (cs',mcs') = mergeLevel receives cs mcs
             in if null mcs'
@@ -156,10 +157,10 @@ mergeCtrls (TCProgram chans resultChan exprs) =
                 else mcs' <> mergeNextLevel receives cs' mcs'
 
         -- TODO: refactor to use a state monad instead for better readability
-        mergeLevel :: (b -> [Com 'Recv ty])
-                    -> OrdMap.OMap (OutputChannel ty) (VarCtrl ty)
+        mergeLevel :: (b -> [Com 'Recv embExpr ty])
+                    -> OrdMap.OMap (OutputChannel embExpr ty) (VarCtrl embExpr ty)
                     -> [b]
-                    -> (OrdMap.OMap (OutputChannel ty) (VarCtrl ty), [FunCtrl ty])
+                    -> (OrdMap.OMap (OutputChannel embExpr ty) (VarCtrl embExpr ty), [FunCtrl embExpr ty])
         mergeLevel receives ctrls level =
             let (ctrls', ctrlsPerFun) =
                     foldl
@@ -182,15 +183,15 @@ mergeCtrls (TCProgram chans resultChan exprs) =
         erroringNE = fromMaybe (error "Invariant broken: No controls for function!") . nonEmpty
 
         -- assumptions: LitCtrls never need to be merged by their very nature!
-        findCtrl :: Fusable ty (VarCtrl ty) a -> Maybe (OutputChannel ty, VarCtrl ty)
+        findCtrl :: Fusable embExpr ty (VarCtrl embExpr ty) a -> Maybe (OutputChannel embExpr ty, VarCtrl embExpr ty)
         findCtrl (Control (Left c@(VarCtrl _ (out,_)))) = Just (out, c)
         findCtrl _ = Nothing
-        ctrls :: [(OutputChannel ty, VarCtrl ty)]
+        ctrls :: [(OutputChannel embExpr ty, VarCtrl embExpr ty)]
         ctrls = mapMaybe findCtrl exprs
 
-fuseCtrls :: forall ty.
-             TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (FunCtrl ty) (LitCtrl ty))
-          -> TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty))
+fuseCtrls :: forall ty embExpr. (Show embExpr) => 
+             TCProgram (Channel embExpr ty) (Com 'Recv embExpr ty) embExpr (Fusable embExpr ty (FunCtrl embExpr ty) (LitCtrl embExpr ty))
+          -> TCProgram (Channel embExpr ty) (Com 'Recv embExpr ty) embExpr (Fusable embExpr ty (FusedFunCtrl embExpr ty) (FusedLitCtrl embExpr ty))
 fuseCtrls (TCProgram chans resultChan exprs) =
     let (ctrls, noFunCtrls) = split exprs
     in TCProgram chans resultChan $ go ctrls noFunCtrls
@@ -218,9 +219,9 @@ fuseCtrls (TCProgram chans resultChan exprs) =
                       "\nPending controls: " <> show pendingFunCtrls
                  else go pendingFunCtrls noFunCtrls''
 
-        split :: [Fusable ty (FunCtrl ty) (LitCtrl ty)]
-              -> ( [Either (FunCtrl ty) (LitCtrl ty)]
-                 , [Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty)])
+        split :: [Fusable embExpr ty (FunCtrl embExpr ty) (LitCtrl embExpr ty)]
+              -> ( [Either (FunCtrl embExpr ty) (LitCtrl embExpr ty)]
+                 , [Fusable embExpr ty (FusedFunCtrl embExpr ty) (FusedLitCtrl embExpr ty)])
         split = partitionEithers .
                 map (\case
                         (Control c) -> Left c
@@ -230,26 +231,26 @@ fuseCtrls (TCProgram chans resultChan exprs) =
                         (Recur r) -> Right (Recur r)
                         (SMap s) -> Right $ SMap s
                         (Unfusable u) -> Right (Unfusable u))
-        srcsAndTgts :: [Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty)]
-                    -> [Either (FunCtrl ty) (LitCtrl ty)]
-                    -> [ (Either (FunCtrl ty) (LitCtrl ty)
-                       , Either (FusableFunction ty) (FusedFunCtrl ty))]
+        srcsAndTgts :: [Fusable embExpr ty (FusedFunCtrl embExpr ty) (FusedLitCtrl embExpr ty)]
+                    -> [Either (FunCtrl embExpr ty) (LitCtrl embExpr ty)]
+                    -> [ (Either (FunCtrl embExpr ty) (LitCtrl embExpr ty)
+                       , Either (FusableFunction embExpr ty) (FusedFunCtrl embExpr ty))]
         srcsAndTgts es = mapMaybe (`findTarget` es)
 
 
-        fuseIt :: Either (FunCtrl ty) (LitCtrl ty)
-               -> Either (FusableFunction ty) (FusedFunCtrl ty)
-               -> Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty)
+        fuseIt :: Either (FunCtrl embExpr ty) (LitCtrl embExpr ty)
+               -> Either (FusableFunction embExpr ty) (FusedFunCtrl embExpr ty)
+               -> Fusable embExpr ty (FusedFunCtrl embExpr ty) (FusedLitCtrl embExpr ty)
         fuseIt (Left ctrl) (Left f) = Control $ Left $ fuseFun ctrl f
         fuseIt (Left ctrl) (Right c) = Control $ Left $ fuseCtrl ctrl c
         fuseIt (Right ctrl) (Left c) = Control $ Right $ fuseLitCtrlIntoFun ctrl c
         fuseIt (Right ctrl) (Right c) = Control $ Right $ fuseLitCtrlIntoCtrl ctrl c
 
 
-        findTarget :: Either (FunCtrl ty) (LitCtrl ty)
-                   -> [Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty)]
-                   -> Maybe ( Either (FunCtrl ty) (LitCtrl ty)
-                            , Either (FusableFunction ty) (FusedFunCtrl ty))
+        findTarget :: Either (FunCtrl embExpr ty) (LitCtrl embExpr ty)
+                   -> [Fusable embExpr ty (FusedFunCtrl embExpr ty) (FusedLitCtrl embExpr ty)]
+                   -> Maybe ( Either (FunCtrl embExpr ty) (LitCtrl embExpr ty)
+                            , Either (FusableFunction embExpr ty) (FusedFunCtrl embExpr ty))
         findTarget fc es =
             let chan = case fc of
                         (Left (FunCtrl _ outsAndIns)) ->
@@ -264,7 +265,7 @@ fuseCtrls (TCProgram chans resultChan exprs) =
                 _ -> error $ "Invariant broken: a control always has exactly one target!\nI was looking for a target for channel: " <> show chan
         
         
-        isTarget :: Com 'Channel ty -> Fusable ty (FusedCtrl anno ty) ctrl1 -> Bool
+        isTarget :: Com 'Channel embExpr ty -> Fusable embExpr ty (FusedCtrl anno embExpr ty) ctrl1 -> Bool
         isTarget bnd (Control (Left (FusedFunCtrl _ vars _ _))) =
             HS.member bnd $ HS.fromList $
             map ((\(SRecv _ c) -> c) . snd . fromVarReceive) vars
@@ -273,9 +274,9 @@ fuseCtrls (TCProgram chans resultChan exprs) =
         isTarget _ _ = False
 
 
-fuseSTCLang :: forall ty.
-               TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty))
-            -> TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty))
+fuseSTCLang :: forall ty embExpr.
+               TCProgram (Channel embExpr ty) (Com 'Recv embExpr ty) embExpr (Fusable embExpr ty (FusedFunCtrl embExpr ty) (FusedLitCtrl embExpr ty))
+            -> TCProgram (Channel embExpr ty) (Com 'Recv embExpr ty) embExpr (Fusable embExpr ty (FusedFunCtrl embExpr ty) (FusedLitCtrl embExpr ty))
 fuseSTCLang (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ go exprs
     where
         go all =
@@ -315,7 +316,7 @@ fuseSTCLang (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ go
                   _ -> Left e)
             xs
 
-        findSource :: [Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty)] ->  STCLangSMap 'S.Fusable ty -> Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty)
+        findSource :: [Fusable embExpr ty (FusedFunCtrl embExpr ty) (FusedLitCtrl embExpr ty)] ->  STCLangSMap 'S.Fusable embExpr ty -> Fusable embExpr ty (FusedFunCtrl embExpr ty) (FusedLitCtrl embExpr ty)
         findSource noneSTCs (FusableSTCLangSMap (SRecv _ inp) _) =
             case filter (isSource inp) noneSTCs of
                     [src] -> src
@@ -329,7 +330,7 @@ fuseSTCLang (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ go
         findSTCLang (STC s) = Just s
         findSTCLang _ = Nothing
 
-        isSource :: Com 'Channel ty -> Fusable ty (FusedFunCtrl ty) (FusedLitCtrl ty) -> Bool
+        isSource :: Com 'Channel embExpr ty -> Fusable embExpr ty (FusedFunCtrl embExpr ty) (FusedLitCtrl embExpr ty) -> Bool
         isSource inp (STC (FusableSTCLangSMap _ outp)) = outp == inp
         isSource inp (Control (Left (FusedFunCtrl _ _ _ outs))) =
           HS.member inp $ HS.fromList $ map (\(SSend c _) -> c) outs
@@ -345,18 +346,18 @@ fuseSTCLang (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ go
 
 -- TODO actually, the fusion of functions into SMap is context-dependent.
 --      in case of a nested SMap, the fusion actually kills pipeline parallelism!
-fuseSMaps :: forall ty.
-          TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (VarCtrl ty) (LitCtrl ty))
-          -> TCProgram (Channel ty) (Com 'Recv ty) (Fusable ty (VarCtrl ty) (LitCtrl ty))
+fuseSMaps :: forall embExpr ty. (Show embExpr) => 
+          TCProgram (Channel embExpr ty) (Com 'Recv embExpr ty) embExpr (Fusable embExpr ty (VarCtrl embExpr ty) (LitCtrl embExpr ty))
+          -> TCProgram (Channel embExpr ty) (Com 'Recv embExpr ty) embExpr (Fusable embExpr ty (VarCtrl embExpr ty) (LitCtrl embExpr ty))
 fuseSMaps (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ go exprs
   where
     go all = let smaps = mapMaybe getSMap exprs
                  exprs' = filter (not . isSMap) exprs
              in foldl getAndDropIt exprs' smaps
 
-    getAndDropIt :: [Fusable ty (VarCtrl ty) (LitCtrl ty)]
-                 -> Op ty
-                 -> [Fusable ty (VarCtrl ty) (LitCtrl ty)]
+    getAndDropIt :: [Fusable embExpr ty (VarCtrl embExpr ty) (LitCtrl embExpr ty)]
+                 -> Op embExpr ty
+                 -> [Fusable embExpr ty (VarCtrl embExpr ty) (LitCtrl embExpr ty)]
     getAndDropIt (e:expressions) smap =
       case SMap.getInput smap of
         Just (SRecv _ c) ->
@@ -372,10 +373,10 @@ fuseSMaps (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ go e
     getSMap (SMap s) = Just s
     getSMap _ = Nothing
 
-    getAndDrop :: Op ty
-               -> Com 'Channel ty
-               -> Fusable ty (VarCtrl ty) (LitCtrl ty)
-               -> Maybe (TaskExpr ty)
+    getAndDrop :: Op embExpr ty
+               -> Com 'Channel embExpr ty
+               -> Fusable embExpr ty (VarCtrl embExpr ty) (LitCtrl embExpr ty)
+               -> Maybe (TaskExpr embExpr ty)
     getAndDrop smap inp
       (Control (Left (VarCtrl cIn p@(OutputChannel c@(SChan b),inData) )))
       | c == inp =
@@ -410,7 +411,7 @@ fuseSMaps (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ go e
 -- REMINDER: (Maybe as a result of fusion) There might be no nodes without input i.e. nodes requiring input might send 
 -- before requiring to receive. Hence we can't just sort them by satisfied input requirements
 
-sortByDependency :: TCProgram (Channel ty1) (Com 'Recv ty1) (TaskExpr ty1) -> TCProgram (Channel ty1) (Com 'Recv ty1) (TaskExpr ty1)
+sortByDependency :: TCProgram (Channel embExpr ty1) (Com 'Recv embExpr ty1) embExpr (TaskExpr embExpr ty1) -> TCProgram (Channel embExpr ty1) (Com 'Recv embExpr ty1) embExpr (TaskExpr embExpr ty1)
 sortByDependency (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ orderTasks exprs HS.empty
     where
         orderTasks [] _ = []
@@ -422,9 +423,9 @@ sortByDependency (TCProgram chans resultChan exprs) = TCProgram chans resultChan
                 remaining = filter (`notElem` scheduled) tasks
             in scheduled ++ orderTasks remaining (fulfilledDependencies `HS.union` fulfilled)
 
-findInputs :: TaskExpr ty -> HashSet (Com 'Channel ty)
+findInputs :: TaskExpr embExpr ty -> HashSet (Com 'Channel embExpr ty)
 findInputs expr = HS.fromList $  [ chan | ReceiveData (SRecv _ chan) <- universe expr]
 
-findReturns :: TaskExpr ty -> [Com 'Channel ty]
+findReturns :: TaskExpr embExpr ty -> [Com 'Channel embExpr ty]
 findReturns expr =   [ chan | SendData (SSend chan _) <- universe expr]
 

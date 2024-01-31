@@ -10,21 +10,21 @@ import qualified Data.List.NonEmpty as NE
 
 
 -- FIXME Seems to be like this: Arg Recv (Either Recv TaskExpr) | Drop (Either Recv TaskExpr)
-data CallArg ty
-    = Arg (Com 'Recv ty) | Drop (Either (Com 'Recv ty) (TaskExpr ty)) | Converted (TaskExpr ty)
+data CallArg embExpr ty
+    = Arg (Com 'Recv embExpr ty) | Drop (Either (Com 'Recv embExpr ty) (TaskExpr embExpr ty)) | Converted (TaskExpr embExpr ty)
     deriving (Eq, Generic, Show)
 
-instance Hashable (CallArg ty)
+instance Hashable (CallArg embExpr ty)
 
-data Result ty
-  = SendResult (Com 'Channel ty)
-  | DispatchResult (NonEmpty (Com 'Channel ty))
+data Result embExpr ty
+  = SendResult (Com 'Channel embExpr ty)
+  | DispatchResult (NonEmpty (Com 'Channel embExpr ty))
   -- | This happens during fusion. But we still need to preserve the index positions otherwise
   --   the destructuring breaks.
   | DropResult
   deriving (Eq, Generic, Show)
 
-instance Hashable (Result ty)
+instance Hashable (Result embExpr ty)
 
 data FunCall ty = Call (FunRef ty Resolved) | Tup (FunType ty Resolved) deriving (Eq, Generic, Show, Hashable)
 
@@ -36,57 +36,57 @@ data FunCall ty = Call (FunRef ty Resolved) | Tup (FunType ty Resolved) deriving
 --   5) certainly this definition of a function really is no different
 --      from the newly defined DFLang! (one more reason to move this into common.)
 
-data FusFunction sin ty
+data FusFunction sin ty embExpr
     = PureFusable
-        [CallArg ty]  -- data receive
+        [CallArg embExpr ty]  -- data receive
         (FunCall ty)
-        (NonEmpty (Result ty)) -- send result
+        (NonEmpty (Result embExpr ty)) -- send result
     | STFusable
         (sin ty) -- state receive
-        [CallArg ty]  -- data receive
+        [CallArg embExpr ty]  -- data receive
         (FunRef ty Resolved)
-        [Result ty] -- send result
-        (Maybe (Com 'Channel ty)) -- send state
+        [Result embExpr ty] -- send result
+        (Maybe (Com 'Channel embExpr ty)) -- send state
     | IdFusable
-        (CallArg ty)
-        (NonEmpty (Result ty))
+        (CallArg embExpr ty)
+        (NonEmpty (Result embExpr ty))
     deriving (Generic)
 
-deriving instance (Show (sin ty), Show ty) => Show (FusFunction sin ty) 
+deriving instance (Show (sin ty), Show ty, Show  embExpr) => Show (FusFunction sin ty embExpr) 
 
 -- using a vector would have been so much nicer, but implementing Eq and Hashable
 -- manually is just a pain.
-type FusableFunction ty = FusFunction (Com 'Recv) ty
-type FusedFunction ty = FusFunction CallArg ty
+type FusableFunction embExpr ty = FusFunction (Com 'Recv embExpr) ty embExpr
+type FusedFunction embExpr ty = FusFunction (CallArg embExpr) ty embExpr
 
-deriving instance Hashable (FusableFunction ty)
-deriving instance Eq (FusableFunction ty)
+deriving instance Hashable (FusableFunction embExpr ty)
+deriving instance Eq (FusableFunction embExpr ty)
 
-channels :: Result ty -> [Com 'Channel ty]
+channels :: Result embExpr ty -> [Com 'Channel embExpr ty]
 channels (SendResult c) = [c]
 channels (DispatchResult cs) = toList cs
 channels DropResult = []
 
-toFuseFun :: FusableFunction ty -> FusedFunction ty
+toFuseFun :: FusableFunction embExpr ty -> FusedFunction embExpr ty
 toFuseFun (PureFusable recvs qb outs) = PureFusable recvs qb outs
 toFuseFun (STFusable a b c d e) = STFusable (Arg a) b c d e
 toFuseFun (IdFusable recv outs) = IdFusable recv outs
 
-genFun :: (Show ty) => FusableFunction ty -> TaskExpr ty
+genFun :: (Show ty, Show embExpr) => FusableFunction embExpr ty -> TaskExpr embExpr ty
 genFun fun = loop (funReceives fun) $ (\f -> genFun' (genSend f) f) $ toFuseFun fun
 
-funReceives :: FusableFunction ty -> [Com 'Recv ty]
+funReceives :: FusableFunction embExpr ty -> [Com 'Recv embExpr ty]
 funReceives (PureFusable vars _ _)   = extractAll vars
 funReceives (STFusable r vars _ _ _) = r : extractAll vars
 funReceives (IdFusable r _) = extractAll [r]
 
-loop :: [Com 'Recv ty] -> TaskExpr ty -> TaskExpr ty
+loop :: [Com 'Recv embExpr ty] -> TaskExpr embExpr ty -> TaskExpr embExpr ty
 loop [] c = c
 loop _  c = EndlessLoop c
 
 result = "res"
 
-genSend :: forall ty.FusedFunction ty -> TaskExpr ty
+genSend :: forall embExpr ty. (Show embExpr) =>  FusedFunction embExpr ty -> TaskExpr embExpr ty
 genSend = \case
     (PureFusable _ _ o) -> dataOut (toList o) $ Lit UnitLit
     (STFusable stateRecv receives _ sendRes sendState) ->
@@ -97,7 +97,7 @@ genSend = \case
            maybe (Lit UnitLit) (SendData . (`SSend` Left stateArg)) sendState
     (IdFusable _ o) -> dataOut (toList o) $ Lit UnitLit
     where
-      dataOut :: [Result ty] -> TaskExpr ty -> TaskExpr ty
+      dataOut :: [Result embExpr ty] -> TaskExpr embExpr ty -> TaskExpr embExpr ty
       dataOut [] ct = ct
       dataOut [DropResult] ct = ct
       dataOut [SendResult (SChan b)] ct = Stmt (SendData $ SSend (SChan b) (Left b)) ct
@@ -113,20 +113,20 @@ genSend = \case
       dataOut outs ct = foldr
         (\(out, num) expr -> getOut out (`Indexing` num) expr) ct (zip outs [0 ..])
 
-      getOut :: Result ty -> (Binding -> TaskExpr ty) -> TaskExpr ty -> TaskExpr ty
+      getOut :: Result embExpr ty -> (Binding -> TaskExpr embExpr ty) -> TaskExpr embExpr ty -> TaskExpr embExpr ty
       getOut DropResult _ ct = ct
       getOut (DispatchResult chans) f ct = foldr (\chan cont -> getOut (SendResult chan) f cont) ct chans
       getOut (SendResult (SChan b)) f ct =
         Let b (f result) $
         Stmt (SendData $ SSend (SChan b) (Left b)) ct
 
-genFun'' :: FusableFunction ty -> TaskExpr ty
+genFun'' ::(Show embExpr) => FusableFunction embExpr ty -> TaskExpr embExpr ty
 genFun'' fun = (\f -> genFun' (genSend f) f) $ toFuseFun fun
 
-genFunWithCont :: TaskExpr ty -> FusableFunction ty -> TaskExpr ty
+genFunWithCont ::(Show embExpr) => TaskExpr embExpr ty -> FusableFunction embExpr ty -> TaskExpr embExpr ty
 genFunWithCont ct fun = loop (funReceives fun) $ genFun' ct $ toFuseFun fun
 
-genFun' :: TaskExpr ty -> FusedFunction ty -> TaskExpr ty
+genFun' :: (Show embExpr) => TaskExpr embExpr ty -> FusedFunction embExpr ty -> TaskExpr embExpr ty
 genFun' ct = \case
     (PureFusable receives f out) ->
         let varsAndReceives = zipWith (curry generateReceiveCode) [0 ..] receives
@@ -167,39 +167,39 @@ genFun' ct = \case
                    [SendResult (SChan b)] -> Let b call ct
                    cs -> Let result call ct
 
-generateReceiveCode :: (Show a) => (a, CallArg ty) -> (CallArg ty, Binding, TaskExpr ty)
+generateReceiveCode :: (Show a, Show embExpr) => (a, CallArg embExpr ty) -> (CallArg embExpr ty, Binding, TaskExpr embExpr ty)
 generateReceiveCode (idx, a@(Arg r)) = (a, "var_" <> show idx, ReceiveData r)
 generateReceiveCode (idx, a@(Drop (Left r))) = (a, "_var_" <> show idx, ReceiveData r)
 generateReceiveCode (idx, a@(Drop (Right e))) = (a, "_var_" <> show idx, e)
 generateReceiveCode (idx, a@(Converted e)) = (a, "var_" <> show idx, e)
 
-extractAll :: [CallArg ty] -> [Com 'Recv ty]
+extractAll :: [CallArg embExpr ty] -> [Com 'Recv embExpr ty]
 extractAll = mapMaybe extractOne
 
-extractOne :: CallArg ty -> Maybe (Com 'Recv ty)
+extractOne :: CallArg embExpr ty -> Maybe (Com 'Recv embExpr ty)
 extractOne (Arg r) = Just r
 extractOne (Drop (Left r)) = Just r
 extractOne (Drop _) = Nothing
 extractOne (Converted _) = Nothing
 
-data FusedFun ty
-    = FusedFun (FusedFunction ty) (TaskExpr ty) deriving Show
+data FusedFun embExpr ty
+    = FusedFun (FusedFunction embExpr ty) (TaskExpr embExpr ty) deriving Show
 
-genFused :: FusedFunction ty -> TaskExpr ty
+genFused :: (Show embExpr) => FusedFunction embExpr ty -> TaskExpr embExpr ty
 genFused fun = genFun' (genSend fun) fun
 
-genFusedFun' :: FusedFun ty -> TaskExpr ty
+genFusedFun' :: (Show embExpr) => FusedFun embExpr ty -> TaskExpr embExpr ty
 genFusedFun' (FusedFun fun ct) = genFun' ct fun
 
-genFusedFun :: (Show ty) => FusedFun ty -> TaskExpr ty
+genFusedFun :: (Show ty, Show embExpr) => FusedFun embExpr ty -> TaskExpr embExpr ty
 genFusedFun f@(FusedFun fun ct) = trace ("Processing task in genFusedFun: \n" <> show fun) loop (fusedFunReceives fun) $ genFusedFun' f
 
-fusedFunReceives :: FusedFunction ty -> [Com 'Recv ty]
+fusedFunReceives :: FusedFunction embExpr ty -> [Com 'Recv embExpr ty]
 fusedFunReceives (PureFusable vars _ _)   = extractAll vars
 fusedFunReceives (STFusable r vars _ _ _) = extractAll $ r:vars
 fusedFunReceives (IdFusable r _) = extractAll [r]
 
-fuseFuns :: FusableFunction ty -> FusableFunction ty -> Maybe (FusedFun ty)
+fuseFuns :: (Show embExpr) => FusableFunction embExpr ty -> FusableFunction embExpr ty -> Maybe (FusedFun embExpr ty)
 fuseFuns fun1 fun2 =
   case (fun1, fun2) of
     -- | Fusion for state initializers

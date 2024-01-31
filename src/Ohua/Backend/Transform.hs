@@ -13,11 +13,12 @@ transformTaskExprs
      , Integration lang
      , ty ~ Type lang
      , anno ~ AlgoSrc lang
+     , embExpr ~ EmbExpr lang
      , Transform arch
      )
   => HostModule lang -> arch
-  -> Namespace (Program (Channel ty) (Com 'Recv ty) (TaskExpr ty) ty) anno (OhuaType ty 'Resolved)
-  -> Namespace (Program (Channel ty) (Com 'Recv ty) (TaskExpr ty) ty) anno (OhuaType ty 'Resolved)
+  -> Namespace (Program (Channel embExpr ty) (Com 'Recv embExpr ty) (TaskExpr embExpr ty) embExpr  ty) anno (OhuaType ty 'Resolved)
+  -> Namespace (Program (Channel embExpr ty) (Com 'Recv embExpr ty) (TaskExpr embExpr ty) embExpr ty) anno (OhuaType ty 'Resolved)
 transformTaskExprs lang arch = updateTaskExprs (transformTaskExpr lang arch)
 
 transformTasks
@@ -26,9 +27,10 @@ transformTasks
      , Integration lang
      , ty ~ Type lang
      , anno ~ AlgoSrc lang
+     , embExpr ~ EmbExpr lang
      , Transform arch
      )
   => HostModule lang -> arch
-  -> Namespace (Program (Channel ty) (Com 'Recv ty) (Task lang) ty) anno (OhuaType ty 'Resolved)
-  -> Namespace (Program (Channel ty) (Com 'Recv ty) (Task lang) ty) anno (OhuaType ty 'Resolved)
+  -> Namespace (Program (Channel embExpr ty) (Com 'Recv embExpr ty) (Task lang) embExpr ty) anno (OhuaType ty 'Resolved)
+  -> Namespace (Program (Channel embExpr ty) (Com 'Recv embExpr ty) (Task lang) embExpr ty) anno (OhuaType ty 'Resolved)
 transformTasks lang arch = updateTasks (transformTask lang arch)
