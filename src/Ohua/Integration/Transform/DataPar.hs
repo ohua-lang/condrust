@@ -277,7 +277,7 @@ liftFunction collectTy retTy (PureDFFun out fun inp) cont = do
 -- All that the language and backend requires to support this transformations are
 -- the implementations of the below functions.
 lowerTaskPar :: forall lang arch ty. (ty ~ BT.Type (BT.Lang arch))
-             => lang -> arch -> FullTask ty (B.TaskExpr ty) -> B.TaskExpr ty
+             => lang -> arch -> FullTask ty (B.TaskExpr embExpr ty) -> B.TaskExpr embExpr ty
 lowerTaskPar _ _arch = go
     where
         go (FullTask _sends _recvs taskE) =
@@ -287,7 +287,7 @@ lowerTaskPar _ _arch = go
         -- This implementation does not need this state return anymore.
         -- I leave it in nevertheless to show how to work with cataA.
         go'  = flip runState False . cataA go''
-        go'' :: B.TaskExprF ty (State Bool (B.TaskExpr ty)) -> (State Bool (B.TaskExpr ty))
+        go'' :: B.TaskExprF ty (State Bool (B.TaskExpr embExpr ty)) -> (State Bool (B.TaskExpr embExpr ty))
         go'' = \case
                 -- we need to do this on the Rust level because
                 -- it would be hard to construct this call.
