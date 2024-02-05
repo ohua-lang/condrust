@@ -86,18 +86,18 @@ class Architecture arch where
     type Chan arch :: *
     type ATask arch :: *
 
-    convertChannel    :: arch -> Channel (EmbExpr arch) (Type (Lang arch)) -> Chan arch
-    convertRetChannel :: arch -> Channel (EmbExpr arch) (Type (Lang arch)) -> Chan arch
+    convertChannel    :: arch -> Channel (EmbExpr (Lang arch)) (Type (Lang arch)) -> Chan arch
+    convertRetChannel :: arch -> Channel (EmbExpr (Lang arch)) (Type (Lang arch)) -> Chan arch
     convertRetChannel = convertChannel
     -- TODO implement for sourcing env args when process abstractions can not be closures
     --      this can just be something that works across all implementations!
     -- convertSrcChannel :: arch -> Channel (Type (Lang arch)) -> Chan arch
 
-    convertRecv    :: arch -> Com 'Recv (EmbExpr arch) (Type (Lang arch)) -> Expr (Lang arch)
-    convertRetRecv :: arch -> Com 'Recv (EmbExpr arch) (Type (Lang arch)) -> Expr (Lang arch)
+    convertRecv    :: arch -> Com 'Recv (EmbExpr (Lang arch)) (Type (Lang arch)) -> Expr (Lang arch)
+    convertRetRecv :: arch -> Com 'Recv (EmbExpr (Lang arch)) (Type (Lang arch)) -> Expr (Lang arch)
     convertRetRecv = convertRecv
 
-    convertSend:: arch -> Com 'Send (EmbExpr arch) (Type (Lang arch)) -> Expr (Lang arch)
+    convertSend:: arch -> Com 'Send (EmbExpr (Lang arch)) (Type (Lang arch)) -> Expr (Lang arch)
     -- TODO implement for sourcing env args when process abstractions can not be closures
     --      this can just be something that works across all implementations!
     -- convertSrcSend    :: arch -> Com 'Recv (Type (Lang arch)) -> Expr (Lang arch)

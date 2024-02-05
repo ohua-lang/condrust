@@ -1,4 +1,4 @@
-{-# LANGUAGE  TypeOperators #-}
+{-# LANGUAGE  TypeOperators, ScopedTypeVariables #-}
 module Ohua.Backend.Communication where
 
 import Ohua.Prelude hiding (Type)
@@ -18,7 +18,7 @@ lowerRetCom ::
         -> Namespace (Program (Chan arch) retChan                task embExpr ty) anno (OhuaType ty 'Resolved)
 lowerRetCom arch ns = ns & algos %~ map (\algo -> algo & algoCode %~ convertCommunication )
     where
-        convertCommunication :: 
+        {-convertCommunication :: 
             Program (Chan arch) (Com 'Recv embExpr ty) task embExpr ty
             -> Program (Chan arch) retChan                task embExpr ty
         convertCommunication (Program chans retChan tasks) =

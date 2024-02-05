@@ -22,10 +22,12 @@ backend ::
         , Lang arch ~ lang
         , ty ~ Type lang
         , anno ~ AlgoSrc lang
+        , embExpr ~ EmbExpr lang
+        , Show embExpr
         )
         => FilePath
         -> Options
-        -> Namespace (TCProgram (Channel ty) (Com 'Recv embExpr ty) (FusableExpr ty)) anno (OhuaType ty 'Resolved)
+        -> Namespace (TCProgram (Channel embExpr ty) (Com 'Recv embExpr ty) embExpr (FusableExpr embExpr ty)) anno (OhuaType ty 'Resolved)
         -> HostModule lang
         -> arch
         -- REMINDER: Replace type of placeholder when needed
