@@ -6,6 +6,7 @@ module Ohua.Integration.Rust.Architecture.SharedMemory where
 import qualified Data.List as LS
 import Language.Rust.Data.Ident (mkIdent)
 import Language.Rust.Quote
+import Language.Rust.Parser (Span)
 import qualified Language.Rust.Syntax as Rust hiding (Rust)
 import Ohua.Backend.Lang (Com (..), Channel)
 import Ohua.Backend.Types hiding (convertExpr)
@@ -32,7 +33,7 @@ instance Architecture (Architectures 'SharedMemory) where
   type Chan (Architectures 'SharedMemory) = Sub.Stmt
   type ATask (Architectures 'SharedMemory) = [Rust.Stmt ()]
 
-  convertChannel :: Architectures 'SharedMemory -> Channel TH.RustVarType -> Chan (Architectures 'SharedMemory)
+  convertChannel :: Architectures 'SharedMemory -> Channel (Rust.Expr Span) TH.RustVarType -> Chan (Architectures 'SharedMemory)
   convertChannel SSharedMemory{} (SRecv argTy (SChan bnd)) =
     let chanTy =
           case convertToRustType argTy of
@@ -65,6 +66,7 @@ instance Architecture (Architectures 'SharedMemory) where
     Right b@BoolLit{} -> trySend $ Sub.Lit b
     Right s@StringLit{} -> trySend $ Sub.Lit s
     Right UnitLit -> trySend $ Sub.Lit UnitLit
+    Right hl@HostLit{} -> undefined -- This should crash when I introduced  host literal tests to remind me to implement it
     Right (EnvRefLit bnd _ty) -> trySend $ Sub.Var bnd
     Right (FunRefLit _) -> error "Invariant broken: Got tasked to send a function reference via channel which should have been caught in the backend."
     where
@@ -118,7 +120,7 @@ instance Architecture (Architectures 'SharedMemory) where
                , flip Rust.Semi noSpan $
                    Rust.BlockExpr
                      []
-                     (Rust.Block ([convertStmt local] ++ [Rust.NoSemi task' noSpan]) Rust.Normal noSpan)
+                     (Rust.Block (convertStmt local : [Rust.NoSemi task' noSpan]) Rust.Normal noSpan)
                      Nothing
                      noSpan
                ]

@@ -5,7 +5,7 @@ module Ohua.Integration.Rust.Architecture.M3 where
 
 import Language.Rust.Data.Ident (mkIdent)
 import Language.Rust.Quote
-import Language.Rust.Parser (parse', inputStreamFromString)
+import Language.Rust.Parser (Span, parse', inputStreamFromString)
 import qualified Language.Rust.Syntax as Rust hiding (Rust)
 import Ohua.Backend.Lang (Com (..), ComType(..), Channel)
 import Ohua.Backend.Types hiding (Expr, convertExpr)
@@ -33,7 +33,7 @@ import Ohua.Integration.Rust.Backend.Passes (propagateMut)
 import Data.Text (unpack, unlines)
 import Ohua.Integration.Rust.Architecture.SharedMemory (convertToRustType)
 
-convertChan :: Sub.BindingMode -> Channel TH.RustVarType -> Rust.Stmt ()
+convertChan :: Sub.BindingMode -> Channel (Rust.Expr Span) TH.RustVarType -> Rust.Stmt ()
 convertChan rxMutability (SRecv _ty (SChan bnd)) =
     let channel = noSpan <$ [expr| channel() |]
      in Rust.Local
@@ -48,7 +48,7 @@ convertChan rxMutability (SRecv _ty (SChan bnd)) =
           []
           noSpan
 
-convertReceive :: Binding -> Com 'Recv TH.RustVarType -> Sub.Expr
+convertReceive :: Binding -> Com 'Recv (Rust.Expr Span) TH.RustVarType -> Sub.Expr
 convertReceive suffix (SRecv argType (SChan channel)) =
   let ty' = case argType of
               (HType (HostType( TH.Self ty _ _mut)) ) -> noSpan <$ ty
@@ -91,6 +91,7 @@ instance Architecture (Architectures 'M3) where
     Right b@BoolLit{} -> asMethodCall $ Sub.Lit b
     Right s@StringLit{} -> asMethodCall $ Sub.Lit s
     Right UnitLit -> asMethodCall $ Sub.Lit UnitLit
+    Right hl@HostLit{} -> undefined -- This should crash when I introduced  host literal tests to remind me to implement it
     Right (EnvRefLit bnd _ty) -> asMethodCall $ Sub.Var bnd
     Right (FunRefLit _) -> error "Invariant broken: Got asked to send a function reference via channel which should have been caught in the backend."
     (Left d) -> asMethodCall $ Sub.Var d
@@ -109,9 +110,9 @@ instance Architecture (Architectures 'M3) where
 
       createActivity' (FullTask sends recvs taskE) =
         let
-          extractSend :: Com 'Send t -> Binding
+          extractSend :: Com 'Send (Rust.Expr Span) ty -> Binding
           extractSend (SSend (SChan c) _) = c
-          extractRecv :: Com 'Recv t -> Binding
+          extractRecv :: Com 'Recv (Rust.Expr Span) ty -> Binding
           extractRecv (SRecv _ (SChan c)) = c
           closureParams vars ty extract =
             map (\v ->

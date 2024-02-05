@@ -6,22 +6,26 @@ import qualified Data.HashMap.Lazy as HM
 import Data.Text.Prettyprint.Doc hiding (Pretty)
 import Data.Text.Prettyprint.Doc.Render.Text
 import Data.Text.Lazy (unpack)
+
+import Language.Rust.Data.Ident
 import Language.Rust.Pretty (pretty', Resolve, Pretty)
 import Language.Rust.Syntax as Rust hiding (Rust)
+import Language.Rust.Parser (Span)
+
 import Ohua.Backend.Types
 import qualified Ohua.Integration.Rust.Types.Extraction as TH
 import Ohua.Integration.Rust.Util
 import Ohua.Prelude
 import System.FilePath (takeFileName)
-import Language.Rust.Data.Ident
 
-serialize ::
-  ErrAndLogM m =>
-  TH.Module ->
-  Namespace (Program chan expr stmts TH.RustVarType) anno (OhuaType ty 'Resolved) ->
-  (Program chan expr stmts TH.RustVarType -> Block ()) ->
-  TH.Module ->
-  m (NonEmpty (FilePath, L.ByteString))
+
+serialize :: 
+  ErrAndLogM m 
+  => TH.Module 
+  -> Namespace (Program chan expr stmts (Rust.Expr Span) TH.RustVarType) anno (OhuaType ty 'Resolved) 
+  -> (Program chan expr stmts (Rust.Expr Span) TH.RustVarType -> Block ()) 
+  -> TH.Module 
+  -> m (NonEmpty (FilePath, L.ByteString))
 -- REMINDER: Replace Placeholder. Output new library file
 serialize (TH.Module path (SourceFile modName atts items)) ns createProgram placeholder =
   let algos' = HM.fromList $ map (\(Algo name _ty expr _ ) -> (name, expr)) $ ns ^. algos

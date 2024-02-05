@@ -27,7 +27,8 @@ import System.FilePath (takeFileName)
 -- import Language.Python.Common (ImportRelative(import_relative_dots))
 import Data.List (nub)
 
-type FullyPyProgram = Program (Py.Statement SrcSpan) (Py.Expr SrcSpan) (Py.Statement SrcSpan) PythonVarType
+-- data Program chan retChan expr embExpr ty 
+type FullyPyProgram = Program (Py.Statement SrcSpan) (Py.Expr SrcSpan) (Py.Statement SrcSpan) (Py.Expr SrcSpan) PythonVarType
 
 
 -- instance Transform (Architectures 'MultiProcessing)
@@ -81,8 +82,8 @@ instance Architecture (Architectures 'MultiProcessing) where
                 Program chans retChan (zipWith (curry taskFromSuite) [1..] tasks)
 
 
-            taskFromSuite:: (Int, FullTask ty Sub.Suite)
-                 ->  FullTask ty (Py.Statement SrcSpan)
+            taskFromSuite:: (Int, FullTask (Py.Expr SrcSpan) ty Sub.Suite)
+                 ->  FullTask (Py.Expr SrcSpan) ty (Py.Statement SrcSpan)
             taskFromSuite (num, FullTask ins out suite) = FullTask ins out fun
                 where
                     fun=
@@ -115,13 +116,13 @@ instance Architecture (Architectures 'MultiProcessing) where
             (Module libname lib) = placeholder
             lib_from_frontend = (libname, encodePretty lib)
 
-chnlToParameter :: Com comTy argTy  -> Py.Parameter SrcSpan
+chnlToParameter :: Com comTy embExpr argTy  -> Py.Parameter SrcSpan
 chnlToParameter chnl = Py.Param (chnlToIdent chnl) Nothing Nothing noSpan
 
-chnlToVar :: Com comTy argTy  -> Py.Expr SrcSpan
+chnlToVar :: Com comTy embExpr argTy  -> Py.Expr SrcSpan
 chnlToVar chnl = Py.Var (chnlToIdent chnl) noSpan
 
-chnlToIdent :: Com comTy argTy  -> Py.Ident SrcSpan
+chnlToIdent :: Com comTy embExpr argTy  -> Py.Ident SrcSpan
 chnlToIdent (SRecv _ty (SChan chnlName)) = fromBinding (chnlName <> "_receiver")
 chnlToIdent (SSend (SChan chnlName) _toSend) = fromBinding (chnlName <> "_sender")
 
@@ -151,7 +152,7 @@ scopeOfAlgo aName (stmt: stmts) =  stmt : scopeOfAlgo aName stmts
 
 -- | Task functions are called with a list of (unique -> nub) channels they use as arguments.
 -- | Here we extract them.
-channelsFromTask :: FullTask PythonVarType (Py.Statement SrcSpan) -> [Py.Expr SrcSpan]
+channelsFromTask :: FullTask (Py.Expr SrcSpan) PythonVarType (Py.Statement SrcSpan) -> [Py.Expr SrcSpan]
 channelsFromTask (FullTask ins outs _fun) = nub (map chnlToVar ins ++ map chnlToVar outs)
 
 {- | This function produces a parallelized version of the input module that 
@@ -273,9 +274,9 @@ modName :: Py.Parameter annot -> [Char] -> Py.Ident SrcSpan
 modName (Py.Param (Py.Ident iName _) _mTyp _mDef _anno) modV = Py.Ident (iName ++ modV) noSpan
 
 
-subToPython :: Program Stmt Stmt (Py.Statement SrcSpan) PythonVarType -> FullyPyProgram
+subToPython :: Program Stmt Stmt (Py.Statement SrcSpan) (Py.Expr SrcSpan) PythonVarType -> FullyPyProgram
 subToPython (Program c r t ) =  Program (map subToStmt c) (subToExpr . unwrapSubStmt $ r) t
 
-enumeratedTasks :: [FullTask PythonVarType (Py.Statement SrcSpan)] -> [String]
+enumeratedTasks :: [FullTask (Py.Expr SrcSpan) PythonVarType (Py.Statement SrcSpan)] -> [String]
 enumeratedTasks  tasks =  zipWith (\ _task i -> "task_" ++ show i) tasks [1..]
 

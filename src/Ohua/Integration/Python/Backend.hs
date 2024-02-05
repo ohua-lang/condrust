@@ -29,7 +29,7 @@ import Data.Maybe
 -}
 -- Todo: Check if Let is really something different
 convertToSuite ::(Architecture arch, Lang arch ~ Language 'Python)
-    => arch -> TaskExpr PythonVarType  -> Sub.Suite
+    => arch -> TaskExpr (Py.Expr SrcSpan) PythonVarType  -> Sub.Suite
 convertToSuite arch (TCLang.Let varName valExpr inExpr) =
     convertExpr arch (TCLang.Assign varName valExpr) : convertToSuite arch inExpr
 convertToSuite arch (TCLang.Stmt stmt otherStmts) =
@@ -42,6 +42,7 @@ instance Integration (Language 'Python) where
     type HostModule (Language 'Python) = Module
     type Type (Language 'Python) = PythonVarType
     type AlgoSrc (Language 'Python) = Py.Statement SrcSpan
+    type EmbExpr (Language 'Python) = Py.Expr SrcSpan
 
     type Expr (Language 'Python) = Sub.Stmt
     type Task (Language 'Python) = Sub.Suite
@@ -60,19 +61,17 @@ instance Integration (Language 'Python) where
                     $ map (convertToSuite arch . convertEnvs <$>) tasks
             convertTasks statement _ = error $ "Trying to convert something, that is not a function but "<> show statement
 
-            convertEnvs :: TCLang.TaskExpr PythonVarType  -> TCLang.TaskExpr PythonVarType
+            convertEnvs :: TCLang.TaskExpr (Py.Expr SrcSpan) PythonVarType  -> TCLang.TaskExpr (Py.Expr SrcSpan) PythonVarType
             convertEnvs = cata $ \case
                 LitF (EnvRefLit arg _ty) -> Var arg
                 e -> embed e
-
-            -- argToVar :: Py.Parameter a -> TCLang.TaskExpr PythonVarType
-            -- argToVar param = Var $ toBinding $ Py.param_name param
 
     convertExpr _ (TCLang.Var bnd) = wrapSubExpr $ Sub.Var bnd
     convertExpr _ (TCLang.Lit (NumericLit i)) = wrapSubExpr $ Sub.Int i
     convertExpr _ (TCLang.Lit (BoolLit b)) = wrapSubExpr $ Sub.Bool b
     convertExpr _ (TCLang.Lit (StringLit str)) = wrapSubExpr $ Sub.Strings [str]
     convertExpr _ (TCLang.Lit UnitLit) = wrapSubExpr Sub.None
+    convertExpr _ (TCLang.Lit (HostLit l _ty)) = error "ToDo: We need to include host expressions in the subset"
     -- Question: Why is it an error?
     convertExpr _ (TCLang.Lit (EnvRefLit _hostExpr _ty)) = error "Host expression encountered! This is a compiler error. Please report!"
 
@@ -179,7 +178,7 @@ instance Integration (Language 'Python) where
 
 
 transformToSubscript :: (Integration (Lang arch), Architecture arch, Expr (Lang arch) ~ Sub.Stmt) =>
-                        arch -> App (TaskExpr (B.Type (Lang arch))) -> Sub.Stmt
+                        arch -> App (TaskExpr (B.EmbExpr (Lang arch)) (B.Type (Lang arch))) -> Sub.Stmt
 
 -- | l.__getitem__(0) => l[0]
 transformToSubscript arch (Stateful stateBnd TH.GetItemFunction [indexArg]) = 
@@ -199,7 +198,7 @@ transformToSubscript _arch _ = error "Try to transform a function other than __g
 
 
 convertFunCall ::(Architecture arch, Lang arch ~ Language 'Python) =>
-        arch -> QualifiedBinding -> [TCLang.TaskExpr PythonVarType ] -> Sub.Stmt
+        arch -> QualifiedBinding -> [TCLang.TaskExpr (Py.Expr SrcSpan) PythonVarType] -> Sub.Stmt
 convertFunCall arch op [arg1, arg2] | isJust $ binOp op =
     wrapSubExpr $ Sub.BinaryOp (fromJust $ binOp op) firstArg secondArg
     where
@@ -273,7 +272,7 @@ convertFunCall arch funRef args =
 
 
 convertArgument :: (Architecture arch, Lang arch ~ Language 'Python) =>
-    arch -> TaskExpr PythonVarType  -> Sub.Argument
+    arch -> TaskExpr (Py.Expr SrcSpan) PythonVarType  -> Sub.Argument
 -- TODO: If I could translate args and kwargs at the frontend I'd maybe just prepend their names with '*'/'**'
 -- > Check if translating this back just using normal args yields same behaviour
 -- > Currently original type annotation and default are lost in translation (no pun intended) anyways, otherwise
@@ -283,7 +282,7 @@ convertArgument :: (Architecture arch, Lang arch ~ Language 'Python) =>
 convertArgument arch arg = Sub.Arg ( unwrapSubStmt (convertExpr arch arg))
 
 convertDictItem :: (Architecture arch, Lang arch ~ Language 'Python) =>
-    arch -> TaskExpr PythonVarType  -> (Sub.Expr, Sub.Expr)
+    arch -> TaskExpr (Py.Expr SrcSpan) PythonVarType  -> (Sub.Expr, Sub.Expr)
 convertDictItem arch item =
     let item' = unwrapSubStmt $ convertExpr arch item
     in
@@ -297,7 +296,7 @@ dotConcat (NSRef refs) bind =
     let concatName = foldr (\ref rname -> bndToStr ref ++ "." ++ rname) (bndToStr bind) refs
     in fromString concatName
 
-asFunctionLiteral :: QualifiedBinding -> Int -> TaskExpr PythonVarType
+asFunctionLiteral :: QualifiedBinding -> Int -> TaskExpr (Py.Expr SrcSpan)  PythonVarType
 asFunctionLiteral qBinding 0 =
   TCLang.Lit $ FunRefLit $ FunRef qBinding $ FunType (Left ()) (defaultType)
 asFunctionLiteral qBinding n =

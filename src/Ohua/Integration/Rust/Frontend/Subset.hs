@@ -8,7 +8,6 @@ import Ohua.Prelude hiding (Lit)
 import Ohua.Integration.Rust.Common.Subset hiding (Block, Stmt)
 import qualified Ohua.Integration.Rust.Common.Subset as CS (Block(..), Stmt(..))
 
--- import Language.Rust.Syntax (Ty)
 
 import Data.Functor.Foldable.TH (makeBaseFunctor)
 -- import Language.Haskell.TH.Syntax (Lift)

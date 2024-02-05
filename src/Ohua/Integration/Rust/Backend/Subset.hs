@@ -13,7 +13,7 @@ import Control.Lens.Plated
 import Data.Functor.Foldable.TH (makeBaseFunctor)
 import Language.Haskell.TH.Syntax (Lift)
 import Language.Rust.Parser (Span)
-import Language.Rust.Syntax (GenericArgs)
+import qualified Language.Rust.Syntax as Rust hiding (Rust)
 import Ohua.Integration.Rust.Common.Subset hiding (Block, Stmt)
 import qualified Ohua.Integration.Rust.Common.Subset as CSTypes (Block, Stmt)
 import Ohua.Integration.Rust.Types.Extraction
@@ -25,7 +25,7 @@ type Block = CSTypes.Block Expr
 type Stmt = CSTypes.Stmt Expr
 
 data Expr
-  = Lit (Lit RustVarType Resolved)
+  = Lit (Lit (Rust.Expr Span) RustVarType Resolved)
   | Var Binding
   -- ToDO: If we only support Variables as bound objects and if we keep the BindE expression
   -- in the frontend the way it is, the receiver of a MethodCall should also only be a binding

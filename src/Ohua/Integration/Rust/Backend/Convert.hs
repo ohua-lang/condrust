@@ -25,6 +25,8 @@ convertExp (Sub.Lit (BoolLit b)) = Rust.Lit [] (Bool b Unsuffixed noSpan) noSpan
 convertExp (Sub.Lit (StringLit str)) = Rust.Lit [] (Str str Cooked Unsuffixed noSpan) noSpan
 convertExp (Sub.Lit UnitLit) =
   TupExpr [] [] noSpan
+convertExp (Sub.Lit (HostLit _hostExpr _ty)) =
+  error "ToDo: We need to implement support for Host expressions in the Rust Backend. Please remind us :-)"
 -- Question: Why is this an error?
 convertExp (Sub.Lit (EnvRefLit _hostExpr _ty)) =
   error "Host expression encountered! This is a compiler error. Please report!"
