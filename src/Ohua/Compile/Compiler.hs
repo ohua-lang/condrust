@@ -58,7 +58,7 @@ compilation :: forall (lang::Lang) (arch::Arch) m.
     -> BConfig.Options
 
     -> FilePath
-    -> Maybe (CConfig.CustomPasses (BT.Type (Language lang)))
+    -> Maybe (CConfig.CustomPasses (BT.EmbExpr (Language lang)) (BT.Type (Language lang)))
     -> Language lang
     -> Architectures arch
     -> m ()

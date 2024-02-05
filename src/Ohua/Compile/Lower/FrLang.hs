@@ -13,10 +13,10 @@ import qualified Ohua.Core.InternalFunctions as IFuns
 import qualified Data.List.NonEmpty as NE
 
 
-toAlang :: ErrAndLogM m => FR.FuncExpr embExpr ty -> m (ALang.Expr ty)
+toAlang :: ErrAndLogM m => FR.FuncExpr embExpr ty -> m (ALang.Expr embExpr ty)
 toAlang expr =  toAlang' (definedBindings expr)  expr
 
-toAlang' :: ErrAndLogM m => HS.HashSet Binding -> FR.FuncExpr embExpr ty -> m (ALang.Expr ty)
+toAlang' :: ErrAndLogM m => HS.HashSet Binding -> FR.FuncExpr embExpr ty -> m (ALang.Expr embExpr ty)
 toAlang' taken expr = runGenBndT taken $ transfrm expr
     where
         transfrm =
@@ -84,7 +84,7 @@ seqFunSf t1 t2 = LitE $ FunRefLit $ FunRef IFuns.seqFun $ FunType (Right $ t1 :|
 
 
 -- | The function actualy lowering Frontend IR to ALang
-trans :: FR.FuncExpr embExpr ty -> ALang.Expr ty
+trans :: FR.FuncExpr embExpr ty -> ALang.Expr embExpr ty
 trans =
     \case
         VarE b ty -> Var $ TBind b ty
