@@ -13,12 +13,12 @@ import qualified Data.Traversable as TR
 
 type Ctxt = HS.HashSet Binding
 
-contextedTraversal :: Monad m => (Ctxt -> UnresolvedExpr ty -> m (UnresolvedExpr ty)) -> Ctxt -> UnresolvedExpr ty -> m (UnresolvedExpr ty)
+contextedTraversal :: Monad m => (Ctxt -> UnresolvedExpr embExpr ty -> m (UnresolvedExpr embExpr ty)) -> Ctxt -> UnresolvedExpr embExpr ty -> m (UnresolvedExpr embExpr ty)
 contextedTraversal f = go
     where
         --  see example 5 in
         -- https://ndmitchell.com/downloads/paper-uniform_boilerplate_and_list_processing-30_sep_2007.pdf
-        -- go:: Ctxt -> ResolvedExpr ty -> m (ResolvedExpr ty ) 
+        -- go:: Ctxt -> ResolvedExpr embExpr ty -> m (ResolvedExpr embExpr ty ) 
         go ctxt (LetE v a b) =
             let ctxt' = HS.union ctxt $ HS.fromList $ goPat v
             in LetE v <$> go ctxt' a -- take recursive calls into account

@@ -19,7 +19,7 @@ frontend :: forall m lang. (ErrAndLogM m, Integration lang)
          => lang
          -> CompilationScope
          -> FilePath
-         -> m ((HostModule lang, Namespace (FrLang.FuncExpr (Type lang)) (AlgoSrc lang) (OhuaType (Type lang) 'Resolved)) , HostModule lang)
+         -> m ((HostModule lang, Namespace (FrLang.FuncExpr (EmbExpr lang) (Type lang)) (AlgoSrc lang) (OhuaType (Type lang) 'Resolved)) , HostModule lang)
 frontend lang compScope inFile = do
         -- 1. Extract: (input file in host language,
         --              Integration.Namespace containing Integration.Algo's, Integration.Imports's and Integration.Global's of the input module,
@@ -41,6 +41,6 @@ frontend lang compScope inFile = do
         nsLetRoot                       <- updateExprs nsWellTypd (return . noEmptyArgs)
         return  ((langNs, nsLetRoot), placeholder)
     where
-        trans :: ErrAndLogM m => FrLang.UnresolvedExpr ty -> m (FrLang.UnresolvedExpr ty)
+        trans :: ErrAndLogM m => FrLang.UnresolvedExpr embExpr ty -> m (FrLang.UnresolvedExpr embExpr ty)
         --FIXME: remove this when we're sure it's doing nothing anymore
         trans e = noFunLitReturns e >> pure e

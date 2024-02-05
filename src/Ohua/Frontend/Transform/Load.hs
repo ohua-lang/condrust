@@ -28,7 +28,10 @@ import qualified Data.HashMap.Strict as HM
 --   a lazy hashmap, this should only load the algo once actually needed.
 loadDeps :: forall m lang.
     (ErrAndLogM m, Integration lang)
-    => lang -> CompilationScope -> Namespace (UnresolvedExpr (Type lang)) (AlgoSrc lang) (OhuaType (Type lang) 'Resolved) -> m (NamespaceRegistry (Type lang))
+    => lang 
+    -> CompilationScope 
+    -> Namespace (UnresolvedExpr (EmbExpr lang) (Type lang)) (AlgoSrc lang) (OhuaType (Type lang) 'Resolved) 
+    -> m (NamespaceRegistry (EmbExpr lang) (Type lang))
 loadDeps lang scope (Namespace _name imps globs algs) = do
     let currentNs = Namespace (makeThrow []) imps globs algs
     let registry' = registerAlgos HM.empty currentNs
@@ -36,7 +39,9 @@ loadDeps lang scope (Namespace _name imps globs algs) = do
     let registry'' = foldl registerAlgos registry' modules
     return registry''
     where
-        registerAlgos :: NamespaceRegistry ty -> Namespace (UnresolvedExpr ty) anno (OhuaType ty 'Resolved) -> NamespaceRegistry ty
+        registerAlgos :: NamespaceRegistry embExpr ty 
+            -> Namespace (UnresolvedExpr embExpr ty) anno (OhuaType ty 'Resolved) 
+            -> NamespaceRegistry embExpr ty
         registerAlgos registry aNs =
             foldl
                 (\reg algo ->
@@ -55,8 +60,13 @@ loadDeps lang scope (Namespace _name imps globs algs) = do
 --   (qualified by the file they come from) to their translated code.
 loadAlgosAndImports :: forall m lang.
     (ErrAndLogM m, Integration lang)
-    => lang -> CompilationScope -> FilePath
-    -> m (HostModule lang, Namespace (UnresolvedExpr (Type lang)) (AlgoSrc lang) (OhuaType (Type lang) 'Resolved), NamespaceRegistry (Type lang), HostModule lang)
+    => lang 
+    -> CompilationScope 
+    -> FilePath
+    -> m (  HostModule lang, 
+            Namespace (UnresolvedExpr (EmbExpr lang) (Type lang)) (AlgoSrc lang) (OhuaType (Type lang) 'Resolved),
+            NamespaceRegistry (EmbExpr lang) (Type lang), 
+            HostModule lang)
 loadAlgosAndImports  lang scope inFile = do
     -- logDebugN $ "Loading module: " <> show inFile <> "..."
     (ctxt, ns, placeholder) <- loadNs lang inFile
