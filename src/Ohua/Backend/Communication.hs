@@ -20,7 +20,7 @@ lowerRetCom arch ns = ns & algos %~ map (\algo -> algo & algoCode %~ convertComm
     where
         {-convertCommunication :: 
             Program (Chan arch) (Com 'Recv embExpr ty) task embExpr ty
-            -> Program (Chan arch) retChan                task embExpr ty
+            -> Program (Chan arch) retChan                task embExpr ty-}
         convertCommunication (Program chans retChan tasks) =
             Program
                 chans

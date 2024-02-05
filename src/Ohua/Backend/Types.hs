@@ -133,6 +133,7 @@ class (Architecture arch) => Transform arch where
   transformTaskExpr :: ( Lang arch ~ lang
                        , Integration lang
                        , ty ~ Type lang
+                       , embExpr ~ EmbExpr lang
                        )
                     => HostModule lang
                     -> arch
@@ -143,6 +144,7 @@ class (Architecture arch) => Transform arch where
   transformTask :: ( Lang arch ~ lang
                    , Integration lang
                    , ty ~ Type lang
+                   , embExpr ~ EmbExpr lang
                    )
                 => HostModule lang
                 -> arch
