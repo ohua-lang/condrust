@@ -167,7 +167,7 @@ spec =
         describe "tuples" $ do
 
           it "different targets" $
-            (showCode "Compiled: " =<< compileCodeWithDebug  [sourceFile|
+            (showCode "Compiled: " =<< compileCode  [sourceFile|
                 use crate::funs::*;
 
                 fn test(i:i32) -> i32 {
@@ -210,6 +210,20 @@ spec =
                 |]) >>=
             (\compiled -> do
                 expected <- showCode "Expected:" destruct
+                compiled `shouldBe` expected)
+
+          it "float literal" $
+            (showCode "Compiled: " =<< compileCode  [sourceFile|
+                use crate::funs::*;
+
+                fn test() -> bool {
+                    let x = 7.4;
+                    let y = 8.25;
+                    take_floats(x, y)
+                }
+                |]) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" floats
                 compiled `shouldBe` expected)
 
 ------------- Testouput -------------------------------------
@@ -1043,6 +1057,53 @@ fn test(i: i32) -> i32 {
       b_0_0_0_tx.send(b_0_0_0)?;
       let c_0_0_0 = res.2;
       c_0_0_0_tx.send(c_0_0_0)?;
+      Ok(())
+    }));
+  let handles: Vec<  std::thread::JoinHandle<  _,>,> =
+    tasks
+      .into_iter()
+      .map(|t| { std::thread::spawn(move || { let _ = t(); }) })
+      .collect();
+  for h in handles {
+    if let Err(_) = h.join() {
+      eprintln!("[Error] A worker thread of an Ohua algorithm has panicked!");
+    }
+  }
+  match result_0_0_0_rx.recv() {
+    Ok(res) => res,
+    Err(e) => panic!("[Ohua Runtime Internal Exception] {}", e),
+  }
+}
+|]
+
+floats :: SourceFile Span
+floats = [sourceFile|
+use crate::funs::*;
+
+fn test() -> bool {
+  #[derive(Debug)]
+  enum RunError {
+    SendFailed,
+    RecvFailed,
+  }
+  impl<  T: Send,> From<  std::sync::mpsc::SendError<  T,>,> for RunError {
+    fn from(_err: std::sync::mpsc::SendError<  T,>) -> Self {
+      RunError::SendFailed
+    }
+  }
+  impl From<  std::sync::mpsc::RecvError,> for RunError {
+    fn from(_err: std::sync::mpsc::RecvError) -> Self {
+      RunError::RecvFailed
+    }
+  }
+  let (result_0_0_0_tx, result_0_0_0_rx) =
+    std::sync::mpsc::channel::<  bool,>();
+  let mut tasks: Vec<  Box<  dyn FnOnce() -> Result<(), RunError> + Send,>,> =
+    Vec::new();
+  tasks
+    .push(Box::new(move || -> _ {
+      let result_0_0_0 = crate::funs::take_floats(7.4, 8.25);
+      result_0_0_0_tx.send(result_0_0_0)?;
       Ok(())
     }));
   let handles: Vec<  std::thread::JoinHandle<  _,>,> =

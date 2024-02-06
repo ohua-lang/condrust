@@ -244,6 +244,10 @@ pub fn take_triple(i:i32, j:i32, k:usize) -> i32 {
     i+j
 }
 
+pub fn take_floats(i:f64, j:f64) -> bool {
+    true
+}
+
 
 pub fn check(i:i32) -> bool {
     i < 23
