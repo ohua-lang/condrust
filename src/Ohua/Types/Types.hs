@@ -30,6 +30,7 @@ module Ohua.Types.Types
     , Lit(..)
     , getLitType
     , Unit(..)
+    , HostExpression(..)
     , module Ohua.Types.Computation
     , module Ohua.Types.Classes
     , module Ohua.Types.Error
@@ -57,3 +58,4 @@ import Ohua.Types.Make
 import Ohua.Types.Reference
 import Ohua.Types.Bindings
 import Ohua.Types.HostTypes
+import Ohua.Types.HostExpression
