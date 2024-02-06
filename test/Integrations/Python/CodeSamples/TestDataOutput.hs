@@ -43,6 +43,60 @@ def algo():
     x = 5
 |]
 
+stringLit :: ModuleSpan
+stringLit = [pythonModule|
+import multiprocessing as mp
+from testLib import *
+def task_1(a_0_0_sender, x_lit_0_0_0_receiver):
+    while True:
+        x_lit_0_0_0_receiver.recv()
+        a_0_0_sender.send(None)
+def task_2(x_lit_0_0_0_sender):
+    x_lit_0_0_0 = stringFun("somestring")
+    x_lit_0_0_0_sender.send(x_lit_0_0_0)
+def main():
+    a_0_0_sender, a_0_0_receiver = mp.Pipe()
+    x_lit_0_0_0_sender, x_lit_0_0_0_receiver = mp.Pipe()
+    tasks = [task_1, task_2]
+    channels = [[a_0_0_sender, x_lit_0_0_0_receiver], [x_lit_0_0_0_sender]]
+    processes = []
+    for task, channels in zip(tasks, channels):
+        process = mp.Process(target=task, args=channels)
+        processes.append(process)
+    list(map(mp.Process.start, processes))
+    result = a_0_0_receiver.recv()
+    list(map(mp.Process.terminate, processes))
+    list(map(mp.Process.join, processes))
+    return result
+|]
+
+floatLit :: ModuleSpan
+floatLit = [pythonModule|
+import multiprocessing as mp
+from testLib import *
+def task_1(a_0_0_sender, x_lit_0_0_0_receiver):
+    while True:
+        x_lit_0_0_0_receiver.recv()
+        a_0_0_sender.send(None)
+def task_2(x_lit_0_0_0_sender):
+    x_lit_0_0_0 = floatFun(13.37)
+    x_lit_0_0_0_sender.send(x_lit_0_0_0)
+def main():
+    a_0_0_sender, a_0_0_receiver = mp.Pipe()
+    x_lit_0_0_0_sender, x_lit_0_0_0_receiver = mp.Pipe()
+    tasks = [task_1, task_2]
+    channels = [[a_0_0_sender, x_lit_0_0_0_receiver], [x_lit_0_0_0_sender]]
+    processes = []
+    for task, channels in zip(tasks, channels):
+        process = mp.Process(target=task, args=channels)
+        processes.append(process)
+    list(map(mp.Process.start, processes))
+    result = a_0_0_receiver.recv()
+    list(map(mp.Process.terminate, processes))
+    list(map(mp.Process.join, processes))
+    return result
+|]
+
 assignNumLitReturn :: ModuleSpan
 assignNumLitReturn = [pythonModule|
 from testLib import *

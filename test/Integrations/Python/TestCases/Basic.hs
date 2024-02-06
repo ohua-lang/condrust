@@ -145,6 +145,18 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.assignSubscript
                 compiled `shouldBe` expected)
+
+        it "String literal" $
+            (showCode "Compiled: " =<< compileCode stringLit) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" Expect.stringLit
+                compiled `shouldBe` expected)
+        
+        it "Float literal" $
+            (showCode "Compiled: " =<< compileCode floatLit) >>=
+            (\compiled -> do
+                expected <- showCode "Expected:" Expect.floatLit
+                compiled `shouldBe` expected)
         
         
         {-
@@ -479,4 +491,22 @@ def algo(a, b):
     for i in range(10):
         temp = sideEffect(i)
         tempList.append(temp)
+|]
+
+stringLit :: ModuleSpan
+stringLit = [pythonModule|
+from testLib import *
+
+def algo():
+    lit = "somestring"
+    stringFun(lit)
+|]
+
+floatLit :: ModuleSpan
+floatLit = [pythonModule|
+from testLib import *
+
+def algo():
+    lit = 13.37
+    floatFun(lit)
 |]
