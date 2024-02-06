@@ -11,7 +11,7 @@ where
 
 import Control.Lens.Plated
 import Data.Functor.Foldable.TH (makeBaseFunctor)
-import Language.Haskell.TH.Syntax (Lift)
+-- import Language.Haskell.TH.Syntax (Lift)
 import Language.Rust.Parser (Span)
 import qualified Language.Rust.Syntax as Rust hiding (Rust)
 import Ohua.Integration.Rust.Common.Subset hiding (Block, Stmt)

@@ -8,6 +8,8 @@ import Ohua.Prelude hiding (Lit)
 import Ohua.Integration.Rust.Common.Subset hiding (Block, Stmt)
 import qualified Ohua.Integration.Rust.Common.Subset as CS (Block(..), Stmt(..))
 
+import Language.Rust.Parser (Span)
+import qualified Language.Rust.Syntax as Rust
 
 import Data.Functor.Foldable.TH (makeBaseFunctor)
 -- import Language.Haskell.TH.Syntax (Lift)
@@ -39,7 +41,7 @@ data Expr
   deriving (Show, Eq, Generic)
 
 -- ToDo: Add other literals
-data Lit = Int Integer | Bool Bool deriving (Show, Eq, Generic)
+data Lit = Int Integer | Bool Bool | RustLit (Rust.Expr Span) RustType deriving (Show, Eq, Generic)
 type VarRef = Binding
 data Arg = Arg Pat RustType deriving (Show, Eq, Generic)
 

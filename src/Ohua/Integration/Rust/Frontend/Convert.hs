@@ -4,7 +4,7 @@ module Ohua.Integration.Rust.Frontend.Convert where
 import Language.Rust.Data.Ident
 import Language.Rust.Parser (Span)
 import Language.Rust.Syntax as Rust hiding (Rust)
-import Ohua.Integration.Rust.Common.Convert
+import qualified Ohua.Integration.Rust.Common.Convert as CC
 import qualified Ohua.Integration.Rust.Frontend.Subset as Sub
 import Ohua.Prelude
 
@@ -48,7 +48,7 @@ convertExpr (Unary [] op arg _) = do
   arg' <- convertExpr arg
   return $ Sub.Unary op' arg'
 convertExpr e@Unary {} = error $ "Currently, we do not support attributes on unary operations.\n" <> show e
-convertExpr (Lit [] l _) = Sub.Lit <$> convertLit l
+convertExpr e@(Lit [] l s) = Sub.Lit <$> convertLit l s
 convertExpr e@Lit {} = error $ "Currently, we do not support attributes on literals operations.\n" <> show e
 convertExpr e@Cast {} = error $ "Currently, we do not support cast expressions. Please use a function.\n" <> show e
 convertExpr e@TypeAscription {} = error $ "Currently, we do not support type ascriptions. Please use a function.\n" <> show e
@@ -79,7 +79,7 @@ convertExpr e@(Loop _ body _ _) = do
 convertExpr e@Match {} = error $ "Currently, we do not support match expressions. Please file a bug if you feel that this is dearly needed.\n" <> show e
 convertExpr (Closure [] Value NotAsync Movable (FnDecl args retTy False _) body _) = do
   args' <- mapM convertArg args
-  let retTy' = Sub.RustType . (noSpan <$) <$> retTy
+  let retTy' = Sub.RustType . (CC.noSpan <$) <$> retTy
   body' <- convertExpr body
   return $ Sub.Closure Sub.Value Sub.NotAsync Sub.Movable args' retTy' body'
 convertExpr e@(Closure _ _ _ _ (FnDecl _ _ True _) _ _) = error $ "Currently, we do not support variadic argument lists. \n" <> show e
@@ -180,12 +180,12 @@ convertGenericArgs (Parenthesized argTys (Just funTargetTy) _) =
 convertGenericArgs (Parenthesized argTys Nothing _) = flip Sub.Parenthesized Nothing <$> mapM convertTy argTys
 
 convertGenericArg :: ConvertM m => GenericArg Span -> m Sub.GenericArg
-convertGenericArg (TypeArg ty) = return $ Sub.TypeArg $ Sub.RustType (noSpan <$ ty)
+convertGenericArg (TypeArg ty) = return $ Sub.TypeArg $ Sub.RustType (CC.noSpan <$ ty)
 convertGenericArg l@LifetimeArg{} = error $ "Currently, we do not support lifetime type arguments: " <> show l
 convertGenericArg c@ConstArg{} = error $ "Currently, we do not support const type arguments: " <> show c
 
 convertArg :: ConvertM m => Rust.Arg Span -> m Sub.Arg
-convertArg (Arg _ (Just p) ty _) = (`Sub.Arg` Sub.RustType (noSpan <$ ty)) <$> convertPat p
+convertArg (Arg _ (Just p) ty _) = (`Sub.Arg` Sub.RustType (CC.noSpan <$ ty)) <$> convertPat p
 convertArg a@(Arg _ Nothing _ _) = error $ "Currently, we require a name for each argument, not only its type. If this is a type definition in your code, then please file a bug.\n" <> show a
 convertArg a = error $ "Currently, we do not support self arguments. \n" <> show a
 
@@ -244,12 +244,19 @@ convertUnOp Deref = Sub.Deref
 convertUnOp Not = Sub.Not
 convertUnOp Neg = Sub.Neg
 
-convertLit :: ConvertM m => Rust.Lit Span -> m Sub.Lit
-convertLit (Int Dec i _ _) = return $ Sub.Int i
-convertLit (Bool b _ _) = return $ Sub.Bool b
--- ToDo: This seems to be called also when we e.g. return an i32. So even with int and bool -> check why
-convertLit _ = error "Currently, we miss proper support for literals. This is a TODO. Please file a bug."
+-- ToDo: For numeric literals the suffixes contain the correct type info (f32/64 etc) -> use them
+convertLit :: ConvertM m => Rust.Lit Span -> Span -> m Sub.Lit
+convertLit (Int Dec i _ _) _  = return $ Sub.Int i
+convertLit l@Int{} s          = return $ Sub.RustLit (Rust.Lit [] l s) (Sub.RustType (asRustPathTy "i32" ))
+convertLit (Bool b _ _) _     = return $ Sub.Bool b
+convertLit l@Str{} s          = return $ Sub.RustLit (Rust.Lit [] l s) (Sub.RustType (asRustPathTy "String" ))
+convertLit l@ByteStr{} s      = return $ Sub.RustLit (Rust.Lit [] l s) (Sub.RustType (PathTy Nothing (Path False [PathSegment "Vec" (Just (AngleBracketed [TypeArg $ PathTy Nothing (Path False [PathSegment "u8" Nothing ()] ()) ()] [] ())) ()] ()) ()))
+convertLit l@Char{} s         = return $ Sub.RustLit (Rust.Lit [] l s) (Sub.RustType (asRustPathTy "char"))
+convertLit l@Byte{} s         = return $ Sub.RustLit (Rust.Lit [] l s) (Sub.RustType (asRustPathTy "u8"))
+convertLit l@Float{} s        = return $ Sub.RustLit (Rust.Lit [] l s) (Sub.RustType (asRustPathTy "f64"))
 
 
+asRustPathTy :: String -> Ty ()
+asRustPathTy s = PathTy Nothing (Path False [PathSegment (fromString s) Nothing ()] ()) ()
 
 seqParProgNote = "In a sequential program, memory management can be performed at compile-time via the borrowing concept. For a parallel program, this is not easily possible anymore. You will have to move your memory management from compile-time to runtime, i.e., from references to std::sync::Arc. Currently, we do not perform this conversion."

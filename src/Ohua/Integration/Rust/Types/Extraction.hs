@@ -6,7 +6,7 @@ module Ohua.Integration.Rust.Types.Extraction where
 import Ohua.Prelude 
 
 import Ohua.Integration.Rust.Util
-import Ohua.Integration.Rust.Common.Subset as Sub (TyRef (..), CallRef (..), GenericArgs ( Parenthesized ), RustType(..) )
+import Ohua.Integration.Rust.Common.Subset as Sub (TyRef (..), CallRef (..), RustType(..) )
 import Ohua.Integration.Rust.Frontend.Convert (convertTy, convertPath)
 
 import Ohua.Types.Unit (Unit)

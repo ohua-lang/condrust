@@ -418,3 +418,4 @@ toQualBinding = QualifiedBinding (makeThrow [])
 instance ConvertExpr Sub.Lit where
   convertExpr (Sub.Int i) = return $ LitE $ NumericLit i
   convertExpr (Sub.Bool b) = return $ LitE $ BoolLit b
+  convertExpr (Sub.RustLit l (Sub.RustType ty)) = return $ LitE $ HostLit (HostExpression l) (asHostNormal ty)

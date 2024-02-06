@@ -3,15 +3,22 @@ module Ohua.Integration.Rust.Backend.Convert (
   module Ohua.Integration.Rust.Common.Convert
   )where
 
-import Data.List.NonEmpty as NE hiding (map)
-import Data.Text (unpack)
-import Language.Rust.Data.Ident
-import Language.Rust.Syntax as Rust hiding (Rust)
-import qualified Ohua.Integration.Rust.Backend.Subset as Sub
-import Ohua.Integration.Rust.Common.Convert
+
 import Ohua.Prelude
 import Ohua.Types.Vector (natToInt)
-import GHC.Base (undefined)
+
+import Data.List.NonEmpty as NE hiding (map)
+import Data.Text (unpack)
+
+import Language.Rust.Data.Ident
+import Language.Rust.Syntax as Rust hiding (Rust)
+
+import Ohua.Integration.Rust.Util (deSpan)
+import Ohua.Integration.Rust.Common.Convert
+import qualified Ohua.Integration.Rust.Backend.Subset as Sub
+
+
+
 
 convertExp :: Sub.Expr -> Rust.Expr ()
 convertExp (Sub.Var bnd) =
@@ -25,8 +32,7 @@ convertExp (Sub.Lit (BoolLit b)) = Rust.Lit [] (Bool b Unsuffixed noSpan) noSpan
 convertExp (Sub.Lit (StringLit str)) = Rust.Lit [] (Str str Cooked Unsuffixed noSpan) noSpan
 convertExp (Sub.Lit UnitLit) =
   TupExpr [] [] noSpan
-convertExp (Sub.Lit (HostLit _hostExpr _ty)) =
-  error "ToDo: We need to implement support for Host expressions in the Rust Backend. Please remind us :-)"
+convertExp (Sub.Lit (HostLit (HostExpression rustLit) _ty)) = deSpan rustLit
 -- Question: Why is this an error?
 convertExp (Sub.Lit (EnvRefLit _hostExpr _ty)) =
   error "Host expression encountered! This is a compiler error. Please report!"
