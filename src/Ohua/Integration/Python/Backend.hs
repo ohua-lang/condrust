@@ -71,7 +71,7 @@ instance Integration (Language 'Python) where
     convertExpr _ (TCLang.Lit (BoolLit b)) = wrapSubExpr $ Sub.Bool b
     convertExpr _ (TCLang.Lit (StringLit str)) = wrapSubExpr $ Sub.Strings [str]
     convertExpr _ (TCLang.Lit UnitLit) = wrapSubExpr Sub.None
-    convertExpr _ (TCLang.Lit (HostLit l _ty)) = error "ToDo: We need to include host expressions in the subset"
+    convertExpr _ (TCLang.Lit (HostLit (HostExpression l) _ty)) = wrapSubExpr $ Sub.PyLiteral l
     -- Question: Why is it an error?
     convertExpr _ (TCLang.Lit (EnvRefLit _hostExpr _ty)) = error "Host expression encountered! This is a compiler error. Please report!"
 

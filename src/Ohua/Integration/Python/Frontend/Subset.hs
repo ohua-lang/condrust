@@ -7,13 +7,15 @@ import Data.Functor.Foldable.TH (makeBaseFunctor)
 import Language.Haskell.TH.Syntax (Lift)
 import Control.Lens.Plated
 
+import Language.Python.Common (SrcSpan)
+import qualified Language.Python.Common.AST as Py
+
 {- | This is the supported frontend subset of the python
 -- integration, as the AST generated from language-python is underspecified at some points, this
 -- subset refers to the grammer definition of python 3.1 which underlies the ASt
 -}
 
--- I currently don't type anything but for a) the possibility to use at least annotated
--- types and b) consistency with other integration I'll thread this dummmy trough the logic
+
 data PythonType = PythonType deriving (Show, Eq, Generic)
 
 newtype Suite  =  PySuite [Stmt]
@@ -39,6 +41,7 @@ data Expr =
     | Int Integer
     | Bool Bool
     | None
+    | PyLiteral (Py.Expr SrcSpan)
     -- MethodCalls are not a separate token. They are 'Calls' where:
     -- A) the call_fun attribute is a dotExpr and
     -- B) it is not a class method or a toplevel function of an imported module

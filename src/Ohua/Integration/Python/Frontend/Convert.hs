@@ -164,13 +164,13 @@ exprToSubExpr subSc@(Py.Subscript subscripted subscript _annot) = do
         _ -> unsupPyError "subscripting epressions on anything but a variable name" subSc
 
 
-exprToSubExpr lL@Py.LongInt{} = unsupPyError "LongInts" lL
-exprToSubExpr fL@(Py.Float _valDbl _strRepr _annot) = unsupPyError "Floats" fL
-exprToSubExpr imL@(Py.Imaginary _valDbl _strRepr _annot) = unsupPyError "Imaginaries" imL
-exprToSubExpr ellL@(Py.Ellipsis _annot) = unsupPyError "Ellipsis Literals" ellL
-exprToSubExpr bsL@(Py.ByteStrings _bStrings _annot) = unsupPyError "ByteString Literals" bsL
-exprToSubExpr strsL@(Py.Strings _strings _annot) = unsupPyError "Strings Literals" strsL
-exprToSubExpr ustrL@(Py.UnicodeStrings _strings _annot) = unsupPyError "UnicodeStrings Literals" ustrL
+exprToSubExpr lL@Py.LongInt{} = return $ Sub.PyLiteral lL
+exprToSubExpr fL@(Py.Float _valDbl _strRepr _annot) = return $ Sub.PyLiteral fL
+exprToSubExpr imL@(Py.Imaginary _valDbl _strRepr _annot) = return $ Sub.PyLiteral imL
+exprToSubExpr ellL@(Py.Ellipsis _annot) = return $ Sub.PyLiteral ellL
+exprToSubExpr bsL@(Py.ByteStrings _bStrings _annot) = return $ Sub.PyLiteral bsL
+exprToSubExpr strsL@(Py.Strings _strings _annot) = return $ Sub.PyLiteral strsL
+exprToSubExpr ustrL@(Py.UnicodeStrings _strings _annot) = return $ Sub.PyLiteral ustrL
 
 exprToSubExpr slice@(Py.SlicedExpr _sliced _slices _annot) = unsupPyError "Slicing Expressions" slice
 exprToSubExpr dot@(Py.Dot _object _attribute _annot) = unsupPyError "Attribute references" dot

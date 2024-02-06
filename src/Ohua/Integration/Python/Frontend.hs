@@ -250,6 +250,7 @@ subExprToIR _t  (Sub.Var bnd) = return $ VarE bnd defaultType
 subExprToIR _t  (Sub.Int int) = return $ LitE $ NumericLit int
 subExprToIR _t  (Sub.Bool bl) = return $ LitE $ BoolLit bl
 subExprToIR _t  Sub.None = return $  LitE  UnitLit
+subExprToIR _t  (Sub.PyLiteral pl) = return $ LitE $ HostLit (HostExpression pl) defaultType
 
 subExprToIR t (Sub.Call (Sub.Pure bnd) args) = do
     args'<- mapM (subArgToIR t) args

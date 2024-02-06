@@ -18,8 +18,6 @@ import Ohua.Integration.Rust.Common.Convert
 import qualified Ohua.Integration.Rust.Backend.Subset as Sub
 
 
-
-
 convertExp :: Sub.Expr -> Rust.Expr ()
 convertExp (Sub.Var bnd) =
   PathExpr
