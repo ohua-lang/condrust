@@ -24,14 +24,14 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.helloWorld
                 compiled `shouldBe` expected)
- 
+                
         it "simple composition" $ 
             (showCode "Compiled: " =<< compileCode [sourceFile|
-                    use crate::funs::{f, g};
+                    use crate::funs::{f, g, from_int};
 
                     fn test() -> String {
                         let x:i32 = f();
-                        g(x)
+                        from_int(x)
                     }
                 |]) >>=
             (\compiled -> do
@@ -62,34 +62,32 @@ spec =
             (showCode "Compiled: " =<< compileCode  [sourceFile|
                     use crate::funs::*;
 
-                    fn test() -> String {
+                    fn test() -> i32 {
                         let x:i32 = f();
                         let x1:Arc<i32> = std::sync::Arc::new(x);
                         let x2:Arc<i32> = x1.clone();
-                        let y:i32 = h(x1);
-                        h2(x2,y)
+                        let y:i32 = h_Arc(x1);
+                        y
                     }
                 |]  ) >>=
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.arcAndClone
                 compiled `shouldBe` expected)
 
-        -- due to the transformation to state threads, this transforms into:
-          -- let x = f();
-          -- let (x1,x') = x.clone();
-          -- let y = h(x');
-          -- h2(x1,y)
-          -- where no variable is used more than once!
-        it "Clone local var" $ 
-            (showCode "Compiled: " =<< compileCode [sourceFile|
-                    use crate::funs::*;
+        it "Struct Namespace: distinguish clones" $
+          -- to check that the type system can distiguish namespaces of the clone function
+          -- and to check that use_arc is found in the impl space of State, not as a pure function from 
+          -- top-level definitions 
+          (showCode "Compiled: " =<< compileCode  [sourceFile|
+                use crate::funs::*;
 
-                    fn test() -> String {
-                        let x:String = f();
-                        let x1:String = x.clone();
-                        let y:String = h(x);
-                        h2(x1,y)
-                    }
+                fn test() -> String {
+                    let x1:Arc<i32> = std::sync::Arc::new(1);
+                    let x2:State = State::new(2);
+                    let y1 = x1.clone();
+                    let y2 = x2.clone();
+                    y2.use_arc(y1)                    
+                }
                 |]) >>=
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.cloneVar
@@ -100,8 +98,8 @@ spec =
                     use crate::funs::*;
 
                     fn test(i: i32) -> String {
-                        let x:i32 = funs::h(i);
-                        funs::g(x)
+                        let x:i32 = h(i);
+                        from_int(x)
                     }
                 |]) >>=
             (\compiled -> do
@@ -110,15 +108,17 @@ spec =
 
         it "Use algo in other algo" $ 
             (showCode "Compiled: " =<< compileCode [sourceFile|
-                    use crate::funs::*;
+                    use crate::funs;
 
-                    fn algo(i: i32) -> String {
-                        let x:i32 = h(i);
-                        g(x)
+                    fn algo(i: i32, j:char) -> String {
+                        let x:i32 = funs::h(i);
+                        funs::take_char_i(j, x)
                     }
 
                     fn test() -> String {
-                        algo(4)
+                        let c = funs::make_char();
+                        let i = funs::somefun();
+                        algo(i, c)
                     }
                 |]) >>=
             (\compiled -> do
@@ -130,12 +130,13 @@ spec =
                     use crate::funs::*;
 
                     fn algo(i: i32) -> String {
-                        let x:i32 = funs::h(i);
-                        funs::g(x)
+                        let x:i32 = h(i);
+                        g()
                     }
 
                     fn test() -> String {
-                        algo(4)
+                        let inp = some_int();
+                        algo(inp)
                     }
                 |]) >>=
             (\compiled -> do
@@ -147,25 +148,26 @@ spec =
                     use crate::funs::*;
 
                     fn test() -> i32 {
-                        let (x0,y0):(i32,String) = f_tup();
+                        let (x0,y0):(i32, i32) = fu_tup();
                         let x1:i32 = f0(x0);
-                        let y1:String = f1(y0);
-                        h2(x1,y1)
+                        let y1:i32 = f1(y0);
+                        h4(x1,y1)
                     }
+                    
                 |]) >>=
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.tupleFromUnit
                 compiled `shouldBe` expected)
-                
+       
         it "Tuple destruct from param fun" $ 
             (showCode "Compiled: " =<< compileCode [sourceFile|
                     use crate::funs::*;
 
-                    fn test() -> i32 {
-                        let (x0,y0):(i32,String) = f_tup(23);
+                    fn test(i:i32) -> i32 {
+                        let (x0 ,y0):(i32, i32) = fi_tup(i);
                         let x1:i32 = f0(x0);
-                        let y1:String = f1(y0);
-                        h2(x1,y1)
+                        let y1:i32 = f1(y0);
+                        h4(x1,y1)
                     }
                 |]) >>=
             (\compiled -> do
@@ -178,12 +180,12 @@ spec =
         --          i_0_0_0_child_tx.send(i)?;
         -- will just happen in the code without receiving i from somewhere.
         it "FAIL: While Loop as If-Recursion only recursive call in branches" $ 
-            compileCodeWithRec  [sourceFile|
+            (showCode "Compiled: " =<< compileCodeWithRec  [sourceFile|
                     use crate::funs::*;
 
                     fn algo_rec(i:i32, state:State) -> State{
                         state.gs(i);
-                        let i_new:i32 = add(i, 1);
+                        let i_new:i32 = h4(i, 1);
                         if islowerthan23(i) {
                             algo_rec(i_new, state)
                         } else {
@@ -192,21 +194,24 @@ spec =
                     }
 
                     fn test(i:i32) -> State {
-                        let mut state:State = State::new_state();
+                        let mut state:State = State::new_state(12);
                         algo_rec(i, state) 
                     }
-                |] `shouldThrow` anyException
+                |]) >>= 
+                (\compiled -> do 
+                    expected <- showCode "Expected:" Expect.whileAsIf
+                    compiled `shouldBe` expected) 
 
 
-        it "if condition with binop" $ 
+        it "if condition" $ 
             (showCode "Compiled: " =<< compileCode [sourceFile|
                     use crate::funs::*;
 
                     fn test(i:i32) -> i32{
-                        if i < 13 {
+                        if check(13) {
                             i
                         } else {
-                            i+1
+                            h4(i,1)
                         }
                     }
                 |]) >>=
@@ -219,7 +224,7 @@ spec =
                     use crate::funs::*;
 
                     fn test() -> State {
-                        let s:State = State::new_state();
+                        let s:State = State::new_state(2);
                         let stream:Vec<i32> = iter_i32();
                         for e in stream {
                             let e1:i32 = e;
@@ -238,8 +243,8 @@ spec =
                     use crate::funs::*;
                     
                     fn test(i:i32) -> () {
-                        let s:State = State::new_state();
-                        for e in range_from(i) {
+                        let s:State = State::new_state(3);
+                        for e in iter_i32() {
                             let e1:i32 = e;
                             let r:i32 = h(e1);
                             s.gs(r);
@@ -249,26 +254,4 @@ spec =
             (\compiled -> do
                 expected <- showCode "Expected:" Expect.smapUnbound
                 compiled `shouldBe` expected)
-                
-{-
-        it "While Loop" $ 
-            (showCode "Compiled: " =<< compileCodeWithRecWithDebug 
-                [sourceFile|
-                    use crate::funs::*;
-
-                    fn test() -> I32 {
-                        //let state:State = State::new_state();
-                        let mut i:i32 = I32::new(1);
-                        while i.islowerthan23() {
-                            //let e:i32
-                            //state.gs(i);
-                            // i = i + 1 is actually a stateful function acting on a named memory slot
-                            i.add(1); 
-                        }
-                        i
-                    }
-                |]) >>=
-            (\compiled -> do
-                expected <- showCode "Expected:" Expect.hello_world
-                compiled `shouldBe` expected)
-       -}         
+     

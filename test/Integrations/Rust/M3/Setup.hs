@@ -11,64 +11,62 @@ module Integrations.Rust.M3.Setup
   )
 where
 
-import Ohua.Prelude
+import Ohua.Prelude hiding (Text)
 import Ohua.Compile.Compiler (compile)
-import qualified Ohua.Integration.Architecture as Arch
-import qualified Ohua.Integration.Config as IC
-import qualified Ohua.Backend.Config as BC
-import Ohua.Core.Types
-import qualified Ohua.Integration.Options as O (Options(..))
-
 
 import qualified Data.ByteString.Lazy.Char8 as L
 import qualified Data.HashMap.Lazy as HM
+import Data.Text.Lazy as T (Text)
 import Data.Text.Prettyprint.Doc
-import Data.Text.Prettyprint.Doc.Render.Text
+
 
 import Language.Rust.Parser (Span, parse', readInputStream)
 import Language.Rust.Pretty ( pretty')
 import Language.Rust.Quote
 import Language.Rust.Syntax
 
+import qualified Ohua.Integration.Architecture as Arch
+import qualified Ohua.Integration.Config as IC
+import qualified Ohua.Backend.Config as BC
+import qualified Ohua.Integration.Options as O
+import qualified Ohua.Integration.Rust.Util as Util
+import Integrations.Rust.CommonSetup
+
+import Ohua.Core.Types (Options)
+
+import System.Directory
+    ( copyFile,
+      createDirectory,
+      setCurrentDirectory,)
 import System.Process.Extra (readProcessWithExitCode)
-import System.Directory (copyFile, createDirectory, setCurrentDirectory)
 import System.Exit (ExitCode (..))
 import System.FilePath
 import System.IO.Temp
 
 import Test.Hspec
 import TestOptions
-
 import Integrations.TestSetup (Testable(..))
-import Integrations.Rust.M3.TestCode.HelperFiles
+
 import Integrations.Rust.M3.TestCode.KVAppCode ()
 
 
 
-
--- ISSUE: I should two instances of testable for the rust code format. 
---        Instead I should move the Instance declaration one level up to the rust folder and
---        find a way (proably again instances) to only define the compileModule (and maybe runCompiler) here 
 instance Testable (SourceFile Span) where
   -- Todo: replace by Lang' when I'm done messing with the types :-)
   type CodeFormat (SourceFile Span) = (SourceFile Span)
 
   compileFormat = compileModule
-  renderFormat = renderRust
+  renderFormat = toStrict . renderRust
 
-renderRust :: SourceFile Span -> Text
-renderRust code =  renderStrict $ layoutSmart defaultLayoutOptions $ pretty' code
+renderRust :: SourceFile Span -> T.Text
+-- FIXME: There should be a renderText in Util, however in the lates version I have there's only 'render' and 'renderStr'
+renderRust = fromString . Util.renderStr
 
 renderRustCode :: SourceFile Span -> L.ByteString
-renderRustCode =
-  encodeUtf8
-    . (<> "\n")
-    . renderLazy
-    . layoutSmart defaultLayoutOptions
-    . pretty'
+renderRustCode = Util.render
 
 backendOptions :: BC.Options
-backendOptions = BC.Options True
+backendOptions = BC.Options False
 
 integrationOptions :: IC.Config
 integrationOptions = IC.Config Arch.M3 $ O.Options Nothing Nothing
@@ -76,17 +74,22 @@ integrationOptions = IC.Config Arch.M3 $ O.Options Nothing Nothing
 
 compileModule :: SourceFile Span -> Options -> CompilationType -> ReaderT DebugOptions IO (SourceFile Span)
 compileModule inCode opts cty = do
-  --putStrLn ("My Imports: " <> show testRust::String)
-  --putStrLn ("Simple IMports: " <> show testRust2::String)
-  --putStrLn ("Very Simple IMports: " <> show testRust3::String)
   debug <- asks printIRs
   lift $ withSystemTempDirectory
     "testDir"
     $ \testDir -> do
       setCurrentDirectory testDir
-      -- if neccessary, write library files to compile directory/scope
+      --  write library files to compile directory/scope
       let inFile = testDir </> "test.rs"
-      L.writeFile inFile $ renderRustCode inCode
+      mapM_
+        (\(f,c) -> L.writeFile (testDir </> f) $ renderRustCode c)
+        [ ("funs.rs"  , funs)
+        , ("benchs.rs", benchs)
+        -- TODO with the new extern_spec approach, the creation of these file is obsolete now.
+        , ("std.rs"   , std)
+        , ("ptdr.rs"  , ptdr)
+        , ("test.rs"  , inCode)
+        ]
       withSystemTempDirectory "output" $
         \outDir -> do
           let compScope = HM.empty
@@ -95,11 +98,13 @@ compileModule inCode opts cty = do
             LevelWarn
             $ compile inFile compScope cOptions backendOptions integrationOptions outDir
           let outFile = outDir </> takeFileName inFile
-          -- producedCode <- readFile outFile
-          -- putStr ("\n PRODUCED MODULE: \n"::String)
-          -- putStr producedCode
-          --placeholderFile <- readFile (outDir </> "placeholderlib.rs")
-          --putStr placeholderFile
+
+          producedCode <- readFile outFile
+          putStr ("\n PRODUCED MODULE: \n"::String)
+          putStr producedCode
+          -- putStr ("\n \n \n"::String)
+          -- placeholderFile <-readFile (outDir </> "placeholderlib.rs")
+          -- putStr placeholderFile
 
           -- run the target compiler (i.e., rustc) on the input
           case cty of
@@ -118,8 +123,13 @@ runTargetCompiler _inDir outDir outFile = do
   let srcDir = outDir </> "src"
   createDirectory srcDir
   setCurrentDirectory outDir
-  writeFile (outDir </> "Cargo.toml") cargoFile
-  writeFile (srcDir </> "main.rs") (renderRust libFile)
+  _ <- mapM
+    (\(f,c) -> L.writeFile (srcDir </> f) $ renderRustCode c)
+    [ ("funs.rs"  , funs)
+    , ("benchs.rs", benchs)
+    , ("main.rs"  , libFile)
+    ]
+  writeFile (outDir </> "Cargo.toml") $ toStrict cargoFile
   copyFile outFile (srcDir </> "test.rs")
 
   -- actually run the compiler

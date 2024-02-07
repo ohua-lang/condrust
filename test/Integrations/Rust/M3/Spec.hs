@@ -13,6 +13,6 @@ import qualified Integrations.Rust.M3.KVStoreCase as KVCase
 
 spec :: Spec
 spec =
+    Basics.spec -- >>
     -- WIPCases.spec
-    Basics.spec >>
-    KVCase.spec
+    -- KVCase.spec

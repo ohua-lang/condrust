@@ -11,62 +11,69 @@ helloWorld = [sourceFile|
 use crate::funs::hello_world;
 
 fn test() -> String {
-   use m3::com::channel::{Sender, Receiver};
-   use m3::activity;
-   let (a_0_0_tx, mut a_0_0_rx) = channel(); 
-    activity!(
-        (|a_0_0_child_tx: Sender| {    
-         let a_0_0 = hello_world();
-        a_0_0_child_tx.send(a_0_0)?;
+  use m3::com::channel::{Sender, Receiver};
+  use m3::activity;
+  let (result_0_0_0_tx, mut result_0_0_0_rx) = channel();
+  activity!(
+    (
+      |result_0_0_0_child_tx: Sender| {
+        let result_0_0_0 = crate::funs::hello_world();
+        result_0_0_0_child_tx.send(result_0_0_0)?;
         Ok(())
-          }
-        )(a_0_0_tx)
-    );
-    a_0_0_rx.activate()?;
-    a_0_0_rx
-    .recv::<String,>()
-    .expect("The retrieval of the result value failed.\nOhua turned your sequential program into a distributed one.\nHence, all Ohua can do at this point is error out.\nIf you would like to have support for handligng these errors in your application then please submit an issue.\n")
+      }
+    )(result_0_0_0_tx)
+  );
+  result_0_0_0_rx.activate()?;
+  result_0_0_0_rx
+    .recv::<  String,>()
+    .expect("The retrieval of the result value failed.
+Ohua turned your sequential program into a distributed one.
+Hence, all Ohua can do at this point is error out.
+If you would like to have support for handligng these errors in your application then please submit an issue.
+")
 }
                 |]
 
 simpleComposition :: SourceFile Span
 simpleComposition = [sourceFile|
-use crate::funs::{f, g};
-
+use crate::funs::{f, g, from_int};
 
 fn test() -> String {
   use m3::com::channel::{Sender, Receiver};
   use m3::activity;
-  let (a_0_0_tx, mut a_0_0_rx) = channel();
+  let (result_0_0_0_tx, mut result_0_0_0_rx) = channel();
   let (x_0_0_0_tx, x_0_0_0_rx) = channel();
   activity!(
     (
-      |a_0_0_child_tx: Sender, x_0_0_0_child_tx: Receiver| {
-       
- Ok(
+      |result_0_0_0_child_tx: Sender, x_0_0_0_child_rx: Receiver| {
+        Ok(
           loop {
             let var_0 = x_0_0_0_child_rx.recv::<  i32,>()?;
-            let a_0_0 = g(var_0);
-            a_0_0_child_tx.send(a_0_0)?;
+            let result_0_0_0 = crate::funs::from_int(var_0);
+            result_0_0_0_child_tx.send(result_0_0_0)?;
             ()
           }
         )
       }
-    )(a_0_0_tx, x_0_0_0_rx)
+    )(result_0_0_0_tx, x_0_0_0_rx)
   );
   activity!(
     (
       |x_0_0_0_child_tx: Sender| {
-        let x_0_0_0 = f();
+        let x_0_0_0 = crate::funs::f();
         x_0_0_0_child_tx.send(x_0_0_0)?;
         Ok(())
       }
     )(x_0_0_0_tx)
   );
-  a_0_0_rx.activate()?;
-  a_0_0_rx
+  result_0_0_0_rx.activate()?;
+  result_0_0_0_rx
     .recv::<  String,>()
-    .expect("The retrieval of the result value failed.\nOhua turned your sequential program into a distributed one.\nHence, all Ohua can do at this point is error out.\nIf you would like to have support for handligng these errors in your application then please submit an issue.\n")
+    .expect("The retrieval of the result value failed.
+Ohua turned your sequential program into a distributed one.
+Hence, all Ohua can do at this point is error out.
+If you would like to have support for handligng these errors in your application then please submit an issue.
+")
 }
                 |]
 
@@ -77,65 +84,74 @@ use crate::funs::*;
 fn test() -> String {
   use m3::com::channel::{Sender, Receiver};
   use m3::activity;
-  let (a_0_0_tx, mut a_0_0_rx) = channel();
-  let (x_0_0_1_tx, x_0_0_1_rx) = channel();
-  let (x_0_0_0_0_tx, x_0_0_0_0_rx) = channel();
-  let (y_0_0_0_tx, y_0_0_0_rx) = channel();
-  let (x1_0_0_0_tx, x1_0_0_0_rx) = channel();
+  let (result_0_0_0_tx, mut result_0_0_0_rx) = channel();
+  let (x1_0_0_1_tx, x1_0_0_1_rx) = channel();
+  let (x2_0_0_1_tx, x2_0_0_1_rx) = channel();
+  let (y1_0_0_0_tx, y1_0_0_0_rx) = channel();
+  let (y2_0_0_1_tx, y2_0_0_1_rx) = channel();
   activity!(
     (
-      |a_0_0_child_tx: Sender, x1_0_0_0_child_tx: Receiver, y_0_0_0_child_tx: Receiver| {
+      |result_0_0_0_child_tx: Sender, y2_0_0_1_child_rx: Receiver, y1_0_0_0_child_rx: Receiver| {
         Ok(
           loop {
-            let var_0 = x1_0_0_0_child_rx.recv::<  String,>()?;
-            let var_1 = y_0_0_0_child_rx.recv::<  String,>()?;
-            let a_0_0 = h2(var_0, var_1);
-            a_0_0_child_tx.send(a_0_0)?;
+            let mut var_0 = y2_0_0_1_child_rx.recv::<  State,>()?;
+            let var_1 = y1_0_0_0_child_rx.recv::<  Arc,>()?;
+            let result_0_0_0 = var_0.use_arc(var_1);
+            result_0_0_0_child_tx.send(result_0_0_0)?;
             ()
           }
         )
       }
-    )(a_0_0_tx, x1_0_0_0_rx, y_0_0_0_rx)
+    )(result_0_0_0_tx, y2_0_0_1_rx, y1_0_0_0_rx)
   );
   activity!(
     (
-      |y_0_0_0_child_tx: Sender, x_0_0_0_0_child_tx: Receiver| {
+      |y2_0_0_1_child_tx: Sender, x2_0_0_1_child_rx: Receiver| {
         Ok(
           loop {
-            let var_0 = x_0_0_0_0_child_rx.recv::<  String,>()?;
-            let y_0_0_0 = h(var_0);
-            y_0_0_0_child_tx.send(y_0_0_0)?;
+            let mut var_0 = x2_0_0_1_child_rx.recv::<  State,>()?;
+            let y2_0_0_1 = var_0.clone();
+            y2_0_0_1_child_tx.send(y2_0_0_1)?;
             ()
           }
         )
       }
-    )(y_0_0_0_tx, x_0_0_0_0_rx)
+    )(y2_0_0_1_tx, x2_0_0_1_rx)
   );
   activity!(
     (
-      |x1_0_0_0_child_tx: Sender, x_0_0_0_0_child_tx: Sender, x_0_0_1_child_tx: Receiver| {
+      |y1_0_0_0_child_tx: Sender, x1_0_0_1_child_rx: Receiver| {
         Ok(
           loop {
-            let mut var_0 = x_0_0_1_child_rx.recv::<  String,>()?;
-            let x1_0_0_0 = var_0.clone();
-            x1_0_0_0_child_tx.send(x1_0_0_0)?;
-            x_0_0_0_0_child_tx.send(var_0)?
+            let mut var_0 = x1_0_0_1_child_rx.recv::<  Arc,>()?;
+            let y1_0_0_0 = var_0.clone();
+            y1_0_0_0_child_tx.send(y1_0_0_0)?;
+            ()
           }
         )
       }
-    )(x1_0_0_0_tx, x_0_0_0_0_tx, x_0_0_1_rx)
+    )(y1_0_0_0_tx, x1_0_0_1_rx)
   );
   activity!(
     (
-      |x_0_0_1_child_tx: Sender| {
-        let x_0_0_1 = f();
-        x_0_0_1_child_tx.send(x_0_0_1)?;
+      |x2_0_0_1_child_tx: Sender| {
+        let x2_0_0_1 = crate::funs::State::new(2);
+        x2_0_0_1_child_tx.send(x2_0_0_1)?;
         Ok(())
       }
-    )(x_0_0_1_tx)
+    )(x2_0_0_1_tx)
   );
-  a_0_0_rx.activate()?;
-  a_0_0_rx
+  activity!(
+    (
+      |x1_0_0_1_child_tx: Sender| {
+        let x1_0_0_1 = std::sync::Arc::new(1);
+        x1_0_0_1_child_tx.send(x1_0_0_1)?;
+        Ok(())
+      }
+    )(x1_0_0_1_tx)
+  );
+  result_0_0_0_rx.activate()?;
+  result_0_0_0_rx
     .recv::<  String,>()
     .expect("The retrieval of the result value failed.
 Ohua turned your sequential program into a distributed one.
@@ -151,37 +167,20 @@ arcAndClone :: SourceFile Span
 arcAndClone =  [sourceFile|
 use crate::funs::*;
 
-fn test() -> String {
+fn test() -> i32 {
   use m3::com::channel::{Sender, Receiver};
   use m3::activity;
-  let (a_0_0_tx, mut a_0_0_rx) = channel();
+  let (y_0_0_0_tx, mut y_0_0_0_rx) = channel();
   let (x_0_0_0_tx, x_0_0_0_rx) = channel();
   let (x1_0_0_1_tx, x1_0_0_1_rx) = channel();
   let (x1_0_0_0_0_tx, x1_0_0_0_0_rx) = channel();
-  let (y_0_0_0_tx, y_0_0_0_rx) = channel();
-  let (x2_0_0_0_tx, x2_0_0_0_rx) = channel();
   activity!(
     (
-      |a_0_0_child_tx: Sender, x2_0_0_0_child_tx: Receiver, y_0_0_0_child_tx: Receiver| {
+      |y_0_0_0_child_tx: Sender, x1_0_0_0_0_child_rx: Receiver| {
         Ok(
           loop {
-            let var_0 = x2_0_0_0_child_rx.recv::<  Arc<  i32,>,>()?;
-            let var_1 = y_0_0_0_child_rx.recv::<  i32,>()?;
-            let a_0_0 = h2(var_0, var_1);
-            a_0_0_child_tx.send(a_0_0)?;
-            ()
-          }
-        )
-      }
-    )(a_0_0_tx, x2_0_0_0_rx, y_0_0_0_rx)
-  );
-  activity!(
-    (
-      |y_0_0_0_child_tx: Sender, x1_0_0_0_0_child_tx: Receiver| {
-        Ok(
-          loop {
-            let var_0 = x1_0_0_0_0_child_rx.recv::<  Arc<  i32,>,>()?;
-            let y_0_0_0 = h(var_0);
+            let var_0 = x1_0_0_0_0_child_rx.recv::<  Arc,>()?;
+            let y_0_0_0 = crate::funs::h_Arc(var_0);
             y_0_0_0_child_tx.send(y_0_0_0)?;
             ()
           }
@@ -191,21 +190,20 @@ fn test() -> String {
   );
   activity!(
     (
-      |x2_0_0_0_child_tx: Sender, x1_0_0_0_0_child_tx: Sender, x1_0_0_1_child_tx: Receiver| {
+      |x1_0_0_0_0_child_tx: Sender, x1_0_0_1_child_rx: Receiver| {
         Ok(
           loop {
-            let mut var_0 = x1_0_0_1_child_rx.recv::<  Arc<  i32,>,>()?;
-            let x2_0_0_0 = var_0.clone();
-            x2_0_0_0_child_tx.send(x2_0_0_0)?;
+            let mut var_0 = x1_0_0_1_child_rx.recv::<  Arc,>()?;
+            var_0.clone();
             x1_0_0_0_0_child_tx.send(var_0)?
           }
         )
       }
-    )(x2_0_0_0_tx, x1_0_0_0_0_tx, x1_0_0_1_rx)
+    )(x1_0_0_0_0_tx, x1_0_0_1_rx)
   );
   activity!(
     (
-      |x1_0_0_1_child_tx: Sender, x_0_0_0_child_tx: Receiver| {
+      |x1_0_0_1_child_tx: Sender, x_0_0_0_child_rx: Receiver| {
         Ok(
           loop {
             let var_0 = x_0_0_0_child_rx.recv::<  i32,>()?;
@@ -220,15 +218,15 @@ fn test() -> String {
   activity!(
     (
       |x_0_0_0_child_tx: Sender| {
-        let x_0_0_0 = f();
+        let x_0_0_0 = crate::funs::f();
         x_0_0_0_child_tx.send(x_0_0_0)?;
         Ok(())
       }
     )(x_0_0_0_tx)
   );
-  a_0_0_rx.activate()?;
-  a_0_0_rx
-    .recv::<  String,>()
+  y_0_0_0_rx.activate()?;
+  y_0_0_0_rx
+    .recv::<  i32,>()
     .expect("The retrieval of the result value failed.
 Ohua turned your sequential program into a distributed one.
 Hence, all Ohua can do at this point is error out.
@@ -244,33 +242,33 @@ use crate::funs::*;
 fn test(i: i32) -> String {
   use m3::com::channel::{Sender, Receiver};
   use m3::activity;
-  let (a_0_0_tx, mut a_0_0_rx) = channel();
+  let (result_0_0_0_tx, mut result_0_0_0_rx) = channel();
   let (x_0_0_0_tx, x_0_0_0_rx) = channel();
   activity!(
     (
-      |a_0_0_child_tx: Sender, x_0_0_0_child_tx: Receiver| {
+      |result_0_0_0_child_tx: Sender, x_0_0_0_child_rx: Receiver| {
         Ok(
           loop {
             let var_0 = x_0_0_0_child_rx.recv::<  i32,>()?;
-            let a_0_0 = funs::g(var_0);
-            a_0_0_child_tx.send(a_0_0)?;
+            let result_0_0_0 = crate::funs::from_int(var_0);
+            result_0_0_0_child_tx.send(result_0_0_0)?;
             ()
           }
         )
       }
-    )(a_0_0_tx, x_0_0_0_rx)
+    )(result_0_0_0_tx, x_0_0_0_rx)
   );
   activity!(
     (
       |x_0_0_0_child_tx: Sender| {
-        let x_0_0_0 = funs::h(i);
+        let x_0_0_0 = crate::funs::h(i);
         x_0_0_0_child_tx.send(x_0_0_0)?;
         Ok(())
       }
     )(x_0_0_0_tx)
   );
-  a_0_0_rx.activate()?;
-  a_0_0_rx
+  result_0_0_0_rx.activate()?;
+  result_0_0_0_rx
     .recv::<  String,>()
     .expect("The retrieval of the result value failed.
 Ohua turned your sequential program into a distributed one.
@@ -283,38 +281,38 @@ If you would like to have support for handligng these errors in your application
 
 inlineAlgo::SourceFile Span 
 inlineAlgo = [sourceFile|
-use crate::funs::*;
+use crate::funs;
 
-fn algo(i: i32) -> String {
+fn algo(i: i32, j: char) -> String {
   use m3::com::channel::{Sender, Receiver};
   use m3::activity;
-  let (a_0_0_tx, mut a_0_0_rx) = channel();
+  let (result_0_0_0_tx, mut result_0_0_0_rx) = channel();
   let (x_0_0_0_tx, x_0_0_0_rx) = channel();
   activity!(
     (
-      |a_0_0_child_tx: Sender, x_0_0_0_child_tx: Receiver| {
+      |result_0_0_0_child_tx: Sender, x_0_0_0_child_rx: Receiver| {
         Ok(
           loop {
-            let var_0 = x_0_0_0_child_rx.recv::<  i32,>()?;
-            let a_0_0 = g(var_0);
-            a_0_0_child_tx.send(a_0_0)?;
+            let var_1 = x_0_0_0_child_rx.recv::<  i32,>()?;
+            let result_0_0_0 = crate::funs::take_char_i(j, var_1);
+            result_0_0_0_child_tx.send(result_0_0_0)?;
             ()
           }
         )
       }
-    )(a_0_0_tx, x_0_0_0_rx)
+    )(result_0_0_0_tx, x_0_0_0_rx)
   );
   activity!(
     (
       |x_0_0_0_child_tx: Sender| {
-        let x_0_0_0 = h(i);
+        let x_0_0_0 = crate::funs::h(i);
         x_0_0_0_child_tx.send(x_0_0_0)?;
         Ok(())
       }
     )(x_0_0_0_tx)
   );
-  a_0_0_rx.activate()?;
-  a_0_0_rx
+  result_0_0_0_rx.activate()?;
+  result_0_0_0_rx
     .recv::<  String,>()
     .expect("The retrieval of the result value failed.
 Ohua turned your sequential program into a distributed one.
@@ -326,33 +324,59 @@ If you would like to have support for handligng these errors in your application
 fn test() -> String {
   use m3::com::channel::{Sender, Receiver};
   use m3::activity;
-  let (a_0_0_tx, mut a_0_0_rx) = channel();
+  let (result_0_0_0_tx, mut result_0_0_0_rx) = channel();
+  let (i_1_0_0_tx, i_1_0_0_rx) = channel();
   let (x_0_0_0_tx, x_0_0_0_rx) = channel();
+  let (c_0_0_0_tx, c_0_0_0_rx) = channel();
   activity!(
     (
-      |a_0_0_child_tx: Sender, x_0_0_0_child_tx: Receiver| {
+      |result_0_0_0_child_tx: Sender, c_0_0_0_child_rx: Receiver, x_0_0_0_child_rx: Receiver| {
         Ok(
           loop {
-            let var_0 = x_0_0_0_child_rx.recv::<  i32,>()?;
-            let a_0_0 = g(var_0);
-            a_0_0_child_tx.send(a_0_0)?;
+            let var_0 = c_0_0_0_child_rx.recv::<  char,>()?;
+            let var_1 = x_0_0_0_child_rx.recv::<  i32,>()?;
+            let result_0_0_0 = crate::funs::take_char_i(var_0, var_1);
+            result_0_0_0_child_tx.send(result_0_0_0)?;
             ()
           }
         )
       }
-    )(a_0_0_tx, x_0_0_0_rx)
+    )(result_0_0_0_tx, c_0_0_0_rx, x_0_0_0_rx)
   );
   activity!(
     (
-      |x_0_0_0_child_tx: Sender| {
-        let x_0_0_0 = h(4);
-        x_0_0_0_child_tx.send(x_0_0_0)?;
+      |x_0_0_0_child_tx: Sender, i_1_0_0_child_rx: Receiver| {
+        Ok(
+          loop {
+            let var_0 = i_1_0_0_child_rx.recv::<  i32,>()?;
+            let x_0_0_0 = crate::funs::h(var_0);
+            x_0_0_0_child_tx.send(x_0_0_0)?;
+            ()
+          }
+        )
+      }
+    )(x_0_0_0_tx, i_1_0_0_rx)
+  );
+  activity!(
+    (
+      |i_1_0_0_child_tx: Sender| {
+        let i_1_0_0 = crate::funs::somefun();
+        i_1_0_0_child_tx.send(i_1_0_0)?;
         Ok(())
       }
-    )(x_0_0_0_tx)
+    )(i_1_0_0_tx)
   );
-  a_0_0_rx.activate()?;
-  a_0_0_rx
+  activity!(
+    (
+      |c_0_0_0_child_tx: Sender| {
+        let c_0_0_0 = crate::funs::make_char();
+        c_0_0_0_child_tx.send(c_0_0_0)?;
+        Ok(())
+      }
+    )(c_0_0_0_tx)
+  );
+  result_0_0_0_rx.activate()?;
+  result_0_0_0_rx
     .recv::<  String,>()
     .expect("The retrieval of the result value failed.
 Ohua turned your sequential program into a distributed one.
@@ -360,6 +384,7 @@ Hence, all Ohua can do at this point is error out.
 If you would like to have support for handligng these errors in your application then please submit an issue.
 ")
 }
+ 
 
 |]
 
@@ -371,33 +396,18 @@ use crate::funs::*;
 fn algo(i: i32) -> String {
   use m3::com::channel::{Sender, Receiver};
   use m3::activity;
-  let (a_0_0_tx, mut a_0_0_rx) = channel();
-  let (x_0_0_0_tx, x_0_0_0_rx) = channel();
+  let (result_0_0_0_tx, mut result_0_0_0_rx) = channel();
   activity!(
     (
-      |a_0_0_child_tx: Sender, x_0_0_0_child_tx: Receiver| {
-        Ok(
-          loop {
-            let var_0 = x_0_0_0_child_rx.recv::<  i32,>()?;
-            let a_0_0 = funs::g(var_0);
-            a_0_0_child_tx.send(a_0_0)?;
-            ()
-          }
-        )
-      }
-    )(a_0_0_tx, x_0_0_0_rx)
-  );
-  activity!(
-    (
-      |x_0_0_0_child_tx: Sender| {
-        let x_0_0_0 = funs::h(i);
-        x_0_0_0_child_tx.send(x_0_0_0)?;
+      |result_0_0_0_child_tx: Sender| {
+        let result_0_0_0 = crate::funs::g();
+        result_0_0_0_child_tx.send(result_0_0_0)?;
         Ok(())
       }
-    )(x_0_0_0_tx)
+    )(result_0_0_0_tx)
   );
-  a_0_0_rx.activate()?;
-  a_0_0_rx
+  result_0_0_0_rx.activate()?;
+  result_0_0_0_rx
     .recv::<  String,>()
     .expect("The retrieval of the result value failed.
 Ohua turned your sequential program into a distributed one.
@@ -409,33 +419,18 @@ If you would like to have support for handligng these errors in your application
 fn test() -> String {
   use m3::com::channel::{Sender, Receiver};
   use m3::activity;
-  let (a_0_0_tx, mut a_0_0_rx) = channel();
-  let (x_0_0_0_tx, x_0_0_0_rx) = channel();
+  let (result_0_0_0_tx, mut result_0_0_0_rx) = channel();
   activity!(
     (
-      |a_0_0_child_tx: Sender, x_0_0_0_child_tx: Receiver| {
-        Ok(
-          loop {
-            let var_0 = x_0_0_0_child_rx.recv::<  i32,>()?;
-            let a_0_0 = funs::g(var_0);
-            a_0_0_child_tx.send(a_0_0)?;
-            ()
-          }
-        )
-      }
-    )(a_0_0_tx, x_0_0_0_rx)
-  );
-  activity!(
-    (
-      |x_0_0_0_child_tx: Sender| {
-        let x_0_0_0 = funs::h(4);
-        x_0_0_0_child_tx.send(x_0_0_0)?;
+      |result_0_0_0_child_tx: Sender| {
+        let result_0_0_0 = crate::funs::g();
+        result_0_0_0_child_tx.send(result_0_0_0)?;
         Ok(())
       }
-    )(x_0_0_0_tx)
+    )(result_0_0_0_tx)
   );
-  a_0_0_rx.activate()?;
-  a_0_0_rx
+  result_0_0_0_rx.activate()?;
+  result_0_0_0_rx
     .recv::<  String,>()
     .expect("The retrieval of the result value failed.
 Ohua turned your sequential program into a distributed one.
@@ -453,33 +448,33 @@ use crate::funs::*;
 fn test() -> i32 {
   use m3::com::channel::{Sender, Receiver};
   use m3::activity;
-  let (b_0_0_tx, mut b_0_0_rx) = channel();
+  let (result_0_0_0_tx, mut result_0_0_0_rx) = channel();
   let (x0_0_0_0_tx, x0_0_0_0_rx) = channel();
   let (y0_0_0_0_tx, y0_0_0_0_rx) = channel();
   let (y1_0_0_0_tx, y1_0_0_0_rx) = channel();
   let (x1_0_0_0_tx, x1_0_0_0_rx) = channel();
   activity!(
     (
-      |b_0_0_child_tx: Sender, x1_0_0_0_child_tx: Receiver, y1_0_0_0_child_tx: Receiver| {
+      |result_0_0_0_child_tx: Sender, x1_0_0_0_child_rx: Receiver, y1_0_0_0_child_rx: Receiver| {
         Ok(
           loop {
             let var_0 = x1_0_0_0_child_rx.recv::<  i32,>()?;
-            let var_1 = y1_0_0_0_child_rx.recv::<  String,>()?;
-            let b_0_0 = h2(var_0, var_1);
-            b_0_0_child_tx.send(b_0_0)?;
+            let var_1 = y1_0_0_0_child_rx.recv::<  i32,>()?;
+            let result_0_0_0 = crate::funs::h4(var_0, var_1);
+            result_0_0_0_child_tx.send(result_0_0_0)?;
             ()
           }
         )
       }
-    )(b_0_0_tx, x1_0_0_0_rx, y1_0_0_0_rx)
+    )(result_0_0_0_tx, x1_0_0_0_rx, y1_0_0_0_rx)
   );
   activity!(
     (
-      |y1_0_0_0_child_tx: Sender, y0_0_0_0_child_tx: Receiver| {
+      |y1_0_0_0_child_tx: Sender, y0_0_0_0_child_rx: Receiver| {
         Ok(
           loop {
-            let var_0 = y0_0_0_0_child_rx.recv::<  String,>()?;
-            let y1_0_0_0 = f1(var_0);
+            let var_0 = y0_0_0_0_child_rx.recv::<  i32,>()?;
+            let y1_0_0_0 = crate::funs::f1(var_0);
             y1_0_0_0_child_tx.send(y1_0_0_0)?;
             ()
           }
@@ -489,11 +484,11 @@ fn test() -> i32 {
   );
   activity!(
     (
-      |x1_0_0_0_child_tx: Sender, x0_0_0_0_child_tx: Receiver| {
+      |x1_0_0_0_child_tx: Sender, x0_0_0_0_child_rx: Receiver| {
         Ok(
           loop {
             let var_0 = x0_0_0_0_child_rx.recv::<  i32,>()?;
-            let x1_0_0_0 = f0(var_0);
+            let x1_0_0_0 = crate::funs::f0(var_0);
             x1_0_0_0_child_tx.send(x1_0_0_0)?;
             ()
           }
@@ -504,7 +499,7 @@ fn test() -> i32 {
   activity!(
     (
       |x0_0_0_0_child_tx: Sender, y0_0_0_0_child_tx: Sender| {
-        let res = f_tup();
+        let res = crate::funs::fu_tup();
         let x0_0_0_0 = res.0;
         x0_0_0_0_child_tx.send(x0_0_0_0)?;
         let y0_0_0_0 = res.1;
@@ -513,8 +508,8 @@ fn test() -> i32 {
       }
     )(x0_0_0_0_tx, y0_0_0_0_tx)
   );
-  b_0_0_rx.activate()?;
-  b_0_0_rx
+  result_0_0_0_rx.activate()?;
+  result_0_0_0_rx
     .recv::<  i32,>()
     .expect("The retrieval of the result value failed.
 Ohua turned your sequential program into a distributed one.
@@ -528,36 +523,36 @@ tupleFromParam:: SourceFile Span
 tupleFromParam = [sourceFile|
 use crate::funs::*;
 
-fn test() -> i32 {
+fn test(i: i32) -> i32 {
   use m3::com::channel::{Sender, Receiver};
   use m3::activity;
-  let (b_0_0_tx, mut b_0_0_rx) = channel();
+  let (result_0_0_0_tx, mut result_0_0_0_rx) = channel();
   let (x0_0_0_0_tx, x0_0_0_0_rx) = channel();
   let (y0_0_0_0_tx, y0_0_0_0_rx) = channel();
   let (y1_0_0_0_tx, y1_0_0_0_rx) = channel();
   let (x1_0_0_0_tx, x1_0_0_0_rx) = channel();
   activity!(
     (
-      |b_0_0_child_tx: Sender, x1_0_0_0_child_tx: Receiver, y1_0_0_0_child_tx: Receiver| {
+      |result_0_0_0_child_tx: Sender, x1_0_0_0_child_rx: Receiver, y1_0_0_0_child_rx: Receiver| {
         Ok(
           loop {
             let var_0 = x1_0_0_0_child_rx.recv::<  i32,>()?;
-            let var_1 = y1_0_0_0_child_rx.recv::<  String,>()?;
-            let b_0_0 = h2(var_0, var_1);
-            b_0_0_child_tx.send(b_0_0)?;
+            let var_1 = y1_0_0_0_child_rx.recv::<  i32,>()?;
+            let result_0_0_0 = crate::funs::h4(var_0, var_1);
+            result_0_0_0_child_tx.send(result_0_0_0)?;
             ()
           }
         )
       }
-    )(b_0_0_tx, x1_0_0_0_rx, y1_0_0_0_rx)
+    )(result_0_0_0_tx, x1_0_0_0_rx, y1_0_0_0_rx)
   );
   activity!(
     (
-      |y1_0_0_0_child_tx: Sender, y0_0_0_0_child_tx: Receiver| {
+      |y1_0_0_0_child_tx: Sender, y0_0_0_0_child_rx: Receiver| {
         Ok(
           loop {
-            let var_0 = y0_0_0_0_child_rx.recv::<  String,>()?;
-            let y1_0_0_0 = f1(var_0);
+            let var_0 = y0_0_0_0_child_rx.recv::<  i32,>()?;
+            let y1_0_0_0 = crate::funs::f1(var_0);
             y1_0_0_0_child_tx.send(y1_0_0_0)?;
             ()
           }
@@ -567,11 +562,11 @@ fn test() -> i32 {
   );
   activity!(
     (
-      |x1_0_0_0_child_tx: Sender, x0_0_0_0_child_tx: Receiver| {
+      |x1_0_0_0_child_tx: Sender, x0_0_0_0_child_rx: Receiver| {
         Ok(
           loop {
             let var_0 = x0_0_0_0_child_rx.recv::<  i32,>()?;
-            let x1_0_0_0 = f0(var_0);
+            let x1_0_0_0 = crate::funs::f0(var_0);
             x1_0_0_0_child_tx.send(x1_0_0_0)?;
             ()
           }
@@ -582,7 +577,7 @@ fn test() -> i32 {
   activity!(
     (
       |x0_0_0_0_child_tx: Sender, y0_0_0_0_child_tx: Sender| {
-        let res = f_tup(23);
+        let res = crate::funs::fi_tup(i);
         let x0_0_0_0 = res.0;
         x0_0_0_0_child_tx.send(x0_0_0_0)?;
         let y0_0_0_0 = res.1;
@@ -591,8 +586,8 @@ fn test() -> i32 {
       }
     )(x0_0_0_0_tx, y0_0_0_0_tx)
   );
-  b_0_0_rx.activate()?;
-  b_0_0_rx
+  result_0_0_0_rx.activate()?;
+  result_0_0_0_rx
     .recv::<  i32,>()
     .expect("The retrieval of the result value failed.
 Ohua turned your sequential program into a distributed one.
@@ -604,9 +599,232 @@ If you would like to have support for handligng these errors in your application
 
 conditionBinOp :: SourceFile Span
 conditionBinOp = [sourceFile|
+use crate::funs::*;
 
-pub fn dunno(){
-    todo!()
+fn test(i: i32) -> i32 {
+  use m3::com::channel::{Sender, Receiver};
+  use m3::activity;
+  let (result_1_tx, mut result_1_rx) = channel();
+  let (a_0_0_0_tx, a_0_0_0_rx) = channel();
+  let (ctrlTrue_0_tx, ctrlTrue_0_rx) = channel();
+  let (ctrlFalse_0_tx, ctrlFalse_0_rx) = channel();
+  let (c_0_0_tx, c_0_0_rx) = channel();
+  let (d_0_0_tx, d_0_0_rx) = channel();
+  let (a_0_0_1_tx, a_0_0_1_rx) = channel();
+  activity!(
+    (
+      |c_0_0_child_tx: Sender, ctrlFalse_0_child_rx: Receiver| {
+        Ok(
+          loop {
+            let mut renew = false;
+            while !renew {
+              let sig = ctrlFalse_0_child_rx.recv::<  (bool, usize),>()?;
+              let count = sig.1;
+              for _ in 0 .. count {
+                let c_0_0 = crate::funs::h4(i, 1);
+                c_0_0_child_tx.send(c_0_0)?;
+                ()
+              };
+              let renew_next_time = sig.0;
+              renew = renew_next_time;
+              ()
+            }
+          }
+        )
+      }
+    )(c_0_0_tx, ctrlFalse_0_rx)
+  );
+  activity!(
+    (
+      |d_0_0_child_tx: Sender, ctrlTrue_0_child_rx: Receiver| {
+        Ok(
+          loop {
+            let mut renew = false;
+            while !renew {
+              let sig = ctrlTrue_0_child_rx.recv::<  (bool, usize),>()?;
+              let count = sig.1;
+              for _ in 0 .. count { d_0_0_child_tx.send(i)?; () };
+              let renew_next_time = sig.0;
+              renew = renew_next_time;
+              ()
+            }
+          }
+        )
+      }
+    )(d_0_0_tx, ctrlTrue_0_rx)
+  );
+  activity!(
+    (
+      |result_1_child_tx: Sender, result_1_child_tx: Sender, a_0_0_1_child_rx: Receiver, d_0_0_child_rx: Receiver, c_0_0_child_rx: Receiver| {
+        Ok(
+          loop {
+            let branchSelection = a_0_0_1_child_rx.recv::<  bool,>()?;
+            if branchSelection {
+              let result = d_0_0_child_rx.recv::<  i32,>()?;
+              result_1_child_tx.send(result)?
+            } else {
+              let result = c_0_0_child_rx.recv::<  i32,>()?;
+              result_1_child_tx.send(result)?
+            }
+          }
+        )
+      }
+    )(result_1_tx, result_1_tx, a_0_0_1_rx, d_0_0_rx, c_0_0_rx)
+  );
+  activity!(
+    (
+      |ctrlTrue_0_child_tx: Sender, ctrlFalse_0_child_tx: Sender, ctrlTrue_0_child_tx: Sender, ctrlFalse_0_child_tx: Sender, a_0_0_0_child_rx: Receiver| {
+        Ok(
+          loop {
+            let branchSelection = a_0_0_0_child_rx.recv::<  bool,>()?;
+            if branchSelection {
+              let ctrlTrue = (true, 1);
+              let ctrlFalse = (true, 0);
+              ctrlTrue_0_child_tx.send(ctrlTrue)?;
+              ctrlFalse_0_child_tx.send(ctrlFalse)?
+            } else {
+              let ctrlTrue = (true, 0);
+              let ctrlFalse = (true, 1);
+              ctrlTrue_0_child_tx.send(ctrlTrue)?;
+              ctrlFalse_0_child_tx.send(ctrlFalse)?
+            }
+          }
+        )
+      }
+    )(ctrlTrue_0_tx, ctrlFalse_0_tx, ctrlTrue_0_tx, ctrlFalse_0_tx, a_0_0_0_rx)
+  );
+  activity!(
+    (
+      |a_0_0_0_child_tx: Sender, a_0_0_1_child_tx: Sender| {
+        let res = crate::funs::check(13);
+        a_0_0_0_child_tx.send(res)?;
+        a_0_0_1_child_tx.send(res)?;
+        Ok(())
+      }
+    )(a_0_0_0_tx, a_0_0_1_tx)
+  );
+  result_1_rx.activate()?;
+  result_1_rx
+    .recv::<  i32,>()
+    .expect("The retrieval of the result value failed.
+Ohua turned your sequential program into a distributed one.
+Hence, all Ohua can do at this point is error out.
+If you would like to have support for handligng these errors in your application then please submit an issue.
+")
+}
+
+|]
+
+whileAsIf :: SourceFile Span
+whileAsIf = [sourceFile|
+use crate::funs::*;
+
+fn algo_rec(i: i32, state: State) -> State {
+  state.gs(i);
+  let i_new: i32 = h4(i, 1);
+  if islowerthan23(i) { algo_rec(i_new, state) } else { state }
+}
+
+fn test(i: i32) -> State {
+  use m3::com::channel::{Sender, Receiver};
+  use m3::activity;
+  let (result_0_0_0_tx, mut result_0_0_0_rx) = channel();
+  let (state_0_0_0_0_tx, state_0_0_0_0_rx) = channel();
+  let (a_0_0_tx, a_0_0_rx) = channel();
+  let (i_new_0_0_0_tx, i_new_0_0_0_rx) = channel();
+  let (state_1_0_0_tx, state_1_0_0_rx) = channel();
+  let (state_0_0_1_tx, state_0_0_1_rx) = channel();
+  let (i_1_0_0_tx, i_1_0_0_rx) = channel();
+  activity!(
+    (
+      |a_0_0_child_tx: Sender, i_1_0_0_child_rx: Receiver| {
+        Ok(
+          loop {
+            let var_0 = i_1_0_0_child_rx.recv::<  i32,>()?;
+            let a_0_0 = crate::funs::islowerthan23(var_0);
+            a_0_0_child_tx.send(a_0_0)?;
+            ()
+          }
+        )
+      }
+    )(a_0_0_tx, i_1_0_0_rx)
+  );
+  activity!(
+    (
+      |i_new_0_0_0_child_tx: Sender, i_1_0_0_child_rx: Receiver| {
+        Ok(
+          loop {
+            let var_0 = i_1_0_0_child_rx.recv::<  i32,>()?;
+            let i_new_0_0_0 = crate::funs::h4(var_0, 1);
+            i_new_0_0_0_child_tx.send(i_new_0_0_0)?;
+            ()
+          }
+        )
+      }
+    )(i_new_0_0_0_tx, i_1_0_0_rx)
+  );
+  activity!(
+    (
+      |state_0_0_0_0_child_tx: Sender, state_0_0_1_child_rx: Receiver, i_1_0_0_child_rx: Receiver| {
+        Ok(
+          loop {
+            let mut var_0 = state_0_0_1_child_rx.recv::<  State,>()?;
+            let var_1 = i_1_0_0_child_rx.recv::<  i32,>()?;
+            var_0.gs(var_1);
+            state_0_0_0_0_child_tx.send(var_0)?
+          }
+        )
+      }
+    )(state_0_0_0_0_tx, state_0_0_1_rx, i_1_0_0_rx)
+  );
+  activity!(
+    (
+      |i_1_0_0_child_tx: Sender, state_0_0_1_child_tx: Sender, i_1_0_0_child_tx: Sender, state_0_0_1_child_tx: Sender, result_0_0_0_child_tx: Sender, state_1_0_0_child_rx: Receiver, a_0_0_child_rx: Receiver, i_new_0_0_0_child_rx: Receiver, state_0_0_0_0_child_rx: Receiver, i_new_0_0_0_child_rx: Receiver, state_0_0_0_0_child_rx: Receiver| {
+        let init_1 = state_1_0_0_child_rx.recv::<  State,>()?;
+        i_1_0_0_child_tx.send(i)?;
+        state_0_0_1_child_tx.send(init_1)?;
+        while a_0_0_child_rx.recv::<  bool,>()? {
+          let loop_res_0 = i_new_0_0_0_child_rx.recv::<  i32,>()?;
+          let loop_res_1 = state_0_0_0_0_child_rx.recv::<  State,>()?;
+          i_1_0_0_child_tx.send(loop_res_0)?;
+          state_0_0_1_child_tx.send(loop_res_1)?;
+          ()
+        };
+        i_new_0_0_0_child_rx.recv::<  i32,>()?;
+        let finalResult = state_0_0_0_0_child_rx.recv::<  State,>()?;
+        Ok(result_0_0_0_child_tx.send(finalResult)?)
+      }
+    )(
+      i_1_0_0_tx,
+      state_0_0_1_tx,
+      i_1_0_0_tx,
+      state_0_0_1_tx,
+      result_0_0_0_tx,
+      state_1_0_0_rx,
+      a_0_0_rx,
+      i_new_0_0_0_rx,
+      state_0_0_0_0_rx,
+      i_new_0_0_0_rx,
+      state_0_0_0_0_rx,
+    )
+  );
+  activity!(
+    (
+      |state_1_0_0_child_tx: Sender| {
+        let state_1_0_0 = crate::funs::State::new_state(12);
+        state_1_0_0_child_tx.send(state_1_0_0)?;
+        Ok(())
+      }
+    )(state_1_0_0_tx)
+  );
+  result_0_0_0_rx.activate()?;
+  result_0_0_0_rx
+    .recv::<  State,>()
+    .expect("The retrieval of the result value failed.
+Ohua turned your sequential program into a distributed one.
+Hence, all Ohua can do at this point is error out.
+If you would like to have support for handligng these errors in your application then please submit an issue.
+")
 }
 
 |]
@@ -620,20 +838,20 @@ fn test() -> State {
   use m3::activity;
   let (s_0_1_0_tx, mut s_0_1_0_rx) = channel();
   let (s_0_0_1_tx, s_0_0_1_rx) = channel();
-  let (ctrl_0_0_tx, ctrl_0_0_rx) = channel();
+  let (ctrl_0_tx, ctrl_0_rx) = channel();
   let (d_0_tx, d_0_rx) = channel();
   let (r_0_0_0_tx, r_0_0_0_rx) = channel();
   let (s_0_0_0_0_tx, s_0_0_0_0_rx) = channel();
   let (size_0_tx, size_0_rx) = channel();
   activity!(
     (
-      |s_0_0_0_0_child_tx: Sender, s_0_0_1_child_tx: Receiver, ctrl_0_0_child_tx: Receiver, r_0_0_0_child_tx: Receiver| {
+      |s_0_0_0_0_child_tx: Sender, s_0_0_1_child_rx: Receiver, ctrl_0_child_rx: Receiver, r_0_0_0_child_rx: Receiver| {
         Ok(
           loop {
             let mut renew = false;
             let mut s_0_0_1_0 = s_0_0_1_child_rx.recv::<  State,>()?;
             while !renew {
-              let sig = ctrl_0_0_child_rx.recv::<  (bool, usize),>()?;
+              let sig = ctrl_0_child_rx.recv::<  (bool, usize),>()?;
               let count = sig.1;
               for _ in 0 .. count {
                 let var_1 = r_0_0_0_child_rx.recv::<  i32,>()?;
@@ -649,11 +867,11 @@ fn test() -> State {
           }
         )
       }
-    )(s_0_0_0_0_tx, s_0_0_1_rx, ctrl_0_0_rx, r_0_0_0_rx)
+    )(s_0_0_0_0_tx, s_0_0_1_rx, ctrl_0_rx, r_0_0_0_rx)
   );
   activity!(
     (
-      |s_0_1_0_child_tx: Sender, size_0_child_tx: Receiver, s_0_0_0_0_child_tx: Receiver, s_0_0_0_0_child_tx: Receiver| {
+      |s_0_1_0_child_tx: Sender, size_0_child_rx: Receiver, s_0_0_0_0_child_rx: Receiver, s_0_0_0_0_child_rx: Receiver| {
         let num = size_0_child_rx.recv::<  usize,>()?;
         let toDrop = num - 1;
         for _ in 0 .. toDrop { s_0_0_0_0_child_rx.recv::<  State,>()?; () };
@@ -664,11 +882,11 @@ fn test() -> State {
   );
   activity!(
     (
-      |r_0_0_0_child_tx: Sender, d_0_child_tx: Receiver| {
+      |r_0_0_0_child_tx: Sender, d_0_child_rx: Receiver| {
         Ok(
           loop {
             let var_0 = d_0_child_rx.recv::<  i32,>()?;
-            let r_0_0_0 = h(var_0);
+            let r_0_0_0 = crate::funs::h(var_0);
             r_0_0_0_child_tx.send(r_0_0_0)?;
             ()
           }
@@ -678,8 +896,8 @@ fn test() -> State {
   );
   activity!(
     (
-      |size_0_child_tx: Sender, ctrl_0_0_child_tx: Sender, d_0_child_tx: Sender, d_0_child_tx: Sender, ctrl_0_0_child_tx: Sender, size_0_child_tx: Sender, ctrl_0_0_child_tx: Sender| {
-        let mut stream_0_0_0 = iter_i32();
+      |size_0_child_tx: Sender, ctrl_0_child_tx: Sender, d_0_child_tx: Sender, d_0_child_tx: Sender, ctrl_0_child_tx: Sender, size_0_child_tx: Sender, ctrl_0_child_tx: Sender| {
+        let mut stream_0_0_0 = crate::funs::iter_i32();
         let hasSize =
         {
           let tmp_has_size = stream_0_0_0.iter().size_hint();
@@ -690,32 +908,30 @@ fn test() -> State {
             let size = stream_0_0_0.len();
             size_0_child_tx.send(size)?;
             let ctrl = (true, size);
-            ctrl_0_0_child_tx.send(ctrl)?;
+            ctrl_0_child_tx.send(ctrl)?;
             for d in stream_0_0_0 { d_0_child_tx.send(d)?; () }
           } else {
             let mut size = 0;
             for d in stream_0_0_0 {
               d_0_child_tx.send(d)?;
               let ctrl = (false, 1);
-              ctrl_0_0_child_tx.send(ctrl)?;
+              ctrl_0_child_tx.send(ctrl)?;
               size = size + 1;
               ()
             };
             size_0_child_tx.send(size)?;
             let ctrl = (true, 0);
-            ctrl_0_0_child_tx.send(ctrl)?;
+            ctrl_0_child_tx.send(ctrl)?;
             ()
           }
         )
       }
-    )(
-      size_0_tx, ctrl_0_0_tx, d_0_tx, d_0_tx, ctrl_0_0_tx, size_0_tx, ctrl_0_0_tx
-    )
+    )(size_0_tx, ctrl_0_tx, d_0_tx, d_0_tx, ctrl_0_tx, size_0_tx, ctrl_0_tx)
   );
   activity!(
     (
       |s_0_0_1_child_tx: Sender| {
-        let s_0_0_1 = State::new_state();
+        let s_0_0_1 = crate::funs::State::new_state(2);
         s_0_0_1_child_tx.send(s_0_0_1)?;
         Ok(())
       }
@@ -739,47 +955,29 @@ use crate::funs::*;
 fn test(i: i32) -> () {
   use m3::com::channel::{Sender, Receiver};
   use m3::activity;
-  let (c_0_0_tx, mut c_0_0_rx) = channel();
+  let (result_0_0_0_tx, mut result_0_0_0_rx) = channel();
   let (s_0_0_1_tx, s_0_0_1_rx) = channel();
-  let (ctrl_0_0_tx, ctrl_0_0_rx) = channel();
-  let (ctrl_0_1_tx, ctrl_0_1_rx) = channel();
-  let (d_1_tx, d_1_rx) = channel();
+  let (ctrl_0_tx, ctrl_0_rx) = channel();
+  let (d_0_tx, d_0_rx) = channel();
   let (r_0_0_0_tx, r_0_0_0_rx) = channel();
-  let (d_0_0_tx, d_0_0_rx) = channel();
+  let (x_lit_1_0_0_tx, x_lit_1_0_0_rx) = channel();
+  let (b_0_0_tx, b_0_0_rx) = channel();
   let (size_0_tx, size_0_rx) = channel();
-  let (x_0_0_0_tx, x_0_0_0_rx) = channel();
+  let (x_lit_0_0_0_tx, x_lit_0_0_0_rx) = channel();
   activity!(
     (
-      |d_0_0_child_tx: Sender, ctrl_0_1_child_tx: Receiver| {
-        Ok(
-          loop {
-            let mut renew = false;
-            while !renew {
-              let sig = ctrl_0_1_child_rx.recv::<  (bool, usize),>()?;
-              let count = sig.1;
-              for _ in 0 .. count { d_0_0_child_tx.send(())?; () };
-              let renew_next_time = sig.0;
-              renew = renew_next_time;
-              ()
-            }
-          }
-        )
-      }
-    )(d_0_0_tx, ctrl_0_1_rx)
-  );
-  activity!(
-    (
-      |s_0_0_1_child_tx: Receiver, ctrl_0_0_child_tx: Receiver, r_0_0_0_child_tx: Receiver| {
+      |x_lit_1_0_0_child_tx: Sender, s_0_0_1_child_rx: Receiver, ctrl_0_child_rx: Receiver, r_0_0_0_child_rx: Receiver| {
         Ok(
           loop {
             let mut renew = false;
             let mut s_0_0_1_0 = s_0_0_1_child_rx.recv::<  State,>()?;
             while !renew {
-              let sig = ctrl_0_0_child_rx.recv::<  (bool, usize),>()?;
+              let sig = ctrl_0_child_rx.recv::<  (bool, usize),>()?;
               let count = sig.1;
               for _ in 0 .. count {
                 let var_1 = r_0_0_0_child_rx.recv::<  i32,>()?;
-                s_0_0_1_0.gs(var_1);
+                let x_lit_1_0_0 = s_0_0_1_0.gs(var_1);
+                x_lit_1_0_0_child_tx.send(x_lit_1_0_0)?;
                 ()
               };
               let renew_next_time = sig.0;
@@ -790,51 +988,66 @@ fn test(i: i32) -> () {
           }
         )
       }
-    )(s_0_0_1_rx, ctrl_0_0_rx, r_0_0_0_rx)
+    )(x_lit_1_0_0_tx, s_0_0_1_rx, ctrl_0_rx, r_0_0_0_rx)
   );
   activity!(
     (
-      |x_0_0_0_child_tx: Sender, size_0_child_tx: Receiver, d_0_0_child_tx: Receiver| {
+      |x_lit_0_0_0_child_tx: Sender, size_0_child_rx: Receiver, b_0_0_child_rx: Receiver| {
         Ok(
           loop {
             let num = size_0_child_rx.recv::<  usize,>()?;
             let mut collection = Vec::new();
             for _ in 0 .. num {
-              let data = d_0_0_child_rx.recv::<  (),>()?;
+              let data = b_0_0_child_rx.recv::<  (),>()?;
               collection.push(data)
             };
-            x_0_0_0_child_tx.send(collection)?
+            x_lit_0_0_0_child_tx.send(collection)?
           }
         )
       }
-    )(x_0_0_0_tx, size_0_rx, d_0_0_rx)
+    )(x_lit_0_0_0_tx, size_0_rx, b_0_0_rx)
   );
   activity!(
     (
-      |c_0_0_child_tx: Sender, x_0_0_0_child_tx: Receiver| {
-        x_0_0_0_child_rx.recv::<  Vec<  (),>,>()?;
-        Ok(c_0_0_child_tx.send(())?)
-      }
-    )(c_0_0_tx, x_0_0_0_rx)
-  );
-  activity!(
-    (
-      |r_0_0_0_child_tx: Sender, d_1_child_tx: Receiver| {
+      |result_0_0_0_child_tx: Sender, x_lit_0_0_0_child_rx: Receiver| {
         Ok(
           loop {
-            let var_0 = d_1_child_rx.recv::<  i32,>()?;
-            let r_0_0_0 = h(var_0);
+            x_lit_0_0_0_child_rx.recv::<  Vec<  (),>,>()?;
+            result_0_0_0_child_tx.send(())?
+          }
+        )
+      }
+    )(result_0_0_0_tx, x_lit_0_0_0_rx)
+  );
+  activity!(
+    (
+      |b_0_0_child_tx: Sender, x_lit_1_0_0_child_rx: Receiver| {
+        Ok(
+          loop {
+            x_lit_1_0_0_child_rx.recv::<  i32,>()?; b_0_0_child_tx.send(())?
+          }
+        )
+      }
+    )(b_0_0_tx, x_lit_1_0_0_rx)
+  );
+  activity!(
+    (
+      |r_0_0_0_child_tx: Sender, d_0_child_rx: Receiver| {
+        Ok(
+          loop {
+            let var_0 = d_0_child_rx.recv::<  i32,>()?;
+            let r_0_0_0 = crate::funs::h(var_0);
             r_0_0_0_child_tx.send(r_0_0_0)?;
             ()
           }
         )
       }
-    )(r_0_0_0_tx, d_1_rx)
+    )(r_0_0_0_tx, d_0_rx)
   );
   activity!(
     (
-      |size_0_child_tx: Sender, ctrl_0_0_child_tx: Sender, ctrl_0_1_child_tx: Sender, d_1_child_tx: Sender, d_1_child_tx: Sender, ctrl_0_0_child_tx: Sender, ctrl_0_1_child_tx: Sender, size_0_child_tx: Sender, ctrl_0_0_child_tx: Sender, ctrl_0_1_child_tx: Sender| {
-        let mut a_0_0 = range_from(i);
+      |size_0_child_tx: Sender, ctrl_0_child_tx: Sender, d_0_child_tx: Sender, d_0_child_tx: Sender, ctrl_0_child_tx: Sender, size_0_child_tx: Sender, ctrl_0_child_tx: Sender| {
+        let mut a_0_0 = crate::funs::iter_i32();
         let hasSize =
         {
           let tmp_has_size = a_0_0.iter().size_hint(); tmp_has_size.1.is_some()
@@ -844,54 +1057,37 @@ fn test(i: i32) -> () {
             let size = a_0_0.len();
             size_0_child_tx.send(size)?;
             let ctrl = (true, size);
-            ctrl_0_0_child_tx.send(ctrl)?;
-            let ctrl = (true, size);
-            ctrl_0_1_child_tx.send(ctrl)?;
-            for d in a_0_0 { d_1_child_tx.send(d)?; () }
+            ctrl_0_child_tx.send(ctrl)?;
+            for d in a_0_0 { d_0_child_tx.send(d)?; () }
           } else {
             let mut size = 0;
             for d in a_0_0 {
-              d_1_child_tx.send(d)?;
+              d_0_child_tx.send(d)?;
               let ctrl = (false, 1);
-              ctrl_0_0_child_tx.send(ctrl)?;
-              let ctrl = (false, 1);
-              ctrl_0_1_child_tx.send(ctrl)?;
+              ctrl_0_child_tx.send(ctrl)?;
               size = size + 1;
               ()
             };
             size_0_child_tx.send(size)?;
             let ctrl = (true, 0);
-            ctrl_0_0_child_tx.send(ctrl)?;
-            let ctrl = (true, 0);
-            ctrl_0_1_child_tx.send(ctrl)?;
+            ctrl_0_child_tx.send(ctrl)?;
             ()
           }
         )
       }
-    )(
-      size_0_tx,
-      ctrl_0_0_tx,
-      ctrl_0_1_tx,
-      d_1_tx,
-      d_1_tx,
-      ctrl_0_0_tx,
-      ctrl_0_1_tx,
-      size_0_tx,
-      ctrl_0_0_tx,
-      ctrl_0_1_tx,
-    )
+    )(size_0_tx, ctrl_0_tx, d_0_tx, d_0_tx, ctrl_0_tx, size_0_tx, ctrl_0_tx)
   );
   activity!(
     (
       |s_0_0_1_child_tx: Sender| {
-        let s_0_0_1 = State::new_state();
+        let s_0_0_1 = crate::funs::State::new_state(3);
         s_0_0_1_child_tx.send(s_0_0_1)?;
         Ok(())
       }
     )(s_0_0_1_tx)
   );
-  c_0_0_rx.activate()?;
-  c_0_0_rx
+  result_0_0_0_rx.activate()?;
+  result_0_0_0_rx
     .recv::<  (),>()
     .expect("The retrieval of the result value failed.
 Ohua turned your sequential program into a distributed one.
@@ -900,6 +1096,7 @@ If you would like to have support for handligng these errors in your application
 ")
 }
 |]
+
 multi_var_expl_clone :: SourceFile Span
 multi_var_expl_clone = [sourceFile|
 use crate::funs::*;
