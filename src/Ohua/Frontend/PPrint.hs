@@ -69,7 +69,7 @@ instance Pretty (Expr embExpr ty res []) where
                         (sep [ pretty e1 <> ":"
                              , pretty e2
                              ])]
-    pretty (StateFunE s _qb mCall) = pretty s <+> "." <+> pretty mCall
+    pretty (StateFunE s meth mCall) = pretty s <+> "."<+> pretty meth <+> pretty mCall
     pretty (StmtE e c) = vsep $ hsep [pretty e, ";"] : [pretty c]
     pretty (TupE (e:|es)) = hsep [align $ tupled $ map pretty (e:es)]
 
@@ -113,6 +113,10 @@ instance Pretty (Expr embExpr ty res NonEmpty) where
                         (sep [ pretty e1 <> ":"
                              , pretty e2
                              ])]
-    pretty (StateFunE s _qb mCall) = pretty s <+> "." <+> pretty mCall
+    pretty (StateFunE s meth mCall) = pretty s <+> "." <+> pretty meth <+>pretty mCall
     pretty (StmtE e c) = vsep $ hsep [pretty e, ";"] : [pretty c]
     pretty (TupE (e:|es)) = hsep [align $ tupled $ map pretty (e:es)]
+
+instance Pretty (MethodRepr ty res) where
+    pretty (MethodUnres bnd) = pretty bnd
+    pretty (MethodRes qb ty ) = pretty qb 
