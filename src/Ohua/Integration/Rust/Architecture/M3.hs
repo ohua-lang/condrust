@@ -123,7 +123,7 @@ instance Architecture (Architectures 'M3) where
                     noSpan)
                 vars
           cParams = closureParams sends (asQualBind "Sender")   ((<> "_child_tx") . extractSend) <>
-                    closureParams recvs (asQualBind "Receiver") ((<> "_child_tx") . extractRecv)
+                    closureParams recvs (asQualBind "Receiver") ((<> "_child_rx") . extractRecv)
           closureArgs vars extract =
             map (convertExp . Sub.Var  . extract) vars
           cArgs = closureArgs sends ((<> "_tx") . extractSend) <>
