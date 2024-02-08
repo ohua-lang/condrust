@@ -12,23 +12,23 @@ import Ohua.Integration.Python.Backend
 import Ohua.Integration.Python.Backend.Subset as Sub
 import Ohua.Integration.Python.Backend.Convert
 import Ohua.Integration.Python.Util
-import Ohua.Integration.Python.Types
-import Ohua.Integration.Python.TypeExtraction
+import Ohua.Integration.Python.TypeHandling
 
 
 import qualified Language.Python.Common.AST as Py
 import Language.Python.Common.SrcLocation (SrcSpan)
-import Language.Python.Common.Pretty (prettyText)
+-- import Language.Python.Common.Pretty (prettyText)
 
 import qualified Data.ByteString.Lazy as L
-import qualified Data.HashMap.Lazy as HM
-import qualified Data.List.NonEmpty as NE
+-- import qualified Data.HashMap.Lazy as HM
+-- import qualified Data.List.NonEmpty as NE
 
 import System.FilePath (takeFileName)
-import Language.Python.Common (ImportRelative(import_relative_dots))
+-- import Language.Python.Common (ImportRelative(import_relative_dots))
 import Data.List (nub)
 
-type FullyPyProgram = Program (Py.Statement SrcSpan) (Py.Expr SrcSpan) (Py.Statement SrcSpan) PythonArgType
+-- data Program chan retChan expr embExpr ty 
+type FullyPyProgram = Program (Py.Statement SrcSpan) (Py.Expr SrcSpan) (Py.Statement SrcSpan) (Py.Expr SrcSpan) PythonVarType
 
 
 -- instance Transform (Architectures 'MultiProcessing)
@@ -40,7 +40,7 @@ instance Architecture (Architectures 'MultiProcessing) where
     {- | Convert a backend channel i.e. an arc in the DFG to an expression of the target architecture
          that instantiates the according process communication channel
     -}
-    convertChannel a@SMultiProc{} (SRecv argTy( SChan bnd))=
+    convertChannel a@SMultiProc{} (SRecv _argTy( SChan bnd))=
         let expr = unwrapSubStmt $ convertExpr a $ Apply $ Stateless (QualifiedBinding (makeThrow []) "mp.Pipe") []
             send = unwrapSubStmt $ convertExpr a $ TCLang.Var $ bnd <> "_sender"
             recv = unwrapSubStmt $ convertExpr a $ TCLang.Var $ bnd <> "_receiver"
@@ -74,16 +74,16 @@ instance Architecture (Architectures 'MultiProcessing) where
     {- | Wraps the tasks i.e. codeblocks of host language function calls and 'wiring' to send and
          receive into actual independent tasks, in this case named closures because lambdas are to limited in python  
     -}
-    build SMultiProc{} (Module fPath (Py.Module stmts)) ns =
-        return $ ns & algos %~ map (\algo -> algo & algoCode %~ createTasksAndChannels)
+    build SMultiProc{} (Module _fPath (Py.Module _stmts)) modNS =
+        return $ modNS & algos %~ map (\algo -> algo & algoCode %~ createTasksAndChannels)
         where
             -- ^ Tasks are enumerated to create named functions task_1, task_2 ...
             createTasksAndChannels (Program chans retChan tasks)  =
                 Program chans retChan (zipWith (curry taskFromSuite) [1..] tasks)
 
 
-            taskFromSuite:: (Int, FullTask ty Sub.Suite)
-                 ->  FullTask ty (Py.Statement SrcSpan)
+            taskFromSuite:: (Int, FullTask (Py.Expr SrcSpan) ty Sub.Suite)
+                 ->  FullTask (Py.Expr SrcSpan) ty (Py.Statement SrcSpan)
             taskFromSuite (num, FullTask ins out suite) = FullTask ins out fun
                 where
                     fun=
@@ -103,47 +103,47 @@ instance Architecture (Architectures 'MultiProcessing) where
          as 'algo_parallel' and b) contains all original function calls with function bodies replaced by a 
          call to the respective parallel module         
     -}
-    serialize SMultiProc{} srcModule placeholder ns  = return $ callerModule:| ([lib_from_frontend] ++ algoModules)
+    serialize SMultiProc{} srcModule placeholder modNS  = return $ callerModule:| (lib_from_frontend : algoModules)
         where
 
             convertedAlgoInfos =
-                map (\(Algo name expr srcFun _ty) ->
-                        (bndToStr name, subToPython expr, Py.fun_args srcFun)) $ ns ^. algos
+                map (\(Algo aName _aType expr srcFun) ->
+                        (bndToStr aName, subToPython expr, Py.fun_args srcFun)) $ modNS ^. algos
 
-            algoNames = map (^. algoName) $ ns^.algos
+            algoNames = map (^. algoName) $ modNS^.algos
             algoModules = map (makeAlgoModule srcModule) convertedAlgoInfos
             callerModule = makeParallelLib srcModule algoNames
             (Module libname lib) = placeholder
             lib_from_frontend = (libname, encodePretty lib)
 
-chnlToParameter :: Com comTy argTy  -> Py.Parameter SrcSpan
+chnlToParameter :: Com comTy embExpr argTy  -> Py.Parameter SrcSpan
 chnlToParameter chnl = Py.Param (chnlToIdent chnl) Nothing Nothing noSpan
 
-chnlToVar :: Com comTy argTy  -> Py.Expr SrcSpan
+chnlToVar :: Com comTy embExpr argTy  -> Py.Expr SrcSpan
 chnlToVar chnl = Py.Var (chnlToIdent chnl) noSpan
 
-chnlToIdent :: Com comTy argTy  -> Py.Ident SrcSpan
-chnlToIdent (SRecv t (SChan chnlName)) = fromBinding (chnlName <> "_receiver")
-chnlToIdent (SSend (SChan chnlName) toSend) = fromBinding (chnlName <> "_sender")
+chnlToIdent :: Com comTy embExpr argTy  -> Py.Ident SrcSpan
+chnlToIdent (SRecv _ty (SChan chnlName)) = fromBinding (chnlName <> "_receiver")
+chnlToIdent (SSend (SChan chnlName) _toSend) = fromBinding (chnlName <> "_sender")
 
 {- | This function generates a new python module for every parallelized function from the input. 
      Statements and imports from the original code are included in the new file
 -}
 makeAlgoModule :: Module -> (String, FullyPyProgram, [Py.Parameter SrcSpan]) -> (FilePath , L.ByteString)
-makeAlgoModule (Module path (Py.Module inputCode)) (algoName, prgrm@(Program _ _ tasks), params) =
+makeAlgoModule (Module _fpath (Py.Module inputCode)) (algName, prgrm@(Program _ _ tasks), params) =
     let taskList = enumeratedTasks tasks
         chnlsPerTask = map channelsFromTask tasks
         newMainFun = buildMain taskList chnlsPerTask prgrm params
-        originalScope = scopeOfAlgo algoName inputCode
+        originalScope = scopeOfAlgo algName inputCode
         combinedStmts = combineStatements originalScope prgrm newMainFun
-        modName = algoName <> ".py"
+        pyModName = algName <> ".py"
         printableCode = encodePretty combinedStmts
-    in (modName, printableCode)
+    in (pyModName, printableCode)
 
 
 
 scopeOfAlgo :: String -> [Py.Statement SrcSpan] -> [Py.Statement SrcSpan]
-scopeOfAlgo aName [] = []
+scopeOfAlgo _aName [] = []
 -- we ignore algos as they are spliced into our taks graph
 scopeOfAlgo aName (Py.Fun{} : stmts) = scopeOfAlgo aName stmts
 scopeOfAlgo aName (stmt: stmts) =  stmt : scopeOfAlgo aName stmts
@@ -152,8 +152,8 @@ scopeOfAlgo aName (stmt: stmts) =  stmt : scopeOfAlgo aName stmts
 
 -- | Task functions are called with a list of (unique -> nub) channels they use as arguments.
 -- | Here we extract them.
-channelsFromTask :: FullTask PythonArgType (Py.Statement SrcSpan) -> [Py.Expr SrcSpan]
-channelsFromTask (FullTask ins outs fun) = nub (map chnlToVar ins ++ map chnlToVar outs)
+channelsFromTask :: FullTask (Py.Expr SrcSpan) PythonVarType (Py.Statement SrcSpan) -> [Py.Expr SrcSpan]
+channelsFromTask (FullTask ins outs _fun) = nub (map chnlToVar ins ++ map chnlToVar outs)
 
 {- | This function produces a parallelized version of the input module that 
         a) imports the modules generated from each function declaration
@@ -170,12 +170,12 @@ makeParallelLib (Module path (Py.Module statements)) algoNames =
 -- | Replaces the code of every declared function by a call to it's parallelized code in the repective imported module
 replaceFunCode:: Py.Statement SrcSpan -> Py.Statement SrcSpan
 replaceFunCode stmt = case stmt of
-    Py.Fun id params mRType code annot -> Py.Fun id params mRType (replaceCode id params) noSpan
+    Py.Fun fId params mRType _code _annot -> Py.Fun fId params mRType (replaceCode fId params) noSpan
     anyOther -> anyOther
     where
         replaceCode :: Py.Ident SrcSpan -> [Py.Parameter SrcSpan] -> Py.Suite SrcSpan
-        replaceCode (Py.Ident name _) params =
-            let funId = name <> "_parallel.main"
+        replaceCode (Py.Ident iName _) params =
+            let funId = iName <> "_parallel.main"
                 calledFun =  Py.Var (mkIdent funId) noSpan
                 args = map paramToArg params
             in [Py.Return
@@ -185,11 +185,11 @@ replaceFunCode stmt = case stmt of
 -- | Gererate an import statement for a given algo binding
 makeImport :: Binding -> Py.Statement SrcSpan
 makeImport algoBnd =
-    let modName = bndToStr algoBnd
-        alias = modName <> "_parallel"
+    let pyModName = bndToStr algoBnd
+        pyalias = pyModName <> "_parallel"
     in Py.Import [
-            Py.ImportItem [mkIdent modName]  -- import algo
-            (Just (mkIdent alias))              -- as algo_parallel
+            Py.ImportItem [mkIdent pyModName]  -- import algo
+            (Just (mkIdent pyalias))              -- as algo_parallel
             noSpan]
         noSpan
     -- TODO: Check best import option, trelative imports only work for defined packages
@@ -197,8 +197,8 @@ makeImport algoBnd =
     -- from . import algo as algo_parallel
     {-in Py.FromImport
         (Py.ImportRelative 1 Nothing noSpan) 
-        (Py.FromItems [Py.FromItem  (mkIdent modName)  
-                                    (Just (mkIdent alias))
+        (Py.FromItems [Py.FromItem  (mkIdent pyModName)  
+                                    (Just (mkIdent pyalias))
                                     noSpan
                       ] noSpan)
         noSpan -}
@@ -208,7 +208,7 @@ combineStatements ::
     -> FullyPyProgram
     -> Py.Statement SrcSpan
     -> Py.Module SrcSpan
-combineStatements originalStmts (Program channelInits _ nodeFuns) multiMain = Py.Module combinedStatements
+combineStatements originalStmts (Program _channelInits _ nodeFuns) multiMain = Py.Module combinedStatements
     where
         taskFunDefs = map taskExpression nodeFuns
         combinedStatements = importMPStmt
@@ -229,11 +229,11 @@ combineStatements originalStmts (Program channelInits _ nodeFuns) multiMain = Py
 -- | vii) return the overall result
 
 buildMain:: [String]-> [[Py.Expr SrcSpan]] -> FullyPyProgram -> [Py.Parameter SrcSpan]-> Py.Statement SrcSpan
-buildMain taskNames chnlsPerTask (Program chnls resExpr tasks) params =  Py.Fun (mkIdent "main") params' resAnno mainBlock noSpan
+buildMain taskNames chnlsPerTask (Program chnls resExpr _tasks) params =  Py.Fun (mkIdent "main") params' resAnno mainBlock noSpan
         where
             taskList = Py.List (map (toPyVar . mkIdent) taskNames) noSpan
             initTasksStmt = Py.Assign [(toPyVar .mkIdent) "tasks"] taskList noSpan
-            chnlsList = Py.List (map (`Py.List` noSpan) chnlsPerTask) noSpan 
+            chnlsList = Py.List (map (`Py.List` noSpan) chnlsPerTask) noSpan
             initChnlsList = Py.Assign [(toPyVar .mkIdent) "channels"] chnlsList noSpan
             assignRes = Py.Assign [toPyVar . mkIdent $ "result"] resExpr noSpan
             mainBasic = [
@@ -263,20 +263,20 @@ paramsAndGlobals params = (renamed, [globalStmt, assign])
 
 
 paramToArg:: Py.ParameterSpan -> Py.ArgumentSpan
-paramToArg (Py.Param id mTyp mDef anno) = Py.ArgExpr (Py.Var id noSpan) noSpan
+paramToArg (Py.Param pId _mTyp _mDef _anno) = Py.ArgExpr (Py.Var pId noSpan) noSpan
 paramToArg _ = error "unsupported parameter type. this should have been caught in the frontend"
 
 replaceId:: (Py.ParameterSpan, Py.IdentSpan) -> Py.ParameterSpan
-replaceId (Py.Param id mTyp mDef anno, newId) = Py.Param newId mTyp mDef anno
+replaceId (Py.Param _id mTyp mDef anno, newId) = Py.Param newId mTyp mDef anno
 
 
 modName :: Py.Parameter annot -> [Char] -> Py.Ident SrcSpan
-modName (Py.Param (Py.Ident name _) mTyp mDef anno) modV = Py.Ident (name++modV) noSpan
+modName (Py.Param (Py.Ident iName _) _mTyp _mDef _anno) modV = Py.Ident (iName ++ modV) noSpan
 
 
-subToPython :: Program Stmt Stmt (Py.Statement SrcSpan) PythonArgType -> FullyPyProgram
+subToPython :: Program Stmt Stmt (Py.Statement SrcSpan) (Py.Expr SrcSpan) PythonVarType -> FullyPyProgram
 subToPython (Program c r t ) =  Program (map subToStmt c) (subToExpr . unwrapSubStmt $ r) t
 
-enumeratedTasks :: [FullTask PythonArgType (Py.Statement SrcSpan)] -> [String]
-enumeratedTasks  tasks =  zipWith (\ task i -> "task_" ++ show i) tasks [1..]
+enumeratedTasks :: [FullTask (Py.Expr SrcSpan) PythonVarType (Py.Statement SrcSpan)] -> [String]
+enumeratedTasks  tasks =  zipWith (\ _task i -> "task_" ++ show i) tasks [1..]
 

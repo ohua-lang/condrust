@@ -3,7 +3,7 @@
 module Ohua.Integration.Rust.Architecture.SharedMemory.Transform.DataPar where
 
 --import Ohua.Integration.Rust.Architecture.SharedMemory ()
-import qualified Ohua.Integration.Rust.TypeExtraction as RT
+import qualified Ohua.Integration.Rust.Types.Extraction as RT
 import Ohua.Integration.Architecture
 import Ohua.Integration.Rust.Backend
 import Ohua.Integration.Rust.Backend.Subset
@@ -15,7 +15,7 @@ import Ohua.Prelude hiding (concat)
 
 runtime = "rt"
 
-liftCollectType :: RT.RustTypeAnno -> RT.RustTypeAnno
+liftCollectType :: RT.RustVarType -> RT.RustVarType
 liftCollectType (RT.Normal t) =
     RT.Normal
     $ convertTyRef
@@ -95,7 +95,7 @@ spawnWork (SSharedMemory Options{..}) block =
     Nothing -> block
   where
     -- (fun:rt:args') -> -- would be cleaner
-    go (Call (CallRef f _) (Lit (FunRefLit (FunRef qb _ _)) : args))
+    go (Call (CallRef f _) (Lit (FunRefLit (FunRef qb _)) : args))
       | f == spawnFuture = do
         modify $ const True
         return $ BlockExpr $ RustBlock Normal $ spawnComp $ Call (CallRef qb Nothing) args

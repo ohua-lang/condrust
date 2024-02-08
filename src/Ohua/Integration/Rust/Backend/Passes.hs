@@ -12,7 +12,7 @@ import Ohua.Prelude
 -- | This function loads the following transformations:
 --   * It activates an optimization in core such that state can be fused properly (see Ohua.Core.DFLang.Passes.State.intoFusable).
 --   * [Optional] data parallelism
-passes :: Options -> (ty -> ty) -> CustomPasses ty
+passes :: Options -> (ty -> ty) -> CustomPasses embExpr ty
 passes opts = StateDFL.load . dataPar opts
 
 -- | Rust wants all __mutable__ variables to be tagged.
@@ -35,8 +35,8 @@ propagateMut block =
       block' <- goBlock block
       return $ If e0 block' e1'
     go (Loop block) = Loop <$> goBlock block
-    go (ForLoop p r block) = ForLoop p r <$> goBlock block
-    go (While e block) = While e <$> goBlock block
+    go (ForLoop p r lBlock) = ForLoop p r <$> goBlock lBlock
+    go (While e wBlock) = While e <$> goBlock wBlock
     go e = pure e
 
     goBlock (RustBlock unsafety stmts) =

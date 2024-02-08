@@ -50,7 +50,10 @@ encodePretty :: Module SrcSpan -> L.ByteString
 encodePretty = encodeUtf8 . prettyText
 
 filePathToNsRef :: FilePath -> NSRef
-filePathToNsRef = makeThrow . map fromString . splitDirectories . dropExtension
+filePathToNsRef = makeThrow . filePathToList
+
+filePathToList :: FilePath -> [Binding]
+filePathToList = map fromString . splitDirectories . dropExtension
 
 wrappedParsing:: String -> String -> Module SrcSpan
 wrappedParsing pyCode filename = do

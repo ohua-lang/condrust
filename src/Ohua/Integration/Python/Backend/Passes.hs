@@ -7,5 +7,5 @@ import qualified Ohua.Core.DFLang.Passes.State as StateDFL
 import Ohua.Integration.Transform.DataPar (dataPar)
 
 
-passes :: Options -> (ty -> ty) -> CustomPasses ty
+passes :: Options -> (ty -> ty) -> CustomPasses embExpr ty
 passes opts = StateDFL.load . dataPar opts

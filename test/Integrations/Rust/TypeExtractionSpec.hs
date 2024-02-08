@@ -1,5 +1,5 @@
 {-# LANGUAGE QuasiQuotes #-}
-module Integrations.Rust.TypeExtractionSpec
+module Integrations.Rust.TypeHandlingSpec
     ( spec
     ) where
 
@@ -13,11 +13,11 @@ import Language.Rust.Parser (Span)
 
 import qualified Data.HashMap.Lazy as HM
 
-import Ohua.Integration.Rust.TypeExtraction
+import Ohua.Integration.Rust.TypeHandling
 
 
--- extractTypes :: Show a => SourceFile a -> IO (HM.HashMap QualifiedBinding (FunType (RustArgType)))
--- extractTypes srcFile = runCompM LevelDebug $ extract "" srcFile
+-- extractTypes :: Show a => SourceFile a -> IO (HM.HashMap QualifiedBinding (FunType (RustVarType)))
+-- extractTypes srcFile = runErrAndLogM LevelDebug $ extract "" srcFile
 
 -- ToDo: We don't use this type extraction any more. So they're commented out to avoid conflicts with changes
 -- in used code. Replace with appropriate tests. (If there's time before the 'big rewrite')
@@ -86,13 +86,13 @@ spec =
         --         }
         --         |]) >>= (`shouldBe` 
         --             HM.fromList [
-        --                 ( FunRef (QualifiedBinding (makeThrow []) "void_input") Nothing
+        --                 ( FunRef (QualifiedBinding (makeThrow []) "void_input") 
         --                 , FunType [] $ Just $ void [ty| String |]
         --                 ) ,
-        --                 ( FunRef (QualifiedBinding (makeThrow []) "void_output") Nothing
+        --                 ( FunRef (QualifiedBinding (makeThrow []) "void_output") 
         --                 , FunType [ Normal $ void [ty| i32 |] ] Nothing
         --                 ) ,
-        --                 ( FunRef (QualifiedBinding (makeThrow []) "simple") Nothing
+        --                 ( FunRef (QualifiedBinding (makeThrow []) "simple") 
         --                 , FunType [ Normal $ void [ty| i32 |] ] $ Just $ void [ty| String |]
         --                 )
         --             ]
@@ -108,19 +108,19 @@ spec =
         --         }
         --         |]) >>= (`shouldBe` 
         --             HM.fromList [
-        --                 ( FunRef (QualifiedBinding (makeThrow []) "void_input") Nothing
+        --                 ( FunRef (QualifiedBinding (makeThrow []) "void_input")
         --                 , FunType [] $ Just $ void [ty| String |]
         --                 ) ,
-        --                 ( FunRef (QualifiedBinding (makeThrow []) "void_output") Nothing
+        --                 ( FunRef (QualifiedBinding (makeThrow []) "void_output") 
         --                 , FunType [ Normal $ void [ty| i32 |] ] Nothing
         --                 ) ,
-        --                 ( FunRef (QualifiedBinding (makeThrow []) "simple") Nothing
+        --                 ( FunRef (QualifiedBinding (makeThrow []) "simple") 
         --                 , FunType [ Normal $ void [ty| i32 |] ] $ Just $ void [ty| String |]
         --                 ),
-        --                 ( FunRef (QualifiedBinding (makeThrow []) "simple_self") Nothing
+        --                 ( FunRef (QualifiedBinding (makeThrow []) "simple_self") 
         --                 , FunType [Self (void [ty| Foo |]) Immutable, Normal $ void [ty| i32 |] ] $ Just $ void [ty| String |]
         --                 ),
-        --                 ( FunRef (QualifiedBinding (makeThrow []) "simple_mut_self") Nothing
+        --                 ( FunRef (QualifiedBinding (makeThrow []) "simple_mut_self") 
         --                 , FunType [Self (void [ty| Foo |]) Mutable, Normal $ void [ty| i32 |] ] $ Just $ void [ty| String |]
         --                 )
         --             ]

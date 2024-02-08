@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 module Ohua.Integration.Rust.Architecture.Common where
 
 import qualified Data.ByteString.Lazy.Char8 as L
@@ -5,29 +6,32 @@ import qualified Data.HashMap.Lazy as HM
 import Data.Text.Prettyprint.Doc hiding (Pretty)
 import Data.Text.Prettyprint.Doc.Render.Text
 import Data.Text.Lazy (unpack)
+
+import Language.Rust.Data.Ident
 import Language.Rust.Pretty (pretty', Resolve, Pretty)
 import Language.Rust.Syntax as Rust hiding (Rust)
+import Language.Rust.Parser (Span)
+
 import Ohua.Backend.Types
-import qualified Ohua.Integration.Rust.TypeExtraction  as TE
-import Ohua.Integration.Rust.Types
+import qualified Ohua.Integration.Rust.Types.Extraction as TH
 import Ohua.Integration.Rust.Util
 import Ohua.Prelude
 import System.FilePath (takeFileName)
-import Language.Rust.Data.Ident
 
-serialize ::
-  CompM m =>
-  Module ->
-  Namespace (Program chan expr stmts TE.RustTypeAnno) anno  TE.RustTypeAnno ->
-  (Program chan expr stmts TE.RustTypeAnno -> Block ()) ->
-  Module ->
-  m (NonEmpty (FilePath, L.ByteString))
+
+serialize :: 
+  ErrAndLogM m 
+  => TH.Module 
+  -> Namespace (Program chan expr stmts (Rust.Expr Span) TH.RustVarType) anno (OhuaType ty 'Resolved) 
+  -> (Program chan expr stmts (Rust.Expr Span) TH.RustVarType -> Block ()) 
+  -> TH.Module 
+  -> m (NonEmpty (FilePath, L.ByteString))
 -- REMINDER: Replace Placeholder. Output new library file
-serialize (Module path (SourceFile modName atts items)) ns createProgram placeholder =
-  let algos' = HM.fromList $ map (\(Algo name expr _ _) -> (name, expr)) $ ns ^. algos
+serialize (TH.Module path (SourceFile modName atts items)) ns createProgram placeholder =
+  let algos' = HM.fromList $ map (\(Algo name _ty expr _ ) -> (name, expr)) $ ns ^. algos
       src = SourceFile modName atts $ map (replaceAlgo algos') items
       path' = takeFileName path -- TODO verify this!
-      (Module libname lib) = placeholder 
+      (TH.Module libname lib) = placeholder
    in return $ (path', render src) :| [(libname, render lib)]
   where
     -- FIXME now we can just insert instead of replacing them!
@@ -39,32 +43,22 @@ serialize (Module path (SourceFile modName atts items)) ns createProgram placeho
           Nothing -> f
       i -> i
 
-render :: (Resolve a, Pretty a) => a -> L.ByteString
-render =
-  encodeUtf8
-    . (<> "\n")
-    . renderLazy
-    . layoutSmart defaultLayoutOptions
-    . pretty'
 
-renderStr :: (Resolve a, Pretty a) => a -> String
-renderStr =
-    unpack
-    . renderLazy
-    . layoutSmart defaultLayoutOptions
-    . pretty'
+toRustTy :: OhuaType TH.RustVarType Resolved -> Maybe (Rust.Ty ())
+toRustTy ty = case ty of
+    IType TypeUnit -> Just $ Rust.TupTy [] ()
+    IType TypeNat -> Just $  Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "usize" Nothing ()] ()) ()
+    IType TypeBool ->  Just $ Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "bool" Nothing ()] ()) ()
+    IType TypeString ->  Just $ Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "String" Nothing ()] ()) ()
 
+    (HType (HostType (TH.Self rty _ _ ))) ->  Just rty
+    (HType (HostType (TH.Normal rty))) -> Just rty
 
-toRustTy :: ArgType TE.RustTypeAnno -> Rust.Ty ()
--- ToDo: We have a distinction between 'single' types and tuples but beyond that do not care
--- if it's a Path expression a Self or whatever. Currently we don't allow fancy return types so
--- maybe that's Ok but I have to evaluate later!!
-toRustTy TypeVar = Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "_" Nothing ()] ()) ()
-toRustTy (Type (TE.Self ty _ _ )) = ty
-toRustTy (Type (TE.Normal ty)) = ty
-toRustTy (TupleTy types) = Rust.TupTy (toList $ map toRustTy types) ()
-toRustTy TypeNat = Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "usize" Nothing ()] ()) ()
-toRustTy TypeBool = Rust.PathTy Nothing (Rust.Path False [Rust.PathSegment "bool" Nothing ()] ()) ()
-toRustTy TypeUnit = Rust.TupTy [] ()
-toRustTy (TypeList itemType) =  PathTy Nothing (Path False [PathSegment "Vec" (Just (AngleBracketed [TypeArg (toRustTy itemType)] [] ())) ()] ()) ()
-  
+    (TType typez) ->  do
+      types' <- mapM toRustTy typez
+      return $ Rust.TupTy (toList types') ()
+
+    (IType (TypeList itemType)) ->  do
+      itemTy <- toRustTy itemType
+      return $ PathTy Nothing (Path False [PathSegment "Vec" (Just (AngleBracketed [TypeArg itemTy] [] ())) ()] ()) ()
+    FType _fty -> Nothing

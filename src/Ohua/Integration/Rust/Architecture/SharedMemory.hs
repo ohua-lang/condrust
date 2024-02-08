@@ -1,3 +1,4 @@
+{-# LANGUAGE InstanceSigs#-}
 {-# LANGUAGE QuasiQuotes #-}
 
 module Ohua.Integration.Rust.Architecture.SharedMemory where
@@ -5,8 +6,9 @@ module Ohua.Integration.Rust.Architecture.SharedMemory where
 import qualified Data.List as LS
 import Language.Rust.Data.Ident (mkIdent)
 import Language.Rust.Quote
+import Language.Rust.Parser (Span)
 import qualified Language.Rust.Syntax as Rust hiding (Rust)
-import Ohua.Backend.Lang (Com (..))
+import Ohua.Backend.Lang (Com (..), Channel)
 import Ohua.Backend.Types hiding (convertExpr)
 import Ohua.Integration.Architecture
 import Ohua.Integration.Options
@@ -22,9 +24,8 @@ import Ohua.Integration.Rust.Backend.Convert
     convertGenericArgs
   )
 import qualified Ohua.Integration.Rust.Backend.Subset as Sub
-import qualified Ohua.Integration.Rust.TypeExtraction as TE
+import qualified Ohua.Integration.Rust.Types.Extraction as TH
 import Ohua.Integration.Rust.Architecture.SharedMemory.Transform.DataPar (getInitializers)
-import Ohua.Integration.Rust.Types as RT
 import Ohua.Prelude
 
 instance Architecture (Architectures 'SharedMemory) where
@@ -32,13 +33,13 @@ instance Architecture (Architectures 'SharedMemory) where
   type Chan (Architectures 'SharedMemory) = Sub.Stmt
   type ATask (Architectures 'SharedMemory) = [Rust.Stmt ()]
 
+  convertChannel :: Architectures 'SharedMemory -> Channel (Rust.Expr Span) TH.RustVarType -> Chan (Architectures 'SharedMemory)
   convertChannel SSharedMemory{} (SRecv argTy (SChan bnd)) =
-    -- help out the type inference of Rust a little here
-    let chanTy = 
+    let chanTy =
           case convertToRustType argTy of
             Just rustType -> Just $
                 Sub.AngleBracketed [ Sub.TypeArg rustType ]
-            Nothing -> error $ "Couldn't type channel properly: " <> show bnd
+            Nothing -> error $ "Couldn't type channel properly: Binding" <> show bnd <> "had type "<> show argTy
      in Sub.Local
           ( Sub.TupP
               [ Sub.IdentPat Sub.Immutable $ bnd <> "_tx",
@@ -65,7 +66,8 @@ instance Architecture (Architectures 'SharedMemory) where
     Right b@BoolLit{} -> trySend $ Sub.Lit b
     Right s@StringLit{} -> trySend $ Sub.Lit s
     Right UnitLit -> trySend $ Sub.Lit UnitLit
-    Right (EnvRefLit bnd) -> trySend $ Sub.Var bnd
+    Right hl@HostLit{} -> undefined -- This should crash when I introduced  host literal tests to remind me to implement it
+    Right (EnvRefLit bnd _ty) -> trySend $ Sub.Var bnd
     Right (FunRefLit _) -> error "Invariant broken: Got tasked to send a function reference via channel which should have been caught in the backend."
     where
       trySend bnd = Sub.Try $
@@ -74,7 +76,7 @@ instance Architecture (Architectures 'SharedMemory) where
                     (Sub.CallRef (mkFunRefUnqual "send") Nothing)
                     [bnd]
 
-  build arch@SSharedMemory{} (Module _ (Rust.SourceFile _ _ _items)) ns =
+  build arch@SSharedMemory{} (TH.Module _ (Rust.SourceFile _ _ _items)) ns =
     return $ ns & algos %~ map (\algo -> algo & algoCode %~ createTasksAndChannels)
     where
       createTasksAndChannels (Program chans retChan tasks) =
@@ -118,7 +120,7 @@ instance Architecture (Architectures 'SharedMemory) where
                , flip Rust.Semi noSpan $
                    Rust.BlockExpr
                      []
-                     (Rust.Block ([convertStmt local] ++ [Rust.NoSemi task' noSpan]) Rust.Normal noSpan)
+                     (Rust.Block (convertStmt local : [Rust.NoSemi task' noSpan]) Rust.Normal noSpan)
                      Nothing
                      noSpan
                ]
@@ -150,7 +152,7 @@ instance Architecture (Architectures 'SharedMemory) where
                     }
                 }
                 }|]
-            taskStmts = concat $ map taskExpression tasks
+            taskStmts = concatMap taskExpression tasks
             (Rust.Block taskRunStmt _ _) =
               void
                 [block|{
@@ -175,10 +177,8 @@ instance Architecture (Architectures 'SharedMemory) where
          in Rust.Block (program ++ [Rust.NoSemi resultHandling noSpan]) Rust.Normal noSpan
       createProgram (Program chans expr tasks) = error $ "Compilations resulted in a result expression: " <> show expr <> "This is probably a bug, please report."
 
-convertToRustType :: ArgType TE.RustTypeAnno -> Maybe Sub.RustType 
-convertToRustType = \case 
-          TypeVar -> Nothing
-          otherType -> Just $ Sub.RustType $ toRustTy otherType
+-- convertToRustType :: OhuaType TH.RustVarType Resolved -> Maybe Sub.RustType
+convertToRustType rTy =  Sub.RustType <$> toRustTy rTy
 
 
 -- | Surrounds the final non-semicolon terminated statement in a Rust operator with a `Ok(...)` when the operator is *not* containing a loop.

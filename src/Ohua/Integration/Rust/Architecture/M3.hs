@@ -5,13 +5,14 @@ module Ohua.Integration.Rust.Architecture.M3 where
 
 import Language.Rust.Data.Ident (mkIdent)
 import Language.Rust.Quote
-import Language.Rust.Parser (parse', inputStreamFromString)
+import Language.Rust.Parser (Span, parse', inputStreamFromString)
 import qualified Language.Rust.Syntax as Rust hiding (Rust)
 import Ohua.Backend.Lang (Com (..), ComType(..), Channel)
 import Ohua.Backend.Types hiding (Expr, convertExpr)
 import Ohua.Integration.Architecture
 import Ohua.Integration.Lang hiding (Lang)
 import Ohua.Integration.Rust.Architecture.Common as C
+import Ohua.Integration.Rust.Util (renderStr)
 import Ohua.Integration.Rust.Common.Subset as CSub
 import Ohua.Integration.Rust.Backend
 import Ohua.Integration.Rust.Backend.Convert
@@ -26,14 +27,13 @@ import Ohua.Integration.Rust.Backend.Convert
     prependToBlock,
   )
 import qualified Ohua.Integration.Rust.Backend.Subset as Sub
-import qualified Ohua.Integration.Rust.TypeExtraction as TE
-import qualified Ohua.Integration.Rust.Types as RT
+import qualified Ohua.Integration.Rust.Types.Extraction as TH
 import Ohua.Prelude
 import Ohua.Integration.Rust.Backend.Passes (propagateMut)
 import Data.Text (unpack, unlines)
 import Ohua.Integration.Rust.Architecture.SharedMemory (convertToRustType)
 
-convertChan :: Sub.BindingMode -> Channel TE.RustTypeAnno -> Rust.Stmt ()
+convertChan :: Sub.BindingMode -> Channel (Rust.Expr Span) TH.RustVarType -> Rust.Stmt ()
 convertChan rxMutability (SRecv _ty (SChan bnd)) =
     let channel = noSpan <$ [expr| channel() |]
      in Rust.Local
@@ -48,15 +48,15 @@ convertChan rxMutability (SRecv _ty (SChan bnd)) =
           []
           noSpan
 
-convertReceive :: Binding -> Com 'Recv TE.RustArgType -> Sub.Expr
+convertReceive :: Binding -> Com 'Recv (Rust.Expr Span) TH.RustVarType -> Sub.Expr
 convertReceive suffix (SRecv argType (SChan channel)) =
   let ty' = case argType of
-              (Type (TE.Self ty _ _mut)) -> noSpan <$ ty
+              (HType (HostType( TH.Self ty _ _mut)) ) -> noSpan <$ ty
               -- error "Not yet implemented: Recv of reference type"
-              (Type (TE.Normal ty)) -> noSpan <$ ty
+              (HType (HostType(TH.Normal ty)) ) -> noSpan <$ ty
               internalType -> case convertToRustType internalType of 
                   Just (Sub.RustType ty) -> ty
-                  Nothing -> error $ "We currently do not handle receive channels of type" <> show argType
+                  Nothing -> error $ "Couldn't handle type " <> show argType <> " for channel " <> show channel
       rcv =
         Sub.MethodCall
           (Sub.Var $ channel <> suffix)
@@ -71,14 +71,6 @@ instance Architecture (Architectures 'M3) where
 
   convertChannel    SM3{} = convertChan Sub.Immutable
   convertRetChannel SM3{} = convertChan Sub.Mutable
-
-  -- QUESTION: This 'invariant' is probably imposed by M3 requiring 'turbo fish'
-  -- typing for the recv. calls i.e. a_0_0_rx.recv_msg::<String,>().unwrap() so if any return
-    -- type is unknown to Ohua, this will blow up
-    -- &&convertRecv SM3{} (SRecv TypeVar (SChan channel)) = (trace $ show channel) error "Invariant broken!"
-  -- ISSUE: To make progress, I'll insert a paceholder type annotation. The real type needs to be derived earlier!!
-  convertRecv SM3{} (SRecv TypeVar (SChan channel)) =
-      error $ "A TypeVar was introduced for channel" <>  show channel <> ". This is a compiler error, please report (fix if you are me :-))"
 
   convertRecv    SM3{} r = Sub.Try $ convertReceive "_child_rx" r
   convertRetRecv SM3{} r =
@@ -99,7 +91,8 @@ instance Architecture (Architectures 'M3) where
     Right b@BoolLit{} -> asMethodCall $ Sub.Lit b
     Right s@StringLit{} -> asMethodCall $ Sub.Lit s
     Right UnitLit -> asMethodCall $ Sub.Lit UnitLit
-    Right (EnvRefLit bnd) -> asMethodCall $ Sub.Var bnd
+    Right hl@HostLit{} -> undefined -- This should crash when I introduced  host literal tests to remind me to implement it
+    Right (EnvRefLit bnd _ty) -> asMethodCall $ Sub.Var bnd
     Right (FunRefLit _) -> error "Invariant broken: Got asked to send a function reference via channel which should have been caught in the backend."
     (Left d) -> asMethodCall $ Sub.Var d
     where
@@ -107,7 +100,7 @@ instance Architecture (Architectures 'M3) where
         Sub.Try
               (Sub.MethodCall (Sub.Var $ channel <> "_child_tx") (Sub.CallRef (asQualBind "send") Nothing) [item])
 
-  build SM3{} (RT.Module _ (Rust.SourceFile _ _ _items)) ns =
+  build SM3{} (TH.Module _ (Rust.SourceFile _ _ _items)) ns =
     return $ ns & algos %~ map (\algo -> algo & algoCode %~ createTasksAndRetChan)
     where
       createTasksAndRetChan (Program chans retChan tasks) =
@@ -117,9 +110,9 @@ instance Architecture (Architectures 'M3) where
 
       createActivity' (FullTask sends recvs taskE) =
         let
-          extractSend :: Com 'Send t -> Binding
+          extractSend :: Com 'Send (Rust.Expr Span) ty -> Binding
           extractSend (SSend (SChan c) _) = c
-          extractRecv :: Com 'Recv t -> Binding
+          extractRecv :: Com 'Recv (Rust.Expr Span) ty -> Binding
           extractRecv (SRecv _ (SChan c)) = c
           closureParams vars ty extract =
             map (\v ->
@@ -130,7 +123,7 @@ instance Architecture (Architectures 'M3) where
                     noSpan)
                 vars
           cParams = closureParams sends (asQualBind "Sender")   ((<> "_child_tx") . extractSend) <>
-                    closureParams recvs (asQualBind "Receiver") ((<> "_child_tx") . extractRecv)
+                    closureParams recvs (asQualBind "Receiver") ((<> "_child_rx") . extractRecv)
           closureArgs vars extract =
             map (convertExp . Sub.Var  . extract) vars
           cArgs = closureArgs sends ((<> "_tx") . extractSend) <>
@@ -156,7 +149,7 @@ instance Architecture (Architectures 'M3) where
               taskCode
               noSpan
           taskCall = Rust.Call [] taskClosure cArgs noSpan
-          exprToTokenStream = parse' @Rust.TokenStream . inputStreamFromString . C.renderStr
+          exprToTokenStream = parse' @Rust.TokenStream . inputStreamFromString . renderStr
         in
           Rust.MacExpr
             []

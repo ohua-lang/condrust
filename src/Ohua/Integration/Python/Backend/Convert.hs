@@ -49,6 +49,7 @@ subToExpr (Sub.Int i) = Py.Int{int_value=i, expr_literal=show i, expr_annot= noS
 subToExpr (Sub.Bool b) = Py.Bool{bool_value= b, expr_annot = noSpan}
 subToExpr Sub.None = Py.None noSpan
 subToExpr (Sub.Var bnd) = toPyVar . fromBinding $ bnd
+subToExpr (Sub.PyLiteral pl) = pl
 subToExpr (Sub.Strings strings) = Py.Strings strings noSpan
 subToExpr (Sub.Call expr args) =
     Py.Call

@@ -7,6 +7,10 @@ import Data.Functor.Foldable.TH (makeBaseFunctor)
 import Language.Haskell.TH.Syntax (Lift)
 import Control.Lens.Plated
 
+import Language.Python.Common (SrcSpan)
+import qualified Language.Python.Common.AST as Py
+
+
 {-| In contrast to the frontend subset, the backend subset is restricted by the language of the Ohua backend. Hence I use (mostly) a subset
  of the AST from language-python although it allows invalid python syntax-}
 type Suite = [Stmt]
@@ -29,6 +33,7 @@ data Expr =
     | None 
     | Var Binding 
     | Strings [String]
+    | PyLiteral (Py.Expr SrcSpan)
     -- There is no explicit MethodCall in Python
     -- A MethodCall in Python Syntax is a Call, whose call_fun attribute is a DotExpr
     | Call Expr [Argument]

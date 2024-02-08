@@ -2,7 +2,7 @@ import Prelude
 
 import Test.Hspec
 
-import qualified Integrations.Rust.TypeExtractionSpec as RustTyExtract
+import qualified Integrations.Rust.TypeHandlingSpec as RustTyExtract
 
 
 main :: IO ()

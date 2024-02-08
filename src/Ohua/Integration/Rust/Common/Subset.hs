@@ -2,11 +2,15 @@
 module Ohua.Integration.Rust.Common.Subset where
 
 import Ohua.Prelude
+-- import Ohua.Types
+import Ohua.Integration.Rust.Util (toBinding)
 
-import Language.Rust.Syntax (Ty)
+-- import Language.Rust.Data.Ident (Ident(..))
+import Language.Rust.Syntax (Ty(..), Path(..), PathSegment(..))
+
 
 import Data.Functor.Foldable.TH (makeBaseFunctor)
-import Language.Haskell.TH.Syntax (Lift)
+-- import Language.Haskell.TH.Syntax (Lift)
 import Control.Lens.Plated
 
 
@@ -33,9 +37,10 @@ data UnOp = Not | Neg | Deref deriving (Show, Eq, Generic)
 data CallRef = CallRef QualifiedBinding (Maybe GenericArgs) deriving (Show, Eq, Generic)
 data TyRef = TyRef QualifiedBinding (Maybe GenericArgs) deriving (Show, Eq, Generic)
 
-newtype GenericArgs = AngleBracketed [GenericArg] deriving (Show, Eq, Generic)
+data GenericArgs
+  = AngleBracketed [GenericArg]
+  | Parenthesized [TyRef] (Maybe TyRef) deriving (Show, Eq, Generic)
 newtype GenericArg = TypeArg RustType deriving (Show, Eq, Generic)
-
 
 -------------------- Recursion schemes support --------------------
 
@@ -46,3 +51,17 @@ makeBaseFunctor ''Block
 instance Plated Pat where plate = gplate
 instance Plated (Stmt e)  where plate = gplate
 instance Plated (Block e) where plate = gplate
+
+-------------------- Instances --------------------
+
+instance Pathable RustType where
+  toPath =
+    \case
+          (RustType (PathTy Nothing (Path _ (p:ps) _) _)) ->
+            let (p':|ps') = map convertSegment (p:|ps)
+            in case ps' of
+                [] -> Just $ Left p'
+                _ -> Just $ Right $ QualifiedBinding (NSRef ps') p'
+          _any -> Nothing
+    where
+      convertSegment (PathSegment ident _ _) = toBinding ident

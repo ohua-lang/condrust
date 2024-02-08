@@ -18,6 +18,12 @@ extra-source-files:
 # common to point users to the README.md file.
 description:         Please see the README on GitHub at <https://github.com/sertel/ohuac-integrations#readme>
 
+ghc-options:
+- -Wall
+- -Werror=inaccessible-code
+- -Werror=incomplete-patterns
+
+
 default-extensions:
 - OverloadedStrings
 - MultiParamTypeClasses
@@ -49,12 +55,13 @@ default-extensions:
 - DataKinds
 
 dependencies:
-- base >= 4.7 && < 5
+- base >= 4.8 && < 5
 - ohuac-commons
 - ohua-frontend
 - ohua-backend
 - ohua-core
 - filepath
+- directory
 - bytestring
 - language-rust
 - language-python
@@ -65,6 +72,7 @@ dependencies:
 - template-haskell
 - lens
 - yaml
+# - tomland
 
 library:
   source-dirs: src

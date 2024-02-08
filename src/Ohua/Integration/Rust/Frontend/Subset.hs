@@ -8,10 +8,11 @@ import Ohua.Prelude hiding (Lit)
 import Ohua.Integration.Rust.Common.Subset hiding (Block, Stmt)
 import qualified Ohua.Integration.Rust.Common.Subset as CS (Block(..), Stmt(..))
 
-import Language.Rust.Syntax (Ty)
+import Language.Rust.Parser (Span)
+import qualified Language.Rust.Syntax as Rust
 
 import Data.Functor.Foldable.TH (makeBaseFunctor)
-import Language.Haskell.TH.Syntax (Lift)
+-- import Language.Haskell.TH.Syntax (Lift)
 import Control.Lens.Plated
 
 type Block = CS.Block Expr
@@ -35,12 +36,12 @@ data Expr
   | BlockExpr Block
   -- | the below two are just captured by a Path in Rust.
   | PathExpr CallRef
-  | Var VarRef
+  | Var VarRef (Maybe RustType)
   | Lit Lit
   deriving (Show, Eq, Generic)
 
--- ToDo: Add other literals, find solution for unit
-data Lit = Int Integer | Bool Bool deriving (Show, Eq, Generic)
+-- ToDo: Add other literals
+data Lit = Int Integer | Bool Bool | RustLit (Rust.Expr Span) RustType deriving (Show, Eq, Generic)
 type VarRef = Binding
 data Arg = Arg Pat RustType deriving (Show, Eq, Generic)
 
