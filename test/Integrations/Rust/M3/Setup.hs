@@ -47,7 +47,7 @@ import Test.Hspec
 import TestOptions
 import Integrations.TestSetup (Testable(..))
 
-import Integrations.Rust.M3.TestCode.KVAppCode ()
+import Integrations.Rust.M3.TestCode.KVAppCode (driverLib, loopLib, m3Lib, localSmoltcp)
 
 
 
@@ -59,7 +59,6 @@ instance Testable (SourceFile Span) where
   renderFormat = toStrict . renderRust
 
 renderRust :: SourceFile Span -> T.Text
--- FIXME: There should be a renderText in Util, however in the lates version I have there's only 'render' and 'renderStr'
 renderRust = fromString . Util.renderStr
 
 renderRustCode :: SourceFile Span -> L.ByteString
@@ -84,10 +83,10 @@ compileModule inCode opts cty = do
       mapM_
         (\(f,c) -> L.writeFile (testDir </> f) $ renderRustCode c)
         [ ("funs.rs"  , funs)
-        , ("benchs.rs", benchs)
-        -- TODO with the new extern_spec approach, the creation of these file is obsolete now.
-        , ("std.rs"   , std)
-        , ("ptdr.rs"  , ptdr)
+        , ("driver.rs", driverLib)
+        , ("m3.rs"       , m3Lib)
+        , ("local_smoltcp.rs",localSmoltcp)
+        , ("loop_lib.rs" , loopLib)
         , ("test.rs"  , inCode)
         ]
       withSystemTempDirectory "output" $

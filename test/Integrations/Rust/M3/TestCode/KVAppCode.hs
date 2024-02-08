@@ -6,6 +6,10 @@ import Language.Rust.Syntax (SourceFile)
 import Language.Rust.Data.Position (Span)
 
 
+-- | We currently apply the following simplifications in this case:
+-- 1. imports are simpliefied to be one-level i.e. no dir::module::submodule::import
+-- 2. macros are replaced by functions 
+-- 3. we us no generic types 
 kvApplication:: SourceFile Span
 kvApplication = [sourceFile|
 
@@ -20,34 +24,40 @@ mod driver;
 #[macro_use]
 extern crate ffi_opaque;
 
-use m3::{log, vec, println};
-use m3::col::{BTreeMap, Vec};
-use m3::tiles::OwnActivity;
-use m3::com::Semaphore;
+use m3::{OwnActivity,Semaphore};
 
 
-use local_smoltcp::iface::{Interface, NeighborCache, SocketSet, InterfaceCall};
-use local_smoltcp::phy::{Device, DeviceCapabilities};
-use local_smoltcp::time::{Duration, Instant};
-use local_smoltcp::{Either, Result};
+use local_smoltcp::{
+    Interface, 
+    NeighborCache, 
+    SocketSet, 
+    InterfaceCall,
+    InterfaceCallState,
+    Device,
+    DeviceCapabilities,
+    DeviceCall,
+    Time, 
+    Instant,
+    Either, 
+    Result};
 
 use crate::driver::*;
-use loop_lib::init_components::{init_device, init_ip_stack, init_app, App, DeviceType};
+use loop_lib::{init_device, init_ip_stack, init_app, App};
 
 const DEBUG: bool = true;
 
 // Change 0: Comment out for now
 /*
-fn maybe_wait(call: Either<InterfaceCall, (Option<Duration>, bool)>) -> InterfaceCall {
+fn maybe_wait(call: Either<InterfaceCall, (Option<Time>, bool)>) -> InterfaceCall {
     let mut next_call: InterfaceCall = InterfaceCall::InitPoll;
     if Either::is_left(&call) {
         next_call = call.left_or_panic();
     } else {
-        let (advised_waiting_timeout, device_needs_poll): (Option<Duration>, bool) = call.right_or_panic();
+        let (advised_waiting_timeout, device_needs_poll): (Option<Time>, bool) = call.right_or_panic();
         if !device_needs_poll {
             match advised_waiting_timeout {
-                None => OwnActivity::sleep_for(m3::time::TimeDuration::from_millis(1)).ok(),
-                Some(t) => OwnActivity::sleep_for(t.as_m3_duration()).ok(),
+                None => OwnActivity::sleep_for(Time::from_millis(1)).ok(),
+                Some(t) => OwnActivity::sleep_for(t).ok(),
             };
         }
     }
@@ -60,7 +70,7 @@ pub fn main() {
 
     let mut app: App = init_app();
 
-    let (mut device, caps): (DeviceType, DeviceCapabilities) = init_device();
+    let (mut device, caps): (Device, DeviceCapabilities) = init_device();
 
     let mut ip_stack: Interface<'_> = init_ip_stack(caps);
 
@@ -70,7 +80,7 @@ pub fn main() {
     // after all this is just making the semantik of (re-)assignment more obviouse so we 
     // should be able to handle this later
     let first_call: InterfaceCall = InterfaceCall::InitPoll;
-    let mut currentCall: InterfaceCallState = CallState::new(first_call);
+    let mut currentCall: InterfaceCallState = InterfaceCallState::new(first_call);
 
     let mut semaphore_set: bool = false;
 
@@ -80,7 +90,7 @@ pub fn main() {
     loop {
         // Change 1: Can't use references -> need to return an extra flag for case distinction
         let call: InterfaceCall = currentCall.get();
-        let (is_call, device_or_app_call) : (bool, Either<DeviceCall, (bool, Messages)>)  = ip_stack.process_call::<DeviceType>(call);
+        let (is_call, device_or_app_call) : (bool, Either< DeviceCall, (bool, Messages)>)  = ip_stack.process_call(call);
         if id(is_call) {
             // Change 3: No function calls as arguments, primarily because we need type information -> extra assignment
             let dev_call: DeviceCall = device_or_app_call.left_or_panic();
@@ -105,4 +115,76 @@ pub fn main() {
 }
 |]
 
+-- Test version of the m3 device driver module
+driverLib :: SourceFile Span 
+driverLib = [sourceFile|
 
+
+|]
+
+-- Test version of the m3 os rust interface 
+m3Lib :: SourceFile Span 
+m3Lib = [sourceFile|
+
+impl OwnActivity {
+    pub fn sleep_for(t:Time) -> () {}
+}
+
+pub struct Semaphore {}
+impl Semaphore {
+    pub fn attach(s:String) -> Result<()> {}
+}
+
+
+|]
+
+-- Test version of al code encapsulated from the original main server loop
+loopLib :: SourceFile Span 
+loopLib = [sourceFile|
+
+pub fn init_app()-> App {}
+pub fn init_device() -> (Device, DeviceCapabilities) {}
+pub fn init_ip_stack(caps: Capabilities) -> Interface {}
+
+pub struct App {}
+
+|]
+
+-- Test version of the smoltcp library
+localSmoltcp :: SourceFile Span 
+localSmoltcp = [sourceFile|
+
+
+pub struct Device {}
+pub struct DeviceCapabilities {}
+pub struct Interface {}
+impl Interface {
+    pub fn process_call(call:InterfaceCall) -> (bool, Either<DeviceCall, (bool, Messages)>) {}
+}
+pub struct NeighborCache {}
+pub struct SocketSet {}
+pub enum InterfaceCall {
+    InitPoll,
+}
+
+pub struct InterfaceCallState {}
+impl InterfaceCallState {
+    pub fn new(call:InterfaceCall) -> Self {}
+    pub fn get(&self) -> InterfaceCall {}
+    pub fn set(&mut self, call:InterfaceCall) -> () {} 
+} 
+
+pub struct Time {}
+impl Time {
+    pub fn from_millis(i:i32) -> Time {}
+}
+
+pub struct Instant {}
+
+pub enum Either {}
+impl Either {
+    pub fn right_or_panic(&self) -> (Option<Time>, bool) {}
+    pub fn left_or_panic(&self) -> InterfaceCall {}
+}
+pub enum Result {}
+|]

@@ -96,6 +96,7 @@ pub fn h_Arc(i:Arc<i32>) -> i32 {
 pub fn f() -> i32 { 1 }
 
 pub fn get_time() -> u64 { 666 }
+pub fn check_time(t:u64) -> bool {return t<42}
 
 #[extern_spec(std::sync)]
 impl Arc {

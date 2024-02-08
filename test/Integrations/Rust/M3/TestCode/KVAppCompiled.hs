@@ -26,12 +26,12 @@ pub fn placeholder(){
 
 stateInBranches :: SourceFile Span
 stateInBranches = [sourceFile|
-use stuff::*;
+use funs::*;
 
-pub fn main() -> Something {
+pub fn main() -> i32 {
   use m3::com::channel::{Sender, Receiver};
   use m3::activity;
-  let (result_1_tx, mut result_1_rx) = channel();
+  let (result_2_tx, mut result_2_rx) = channel();
   let (condition_0_0_0_0_tx, condition_0_0_0_0_rx) = channel();
   let (obj1_0_0_1_tx, obj1_0_0_1_rx) = channel();
   let (ctrlTrue_0_tx, ctrlTrue_0_rx) = channel();
@@ -42,16 +42,16 @@ pub fn main() -> Something {
   let (condition_0_0_0_1_tx, condition_0_0_0_1_rx) = channel();
   activity!(
     (
-      |b_0_0_child_tx: Sender, obj2_0_0_1_child_tx: Receiver, ctrlFalse_0_child_tx: Receiver| {
+      |b_0_0_child_tx: Sender, obj2_0_0_1_child_rx: Receiver, ctrlFalse_0_child_rx: Receiver| {
         Ok(
           loop {
             let mut renew = false;
-            let mut obj2_0_0_1_0 = obj2_0_0_1_child_rx.recv::<  OtherThing,>()?;
+            let mut obj2_0_0_1_0 = obj2_0_0_1_child_rx.recv::<  Arc,>()?;
             while !renew {
               let sig = ctrlFalse_0_child_rx.recv::<  (bool, usize),>()?;
               let count = sig.1;
               for _ in 0 .. count {
-                let b_0_0 = obj2_0_0_1_0.compute();
+                let b_0_0 = obj2_0_0_1_0.deref();
                 b_0_0_child_tx.send(b_0_0)?;
                 ()
               };
@@ -67,16 +67,16 @@ pub fn main() -> Something {
   );
   activity!(
     (
-      |a_0_0_child_tx: Sender, obj1_0_0_1_child_tx: Receiver, ctrlTrue_0_child_tx: Receiver| {
+      |a_0_0_child_tx: Sender, obj1_0_0_1_child_rx: Receiver, ctrlTrue_0_child_rx: Receiver| {
         Ok(
           loop {
             let mut renew = false;
-            let mut obj1_0_0_1_0 = obj1_0_0_1_child_rx.recv::<  Something,>()?;
+            let mut obj1_0_0_1_0 = obj1_0_0_1_child_rx.recv::<  State,>()?;
             while !renew {
               let sig = ctrlTrue_0_child_rx.recv::<  (bool, usize),>()?;
               let count = sig.1;
               for _ in 0 .. count {
-                let a_0_0 = obj1_0_0_1_0.calculate();
+                let a_0_0 = obj1_0_0_1_0.get_num();
                 a_0_0_child_tx.send(a_0_0)?;
                 ()
               };
@@ -92,25 +92,25 @@ pub fn main() -> Something {
   );
   activity!(
     (
-      |result_1_child_tx: Sender, result_1_child_tx: Sender, condition_0_0_0_1_child_tx: Receiver, a_0_0_child_tx: Receiver, b_0_0_child_tx: Receiver| {
+      |result_2_child_tx: Sender, result_2_child_tx: Sender, condition_0_0_0_1_child_rx: Receiver, a_0_0_child_rx: Receiver, b_0_0_child_rx: Receiver| {
         Ok(
           loop {
             let branchSelection = condition_0_0_0_1_child_rx.recv::<  bool,>()?;
             if branchSelection {
-              let result = a_0_0_child_rx.recv::<  Something,>()?;
-              result_1_child_tx.send(result)?
+              let result = a_0_0_child_rx.recv::<  i32,>()?;
+              result_2_child_tx.send(result)?
             } else {
-              let result = b_0_0_child_rx.recv::<  Something,>()?;
-              result_1_child_tx.send(result)?
+              let result = b_0_0_child_rx.recv::<  i32,>()?;
+              result_2_child_tx.send(result)?
             }
           }
         )
       }
-    )(result_1_tx, result_1_tx, condition_0_0_0_1_rx, a_0_0_rx, b_0_0_rx)
+    )(result_2_tx, result_2_tx, condition_0_0_0_1_rx, a_0_0_rx, b_0_0_rx)
   );
   activity!(
     (
-      |ctrlTrue_0_child_tx: Sender, ctrlFalse_0_child_tx: Sender, ctrlTrue_0_child_tx: Sender, ctrlFalse_0_child_tx: Sender, condition_0_0_0_0_child_tx: Receiver| {
+      |ctrlTrue_0_child_tx: Sender, ctrlFalse_0_child_tx: Sender, ctrlTrue_0_child_tx: Sender, ctrlFalse_0_child_tx: Sender, condition_0_0_0_0_child_rx: Receiver| {
         Ok(
           loop {
             let branchSelection = condition_0_0_0_0_child_rx.recv::<  bool,>()?;
@@ -139,7 +139,7 @@ pub fn main() -> Something {
   activity!(
     (
       |condition_0_0_0_0_child_tx: Sender, condition_0_0_0_1_child_tx: Sender| {
-        let res = function(23);
+        let res = funs::check(23);
         condition_0_0_0_0_child_tx.send(res)?;
         condition_0_0_0_1_child_tx.send(res)?;
         Ok(())
@@ -149,7 +149,7 @@ pub fn main() -> Something {
   activity!(
     (
       |obj2_0_0_1_child_tx: Sender| {
-        let obj2_0_0_1 = Some::thingelse();
+        let obj2_0_0_1 = std::sync::Arc::new(23);
         obj2_0_0_1_child_tx.send(obj2_0_0_1)?;
         Ok(())
       }
@@ -158,15 +158,15 @@ pub fn main() -> Something {
   activity!(
     (
       |obj1_0_0_1_child_tx: Sender| {
-        let obj1_0_0_1 = Something::new();
+        let obj1_0_0_1 = funs::State::new(42);
         obj1_0_0_1_child_tx.send(obj1_0_0_1)?;
         Ok(())
       }
     )(obj1_0_0_1_tx)
   );
-  result_1_rx.activate()?;
-  result_1_rx
-    .recv::<  Something,>()
+  result_2_rx.activate()?;
+  result_2_rx
+    .recv::<  i32,>()
     .expect("The retrieval of the result value failed.
 Ohua turned your sequential program into a distributed one.
 Hence, all Ohua can do at this point is error out.

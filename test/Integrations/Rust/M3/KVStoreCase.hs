@@ -10,17 +10,17 @@ import Integrations.Rust.M3.TestCode.KVAppCompiled as Expect
 
 spec :: Spec
 spec =
-    describe "Syntax strcutures we need" $ do
+    describe "Syntax structures we need" $ do
         it "Required: States in Branches" $ 
             (showCode "Compiled: " =<< compileCode 
                 [sourceFile|
-                    use stuff::*;
+                    use funs::*;
 
-                    pub fn main() -> Something {
-                        let obj1: Something = Something::new();
-                        let obj2: OtherThing = Some::thingelse();
-                        let condition: bool = function(23);
-                        let result: Something = if condition {obj1.calculate()} else  {obj2.compute()};
+                    pub fn main() -> i32 {
+                        let obj1 = State::new(42);
+                        let obj2 = std::sync::Arc::new(23);
+                        let condition: bool = check(23);
+                        let result = if condition {obj1.get_num()} else  {obj2.deref()};
                         result
                     }
                     |]
@@ -32,14 +32,14 @@ spec =
         it "Required: States in Loop" $ 
             (showCode "Compiled: " =<< compileCodeWithRecWithDebug 
                 [sourceFile|
-                    use stuff::*;
+                    use funs::*;
 
                     pub fn main() {
-                        let obj1: Something = Something::new();
-                        let obj2: OtherThing = Some::thingelse();
+                        let obj1 = State::new(42);
+                        let obj2 = std::sync::Arc::new(23);
                         loop {
-                            let x: Sometype = obj1.calculate();
-                            obj2.react(x)
+                            let x = obj2.deref();
+                            obj1.modify(x);
                         }
                     }
                     |]            
@@ -52,7 +52,7 @@ spec =
         it "Required: States in Loop - Assign loop result" $ 
             (showCode "Compiled: " =<< compileCodeWithRecWithDebug
                 [sourceFile|
-                    use stuff::*;
+                    use funs::*;
 
                     pub fn main() {
                         let obj1: Something = Something::new();
@@ -73,15 +73,14 @@ spec =
         it "Required: States in Loop - Return Unit from loop" $ 
             (showCode "Compiled: " =<< compileCodeWithRecWithDebug
                 [sourceFile|
-                    use stuff::*;
+                    use funs::*;
 
                     pub fn main() {
-                        let obj1: Something = Something::new();
-                        let obj2: OtherThing = Some::thingelse();
+                        let obj1 = State::new(42);
+                        let obj2 = std::sync::Arc::new(23);
                         let result:() = loop {
-                            let x: Sometype = obj1.calculate();
-                            obj2.react(x);
-                            ()
+                            let x = obj2.deref();
+                            obj1.modify(x);
                         };
                         result
                     }
@@ -95,14 +94,14 @@ spec =
         it "Required: Branches in Loop" $ 
             (showCode "Compiled: " =<< compileCodeWithRec 
                 [sourceFile|
-                    use stuff::*;
+                    use funs::*;
 
-                    pub fn main() -> Something{
-                        let obj1: Something = Something::new(); 
+                    pub fn main(){
+                        let obj1  = State::new(17); 
                         loop {
                             let time: u64 = get_time();
-                            let current: u64 = if time < 42 {iffun(time)} else {elsefun(time)};
-                            obj1.aggregate(current);
+                            let current = if check_time(time) {iffun(time)} else {elsefun(time)};
+                            obj1.modify(current);
                         }
                     }
                 |]) >>= 
@@ -113,16 +112,16 @@ spec =
         it "Required: States in Branches in Loop" $ 
             (showCode "Compiled: " =<< compileCodeWithRec 
                 [sourceFile|
-                    use stuff::*;
+                    use funs::*;
 
-                    pub fn main() -> Something{
-                        let obj1: Something = Something::new(); 
-                        let obj2: OtherThing = OtherThing::new();
-                        let obj3: Aggregator = Aggregator::default();
+                    pub fn main() {
+                        let obj1 = State::new(23); 
+                        let obj2 = State::new(42);
+                        let obj3 = State::new(0);
                         loop {
-                            let next: usize = toss_coin();
-                            let current: u64 = if is_heads(next) {obj1.calculate()} else {obj2.compute()};
-                            obj3.aggregate(current);
+                            let next = somefun();
+                            let current = if check(next) {obj1.get_num()} else {obj2.get_num()};
+                            obj3.modify(current);
                         }
                     }
                     |]          
