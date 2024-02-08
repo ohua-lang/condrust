@@ -9,49 +9,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout ohuac
+      - name: Checkout condrust
         uses: actions/checkout@v3
         with:
-          repository: 'ohua-lang/ohuac'
+          repository: 'ohua-lang/condrust'
           token: ${{ secrets.PULL_TOKEN }}
           fetch-depth: 0
-          path: 'ohuac'
-      - name: Checkout ohuac-commons
-        uses: actions/checkout@v3
-        with:
-          repository: 'ohua-lang/ohuac-commons'
-          token: ${{ secrets.PULL_TOKEN }}
-          fetch-depth: 0
-          path: 'ohuac-commons'
-      - name: Checkout ohua-frontend
-        uses: actions/checkout@v3
-        with:
-          repository: 'ohua-lang/ohua-frontend'
-          token: ${{ secrets.PULL_TOKEN }}
-          fetch-depth: 0
-          path: 'ohua-frontend'
-      - name: Checkout ohua-backend
-        uses: actions/checkout@v3
-        with:
-          repository: 'ohua-lang/ohua-backend'
-          token: ${{ secrets.PULL_TOKEN }}
-          fetch-depth: 0
-          path: 'ohua-backend'
-      - name: Checkout ohua-core
-        uses: actions/checkout@v3
-        with:
-          repository: 'ohua-lang/ohua-core'
-          token: ${{ secrets.PULL_TOKEN }}
-          fetch-depth: 0
-          path: 'ohua-core'
-      - name: Checkout ohuac-integrations
-        uses: actions/checkout@v3
-        with:
-          repository: 'ohua-lang/ohuac-integrations'
-          token: ${{ secrets.PULL_TOKEN }}
-          fetch-depth: 0
-          path: 'ohuac-integrations'
-
+          path: 'condrust'
       - name: Get current branch
         id: branch-name
         uses: tj-actions/branch-names@v5
@@ -90,9 +54,9 @@ jobs:
 #            ohuac/.stack_work
 #            ~/.stack
 #          key: ohuac-${{ runner.os }}-${{ steps.nixpkgs-hash.outputs.hash }}-${{ hashFiles('ohuac/stack.yaml') }}
-      - name: Build ohuac
+      - name: Build condrust
         run: |
-          cd ohuac
+          cd condrust
           nix-shell --run "stack build"
       - name: Run tests
         run: |
