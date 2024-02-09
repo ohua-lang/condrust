@@ -11,6 +11,10 @@ github: sertel/ohuac
 extra-source-files:
 - README.md
 
+
+description:         Please see the README on GitHub at <https://github.com/ohua-lang/condrust#readme>
+
+
 ghc-options:
 - -Wall
 - -Werror=inaccessible-code
@@ -49,17 +53,35 @@ default-extensions:
 
 dependencies:
 - base
-- ohuac-commons
 - ohua-frontend
-- ohua-core >= 0.3.0
 - ohua-backend
 - ohuac-integrations
+
+
 - bytestring
 - filepath
 - directory
 - unordered-containers
 - lens
 - extra
+
+ # additional dependencies from commons
+- universum >= 1.0 # on version 1.6.1
+- generic-lens >= 1.0.0.2
+- data-default-class
+- monad-control
+- mtl
+- monad-logger
+- safe-exceptions
+- template-haskell
+- th-lift-instances
+- th-lift
+- text
+- unordered-containers
+- fast-logger
+- singletons
+- prettyprinter
+
 
 library:
   source-dirs: src
