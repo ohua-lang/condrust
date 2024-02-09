@@ -9,7 +9,7 @@ module Ohua.Backend.Operators.SMap
   , DataIn(..)
   ) where
 
-import Ohua.Prelude
+import Ohua.Commons.Prelude
 
 import Ohua.Backend.Lang hiding (Var)
 import qualified Ohua.Backend.Lang as L ( TaskExpr( Var ) )

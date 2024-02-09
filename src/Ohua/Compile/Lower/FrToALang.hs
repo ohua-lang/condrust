@@ -1,6 +1,6 @@
 module Ohua.Compile.Lower.FrToALang where
 
-import Ohua.Prelude
+import Ohua.Commons.Prelude
 
 import Control.Category ((>>>))
 import qualified Data.HashSet as HS

@@ -4,7 +4,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module ConfigSpec (spec) where
 
-import Ohua.Prelude
+import Ohua.Commons.Prelude
 
 import Ohua.Compile.Config as C
 -- import Ohua.Compile.Compiler as Comp

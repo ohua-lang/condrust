@@ -10,7 +10,7 @@ module Integrations.Python.Setup (
     module Test.Hspec,
 ) where
 
-import Ohua.Prelude
+import Ohua.Commons.Prelude
 
 import Test.Hspec
 import TestOptions

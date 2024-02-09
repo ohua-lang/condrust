@@ -4,7 +4,7 @@
 module Integrations.Python.TestCases.Loops where
 
 
-import Ohua.Prelude ( ($), Monad((>>=)), (=<<))
+import Ohua.Commons.Prelude ( ($), Monad((>>=)), (=<<))
 
 import Integrations.Python.Setup
 

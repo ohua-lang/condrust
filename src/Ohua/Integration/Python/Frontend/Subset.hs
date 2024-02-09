@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveLift, TemplateHaskell #-}
 module Ohua.Integration.Python.Frontend.Subset where
 
-import Ohua.Prelude hiding (Lit)
+import Ohua.Commons.Prelude hiding (Lit)
 
 import Data.Functor.Foldable.TH (makeBaseFunctor)
 import Language.Haskell.TH.Syntax (Lift)

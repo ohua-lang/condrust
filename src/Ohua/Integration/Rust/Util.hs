@@ -1,6 +1,6 @@
 module Ohua.Integration.Rust.Util where
 
-import Ohua.Prelude
+import Ohua.Commons.Prelude
 
 import Language.Rust.Data.Ident (Ident(..))
 import Language.Rust.Parser ( parse' , Span)

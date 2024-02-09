@@ -2,7 +2,7 @@
 module Integrations.Rust.M3.KVStoreCase where
 
 
-import Ohua.Prelude ( ($), Monad((>>=)), (=<<) )
+import Ohua.Commons.Prelude ( ($), Monad((>>=)), (=<<) )
 
 import Integrations.Rust.M3.Setup
 import Integrations.Rust.M3.TestCode.KVAppCode as Input

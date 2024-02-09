@@ -6,7 +6,7 @@ import Ohua.Core.Compile.Configuration (CustomPasses)
 import Ohua.Integration.Options (Options)
 import Ohua.Integration.Rust.Backend.Subset
 import Ohua.Integration.Transform.DataPar (dataPar)
-import Ohua.Prelude
+import Ohua.Commons.Prelude
 
 
 -- | This function loads the following transformations:

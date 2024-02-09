@@ -1,7 +1,7 @@
 {-# LANGUAGE  TypeOperators, ScopedTypeVariables #-}
 module Ohua.Backend.Communication where
 
-import Ohua.Prelude hiding (Type)
+import Ohua.Commons.Prelude hiding (Type)
 
 import Ohua.Backend.Lang
 import Ohua.Backend.Types

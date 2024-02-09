@@ -1,6 +1,6 @@
 module Ohua.Frontend.Convert where
 
-import Ohua.Prelude
+import Ohua.Commons.Prelude
 
 import Ohua.Frontend.Lang
 

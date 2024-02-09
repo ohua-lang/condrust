@@ -10,7 +10,7 @@ calls in the frontend and 'resugar' (:-)) them in the backend again
 
 module Ohua.Integration.Python.TypeHandling where
 
-import Ohua.Prelude
+import Ohua.Commons.Prelude
 import Ohua.Integration.Python.Util
 
 import Language.Python.Common.AST

@@ -12,14 +12,10 @@ extra-deps:
 
   - language-python-0.5.8@sha256:527615d39d4240ca45ed8cb7fe44cbcb28a07732cc98dff0380d04de8b55f59d,2473
 
-flags:
-  ohua-core:
-    debug: true
-
 nix:
   enable: true
   packages: [zlib.dev, zlib.out, cargo, python3Minimal]
 
-extra-package-dbs: []
+extra-package-dbs:
   - ordered-containers-0.2.2
 

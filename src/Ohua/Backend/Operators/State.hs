@@ -1,7 +1,7 @@
 {-# LANGUAGE DataKinds, ScopedTypeVariables #-}
 module Ohua.Backend.Operators.State where
 
-import Ohua.Prelude
+import Ohua.Commons.Prelude
 
 import Ohua.Backend.Lang
 

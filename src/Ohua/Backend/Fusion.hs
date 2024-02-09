@@ -1,7 +1,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Ohua.Backend.Fusion where
 
-import Ohua.Prelude
+import Ohua.Commons.Prelude
 
 import Ohua.Backend.Operators hiding (Fun, Fusable, Unfusable)
 import Ohua.Backend.Operators.SMap as SMap

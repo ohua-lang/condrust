@@ -3,7 +3,7 @@
 module Integrations.Python.TestCases.Basic where
 
 
-import Ohua.Prelude ( ($), Monad((>>=)), (=<<))
+import Ohua.Commons.Prelude ( ($), Monad((>>=)), (=<<))
 
 import Integrations.Python.Setup
 import qualified Integrations.Python.CodeSamples.TestDataOutput as Expect

@@ -1,6 +1,6 @@
 module Ohua.Integration.Rust.Architecture.SharedMemory.Transform where
 
-import Ohua.Prelude ((.))
+import Ohua.Commons.Prelude ((.))
 import Ohua.Backend.Types
 
 import Ohua.Integration.Architecture

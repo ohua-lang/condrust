@@ -4,7 +4,7 @@ module Ohua.Integration.Rust.Frontend.Subset(
   module Ohua.Integration.Rust.Common.Subset
                                             ) where
 
-import Ohua.Prelude hiding (Lit)
+import Ohua.Commons.Prelude hiding (Lit)
 import Ohua.Integration.Rust.Common.Subset hiding (Block, Stmt)
 import qualified Ohua.Integration.Rust.Common.Subset as CS (Block(..), Stmt(..))
 

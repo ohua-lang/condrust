@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveLift, TemplateHaskell #-}
 module Ohua.Integration.Rust.Common.Subset where
 
-import Ohua.Prelude
+import Ohua.Commons.Prelude
 -- import Ohua.Types
 import Ohua.Integration.Rust.Util (toBinding)
 

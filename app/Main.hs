@@ -7,7 +7,7 @@ import Language.Haskell.TH (Exp (LitE), Lit (StringL))
 import Ohua.Compile.Compiler (compile, langInfo)
 import Ohua.Compile.Config
 import Ohua.Integration.Lang
-import Ohua.Prelude
+import Ohua.Commons.Prelude
 import Options.Applicative as O
 import Options.Applicative.Help.Pretty as O
 

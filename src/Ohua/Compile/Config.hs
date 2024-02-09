@@ -34,7 +34,7 @@ debug:
 
 module Ohua.Compile.Config where
 
-import Ohua.Prelude
+import Ohua.Commons.Prelude
 import qualified Prelude as P (Show, show)
 
 import Ohua.Core.Types.Stage

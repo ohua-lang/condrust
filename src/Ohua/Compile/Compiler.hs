@@ -15,21 +15,21 @@ module Ohua.Compile.Compiler
   , langInfo
   ) where
 
-import Ohua.Prelude
+import Ohua.Commons.Prelude
 
-import qualified  Ohua.Frontend as Fr (frontend)
+import qualified  Ohua.Frontend.Frontend as Fr (frontend)
 import Ohua.Frontend.Types (CompilationScope)
 import Ohua.Core.Types.Environment as CoreEnv
 import Ohua.Core.Compile.Configuration as CoreConfig
 import qualified Ohua.Core.Compile as Core (compile)
 import qualified Ohua.Core.Compile.Configuration as CConfig
-import qualified Ohua.Backend as B (backend)
+import qualified Ohua.Backend.Backend as B (backend)
 import qualified Ohua.Backend.Config as BConfig (Options)
 import qualified Ohua.Backend.Types as BT
 import Ohua.Compile.Lower.FrToALang (toAlang)
 import Ohua.Compile.Lower.DFToTaskLang (toTCLang)
 
-import Ohua.Integration (FullIntegration, runIntegration, langInfo)
+import Ohua.Integration.Integration (FullIntegration, runIntegration, langInfo)
 import Ohua.Integration.Config as IConfig
 import Ohua.Integration.Lang (Lang, Language)
 import Ohua.Integration.Architecture (Arch, Architectures)

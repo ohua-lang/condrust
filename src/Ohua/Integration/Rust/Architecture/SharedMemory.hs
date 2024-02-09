@@ -26,7 +26,7 @@ import Ohua.Integration.Rust.Backend.Convert
 import qualified Ohua.Integration.Rust.Backend.Subset as Sub
 import qualified Ohua.Integration.Rust.Types.Extraction as TH
 import Ohua.Integration.Rust.Architecture.SharedMemory.Transform.DataPar (getInitializers)
-import Ohua.Prelude
+import Ohua.Commons.Prelude
 
 instance Architecture (Architectures 'SharedMemory) where
   type Lang (Architectures 'SharedMemory) = Language 'Rust

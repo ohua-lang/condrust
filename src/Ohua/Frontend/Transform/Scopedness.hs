@@ -1,6 +1,6 @@
 module Ohua.Frontend.Transform.Scopedness where
 
-import Ohua.Prelude
+import Ohua.Commons.Prelude
 
 import Ohua.Frontend.Lang
 import Ohua.Frontend.PPrint ()
@@ -24,7 +24,7 @@ contextedTraversal f = go
             in LetE v <$> go ctxt' a -- take recursive calls into account
                       <*> go ctxt' b
         go ctxt (LamE vs b) =
-            let ctxt' = HS.union ctxt $ HS.fromList $ join $ Ohua.Prelude.map goPat $ Ohua.Prelude.toList vs
+            let ctxt' = HS.union ctxt $ HS.fromList $ join $ Ohua.Commons.Prelude.map goPat $ Ohua.Commons.Prelude.toList vs
             in LamE vs <$> go ctxt' b
 
         go ctxt v@(VarE bdg _ty) | not (HS.member bdg ctxt) = f ctxt v
@@ -48,7 +48,7 @@ contextedTraversal f = go
 
         -- goPat:: 
         goPat (VarP bdg _pTy) = [bdg]
-        goPat (TupP ps) = join $ Ohua.Prelude.map goPat (NE.toList ps)
+        goPat (TupP ps) = join $ Ohua.Commons.Prelude.map goPat (NE.toList ps)
 
 
 {-

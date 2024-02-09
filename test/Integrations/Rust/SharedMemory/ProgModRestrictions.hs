@@ -1,7 +1,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 module Integrations.Rust.SharedMemory.ProgModRestrictions where
 
-import Ohua.Prelude ( ($), Monad((>>=)), (=<<) )
+import Ohua.Commons.Prelude ( ($), Monad((>>=)), (=<<) )
 import Integrations.Rust.SharedMemory.Setup
 import Language.Rust.Syntax (SourceFile)
 import Language.Rust.Parser (Span)

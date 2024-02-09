@@ -2,7 +2,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 module Integrations.Python.TestCases.WIP where
 
-import Ohua.Prelude ( ($), Monad((>>=)), (=<<))
+import Ohua.Commons.Prelude ( ($), Monad((>>=)), (=<<))
 
 import Integrations.Python.Setup 
 import qualified Integrations.Python.CodeSamples.TestDataOutput as Expect

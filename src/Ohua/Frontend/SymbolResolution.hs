@@ -7,8 +7,8 @@ module Ohua.Frontend.SymbolResolution (
   , Gamma
   ) where
 
-import Ohua.Prelude hiding (alias, last, head, tail)
-import qualified Ohua.Prelude as Res (FunType(..))
+import Ohua.Commons.Prelude hiding (alias, last, head, tail)
+import qualified Ohua.Commons.Prelude as Res (FunType(..))
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.List.NonEmpty as NE
 import Data.List (last, head, tail)

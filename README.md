@@ -83,8 +83,8 @@ minor consequences for how code is written. Most importantly I activate the
 `NoImplicitPrelude` extension by default. This means you have to import a
 prelude explicitly.
 
-1. You can use `Ohua.Prelude` which pulls in `Universum` as well as basic ohua
-   core modules (`Ohua.Types`, `Ohua.Util`) and code traversal helpers such as
+1. You can use `Ohua.Commons.Prelude` which pulls in `Universum` as well as basic ohua
+   core modules (`Ohua.Types`, `Ohua.Commons.Util`) and code traversal helpers such as
    `transform` and `rewrite`.
 2. Alternatively you can import `Universum`
 3. or `Prelude ` if you *really* like `Prelude`).

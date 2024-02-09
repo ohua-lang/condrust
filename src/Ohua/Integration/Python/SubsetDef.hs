@@ -1,6 +1,6 @@
 module Ohua.Integration.Python.SubsetDef where
 
-import Ohua.Prelude
+import Ohua.Commons.Prelude
 import qualified Language.Python.Common.AST as Py
 
 import Data.Data

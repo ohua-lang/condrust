@@ -2,7 +2,7 @@
 {-# LANGUAGE LambdaCase #-}
 module Ohua.Backend.Operators.Function where
 
-import Ohua.Prelude hiding (First, Second)
+import Ohua.Commons.Prelude hiding (First, Second)
 
 import Ohua.Backend.Lang as L
 

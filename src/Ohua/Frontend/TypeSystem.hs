@@ -11,8 +11,8 @@ import Data.List (nub, last, init, unzip4, map)
 import Data.Text.Prettyprint.Doc
 import Data.Text.Prettyprint.Doc.Render.Text
 
-import Ohua.Prelude hiding (Nat, last, init, map)
-import qualified Ohua.Prelude as Res
+import Ohua.Commons.Prelude hiding (Nat, last, init, map)
+import qualified Ohua.Commons.Prelude as Res
   ( Lit(..), FunType(..), FunRef(..))
 
 import Ohua.Frontend.PPrint (prettyExpr)
@@ -33,7 +33,7 @@ import Ohua.Frontend.Lang
   
 import Ohua.Frontend.SymbolResolution (SymResError(..), Delta, Gamma, resolveSymbols)
 
-import Ohua.Types.Vector (Nat(..))
+import Ohua.Commons.Types.Vector (Nat(..))
 
 
 -- TODO config param

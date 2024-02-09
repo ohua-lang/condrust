@@ -28,7 +28,7 @@ import Ohua.Integration.Rust.Backend.Convert
   )
 import qualified Ohua.Integration.Rust.Backend.Subset as Sub
 import qualified Ohua.Integration.Rust.Types.Extraction as TH
-import Ohua.Prelude
+import Ohua.Commons.Prelude
 import Ohua.Integration.Rust.Backend.Passes (propagateMut)
 import Data.Text (unpack, unlines)
 import Ohua.Integration.Rust.Architecture.SharedMemory (convertToRustType)

@@ -3,7 +3,7 @@
 
 
 module Integrations.Python.TestCases.State where
-import Ohua.Prelude ( ($), Monad((>>=)), (=<<))
+import Ohua.Commons.Prelude ( ($), Monad((>>=)), (=<<))
 
 import Integrations.Python.Setup
 

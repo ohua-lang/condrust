@@ -6,7 +6,7 @@ import Language.Rust.Parser (Span)
 import Language.Rust.Syntax as Rust hiding (Rust)
 import qualified Ohua.Integration.Rust.Common.Convert as CC
 import qualified Ohua.Integration.Rust.Frontend.Subset as Sub
-import Ohua.Prelude
+import Ohua.Commons.Prelude
 
 import qualified Data.HashMap.Lazy as HM
 

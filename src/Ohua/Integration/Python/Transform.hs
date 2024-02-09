@@ -1,6 +1,6 @@
 module Ohua.Integration.Python.Transform where
 
-import Ohua.Prelude (id)
+import Ohua.Commons.Prelude (id)
 import Ohua.Backend.Types
 import Ohua.Integration.Architecture
 import Ohua.Integration.Transform.DataPar

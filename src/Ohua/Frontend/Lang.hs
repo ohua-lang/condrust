@@ -31,7 +31,7 @@ module Ohua.Frontend.Lang
     , flattenU
     ) where
 
-import Ohua.Prelude
+import Ohua.Commons.Prelude
 
 import qualified Data.List.NonEmpty as NE
 import qualified Data.HashSet as HS

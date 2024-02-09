@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 module Ohua.Integration.Python.MultiProcessing where
 
-import Ohua.Prelude
+import Ohua.Commons.Prelude
 
 
 import Ohua.Backend.Types

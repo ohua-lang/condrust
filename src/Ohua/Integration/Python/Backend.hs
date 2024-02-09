@@ -1,9 +1,9 @@
 {-#LANGUAGE  TypeOperators #-}
 module Ohua.Integration.Python.Backend where
 
-import Ohua.Prelude
+import Ohua.Commons.Prelude
 
-import Ohua.Types.Vector (Nat(..), SNat(..), replicateNE, nlength, withSuccSing)
+import Ohua.Commons.Types.Vector (Nat(..), SNat(..), replicateNE, nlength, withSuccSing)
 
 import Ohua.Backend.Lang as TCLang
 import Ohua.Backend.Types as B

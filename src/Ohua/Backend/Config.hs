@@ -3,7 +3,7 @@ module Ohua.Backend.Config where
 
 import Data.Yaml (FromJSON (..), (.!=), (.:), (.:?))
 import qualified Data.Yaml as Y
-import Ohua.Prelude
+import Ohua.Commons.Prelude
 
 
 data Options = Options

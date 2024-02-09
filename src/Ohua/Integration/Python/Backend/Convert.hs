@@ -7,7 +7,7 @@ elements of the Python AST as defined by language-python
 -}
 module Ohua.Integration.Python.Backend.Convert where
 
-import Ohua.Prelude
+import Ohua.Commons.Prelude
 
 import Ohua.Integration.Python.Util
 import qualified Ohua.Integration.Python.Backend.Subset as Sub

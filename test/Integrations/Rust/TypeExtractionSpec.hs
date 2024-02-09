@@ -3,7 +3,7 @@ module Integrations.Rust.TypeHandlingSpec
     ( spec
     ) where
 
-import Ohua.Prelude
+import Ohua.Commons.Prelude
 
 import Test.Hspec
 

@@ -8,7 +8,7 @@ subset of python the frontend currently supports
 -}
 module Ohua.Integration.Python.Frontend.Convert where
 
-import Ohua.Prelude
+import Ohua.Commons.Prelude
 
 import Ohua.Integration.Python.Util
 import qualified Ohua.Integration.Python.Frontend.Subset as Sub

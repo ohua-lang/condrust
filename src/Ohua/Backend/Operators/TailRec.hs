@@ -5,7 +5,7 @@ module Ohua.Backend.Operators.TailRec where
 
 import Data.Either
 import Ohua.Backend.Lang
-import Ohua.Prelude
+import Ohua.Commons.Prelude
 import Ohua.Backend.Operators.Common (ctrlTuple)
 
 data RecFun embExpr ty where

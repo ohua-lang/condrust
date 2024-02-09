@@ -1,7 +1,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 module Integrations.Rust.SharedMemory.If where
 
-import Ohua.Prelude
+import Ohua.Commons.Prelude
 
 import Integrations.Rust.SharedMemory.Setup
 import Language.Rust.Syntax (SourceFile)

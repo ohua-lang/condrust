@@ -11,7 +11,7 @@ module Integrations.Rust.SharedMemory.Setup
   )
 where
 
-import Ohua.Prelude hiding (Text)
+import Ohua.Commons.Prelude hiding (Text)
 import Ohua.Compile.Compiler (compile)
 
 import qualified Data.ByteString.Lazy.Char8 as L

@@ -14,8 +14,8 @@ import Ohua.Integration.Rust.Backend.Convert (prependToBlock)
 import qualified Ohua.Integration.Rust.Backend.Subset as Sub
 import Ohua.Integration.Rust.Types.Extraction as TH (Module(..), RustVarType (Normal))
 import Ohua.Integration.Rust.Util
-import Ohua.Prelude
-import Ohua.Types.Vector (intToNat)
+import Ohua.Commons.Prelude
+import Ohua.Commons.Types.Vector (intToNat)
 
 
 type RustProgram t = Program (Channel (EmbExpr (Language 'Rust)) RustVarType) (Com 'Recv (EmbExpr (Language 'Rust)) RustVarType) t (EmbExpr (Language 'Rust)) RustVarType

@@ -1,7 +1,7 @@
 {-# LANGUAGE DataKinds, ScopedTypeVariables, PolyKinds, DeriveGeneric #-}
 module Ohua.Backend.Operators.Common where
 
-import Ohua.Prelude
+import Ohua.Commons.Prelude
 
 import Ohua.Backend.Lang
 

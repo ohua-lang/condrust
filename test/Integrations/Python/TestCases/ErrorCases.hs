@@ -2,7 +2,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 module Integrations.Python.TestCases.ErrorCases where
 
-import Ohua.Prelude ( ($), Monad((>>=)), (=<<))
+import Ohua.Commons.Prelude ( ($), Monad((>>=)), (=<<))
 
 import Integrations.TestSetup
 import Integrations.Python.Setup

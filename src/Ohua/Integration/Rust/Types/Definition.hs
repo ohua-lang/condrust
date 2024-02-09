@@ -2,7 +2,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 module Ohua.Integration.Rust.Types.Definition where
 {-
-import Ohua.Prelude hiding ((=:))
+import Ohua.Commons.Prelude hiding ((=:))
 
 import Language.Rust.Quote hiding ((=:))
 import Language.Rust.Pretty (pretty', Resolve, Pretty)

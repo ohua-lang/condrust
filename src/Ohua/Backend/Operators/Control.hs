@@ -1,7 +1,7 @@
 {-# LANGUAGE DataKinds, ScopedTypeVariables, PolyKinds, DeriveGeneric, OverloadedLists, TypeApplications, RankNTypes #-}
 module Ohua.Backend.Operators.Control where
 
-import Ohua.Prelude
+import Ohua.Commons.Prelude
 
 import Ohua.Backend.Operators.Common
 import Ohua.Backend.Lang as L

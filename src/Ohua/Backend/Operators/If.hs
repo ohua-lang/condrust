@@ -1,6 +1,6 @@
 module Ohua.Backend.Operators.If where
 
-import Ohua.Prelude
+import Ohua.Commons.Prelude
 
 import Ohua.Backend.Lang hiding (TCExpr)
 import Ohua.Backend.Operators.Common (ctrlTuple)

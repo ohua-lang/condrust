@@ -1,7 +1,7 @@
 {-# LANGUAGE  TypeOperators #-}
 module Ohua.Backend.Types where
 
-import Ohua.Prelude hiding (Type)
+import Ohua.Commons.Prelude hiding (Type)
 
 import Ohua.Backend.Lang
 import qualified Data.ByteString.Lazy.Char8 as L

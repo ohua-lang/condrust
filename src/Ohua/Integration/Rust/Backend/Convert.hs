@@ -4,8 +4,8 @@ module Ohua.Integration.Rust.Backend.Convert (
   )where
 
 
-import Ohua.Prelude
-import Ohua.Types.Vector (natToInt)
+import Ohua.Commons.Prelude
+import Ohua.Commons.Types.Vector (natToInt)
 
 import Data.List.NonEmpty as NE hiding (map)
 import Data.Text (unpack)

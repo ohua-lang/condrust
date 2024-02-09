@@ -1,5 +1,5 @@
 module TestOptions where
-import Ohua.Prelude
+import Ohua.Commons.Prelude
 
 
 import Ohua.Core.Types.Environment (stageHandling, Options, transformRecursiveFunctions)

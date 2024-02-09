@@ -1,6 +1,6 @@
 module Ohua.Integration.Lang where
 
-import Ohua.Prelude (Show)
+import Ohua.Commons.Prelude (Show)
 import GHC.Enum ( Bounded, Enum )
 
 data Lang = Rust | Python deriving (Show, Enum, Bounded)

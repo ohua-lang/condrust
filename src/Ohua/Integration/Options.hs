@@ -2,7 +2,7 @@ module Ohua.Integration.Options where
 
 import Data.Yaml (FromJSON (..), (.!=), (.:), (.:?))
 import qualified Data.Yaml as Y
-import Ohua.Prelude
+import Ohua.Commons.Prelude
 
 data Options = Options
   { dataPar :: Maybe Integer,

@@ -3,7 +3,7 @@
 {-# LANGUAGE DataKinds #-}
 module Ohua.Backend.Lang where
 
-import Ohua.Prelude hiding (First)
+import Ohua.Commons.Prelude hiding (First)
 
 import qualified Text.Show
 

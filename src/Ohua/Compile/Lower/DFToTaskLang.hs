@@ -1,7 +1,7 @@
 module Ohua.Compile.Lower.DFToTaskLang where
 
-import Ohua.Prelude
-import qualified Ohua.Types.Vector as V
+import Ohua.Commons.Prelude
+import qualified Ohua.Commons.Types.Vector as V
 
 
 import Ohua.Core.DFLang.Lang as DFLang

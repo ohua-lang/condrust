@@ -1,6 +1,6 @@
 module Integrations.TestSetup where
 
-import Ohua.Prelude 
+import Ohua.Commons.Prelude 
 import Ohua.Core.Types.Environment (Options)
 import TestOptions (withRec, DebugOptions (..), CompilationType(..))
 

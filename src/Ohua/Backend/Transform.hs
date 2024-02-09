@@ -1,7 +1,7 @@
 {-#LANGUAGE TypeOperators #-}
 module Ohua.Backend.Transform where
 
-import Ohua.Prelude hiding (Type)
+import Ohua.Commons.Prelude hiding (Type)
 
 import Ohua.Backend.Types
 import Ohua.Backend.Lang

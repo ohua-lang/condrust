@@ -11,7 +11,7 @@ import Ohua.Integration.Rust.Common.Subset (TyRef(..), GenericArgs(..), RustType
 import Ohua.Integration.Rust.Backend.Convert (convertTyRef)
 import Ohua.Integration.Transform.DataPar (concat, joinFuture, spawnFuture, takeN)
 import Ohua.Integration.Options (Options(..))
-import Ohua.Prelude hiding (concat)
+import Ohua.Commons.Prelude hiding (concat)
 
 runtime = "rt"
 

@@ -15,7 +15,7 @@ import Language.Rust.Parser (Span)
 import Ohua.Backend.Types
 import qualified Ohua.Integration.Rust.Types.Extraction as TH
 import Ohua.Integration.Rust.Util
-import Ohua.Prelude
+import Ohua.Commons.Prelude
 import System.FilePath (takeFileName)
 
 

@@ -4,7 +4,7 @@ import Data.Yaml (FromJSON (..), (.!=), (.:), (.:?))
 import qualified Data.Yaml as Y
 import Ohua.Integration.Architecture
 import Ohua.Integration.Options
-import Ohua.Prelude
+import Ohua.Commons.Prelude
 
 data Config = Config
   { arch :: Arch,

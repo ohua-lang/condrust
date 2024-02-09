@@ -3,13 +3,13 @@
 {-# LANGUAGE TypeApplications #-}
 module Ohua.Integration.Rust.Types.Extraction where
 
-import Ohua.Prelude 
+import Ohua.Commons.Prelude 
 
 import Ohua.Integration.Rust.Util
 import Ohua.Integration.Rust.Common.Subset as Sub (TyRef (..), CallRef (..), RustType(..) )
 import Ohua.Integration.Rust.Frontend.Convert (convertTy, convertPath)
 
-import Ohua.Types.Unit (Unit)
+import Ohua.Commons.Types.Unit (Unit)
 
 import Language.Rust.Syntax as Rust hiding (Normal, Type)
 import Language.Rust.Data.Ident (Ident(..))

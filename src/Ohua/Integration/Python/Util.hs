@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wno-deferred-out-of-scope-variables #-}
 module Ohua.Integration.Python.Util where
 
-import Ohua.Prelude
+import Ohua.Commons.Prelude
 import Language.Python.Common hiding ((<>))
 import Language.Python.Common.AST (Ident(..))
 import qualified Language.Python.Version3 as V3

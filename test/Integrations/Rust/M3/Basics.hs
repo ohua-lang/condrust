@@ -5,7 +5,7 @@ import Language.Rust.Quote (sourceFile)
 import Language.Rust.Syntax (SourceFile)
 import Language.Rust.Data.Position (Span)
 
-import Ohua.Prelude ( ($), Monad((>>=)), (=<<) )
+import Ohua.Commons.Prelude ( ($), Monad((>>=)), (=<<) )
 
 import Integrations.Rust.M3.Setup
 import Integrations.Rust.M3.TestCode.BasicsOutput as Expect

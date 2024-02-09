@@ -1,7 +1,7 @@
 module Ohua.Backend.Fusion.Util where
 
 
-import Ohua.Prelude
+import Ohua.Commons.Prelude
 
 import Ohua.Backend.Lang
 import qualified Ohua.Backend.Operators.Function as F

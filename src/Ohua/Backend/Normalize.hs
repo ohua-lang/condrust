@@ -3,7 +3,7 @@ module Ohua.Backend.Normalize where
 import qualified Data.HashSet as HS
 import Ohua.Backend.Lang
 import Ohua.Backend.Types
-import Ohua.Prelude hiding (First, Second)
+import Ohua.Commons.Prelude hiding (First, Second)
 
 normalize ::
   Namespace (Program chan recv (TaskExpr embExpr ty) embExpr ty) anno (OhuaType ty 'Resolved) ->

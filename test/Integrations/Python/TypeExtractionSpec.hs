@@ -4,7 +4,7 @@ module Integrations.Python.TypeHandlingSpec
     ) where
 
 
-import Ohua.Prelude
+import Ohua.Commons.Prelude
 
 import Test.Hspec
 

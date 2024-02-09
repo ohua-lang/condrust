@@ -1,6 +1,6 @@
 module Integrations.Python.CodeSamples.SimpleQuoter where
 
-import Ohua.Prelude
+import Ohua.Commons.Prelude
 
 import qualified Language.Python.Version3 as V3
 import qualified Language.Python.Version2 as V2
