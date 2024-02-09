@@ -3,3 +3,5 @@ ohua-backend.cabal
 *~
 stack.yaml.lock
 *.html
+/condrust.code-workspace
+/ohuac.cabal
