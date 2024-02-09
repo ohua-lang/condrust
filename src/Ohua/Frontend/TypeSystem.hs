@@ -294,7 +294,7 @@ typeSystem delta imports gamma = \case
   ========================================================================
                 Delta, Gamma |- Bind state method : Tm
   -}
-  e@(StateFunE stateVar (MethodUnres methodB) args) -> do
+  (StateFunE stateVar (MethodUnres methodB) args) -> do
     -- traceM $ "Typing statefull call " <> show e <> ". Gamma is " <> show gamma
     -- We need to get the state type before the method type, because the type of the method depends on the
     -- type of the state i.e. obj.clone() -->  Arc::clone ? String::clone ? 
@@ -309,16 +309,16 @@ typeSystem delta imports gamma = \case
       Nothing -> return (QualifiedBinding (NSRef []) methodB)
     -- traceM $ "Will type method now " <> show methodQB
    -- FIXME: How to properly construct an unresolved stateful function (type)?
-    (gamma'', methodE , methodTy, imports'') <- typeExpr delta imports' gamma (LitE (FunRefLit (FunRef methodQB (STFunType TStar (Left ()) TStar))))
+    (_gamma'', _methodE , methodTy, imports'') <- typeExpr delta imports' gamma (LitE (FunRefLit (FunRef methodQB (STFunType TStar (Left ()) TStar))))
     
     (fty, ty) <- case methodTy of
             -- Question: Why don't we do the partial application type check here?
             FType fty@(STFunType sTy _ resTy) | heq sTy stateTy -> return (fty, resTy)
-            FType (STFunType sTy _ resTy) -> typeError $ "State types "<> show sTy <>" and "<> show stateTy <> " do not match."
+            FType (STFunType sTy _ _resTy) -> typeError $ "State types "<> show sTy <>" and "<> show stateTy <> " do not match."
             _ -> typeError $ "Method type "<> show methodTy <>" is not a stateful function type."
     
     
-    (gammaRs, args', argTypesR) <- 
+    (gammaRs, args', _argTypesR) <- 
       (unzip4 <$> mapM (typeExpr delta imports'' gamma) args) 
       >>= (\ (gammaR, argsT, argTy , _ ) -> return (gammaR, argsT, argTy))
 
@@ -398,17 +398,17 @@ typeSystem delta imports gamma = \case
     -- of i to the loop body expression, which will be <Lam i -> actual loop body> we annotate the
     -- pattern i here  
     let loopFun' = case loopFun of
-          LamE pats body -> LamE (annotate pats eTy) body
+          LamE pats body -> LamE (annotate_p_t pats eTy) body
           -- FIXME: I don't think this should ever happen  
           otherExpr -> otherExpr
 
-    (gamma', loopFun', loopFunTy, imports'' ) <- typeExpr delta imports' gamma loopFun'
+    (gamma', loopFun'', loopFunTy, imports'' ) <- typeExpr delta imports' gamma loopFun'
 
-    return (gamma', MapE loopFun' gen', IType $ TypeList loopFunTy, imports'')
+    return (gamma', MapE loopFun'' gen', IType $ TypeList loopFunTy, imports'')
     where 
-      annotate [VarP i ty] elemTy = [VarP i (HType elemTy)]
-      annotate [TupP pats] elemTy = annotate_r (NE.toList pats) (asHtypes elemTy)
-      annotate pats elemTy = annotate_r pats (asHtypes elemTy) 
+      annotate_p_t[VarP i _ty] elemTy = [VarP i (HType elemTy)]
+      annotate_p_t[TupP pats] elemTy = annotate_r (NE.toList pats) (asHtypes elemTy)
+      annotate_p_t pats elemTy = annotate_r pats (asHtypes elemTy) 
 
       annotate_r (VarP i _ty: pats) (et:etys) = VarP i et : annotate_r pats etys
       annotate_r pats@(TupP _:_) _tys = error $ "Found a nested tuple pattern in a Loop expression."
@@ -457,7 +457,7 @@ typeSystem delta imports gamma = \case
   ========================
     Delta, Gamma |- l : T
   -}
-  (LitE (FunRefLit (FunRef qBnd@(QualifiedBinding ns bnd) ty))) -> do
+  (LitE (FunRefLit (FunRef qBnd@(QualifiedBinding mNs bnd) ty))) -> do
     -- Currently we get function literals mostly/only from the context of method calls, because when we translate (pure) call expressions
     -- the call can be different things (closures, variables, list indices ...) and will mostly be a variable
     -- So the qualified binding should contain the object type the method is called on and we need to do a name resolution i.e. cannot
@@ -471,7 +471,7 @@ typeSystem delta imports gamma = \case
       case unresToRes (FType ty) of
           Just ty'@(FType fty)  -> return (HM.empty, LitE (FunRefLit (FunRef qBnd  fty)), ty', imports)
           _ -> do 
-            (g, e, t, i) <- handleRef bnd (Just ns) (FType ty)
+            (g, e, t, i) <- handleRef bnd (Just mNs) (FType ty)
             return (g,e,t,i)
 
   {-
@@ -488,8 +488,8 @@ typeSystem delta imports gamma = \case
     -- the local context Gamma. 
     -- If we can't find it's name there, we check if it's a reference to the global (function type) context Delta
     -- passing it to handleRef
-    handleVar gamma bnd ty = do
-      case HM.lookup bnd gamma of
+    handleVar lGamma bnd ty = do
+      case HM.lookup bnd lGamma of
         Just ty1 ->
           case unresToRes ty1 of
             Just ty1' -> (\ty' -> (HM.singleton bnd ty', VarE bnd ty', ty', imports)) <$> maxType ty ty1'
@@ -531,10 +531,7 @@ addStateToNS stateTyBnd  bnd = do
             Left sbnd -> NSRef [sbnd]
             Right (QualifiedBinding (NSRef sbnds) sbnd) -> NSRef (sbnds ++ [sbnd])
     return (QualifiedBinding new_ns bnd)
-addStateToNS _ e = throwErrorWithTrace $ 
-  "The compiler didn't expect a method to be anything else than a function literal but it was:\n " 
-  <> show e 
-  <> "\nThis might still be legitimate so please file a bug."
+
 
 typePat :: (ErrAndLogM m, TypeErrorM m embExpr ty) => UnresolvedPat ty -> OhuaType ty Resolved -> m (ResolvedPat ty)
 typePat pat newTy = do
@@ -634,4 +631,4 @@ compromise_compare (IType iTy) (HType _)
 compromise_compare (TType _  )  (TType _) = True
 compromise_compare (FType _ )   (FType _) = True
 compromise_compare (IType _ )   (IType _) = True
-compromise_compare t1 t2                    = False
+compromise_compare _t1 _t2                = False

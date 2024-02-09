@@ -3,7 +3,6 @@ module Ohua.Integration.Python.SubsetDef where
 import Ohua.Commons.Prelude
 import qualified Language.Python.Common.AST as Py
 
-import Data.Data
 
 newtype PyModule  = PyModule [AnyStatement] 
 data AnyStatement = TopLevelStatement | AnyLevelStatement

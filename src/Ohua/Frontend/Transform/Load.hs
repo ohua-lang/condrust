@@ -69,11 +69,11 @@ loadAlgosAndImports :: forall m lang.
             HostModule lang)
 loadAlgosAndImports  lang scope inFile = do
     -- logDebugN $ "Loading module: " <> show inFile <> "..."
-    (ctxt, ns, placeholder) <- loadNs lang inFile
+    (ctxt, ns', placeholder) <- loadNs lang inFile
     -- let ns' = Namespace (makeThrow []) imports algos -- references to functions contain an empty ref
     -- logDebugN $ "Loaded ns: " <> show (ns'^.nsName)
     -- verify scope ns
     -- logDebugN "Loading dependencies ..."
-    registry <- loadDeps lang scope ns
+    registry <- loadDeps lang scope ns'
     -- logDebugN "compiled ns successfully."
-    return (ctxt, ns, registry, placeholder)
+    return (ctxt, ns', registry, placeholder)

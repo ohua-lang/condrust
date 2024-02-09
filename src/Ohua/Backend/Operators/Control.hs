@@ -123,7 +123,7 @@ fuseCtrl
                         _ -> error "invariant broken"
             in SSend ch $ Left d' -- the var that I assign the state to becomes the new data out for the state
         -- TODO(feliix42): Implement this
-        g (SSend ch (Right l)) = error "Fusing controls with literals is not supported yet (ohua-lang/ohua-backend#22)"
+        g (SSend _ch (Right _l)) = error "Fusing controls with literals is not supported yet (ohua-lang/ohua-backend#22)"
         propagateTypeFromRecv = propagateType . toList . map snd
 
 -- | This takes a function and fuses a control into it.
@@ -223,7 +223,8 @@ fuseFun (FunCtrl ctrlInput vars) =
             stateVar (SRecv _ sArg)=
               case NE.filter (\(l, _) -> (unwrapChan l) == sArg) vars of
                 [s] -> s
-                []  -> error "invariant broken" -- an assumption rooted inside DFLang
+                []  -> error "invariant broken. channel name not found " -- an assumption rooted inside DFLang
+                many-> error "invariant broken. channel name not unique " -- an assumption rooted inside DFLang
             vars' sArg args =
                 toList $
                 NE.map ((\case
@@ -241,6 +242,7 @@ fuseSMap (FunCtrl ctrlInput (( o, inData):|[])) smap = -- invariant
     [PureVar o inData]
     (SMap.gen' $ SMap.fuse (unwrapBnd o) smap)
     []
+fuseSMap other _ = error $ "Compiler Invariant broken. Trying to fuse SMap for " <> show other
 
 propagateType :: [Com 'Recv embExpr ty] -> (OutputChannel embExpr ty, Com 'Recv embExpr ty) -> (OutputChannel embExpr ty, Com 'Recv embExpr ty)
 propagateType args (o@(OutputChannel outChan), r@(SRecv _ rChan)) =

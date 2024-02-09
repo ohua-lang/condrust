@@ -100,7 +100,7 @@ convertUnsafety Sub.Normal = Rust.Normal
 convertStmt :: Sub.Stmt -> Rust.Stmt ()
 convertStmt (Sub.Semi e) = Rust.Semi (convertExp e) noSpan
 convertStmt (Sub.NoSemi e) = Rust.NoSemi (convertExp e) noSpan
-convertStmt (Sub.Local p ty e) =
+convertStmt (Sub.Local p _ty e) =
   Local (convertPat p) Nothing (Just $ convertExp e) [] noSpan
 convertStmt Sub.StandaloneSemi = Rust.StandaloneSemi noSpan
 
@@ -118,7 +118,7 @@ convertBindingMode Sub.Mutable = Rust.ByValue Rust.Mutable
 convertBindingMode Sub.Immutable = Rust.ByValue Rust.Immutable
 
 convertQualBnd :: QualifiedBinding -> Path ()
-convertQualBnd (QualifiedBinding ns bnd) =
+convertQualBnd (QualifiedBinding ns' bnd) =
   Path
     False
     ( map
@@ -127,14 +127,14 @@ convertQualBnd (QualifiedBinding ns bnd) =
               then   PathSegment (mkIdent "crate") Nothing noSpan
               else   PathSegment (mkIdent $ unpack $ unwrap p) Nothing noSpan)
             
-        $ unwrap ns ++ [bnd]
+        $ unwrap ns' ++ [bnd]
     )
     noSpan
 
 convertRef :: QualifiedBinding -> Maybe Sub.GenericArgs -> Path ()
 convertRef f ty =
   let (Path b segs s) = convertQualBnd f
-      attach (PathSegment i _ s) = PathSegment i (convertGenericArgs <$> ty) s
+      attach (PathSegment i _ s') = PathSegment i (convertGenericArgs <$> ty) s'
       segs' = case segs of
         [] -> []
         (a : as) ->
@@ -179,5 +179,5 @@ convertUnary Sub.Deref = Rust.Deref
 
 convertToTy :: Sub.TyRef -> Ty ()
 --FIXME: Must not be unfdefined
-convertToTy (Sub.TyRef qb Nothing) = error "Conversion of generic parameters is not fully implemented. Please file a bug"
-convertToTy (Sub.TyRef qb (Just gPs)) = error "Conversion of generic parameters is not fully implemented. Please file a bug"
+convertToTy (Sub.TyRef _qb Nothing) = error "Conversion of generic parameters is not fully implemented. Please file a bug"
+convertToTy (Sub.TyRef _qb (Just _gPs)) = error "Conversion of generic parameters is not fully implemented. Please file a bug"

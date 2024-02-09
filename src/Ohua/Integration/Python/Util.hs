@@ -3,7 +3,7 @@ module Ohua.Integration.Python.Util where
 
 import Ohua.Commons.Prelude
 import Language.Python.Common hiding ((<>))
-import Language.Python.Common.AST (Ident(..))
+-- import Language.Python.Common.AST (Ident(..))
 import qualified Language.Python.Version3 as V3
 
 
@@ -15,7 +15,7 @@ noSpan :: SrcSpan
 noSpan = SpanEmpty
 
 toBinding :: Ident a -> Binding
-toBinding Ident{ident_string=n, ident_annot=annot} = fromString n
+toBinding Ident{ident_string=n} = fromString n
 
 fromBinding :: Binding -> Ident SrcSpan
 fromBinding bnd = Ident{ident_string= bndToStr bnd, ident_annot= noSpan}
@@ -29,7 +29,7 @@ toQualBinding:: Binding -> QualifiedBinding
 toQualBinding = QualifiedBinding (makeThrow [])
 
 mkIdent::String -> Ident SrcSpan
-mkIdent name = Ident{ident_string=name, ident_annot=SpanEmpty}
+mkIdent iname = Ident{ident_string=iname, ident_annot=SpanEmpty}
 
 toPyVar :: Ident SrcSpan -> Expr SrcSpan
 toPyVar ident = Var ident noSpan
@@ -38,10 +38,10 @@ convertQBind :: QualifiedBinding -> Ident SrcSpan
 convertQBind (QualifiedBinding _ bnd) = fromBinding bnd
 
 
-
 unsupPyError :: (MonadError Text m, Pretty a1) => Text -> a1 -> m a2
-unsupPyError text expr = throwError $ "Currently we do not support "<> text <>" used in: "<> (T.pack. prettyText $ expr)
+unsupPyError msgtext expr = throwError $ "Currently we do not support "<> msgtext <>" used in: "<> (T.pack. prettyText $ expr)
 
+py2Error ::  (MonadError Text m, Show a1) => a1 -> m a2
 py2Error expr = throwError $ "For whatever reason you managed to get the exclusively version 2 expression "
                                 <> show expr <> " through the python3 parser of language-python."
 
@@ -67,7 +67,7 @@ wrapExpr :: Expr SrcSpan -> Statement SrcSpan
 wrapExpr expr = StmtExpr expr noSpan
 
 unwrapStmt :: Statement SrcSpan -> Expr SrcSpan
-unwrapStmt StmtExpr{stmt_expr=expr, stmt_annot=annot}= expr
+unwrapStmt StmtExpr{stmt_expr=expr}= expr
 unwrapStmt s = error $ "unwrapStmt is not supposed to be used on " <> show s
 
 load :: FilePath -> IO (Module SrcSpan)
@@ -78,9 +78,11 @@ load srcFile =  do
 
 -- Todo: Remove when QQ is available
 --import multiprocessing as mp
+importMPStmt :: Statement SrcSpan
 importMPStmt = Import [ImportItem [Ident  "multiprocessing" noSpan]   (Just (Ident "mp" noSpan)) noSpan] noSpan
 
 -- processes = []
+initProcs :: Statement SrcSpan
 initProcs = Assign  [Var (Ident "processes" noSpan) noSpan ]
                     (List [] noSpan)
                     noSpan
@@ -88,6 +90,7 @@ initProcs = Assign  [Var (Ident "processes" noSpan) noSpan ]
 {- for task, channels in zip(tasks, channels):
     process = mp.Process(target=task, args=channels)
     processes.append(process)-}
+assignTasks :: Statement SrcSpan
 assignTasks = For   [Var ( Ident  "task" noSpan) noSpan, Var ( Ident  "channels" noSpan) noSpan]
                     (Call ( Var (Ident "zip" noSpan) noSpan) 
                             [ArgExpr ( Var ( Ident "tasks"noSpan) noSpan) noSpan,
@@ -108,6 +111,7 @@ assignTasks = For   [Var ( Ident  "task" noSpan) noSpan, Var ( Ident  "channels"
                     ] [] noSpan
 
 -- list(map(mp.Process.start, processes))
+startProcs :: Statement SrcSpan
 startProcs = StmtExpr   (Call ( Var ( Ident "list"  noSpan )  noSpan )  
                                 [ArgExpr ( Call ( Var ( Ident  "map" noSpan )  noSpan )
                                                 [ArgExpr ( Dot ( Dot (Var (Ident "mp" noSpan )  noSpan ) (Ident  "Process" noSpan )  noSpan ) (Ident "start" noSpan )  noSpan ) noSpan,
@@ -119,6 +123,7 @@ startProcs = StmtExpr   (Call ( Var ( Ident "list"  noSpan )  noSpan )
                         noSpan
 
 -- list(map(mp.Process.terminate, processes))
+terminateProcs :: Statement SrcSpan
 terminateProcs = StmtExpr   (Call ( Var ( Ident "list"  noSpan )  noSpan )  
                                 [ArgExpr ( Call ( Var ( Ident  "map" noSpan )  noSpan ) 
                                                 [ArgExpr ( Dot ( Dot (Var (Ident "mp" noSpan )  noSpan ) (Ident  "Process" noSpan )  noSpan ) (Ident "terminate" noSpan )  noSpan ) noSpan,
@@ -129,6 +134,7 @@ terminateProcs = StmtExpr   (Call ( Var ( Ident "list"  noSpan )  noSpan )
                                 noSpan )
                         noSpan
 -- list(map(mp.Process.join, processes))
+joinProcs :: Statement SrcSpan
 joinProcs = StmtExpr   (Call ( Var ( Ident "list"  noSpan )  noSpan )  
                                 [ArgExpr ( Call ( Var ( Ident  "map" noSpan )  noSpan ) 
                                                 [ArgExpr ( Dot ( Dot (Var (Ident "mp" noSpan )  noSpan ) (Ident  "Process" noSpan )  noSpan ) (Ident "join" noSpan )  noSpan ) noSpan,

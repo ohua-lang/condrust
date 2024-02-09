@@ -51,7 +51,7 @@ stmtToSub forE@(Py.For _ _ _ _elseBlock _) = unsupPyError "else blocks in for ex
     -> I'll need a separate handling for non-function blocks
 -}
 
-stmtToSub ite@(Py.Conditional ifsAndSuites [] _annot ) = unsupPyError "if-statements without else blocks" ite
+stmtToSub ite@(Py.Conditional _ifsAndSuites [] _annot ) = unsupPyError "if-statements without else blocks" ite
 
 stmtToSub (Py.Conditional ifsAndSuites elseSuite _annot ) = do
     ifs <- mapM (exprToSubExpr . fst) ifsAndSuites

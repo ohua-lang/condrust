@@ -11,13 +11,8 @@ calls in the frontend and 'resugar' (:-)) them in the backend again
 module Ohua.Integration.Python.TypeHandling where
 
 import Ohua.Commons.Prelude
-import Ohua.Integration.Python.Util
 
-import Language.Python.Common.AST
-import Language.Python.Common.SrcLocation
 import qualified Language.Python.Common as Py
-
-
 
 import qualified Data.HashMap.Lazy as HM
 import Data.Text.Prettyprint.Doc (Pretty(..))
@@ -34,7 +29,7 @@ defaultType = HType (HostType (PSingle PythonObject))
 
 pythonTupleType :: [a] -> OhuaType PythonVarType res
 pythonTupleType [] = defaultType
-pythonTupleType (t:ts) = HType (HostType (PTuple (PythonObject :| map (const PythonObject) ts)))
+pythonTupleType (_:ts) = HType (HostType (PTuple (PythonObject :| map (const PythonObject) ts)))
 
 
 
@@ -87,23 +82,21 @@ pattern SetConstructor::QualifiedBinding
 pattern SetConstructor <- QualifiedBinding (NSRef []) "set_internal"
 
 pattern SetItemFunction::QualifiedBinding
-pattern SetItemFunction <- QualifiedBinding (NSRef [defaultName]) "__setitem__"
+pattern SetItemFunction <- QualifiedBinding (NSRef [_defaultName]) "__setitem__"
 
 pattern GetItemFunction::QualifiedBinding
-pattern GetItemFunction <- QualifiedBinding (NSRef [defaultName]) "__getitem__"
-
-
+pattern GetItemFunction <- QualifiedBinding (NSRef [_defaultName]) "__getitem__"
 
 instance Pathable PythonVarType where
-    toPath (PSingle t) = Just (Left defaultName)
-    toPath (PTuple ts) = Nothing 
+    toPath (PSingle _t) = Just (Left defaultName)
+    toPath (PTuple _ts) = Nothing 
 
 instance Pretty PythonVarType where
-    pretty (PSingle t) = "obj"
-    pretty (PTuple ts) = "("<> foldr (\o s -> "obj, " <> s) "" ts <>")"
+    pretty (PSingle _t) = "obj"
+    pretty (PTuple ts) = "("<> foldr (\_o s -> "obj, " <> s) "" ts <>")"
 
 instance Ord PythonVarType where 
-    t1 <= t2 = True
+    _t1 <= _t2 = True
 
 -- Most builtin Python types can be interpreted as truth values in a way
 -- FIXME: If requried in any way, make this more specific (will require changes to the PythonVarType)

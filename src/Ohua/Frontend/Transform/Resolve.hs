@@ -20,13 +20,12 @@ module Ohua.Frontend.Transform.Resolve where
 
 import Ohua.Commons.Prelude
 
-import Ohua.Frontend.Lang as FrLang (Expr(..), UnresolvedExpr, Pat(VarP), universeReplace, flattenU, preWalkE)
+import Ohua.Frontend.Lang as FrLang (Expr(..), UnresolvedExpr, Pat(VarP), flattenU, preWalkE)
 import Ohua.Frontend.Types
 import Ohua.Frontend.PPrint ()
 
 import Control.Lens (over)
 import qualified Data.HashMap.Strict as HM
-import Data.Functor.Foldable (cata, embed)
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
 
@@ -42,8 +41,8 @@ import qualified Data.Text as T
 resolveNS :: forall embExpr ty m anno.(MonadError Error m)
           => (Namespace (UnresolvedExpr embExpr ty) anno (OhuaType ty 'Resolved), NamespaceRegistry embExpr ty)
           -> m (Namespace (UnresolvedExpr embExpr ty) anno (OhuaType ty 'Resolved))
-resolveNS (ns, registry) =
-    return $ over algos (map (\algo -> over algoCode (work (view algoName algo) ) algo)) ns
+resolveNS (ns', registry) =
+    return $ over algos (map (\algo -> over algoCode (work (view algoName algo) ) algo)) ns'
     where
         work :: Binding -> UnresolvedExpr embExpr ty -> UnresolvedExpr embExpr ty
         work algoNm algoExpr =
@@ -54,8 +53,8 @@ resolveNS (ns, registry) =
             in algoExpr'
 
         collectCalledAlgos :: Binding -> NamespaceRegistry embExpr ty -> UnresolvedExpr embExpr ty  -> HS.HashSet QualifiedBinding
-        collectCalledAlgos algoName availableAlgos expr  =
-            let funsExceptAlgo = HS.filter (\funName -> funName /= QualifiedBinding (makeThrow []) algoName) .  collectFunctionRefs $ expr
+        collectCalledAlgos algoNm availableAlgos expr  =
+            let funsExceptAlgo = HS.filter (\funName -> funName /= QualifiedBinding (makeThrow []) algoNm) .  collectFunctionRefs $ expr
                 
             in
                 HS.unions .
@@ -63,7 +62,7 @@ resolveNS (ns, registry) =
                 HS.map (\funName ->
                     maybe
                         HS.empty
-                        (HS.insert funName . collectCalledAlgos algoName (HM.delete funName availableAlgos))
+                        (HS.insert funName . collectCalledAlgos algoNm (HM.delete funName availableAlgos))
                         $ HM.lookup funName availableAlgos <&> fst ) 
                 $ funsExceptAlgo
             
@@ -79,8 +78,8 @@ resolveNS (ns, registry) =
                         
 
         pathToVar :: QualifiedBinding -> Binding
-        pathToVar (QualifiedBinding ns bnd) =
-            (makeThrow . T.intercalate ".") $ map unwrap $ unwrap ns ++ [bnd]
+        pathToVar (QualifiedBinding ns' bnd) =
+            (makeThrow . T.intercalate ".") $ map unwrap $ unwrap ns' ++ [bnd]
 
         addExpr :: QualifiedBinding -> UnresolvedExpr embExpr ty  -> UnresolvedExpr embExpr ty 
         addExpr otherAlgo (LamE vars body) = LamE vars $ addExpr otherAlgo body

@@ -1,16 +1,15 @@
 {-# LANGUAGE ConstraintKinds #-}
 module Ohua.Integration.Rust.Frontend.Convert where
 
+import Ohua.Commons.Prelude
+
 import Language.Rust.Data.Ident
 import Language.Rust.Parser (Span)
 import Language.Rust.Syntax as Rust hiding (Rust)
 import qualified Ohua.Integration.Rust.Common.Convert as CC
 import qualified Ohua.Integration.Rust.Frontend.Subset as Sub
-import Ohua.Commons.Prelude
 
-import qualified Data.HashMap.Lazy as HM
 
--- type RustContext = HM.HashMap Binding Sub.RustType
 
 type ConvertM m = (Monad m, MonadError Error m) -- MonadState RustContext m)
 
@@ -48,7 +47,7 @@ convertExpr (Unary [] op arg _) = do
   arg' <- convertExpr arg
   return $ Sub.Unary op' arg'
 convertExpr e@Unary {} = error $ "Currently, we do not support attributes on unary operations.\n" <> show e
-convertExpr e@(Lit [] l s) = Sub.Lit <$> convertLit l s
+convertExpr (Lit [] l s) = Sub.Lit <$> convertLit l s
 convertExpr e@Lit {} = error $ "Currently, we do not support attributes on literals operations.\n" <> show e
 convertExpr e@Cast {} = error $ "Currently, we do not support cast expressions. Please use a function.\n" <> show e
 convertExpr e@TypeAscription {} = error $ "Currently, we do not support type ascriptions. Please use a function.\n" <> show e
@@ -73,7 +72,7 @@ convertExpr (ForLoop [] pat dataExpr body Nothing _) = do
   return $ Sub.ForLoop pat' dataExpr' body'
 convertExpr e@(ForLoop [] _ _ _ (Just _) _) = error $ "Currently, we do not support loop labels.\n" <> show e
 convertExpr e@ForLoop {} = error $ "Currently, we do not support attributes on for loops.\n" <> show e
-convertExpr e@(Loop _ body _ _) = do
+convertExpr (Loop _ body _ _) = do
   body' <- convertBlock body
   return $ Sub.EndlessLoop body'
 convertExpr e@Match {} = error $ "Currently, we do not support match expressions. Please file a bug if you feel that this is dearly needed.\n" <> show e
@@ -87,7 +86,7 @@ convertExpr e@(Closure _ _ _ Immovable _ _ _) = error $ "Currently, we do not su
 convertExpr e@(Closure _ Ref _ _ _ _ _) = error $ "Currently, we do not support closures that capture environment variables by reference. \n" <> show e
 convertExpr e@(Closure _ _ IsAsync _ _ _ _) = error $ "Async functions are not part of the supported Rust subset. \n" <> show e
 convertExpr e@Closure {} = error $ "Currently, we do not support attributes on closures.\n" <> show e
-convertExpr e@(BlockExpr [] block Nothing _) = Sub.BlockExpr <$> convertBlock block
+convertExpr _e@(BlockExpr [] block Nothing _) = Sub.BlockExpr <$> convertBlock block
 convertExpr e@(BlockExpr _ _ (Just _) _) = error $ "Labels are not part of the supported Rust subset.\n" <> show e
 convertExpr e@BlockExpr {} = error $ "Currently, we do not support attributes on block expressions.\n" <> show e
 convertExpr e@TryBlock {} = error $ "Currently, we do not support try-block expressions. Please use a function. \n" <> show e
@@ -128,7 +127,7 @@ convertStmt (Local pat ty (Just e) [] _) = do
   let ty' = Sub.RustType . void <$> ty
   e' <- convertExpr e
   return $ Sub.Local pat' ty' e'
-convertStmt s@(Local pat _ Nothing _ _) =
+convertStmt s@(Local _pat _ Nothing _ _) =
   error $ "Variables bind values and as such they need to be initialized. \n" <> show s
 convertStmt s@Local {} =
   error $ "Currently, we do not support attributes on local bindings.\n" <> show s
@@ -167,14 +166,16 @@ convertPath p@(Path _ segments _) =
             ty
     [] -> error $ "I received a path with no segments. I do not konw what to do with it: " <> show p
 
+convertPathSegment :: ConvertM m => PathSegment Span -> m String
 convertPathSegment (PathSegment Ident {name = n} Nothing _) = return n
 convertPathSegment e@PathSegment {} = error $ "Currently, we support type parameters only on the last element of the path.\n" <> show e
 
+convertLastSegment :: ConvertM m => PathSegment Span -> m (String, Maybe Sub.GenericArgs)
 convertLastSegment (PathSegment Ident {name = n} ty _) = (n,) <$> mapM convertGenericArgs ty
 
 convertGenericArgs :: ConvertM m => GenericArgs Span -> m Sub.GenericArgs
 convertGenericArgs (AngleBracketed args [] _) = Sub.AngleBracketed <$> mapM convertGenericArg args
-convertGenericArgs a@(AngleBracketed _ as _) = error $ "Currently, we do not support type constraints: " <> show a
+convertGenericArgs a@(AngleBracketed _ _as _) = error $ "Currently, we do not support type constraints: " <> show a
 convertGenericArgs (Parenthesized argTys (Just funTargetTy) _) =
   Sub.Parenthesized <$> mapM convertTy argTys <*> (Just <$> convertTy funTargetTy)
 convertGenericArgs (Parenthesized argTys Nothing _) = flip Sub.Parenthesized Nothing <$> mapM convertTy argTys
@@ -212,7 +213,7 @@ convertPat p@PathP {} = error $ "Currently, we do not support path patterns: " <
 convertPat pat@(TupleP patterns _) =
   let unwrapIdentPat p =
         case p of
-          Sub.IdentP p -> return p
+          Sub.IdentP pa -> return pa
           _ -> error $ "Currently, we do not support nested tuple patterns: " <> show pat
    in Sub.TupP <$> mapM (unwrapIdentPat <=< convertPat) patterns
 convertPat p@OrP {} = error $ "Currently, we do not support or patterns: " <> show p <> "."
@@ -259,4 +260,5 @@ convertLit l@Float{} s        = return $ Sub.RustLit (Rust.Lit [] l s) (Sub.Rust
 asRustPathTy :: String -> Ty ()
 asRustPathTy s = PathTy Nothing (Path False [PathSegment (fromString s) Nothing ()] ()) ()
 
+seqParProgNote :: Text
 seqParProgNote = "In a sequential program, memory management can be performed at compile-time via the borrowing concept. For a parallel program, this is not easily possible anymore. You will have to move your memory management from compile-time to runtime, i.e., from references to std::sync::Arc. Currently, we do not perform this conversion."

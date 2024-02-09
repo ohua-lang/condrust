@@ -43,14 +43,14 @@ backend outDir options compiled lang arch placeholder =
     (pure . Com.lowerRetCom arch . Com.lowerChannels arch) >>=
     Types.build arch lang >>=
     Types.serialize arch lang placeholder >>=
-    mapM_ writeFile -- >>=
+    mapM_ writeCodeFile -- >>=
     -- writePlaceholder
     -- REMINDER: Here I probably just need to write
     -- the module that placeholder holds the place for
     -- REMINDER: Another option is passing it to the Implementation Backend i.e.
     -- to build or serialize such that the Inntegration can handle the import
     where
-        writeFile (file, code) = do
+        writeCodeFile (file, code) = do
             let fullPath = outDir </> file
             liftIO $ L.writeFile fullPath code
             logInfoN $ "Code written to '" <> T.pack fullPath <> "'"

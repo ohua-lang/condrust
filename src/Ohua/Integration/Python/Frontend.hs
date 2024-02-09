@@ -132,7 +132,7 @@ instance Integration (Language 'Python) where
                     Module ->
                     PythonNamespace ->
                     m (Delta PythonVarType Resolved)
-    loadTypes lang (Module _filepath _pymodule) ohuaNS = do
+    loadTypes _lang (Module _filepath _pymodule) ohuaNS = do
         methodCalls <- concat <$> mapM methods (ohuaNS^.algos)
         let defaults_and_used = foldr (\(qb, ty) hm -> HM.insert qb ty hm) TH.defaultMethods methodCalls
         return defaults_and_used
@@ -232,8 +232,8 @@ subStmtToIR _t (Sub.CondStmt [(cond, suite)] elseSuite) = do
             Just block -> subSuiteToIR (Sub.PySuite block)
     return $ IfE cond' suite' elseSuite'
 
--- FIXME patterns are non exhaaustive here because CondStmt is not specific enough 
---       it has to be a NonEmpt of ifsAndSuits
+-- FIXME patterns are non exhaustive here because CondStmt is not specific enough 
+--       it has to be a NonEmpty of ifsAndSuits
 subStmtToIR t (Sub.CondStmt ifsAndSuits elseSuite) = do
     let ((ifE, suite):elifs) = ifsAndSuits
     condE <- subExprToIR t ifE
@@ -285,7 +285,7 @@ subExprToIR t (Sub.Lambda params expr) = do
     expr' <- subExprToIR t expr
     put ctxt
     return $ LamE params' expr'
-subExprToIR t (Sub.Tuple exprs) = do
+subExprToIR _t (Sub.Tuple exprs) = do
     exprs' <- mapM (subExprToIR defaultType) exprs
     tupleCall <- toFunRefLit TH.tupleConstructor (asInputTypes exprs', pythonTupleType exprs )
     return $ AppE tupleCall exprs'

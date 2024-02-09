@@ -1,9 +1,7 @@
-{-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE InstanceSigs, TypeOperators #-}
 module Ohua.Integration.Rust.Backend where
 
 import Data.Functor.Foldable (cata, embed)
-import qualified Data.HashMap.Lazy as HM
-import Data.List ((!!))
 import Data.Maybe
 import Language.Rust.Parser (Span)
 import Language.Rust.Syntax as Rust hiding (Rust)
@@ -48,11 +46,11 @@ instance Integration (Language 'Rust) where
       -> arch
       -> Namespace (RustProgram (TaskExpr (EmbExpr (Language 'Rust)) RustVarType)) (AlgoSrc (Language 'Rust)) (OhuaType RustVarType 'Resolved)  
       -> m (Namespace (RustProgram (Task (Language 'Rust))) (AlgoSrc (Language 'Rust)) (OhuaType RustVarType 'Resolved)) 
-  lower (Module _path (SourceFile _ _ items)) arch ns =
+  lower (Module _path (SourceFile _ _ _)) arch ns' =
     return $
-      ns & algos %~ map (\algo -> algo & algoCode %~ convertTasks (algo ^. algoInputCode))
+      ns' & algos %~ map (\algo -> algo & algoCode %~ convertTasks (algo ^. algoInputCode))
     where
-      convertTasks fnDef (Program chans resultChnl tasks) =
+      convertTasks _fnDef (Program chans resultChnl tasks) =
         Program
           chans
           resultChnl

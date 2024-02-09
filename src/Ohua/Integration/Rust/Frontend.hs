@@ -14,7 +14,7 @@ import Language.Rust.Parser (Span)
 import Language.Rust.Syntax as Rust hiding (Rust)
 
 import Ohua.Commons.Prelude
-import qualified Ohua.Commons.Prelude as Res (FunType)
+
 import Ohua.Frontend.Types
 import Ohua.Frontend.TypeSystem (Delta)
 import Ohua.Frontend.PPrint ()
@@ -23,8 +23,7 @@ import Ohua.Frontend.Lang as FrLang
       UnresolvedExpr,
       MethodRepr(..),
       Pat(TupP, VarP),
-      flattenU,
-      patType)
+      flattenU)
 
 import Ohua.Integration.Lang
 import Ohua.Integration.Rust.Util
@@ -95,8 +94,8 @@ instance Integration (Language 'Rust) where
       -- how cargo works. For now I'll assume crate imports to just live in the same directory, replacing 'crate' with './'
       extractImports :: ErrAndLogM m => [Binding] -> UseTree Span -> m (NonEmpty Import)
       -- UseTreeSimple means: 'use something;'
-      extractImports prefix (UseTreeSimple path (Just alias) _) =
-        (:| []) . flip Alias (toBinding alias) . makeThrow . (prefix <>) <$> toBindings path
+      extractImports prefix (UseTreeSimple path (Just bAlias) _) =
+        (:| []) . flip Alias (toBinding bAlias) . makeThrow . (prefix <>) <$> toBindings path
       extractImports prefix u@(UseTreeSimple path Nothing _) = do
         bnds <- reverse <$> toBindings path
         case bnds of
@@ -262,12 +261,10 @@ instance ConvertExpr Sub.Expr where
     args' <- mapM convertExpr args
     return $ fun' `AppE` args'
   -- ToDo: I don't think we should pass the receiver just as a binding, losing potential type information and
-  convertExpr (Sub.MethodCall objE (Sub.CallRef (QualifiedBinding nsRef funName) _) args) = do
+  convertExpr (Sub.MethodCall objE (Sub.CallRef (QualifiedBinding _nsRef funName) _) args) = do
     objE' <- convertExpr objE
     args' <- mapM convertExpr args
     return $ StateFunE objE' (MethodUnres funName) args'
-  -- FIXME: This belongs into subset conversion
-  convertExpr (Sub.MethodCall obj _ _ ) = error $ "A method call on something other than a struct variable, namely "<> show obj <>" was found but we only support variables."
   convertExpr (Sub.Tuple []) = return (LitE UnitLit)
   convertExpr (Sub.Tuple (v:vars)) = do
     v'<- convertExpr v

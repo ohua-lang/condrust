@@ -5,10 +5,7 @@ import qualified Data.ByteString.Lazy.Char8 as L
 import qualified Data.HashMap.Lazy as HM
 import Data.Text.Prettyprint.Doc hiding (Pretty)
 import Data.Text.Prettyprint.Doc.Render.Text
-import Data.Text.Lazy (unpack)
 
-import Language.Rust.Data.Ident
-import Language.Rust.Pretty (pretty', Resolve, Pretty)
 import Language.Rust.Syntax as Rust hiding (Rust)
 import Language.Rust.Parser (Span)
 
@@ -27,19 +24,19 @@ serialize ::
   -> TH.Module 
   -> m (NonEmpty (FilePath, L.ByteString))
 -- REMINDER: Replace Placeholder. Output new library file
-serialize (TH.Module path (SourceFile modName atts items)) ns createProgram placeholder =
-  let algos' = HM.fromList $ map (\(Algo name _ty expr _ ) -> (name, expr)) $ ns ^. algos
+serialize (TH.Module path (SourceFile modName atts items)) ns' createProgram placeholder =
+  let algos' = HM.fromList $ map (\(Algo aName _ty expr _ ) -> (aName, expr)) $ ns' ^. algos
       src = SourceFile modName atts $ map (replaceAlgo algos') items
       path' = takeFileName path -- TODO verify this!
       (TH.Module libname lib) = placeholder
    in return $ (path', render src) :| [(libname, render lib)]
   where
     -- FIXME now we can just insert instead of replacing them!
-    replaceAlgo algos = \case
-      f@(Fn atts vis ident decl@(FnDecl _args _ _ _) header gen _ span) ->
-        case HM.lookup (toBinding ident) algos of
+    replaceAlgo algs = \case
+      f@(Fn attrs vis ident decl@(FnDecl _args _ _ _) header gen _ span) ->
+        case HM.lookup (toBinding ident) algs of
           Just algo ->
-            Fn atts vis ident decl header gen (span <$ createProgram algo) span
+            Fn attrs vis ident decl header gen (span <$ createProgram algo) span
           Nothing -> f
       i -> i
 

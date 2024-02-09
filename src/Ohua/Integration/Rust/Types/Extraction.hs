@@ -9,9 +9,7 @@ import Ohua.Integration.Rust.Util
 import Ohua.Integration.Rust.Common.Subset as Sub (TyRef (..), CallRef (..), RustType(..) )
 import Ohua.Integration.Rust.Frontend.Convert (convertTy, convertPath)
 
-import Ohua.Commons.Types.Unit (Unit)
-
-import Language.Rust.Syntax as Rust hiding (Normal, Type)
+import Language.Rust.Syntax as Rust hiding (Normal)
 import Language.Rust.Data.Ident (Ident(..))
 import Language.Rust.Parser (Span, parse, inputStreamFromString)
 import Language.Rust.Pretty as RustP
@@ -19,7 +17,7 @@ import Language.Rust.Pretty as RustP
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text.Prettyprint.Doc as Doc (Pretty(..))
 import qualified Data.List.NonEmpty as NE
-import Data.Text (pack)
+
 import qualified Text.Show
 
 -- ToDo: Should we move this to the Common subset and replace the RustType in Subset?
@@ -49,33 +47,33 @@ type FunTypesMap = HM.HashMap QualifiedBinding (FunType RustVarType Resolved)
 
 
 instance Doc.Pretty RustVarType where
-    pretty (Self ty lT mut) = RustP.pretty' ty
+    pretty (Self ty _lT _mut) = RustP.pretty' ty
     pretty (Normal ty) = RustP.pretty' ty
 
 instance Pathable RustVarType where
     -- ToDo: Extend patterns if we need something else than PathTy types 
     toPath (Normal rTy) = toPath (RustType rTy) 
     toPath (Self ty _lT _mut) = toPath (RustType ty)
-    toPath other = error $ "Compiler is traing to transform the Rust type "<> show other <> " to a path. This hasn't been implemented. Please file a bug."
+    
     
 instance TruthableType RustVarType where
     isHostTruthy (Normal (Rust.PathTy _ (Rust.Path False [Rust.PathSegment "bool" Nothing ()] _) _)) = True
-    isHostTruthy other = False
+    isHostTruthy _other = False
 
 instance UnTupleType RustVarType where
-    unTupleType st@(Self ty _ _ ) = (st :|[])
+    unTupleType st@(Self _ty _ _ ) = (st :|[])
     unTupleType nt@(Normal (Rust.TupTy tys _ )) = case tys of
             [] ->  (nt :|[]) -- This is the representation of a Unit type
             (t:ts) ->  NE.map Normal (t:|ts)
-    unTupleType nt@(Normal other) = (nt :|[])
+    unTupleType nt@(Normal _other) = (nt :|[])
 
 instance ListElementType RustVarType where
     asListElementType (Normal (Rust.PathTy Nothing (Path False [PathSegment "Vec" (Just (AngleBracketed [TypeArg (itemTy)] _ _ )) _] _) _)) = Just (Normal itemTy) 
-    asListElementType other = Nothing 
+    asListElementType _other = Nothing 
 
 instance TellUnitType RustVarType where
     isHostUnit (Normal (Rust.TupTy [] _ )) = True
-    isHostUnit other = False
+    isHostUnit _other = False
 
 rustUnitReturn :: Ty ()
 rustUnitReturn = Rust.TupTy [] () -- Nothing (Rust.Path False [Rust.PathSegment "()" Nothing ()] ()) ()
@@ -113,7 +111,7 @@ extract :: forall m.ErrAndLogM m => FilePath -> SourceFile Span -> m (HM.HashMap
 extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
     where
         extractTypes :: [Item Span] -> m [(QualifiedBinding, FunType RustVarType Resolved)]
-        extractTypes items =
+        extractTypes items' =
             catMaybes . concat <$>
             mapM
                 (\case
@@ -123,17 +121,17 @@ extract srcFile (SourceFile _ _ items) = HM.fromList <$> extractTypes items
                         (argTys, retTy) <- getTypes decl
                         let fType =  FunType argTys retTy
                         return (Just (fName, fType): [])
-                    (Impl atts _ _ _ _ _ _ selfType items _) -> do
+                    (Impl atts _ _ _ _ _ _ selfType items'' _) -> do
                         path <- getPath atts
                         selfTyRef <- convertTy selfType
                         let path' = prependNS path selfTyRef
-                        mapM (extractFromImplItem path' selfType) items
-                    (Trait atts _ ident _ _ _ _ items span) -> do
+                        mapM (extractFromImplItem path' selfType) items''
+                    (Trait atts _ ident _ _ _ _ items'' span) -> do
                         (NSRef path) <- getPath atts
                         let path' = NSRef $ path ++ [toBinding ident]
-                        mapM (extractFromTraitItem path' (toTraitType ident span)) items
+                        mapM (extractFromTraitItem path' (toTraitType ident span)) items''
                     _ -> return [])
-                items
+                items'
 
         prependNS (NSRef path1) (TyRef (QualifiedBinding (NSRef path2) bnd2) _) =
             NSRef $ path1 ++ path2 ++ [bnd2]
@@ -196,7 +194,7 @@ extractFunType _ f@(FnDecl _ _ True _) = throwError $ "Currently, we do not supp
 extractFunType f (FnDecl args retType _ _) =
     case args of
         [] -> return $ FunType (Left ()) (fromMaybeRet retType)
-        (fstArg : args) -> f fstArg (map toVarType args) (fromMaybeRet retType)
+        (fstArg : argumnts) -> f fstArg (map toVarType argumnts) (fromMaybeRet retType)
 
 convertImplArg :: Ty Span -> Arg Span -> OhuaType RustVarType Resolved 
 convertImplArg selfType (SelfValue _ mut _) = asHostSelf selfType Nothing mut
