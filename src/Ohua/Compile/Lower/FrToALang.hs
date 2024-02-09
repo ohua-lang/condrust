@@ -1,4 +1,4 @@
-module Ohua.Compile.Lower.FrLang where
+module Ohua.Compile.Lower.FrToALang where
 
 import Ohua.Prelude
 

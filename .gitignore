@@ -10,3 +10,4 @@ stack.yaml*
 *.css
 *.png
 *.json
+/condrust.code-workspace

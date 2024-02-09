@@ -26,8 +26,8 @@ import qualified Ohua.Core.Compile.Configuration as CConfig
 import qualified Ohua.Backend as B (backend)
 import qualified Ohua.Backend.Config as BConfig (Options)
 import qualified Ohua.Backend.Types as BT
-import Ohua.Compile.Lower.FrLang (toAlang)
-import Ohua.Compile.Lower.DFLang (toTCLang)
+import Ohua.Compile.Lower.FrToALang (toAlang)
+import Ohua.Compile.Lower.DFToTaskLang (toTCLang)
 
 import Ohua.Integration (FullIntegration, runIntegration, langInfo)
 import Ohua.Integration.Config as IConfig

@@ -17,7 +17,7 @@ import Ohua.Prelude
 import Test.Hspec
 
 import Ohua.Frontend.Lang
-import Ohua.Compile.Lower.FrLang
+import Ohua.Compile.Lower.FrToALang
 import Ohua.Core.ALang.Lang
 import Ohua.Core.Types 
 import qualified Ohua.Core.InternalFunctions as IFuns
