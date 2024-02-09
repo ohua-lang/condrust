@@ -7,9 +7,6 @@ extra-deps:
   #- git: https://github.com/sertel/ohua-frontend
   #  commit: ???
   - ../ohua-frontend # debugging
-  #- git: https://github.com/sertel/ohua-backend
-  #  commit: ???
-  - ../ohua-backend # debugging
   #- git: https://github.com/sertel/ohuac-integrations
   #  commit: ???
   - ../ohuac-integrations # debugging
@@ -31,3 +28,5 @@ nix:
   packages: [zlib.dev, zlib.out, cargo, python3Minimal]
 
 extra-package-dbs: []
+  - ordered-containers-0.2.2
+

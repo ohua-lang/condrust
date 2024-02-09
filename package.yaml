@@ -45,22 +45,22 @@ default-extensions:
 - TypeApplications
 - NamedFieldPuns
 - RecordWildCards
+- ConstraintKinds
+- StandaloneDeriving
 - RankNTypes
 - ViewPatterns
-- NoImplicitPrelude
-- StandaloneDeriving
 - DataKinds
 
 dependencies:
 - base
 - ohua-frontend
-- ohua-backend
 - ohuac-integrations
 
 
 - bytestring
 - filepath
 - directory
+
 - unordered-containers
 - lens
 - extra
@@ -77,11 +77,15 @@ dependencies:
 - th-lift-instances
 - th-lift
 - text
-- unordered-containers
 - fast-logger
 - singletons
 - prettyprinter
 
+ # additional dependencies from backend
+- containers
+- ordered-containers
+- yaml
+- recursion-schemes
 
 library:
   source-dirs: src
