@@ -4,9 +4,6 @@ packages:
 - .
 
 extra-deps:
-  #- git: https://github.com/sertel/ohua-frontend
-  #  commit: ???
-  - ../ohua-frontend # debugging
   #- git: https://github.com/sertel/ohuac-integrations
   #  commit: ???
   - ../ohuac-integrations # debugging
