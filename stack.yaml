@@ -10,10 +10,6 @@ extra-deps:
   #- git: https://github.com/sertel/ohua-frontend
   #  commit: ???
   - ../ohua-frontend # debugging
-  # - git: https://github.com/sertel/ohua-core
-  #   commit: 9600303eef3acf0e42aa1957f98654042fef58ba
-  #   subdirs: [core]
-  - ../ohua-core/core # debugging
   #- git: https://github.com/sertel/ohua-backend
   #  commit: ???
   - ../ohua-backend # debugging
