@@ -4,10 +4,6 @@ packages:
 - .
 
 extra-deps:
-  #- git: https://github.com/sertel/ohuac-integrations
-  #  commit: ???
-  - ../ohuac-integrations # debugging
-
   # for reproducibility reasons, stack requires me to specify this again here.
   # TODO Is there a way that I can tell stack that it should use the version specified in ohuac-integrations?
   - github: Pagolin/language-rust #GaloisInc/language-rust

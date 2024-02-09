@@ -5,6 +5,9 @@ import Test.Hspec
 -- Frontend tests
 import qualified ResolveSpec
 
+-- Integration tests
+import qualified Integrations.Rust.TypeHandlingSpec as RustTyExtract
+
 -- Compiler Tests
 import qualified LoweringSpec as Lowering
 import qualified ConfigSpec as Config
@@ -12,13 +15,17 @@ import qualified Integrations.Rust.SharedMemory.Spec as Rust
 import qualified Integrations.Rust.M3.Spec as RustM3
 import qualified Integrations.Python.Spec as Python
 
+
 main :: IO ()
 main = hspec spec
 
+spec :: Spec
 spec = do
   describe "Frontend: ResolveSpec" ResolveSpec.spec
+  describe "Rust Integrations: Type Extraction Spec" RustTyExtract.spec
 --  describe "LoweringSpec" Lowering.spec
   describe "Compiler: ConfigSpec" Config.spec
   describe "Compiler: Rust Integration SharedMemory" Rust.spec
   describe "Compiler: Python Integration" Python.spec
   describe "Compiler: Rust Integration M3" RustM3.spec
+

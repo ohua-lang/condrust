@@ -53,18 +53,15 @@ default-extensions:
 
 dependencies:
 - base
-- ohuac-integrations
-
-
 - bytestring
 - filepath
 - directory
-
 - unordered-containers
 - lens
 - extra
-
- # additional dependencies from commons
+- language-rust
+- language-python
+- template-haskell
 - universum >= 1.0 # on version 1.6.1
 - generic-lens >= 1.0.0.2
 - data-default-class
@@ -79,8 +76,6 @@ dependencies:
 - fast-logger
 - singletons
 - prettyprinter
-
- # additional dependencies from backend
 - containers
 - ordered-containers
 - yaml
