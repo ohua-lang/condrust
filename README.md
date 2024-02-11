@@ -1,6 +1,6 @@
 # The standalone Ohua compiler: `ohuac`
 
-[![.github/workflows/build.yml](https://github.com/ohua-lang/ohuac/actions/workflows/build.yml/badge.svg)](https://github.com/ohua-lang/ohuac/actions/workflows/build.yml)
+[![.github/workflows/build.yml](https://github.com/ohua-lang/condrust/actions/workflows/build.yml/badge.svg)](https://github.com/ohua-lang/condrust/actions/workflows/build.yml)
 
 ## Usage
 
@@ -16,7 +16,7 @@ Required tools:
 
 1. Clone the repository
 ```
-git clone https://github.com/ohua-dev/ohuac
+git clone https://github.com/ohua-dev/condrust
 ```
 
 2. Build the program
