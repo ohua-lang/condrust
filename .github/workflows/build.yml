@@ -13,7 +13,7 @@ jobs:
         uses: actions/checkout@v3
         with:
           repository: 'ohua-lang/condrust'
-          token: ${{ secrets.PULL_TOKEN }}
+          # token: ${{ secrets.PULL_TOKEN }}
           fetch-depth: 0
           path: 'condrust'
       - name: Get current branch
@@ -62,5 +62,5 @@ jobs:
           nix-shell --run "stack build"
       - name: Run tests
         run: |
-          cd ohuac
+          cd condrust
           nix-shell --run "stack test"
