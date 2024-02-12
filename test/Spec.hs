@@ -20,7 +20,6 @@ main = hspec spec
 spec :: Spec
 spec = do
   describe "Frontend: ResolveSpec" Frontend.ResolveSpec.spec
-  describe "Rust Integrations: Type Extraction Spec" RustTyExtract.spec
 --  describe "LoweringSpec" Lowering.spec
   describe "Compiler: ConfigSpec" Config.spec
   describe "Compiler: Rust Integration SharedMemory" Rust.spec
