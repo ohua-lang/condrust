@@ -3,10 +3,8 @@ import Prelude
 import Test.Hspec
 
 -- Frontend tests
-import qualified ResolveSpec
+import qualified Frontend.ResolveSpec
 
--- Integration tests
-import qualified Integrations.Rust.TypeHandlingSpec as RustTyExtract
 
 -- Compiler Tests
 import qualified LoweringSpec as Lowering
@@ -21,7 +19,7 @@ main = hspec spec
 
 spec :: Spec
 spec = do
-  describe "Frontend: ResolveSpec" ResolveSpec.spec
+  describe "Frontend: ResolveSpec" Frontend.ResolveSpec.spec
   describe "Rust Integrations: Type Extraction Spec" RustTyExtract.spec
 --  describe "LoweringSpec" Lowering.spec
   describe "Compiler: ConfigSpec" Config.spec

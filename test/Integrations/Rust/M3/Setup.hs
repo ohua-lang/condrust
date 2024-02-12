@@ -99,8 +99,8 @@ compileModule inCode opts cty = do
           let outFile = outDir </> takeFileName inFile
 
           producedCode <- readFile outFile
-          putStr ("\n PRODUCED MODULE: \n"::String)
-          putStr producedCode
+          -- putStr ("\n PRODUCED MODULE: \n"::String)
+          -- putStr producedCode
           -- putStr ("\n \n \n"::String)
           -- placeholderFile <-readFile (outDir </> "placeholderlib.rs")
           -- putStr placeholderFile
