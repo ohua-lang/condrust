@@ -49,13 +49,6 @@ jobs:
           echo "name=hash::$(nix-instantiate --eval -E '(import <nixpkgs> {}).lib.version')" >> $GITHUB_OUTPUT
         shell: bash
       
-#      - name: Cache Haskell build artifacts for dependencies
-#        uses: actions/cache@v2
-#        with:
-#          path: |
-#            ohuac/.stack_work
-#            ~/.stack
-#          key: ohuac-${{ runner.os }}-${{ steps.nixpkgs-hash.outputs.hash }}-${{ hashFiles('ohuac/stack.yaml') }}
       - name: Build condrust
         run: |
           cd condrust
