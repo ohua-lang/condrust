@@ -86,6 +86,7 @@ library:
   source-dirs: src
   dependencies:
   - async
+  - transformers
   - mtl
   - text
   - recursion-schemes
