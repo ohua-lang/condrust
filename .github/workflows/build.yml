@@ -35,7 +35,7 @@ jobs:
         shell: bash
 
       - name: Setup Haskell
-        uses: haskell/actions/setup@v1
+        uses: haskell-actions/setup@v1
       # set up nix
       - name: Install nix
         uses: cachix/install-nix-action@v18
