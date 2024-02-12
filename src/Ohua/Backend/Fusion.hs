@@ -279,17 +279,17 @@ fuseSTCLang :: forall ty embExpr.
             -> TCProgram (Channel embExpr ty) (Com 'Recv embExpr ty) embExpr (Fusable embExpr ty (FusedFunCtrl embExpr ty) (FusedLitCtrl embExpr ty))
 fuseSTCLang (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ go exprs
     where
-        go all =
-            let stcs = findSTCLangs all
-                sourceAndTarget = map (\stc -> (findSource all stc, stc)) stcs
+        go allEs =
+            let stcs = findSTCLangs allEs
+                sourceAndTarget = map (\stc -> (findSource allEs stc, stc)) stcs
                 (toFuse, unfusable) = split sourceAndTarget
                 fused = map (Control . Left . uncurry fuseIt) toFuse
                 sTfilter = HS.fromList $ concatMap (\(x,y) -> [x,STC y]) sourceAndTarget
-                noFused = filter (not . (`HS.member` sTfilter)) all
+                noFused = filter (not . (`HS.member` sTfilter)) allEs
                 all' = noFused ++ fused
             in case unfusable of
                  [] -> all'
-                 _  -> if HS.fromList all == HS.fromList all'
+                 _  -> if HS.fromList allEs == HS.fromList all'
                  then error "endless loop detected. there are ctxtExits that can not be fused."
                  else go all'
 
@@ -311,7 +311,7 @@ fuseSTCLang (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ go
           map
             (\e@(source, target) ->
                 case source of
-                  STC s ->
+                  STC _s ->
                     Right target
                   _ -> Left e)
             xs
@@ -339,19 +339,19 @@ fuseSTCLang (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ go
         isSource inp (Control (Right (FusedLitCtrl _ _ (Right r)))) = isSource inp $ Fun r
         isSource _inp (Unfusable _) = False
         isSource _inp (Fun PureFusable{}) = False
-        isSource inp (Fun (STFusable _ _ app _ send)) = (== Just inp) send
-        isSource inp (Fun IdFusable{}) = False
-        isSource inp SMap{} = False
-        isSource inp Recur{} = False
+        isSource inp (Fun (STFusable _ _ _app _ send)) = (== Just inp) send
+        isSource _inp (Fun IdFusable{}) = False
+        isSource _inp SMap{} = False
+        isSource _inp Recur{} = False
 
 -- TODO actually, the fusion of functions into SMap is context-dependent.
 --      in case of a nested SMap, the fusion actually kills pipeline parallelism!
 fuseSMaps :: forall embExpr ty. (Show embExpr) => 
           TCProgram (Channel embExpr ty) (Com 'Recv embExpr ty) embExpr (Fusable embExpr ty (VarCtrl embExpr ty) (LitCtrl embExpr ty))
           -> TCProgram (Channel embExpr ty) (Com 'Recv embExpr ty) embExpr (Fusable embExpr ty (VarCtrl embExpr ty) (LitCtrl embExpr ty))
-fuseSMaps (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ go exprs
+fuseSMaps (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ go 
   where
-    go all = let smaps = mapMaybe getSMap exprs
+    go     = let smaps = mapMaybe getSMap exprs
                  exprs' = filter (not . isSMap) exprs
              in foldl getAndDropIt exprs' smaps
 
@@ -378,7 +378,7 @@ fuseSMaps (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ go e
                -> Fusable embExpr ty (VarCtrl embExpr ty) (LitCtrl embExpr ty)
                -> Maybe (TaskExpr embExpr ty)
     getAndDrop smap inp
-      (Control (Left (VarCtrl cIn p@(OutputChannel c@(SChan b),inData) )))
+      (Control (Left (VarCtrl cIn p@(OutputChannel c@(SChan b),_inData) )))
       | c == inp =
           Just $ genFused $ fuseSMap (FunCtrl cIn (p:|[])) $ SMap.fuse b smap
     -- we could of course also fuse if the function returns a tuple or a dispatch but let's
@@ -417,9 +417,9 @@ sortByDependency (TCProgram chans resultChan exprs) = TCProgram chans resultChan
         orderTasks [] _ = []
         orderTasks tasks fulfilledDependencies =
             let taskInOut = map (\t -> (t, findInputs t, findReturns t)) tasks
-                toBeScheduled = filter (\(t, ins, outs) -> ins `HS.intersection` fulfilledDependencies == ins) taskInOut
-                fulfilled = HS.fromList $ concatMap (\(t, ins, outs) -> outs) toBeScheduled
-                scheduled = map (\(t, ins, outs) -> t) toBeScheduled
+                toBeScheduled = filter (\(_t, ins, _outs) -> ins `HS.intersection` fulfilledDependencies == ins) taskInOut
+                fulfilled = HS.fromList $ concatMap (\(_t, _ins, outs) -> outs) toBeScheduled
+                scheduled = map (\(t, _ins, _outs) -> t) toBeScheduled
                 remaining = filter (`notElem` scheduled) tasks
             in scheduled ++ orderTasks remaining (fulfilledDependencies `HS.union` fulfilled)
 

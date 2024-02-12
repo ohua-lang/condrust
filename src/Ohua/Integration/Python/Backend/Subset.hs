@@ -4,7 +4,7 @@ module Ohua.Integration.Python.Backend.Subset where
 import Ohua.Commons.Prelude 
 
 import Data.Functor.Foldable.TH (makeBaseFunctor)
-import Language.Haskell.TH.Syntax (Lift)
+import Language.Haskell.TH.Syntax ()
 import Control.Lens.Plated
 
 import Language.Python.Common (SrcSpan)

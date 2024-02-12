@@ -92,7 +92,28 @@ instance Pretty (DFApp fTy embExpr ty) where
             , "ifFun"
             ] <>
             [align $ tupled [pretty dIn]]
-    -- ToDo: Add pretty fpr builtIns CollectFun, CtrlFun, SelectFun
+    pretty (CollectFun out dIn1 dIn2) =
+        hsep $
+            [ align $ pretty out
+            , "="
+            , "collectFun"
+            ] <>
+            [align $ tupled [pretty dIn1, pretty dIn2]]
+    pretty (CtrlFun out cIn dIn) =
+        hsep $
+            [ align $ pretty out
+            , "="
+            , "ctrlFun"
+            ] <>
+            [align $ tupled [pretty cIn, pretty dIn]]
+    pretty (SelectFun out cIn dIn1 dIn2) =
+        hsep $
+            [ align $ pretty out
+            , "="
+            , "selectFun"
+            ] <>
+            [align $ tupled [pretty cIn, pretty dIn1, pretty dIn2]]
+   
             
 instance Pretty (OutData bTy ty) where
     pretty (Direct b) = pretty b

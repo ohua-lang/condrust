@@ -21,10 +21,8 @@ import Ohua.Frontend.Lang
     , ResolvedExpr
     , Expr(..)
     , MethodRepr(..)
-    , UnresolvedPat(..)
-    , ResolvedPat(..)
-    , UnresolvedType
-    , ResolvedType
+    , UnresolvedPat
+    , ResolvedPat
     , Pat(TupP, VarP)
     , patTyBnds
     , patType

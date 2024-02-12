@@ -89,7 +89,7 @@ trans =
     \case
         VarE b ty -> Var $ TBind b ty
         LitE l -> Lit l
-        LetE p e1 e2@LitE{} -> 
+        LetE _p e1 e2@LitE{} -> 
             let litReplaced = constLit  e1 e2 
             in trans litReplaced
         LetE p e1 e2 -> Let (patToTBind p) (trans e1) (trans e2)

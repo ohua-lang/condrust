@@ -46,7 +46,7 @@ resolveSymbols delta mod_imports (Just nspace) bnd =
   in case potential_defs of
        [] -> Right $ QBndError (QualifiedBinding nspace bnd)
        [(qb, t)] -> Left (qb, t)
-       (def:defs) -> Right $ AmbiguousImports potential_qbs
+       (def:_defs) -> Right $ AmbiguousImports potential_qbs
        
 resolveSymbols delta mod_imports Nothing bnd =
   -- Bindings wihtout a namespace can be local (functions) or, imported by Full, Global or Alias import just like 
@@ -69,11 +69,11 @@ resolveQBnd :: [Import] -> QualifiedBinding -> [QualifiedBinding]
 --    if the symbol lookup in delta yields multiple results the import is ambiguose.
 -- ToDo?: We could add a check here, to not add potential global namespaces if there already was a fully specified (i.e. unequivocal) import
 resolveQBnd [] qb = [qb]
-resolveQBnd (Full (NSRef impSpaces) ns : imps) qb@(QualifiedBinding (NSRef []) b)
+resolveQBnd (Full (NSRef impSpaces) ns : imps) (QualifiedBinding (NSRef []) b)
   | ns == b = [QualifiedBinding (NSRef impSpaces) b]
-resolveQBnd (Full (NSRef impSpaces) ns : _imps) qb@(QualifiedBinding (NSRef funSpaces@(fs:fss)) b)
+resolveQBnd (Full (NSRef impSpaces) ns : _imps) (QualifiedBinding (NSRef funSpaces@(fs:fss)) b)
   | ns == fs = [QualifiedBinding (NSRef $ impSpaces ++ funSpaces) b]
-resolveQBnd (Alias nspace alias: _imps) qb@(QualifiedBinding nspace' b)
+resolveQBnd (Alias nspace alias: _imps) (QualifiedBinding nspace' b)
   | NSRef [alias] == nspace' = [QualifiedBinding nspace b]
 resolveQBnd (Glob (NSRef impSpaces) : imps) qb@(QualifiedBinding (NSRef funSpaces) b)
   = QualifiedBinding (NSRef $ impSpaces ++ funSpaces) b : resolveQBnd imps qb

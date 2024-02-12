@@ -73,8 +73,8 @@ unwrapStmt s = error $ "unwrapStmt is not supposed to be used on " <> show s
 load :: FilePath -> IO (Module SrcSpan)
 load srcFile =  do
     content <- readFile srcFile
-    let name =  takeFileName srcFile
-    return $ wrappedParsing (T.unpack content) name
+    let fname =  takeFileName srcFile
+    return $ wrappedParsing (T.unpack content) fname
 
 -- Todo: Remove when QQ is available
 --import multiprocessing as mp
