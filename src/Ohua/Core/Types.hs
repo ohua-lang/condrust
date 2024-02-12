@@ -16,7 +16,7 @@
 -- This source code is licensed under the terms described in the associated LICENSE.TXT file
 {-# LANGUAGE CPP                        #-}
 
--- #include "compat.h"
+#include "compat.h"
 
 module Ohua.Core.Types
     ( SomeBinding(..)

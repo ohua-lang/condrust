@@ -12,7 +12,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -fno-warn-deprecations #-}
 
--- #include "compat.h"
+#include "compat.h"
 
 #if !NEW_CALLSTACK_API
 {-# LANGUAGE ImplicitParams#-}
@@ -62,7 +62,7 @@ import qualified Data.Text as T
 -- import qualified Data.Text.Prettyprint.Doc.Render.Text as PP
 
 #if !NEW_CALLSTACK_API
-import GHC.Stack
+import GHC.Stack hiding (HasCallStack)
 #endif
 
 

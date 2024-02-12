@@ -21,13 +21,13 @@ dependencies:
 - deepseq
 - data-default-class
 - universum >= 1.0
-- ohua-core
 - QuickCheck
 - array
 - template-haskell
 - fgl
 - lens
-- ohuac-commons
+- condrust 
+
 default-extensions:
 - OverloadedStrings
 - OverloadedLists
@@ -66,5 +66,6 @@ tests:
     source-dirs: test
     main: Spec.hs
     dependencies:
+    - condrust
     - ohua-test-tools
     - hspec

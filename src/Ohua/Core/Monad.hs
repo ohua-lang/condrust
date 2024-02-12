@@ -1,6 +1,6 @@
 {-# LANGUAGE CPP #-}
 
--- #include "compat.h"
+#include "compat.h"
 
 module Ohua.Core.Monad
     ( OhuaM, runFromExpr, runFromBindings, runFromExprAndType

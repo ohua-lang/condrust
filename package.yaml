@@ -1,15 +1,16 @@
-name: ohuac
+name: condrust
 version: '0.3.0'
 category: Devel
 author: Sebastian Ertel
 maintainer: sebastian.ertel@gmail.com
 copyright: © 2020 Sebastian Ertel
 license: OtherLicense
-github: sertel/ohuac
+github: ohua-lang/condrust
 
 
 extra-source-files:
 - README.md
+- cbits/compat.h
 
 
 description:         Please see the README on GitHub at <https://github.com/ohua-lang/condrust#readme>
@@ -88,10 +89,14 @@ library:
   - mtl
   - text
   - recursion-schemes
+  - free
+  - comonad
   - lifted-async
   - containers
   - casing
   - yaml
+  include-dirs:
+    cbits
   
   # see ghcide bug: https://github.com/digital-asset/ghcide/issues/49
   # for now comment those out on commit
@@ -99,11 +104,11 @@ library:
   # - raw-strings-qq
 
 executables:
-  ohuac:
+  condrust:
     main: Main.hs
     source-dirs: app
     dependencies:
-    - ohuac
+    - condrust
     - optparse-applicative
     - time
     - template-haskell
@@ -128,7 +133,7 @@ tests:
     - -Wall
     dependencies:
     - base
-    - ohuac
+    - condrust
     - yaml
     - hspec
     - raw-strings-qq
