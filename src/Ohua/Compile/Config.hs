@@ -1,7 +1,7 @@
 {-|
 
 Module      : $Header$
-Description : Configuration for the ohuac compiler.
+Description : Configuration for the condrust compiler.
 Copyright   : (c) Sebastian Ertel 2020. All Rights Reserved.
 License     : OtherLicense
 Maintainer  : sebastian.ertel@gmail.com

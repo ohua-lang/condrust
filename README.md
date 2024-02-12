@@ -29,9 +29,9 @@ stack install
    `ghc`, should it not be present already. It should not interfere with any
    system-level libraries, Haskell ecosystems etc.
 
-   It builds the executable `ohuac` and copies it to `~/.local/bin`. If you do
+   It builds the executable `condrust` and copies it to `~/.local/bin`. If you do
    not wish this use `stack build` instead and find the path of the binary using
-   `stack exec -- which ohuac` afterwards
+   `stack exec -- which condrust` afterwards
 
 
 ## Examples
