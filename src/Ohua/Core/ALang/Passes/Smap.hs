@@ -44,7 +44,7 @@ collectSf :: OhuaType ty Resolved -> Expr embExpr ty
 -- Takes a nat and the return type t of the function and returns [t]
 collectSf outTy = Lit $ FunRefLit $ FunRef IFuns.collect $ FunType (Right $ IType TypeNat :| [outTy]) (IType $ TypeList outTy)
 
-smapRewrite :: (Monad m, MonadGenBnd m) => Expr embExpr ty -> m (Expr embExpr ty)
+smapRewrite :: (Monad m, MonadGenBnd m, Show embExpr) => Expr embExpr ty -> m (Expr embExpr ty)
 smapRewrite =
     rewriteM $ \case
         PureFunctionTy fnName fnTy `Apply` lamExpr `Apply` dataGen

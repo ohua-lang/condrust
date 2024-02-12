@@ -131,7 +131,7 @@ ifSf vty = Lit $ FunRefLit $ FunRef IFuns.ifThenElse $ FunType (Right $ IType Ty
 -- (Sebastian) The recursion is handled properly below and this version is incorrect.
 --             However scrapping the boilerplate is definitely a good thing. It should be
 --             a transformM though.
-ifRewrite :: (Monad m, MonadGenBnd m, MonadError Error m) => Expr embExpr ty -> m (Expr embExpr ty)
+ifRewrite :: (Monad m, MonadGenBnd m, MonadError Error m, Show embExpr) => Expr embExpr ty -> m (Expr embExpr ty)
 ifRewrite = transformM $ \case
     Lit (FunRefLit (FunRef f _)) `Apply` cond `Apply` trueBranch `Apply` falseBranch
         | f == IFuns.ifThenElse -> do

@@ -178,7 +178,7 @@ import Ohua.Core.Prelude
 -- if e0 == Lambda args body then Lambda args body'
 -- otherwise Lambda [] e0'
 liftIntoCtrlCtxt ::
-  (Monad m, MonadGenBnd m) => TypedBinding ty -> Expr embExpr ty -> m (Expr embExpr ty)
+  (Monad m, MonadGenBnd m, Show embExpr) => TypedBinding ty -> Expr embExpr ty -> m (Expr embExpr ty)
 liftIntoCtrlCtxt ctrlIn e0 = do
   (lam', actuals) <- lambdaLifting e0
   let (originalFormals, _) = lambdaArgsAndBody e0

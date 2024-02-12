@@ -34,7 +34,7 @@ forceLog :: (MonadLogger m, NFData a) => Text -> a -> m ()
 forceLog msg a = a `deepseq` logDebugN msg
 
 -- | The canonical order of transformations and lowerings performed in a full compilation.
-pipeline :: CustomPasses embExpr ty -> ALang.Expr embExpr ty -> OhuaM (NormalizedDFExpr embExpr ty)
+pipeline :: (Show embExpr) => CustomPasses embExpr ty -> ALang.Expr embExpr ty -> OhuaM (NormalizedDFExpr embExpr ty)
 pipeline CustomPasses {..}  e = do
     stage resolvedAlang e
     ssaE <- SSA.performSSA e
@@ -67,7 +67,7 @@ pipeline CustomPasses {..}  e = do
     pure dfFinal
 
 -- | Run the pipeline in an arbitrary monad that supports error reporting.
-compile :: ErrAndLogM m => Options -> CustomPasses embExpr ty -> ALang.Expr embExpr ty-> m (NormalizedDFExpr embExpr ty)
+compile :: (ErrAndLogM m, Show embExpr) => Options -> CustomPasses embExpr ty -> ALang.Expr embExpr ty-> m (NormalizedDFExpr embExpr ty)
 compile opts passes expr = do
     logFn <- askLoggerIO
     let passes' =

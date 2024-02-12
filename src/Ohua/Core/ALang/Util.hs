@@ -54,7 +54,7 @@ destructure source bnds =
 
 
 lambdaLifting :: forall embExpr ty m.
-       (MonadGenBnd m) => Expr embExpr ty -> m (Expr embExpr ty, [Expr embExpr ty])
+       (MonadGenBnd m, Show embExpr) => Expr embExpr ty -> m (Expr embExpr ty, [Expr embExpr ty])
 lambdaLifting e = do
     (e', actuals) <- go findFreeVariables renameVar e
     (e'', actuals') <- go findLonelyLiterals replaceLit e'
@@ -98,6 +98,7 @@ lambdaLifting e = do
                 StringLit str -> show str
                 FunRefLit _ref -> error "Unsupported transformation of fun_ref literal" -- FIXME
                 EnvRefLit li _ty -> "env_" <> show li
+                HostLit l _ty -> error "Unsupported transformation of host literal to binding. This is a bug. please report." -- FIXME
     bindingFromAny anyE = error $ "Sorry, we forgott to implement bindingFromAny for " <> show anyE
 
 

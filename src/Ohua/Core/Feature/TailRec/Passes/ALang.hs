@@ -375,7 +375,7 @@ verifyTailRecursion e =
 -- Its important here that we pattern match on `Let` because `rewriteM` is a
 -- bottom up traversal an hence `isCall` would match on partial applications on
 -- the `Y` combinator. By pattern matching on `Let` here that can be avoided.
-rewriteAll :: (MonadGenBnd m) => Expr embExpr ty -> m (Expr embExpr ty)
+rewriteAll :: (MonadGenBnd m, Show embExpr) => Expr embExpr ty -> m (Expr embExpr ty)
 rewriteAll = rewriteM $ \case
     Let b e r | isCall y e -> (\e' -> Just $ Let b e' r) <$> rewriteCallExpr e
     _ -> pure Nothing
@@ -386,7 +386,7 @@ isCall f (Apply e@(Apply _ _) _) = isCall f e
 isCall _ _ = False
 
 rewriteCallExpr :: forall m embExpr ty.
-       (MonadGenBnd m) => Expr embExpr ty -> m (Expr embExpr ty)
+       (MonadGenBnd m, Show embExpr) => Expr embExpr ty -> m (Expr embExpr ty)
 rewriteCallExpr e = do
     -- callArgs are the values, the recursive algorithm is called with, e.g. 2 in rec(2)
     let (lam@(Lambda _ _): callArgs) = snd $ fromApplyToList e
@@ -427,6 +427,7 @@ rewriteCallExpr e = do
         | v == b = Let v (rewriteCond ex) o
         | otherwise = error "Value returned from recursive function was not last value bound, this is not tail recursive!"
     rewriteLastCond (Let v ex ie) = Let v ex $ rewriteLastCond ie
+    rewriteLastCond e = error "Cannot rewrite expression other than `Let a = b in c` during tailrec transformation. This is a bug. Please report."
 
 
     genFunType callArgs retTy =  FunType (Right $ map exprType callArgs) retTy

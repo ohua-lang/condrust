@@ -40,7 +40,7 @@ import qualified Ohua.Core.InternalFunctions as IFuns
 import Ohua.Core.Stage
 
 
-runCorePasses :: MonadOhua m => Expr embExpr ty -> m (Expr embExpr ty)
+runCorePasses :: (MonadOhua m, Show embExpr) => Expr embExpr ty -> m (Expr embExpr ty)
 runCorePasses expr = do
     litE <- literalsToFunctions expr
     stage literalsALang expr
