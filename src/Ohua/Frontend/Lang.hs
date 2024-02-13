@@ -66,18 +66,24 @@ patTyBnds = \case
     VarP bnd ty -> (bnd, ty) :| []
     TupP (ps) -> neConcat $ map patTyBnds ps
 
--- FIXME: Do we need to include the type of HostExpressions (not ty, but the type of the representation of host expressions (rust items or pythos exprs ...))
--- in the definition of Expr?
-type Expr :: Type -> Type -> Resolution -> (Type -> Type) -> Type
+
+-- | Expressions in the frontend language are parameterized by
+-- 1. The type of embedded host expressions: We need that to wrap e.g. host literals and just annotate them with the type so we don't have to convert
+--    every host literal (u8, i32, char, etc.pp into a haskell representation)
+-- 2. The actual type of expressions in the given intergration e.g. RustVarType 
+-- 3. The resolution to distiguish resolved and unresolved expressions during type checking in the frontend and
+-- 4. The type of lists of arguments and parameters because at some point in the frontend, we need to add Unit arguments/parameters 
+--    to calls/lambdas to satisfy compiler invariants
+type Expr :: Type -> Type -> Type -> Resolution -> (Type -> Type) -> Type
 data Expr embExpr ty res lists where
-  VarE      :: Binding -> OhuaType ty res                                                               -> Expr embExpr ty res lists
-  LitE      :: Lit embExpr ty res                                                                       -> Expr embExpr ty res lists
-  LetE      :: Pat ty res -> Expr embExpr ty res lists -> Expr embExpr ty res lists                     -> Expr embExpr ty res lists
-  AppE      :: (Traversable lists) => Expr embExpr ty res lists -> lists (Expr embExpr ty res lists)    -> Expr embExpr ty res lists
-  LamE      :: (Traversable lists) => lists (Pat ty res) -> Expr embExpr ty res lists                   -> Expr embExpr ty res lists
-  IfE       :: Expr embExpr ty res lists -> Expr embExpr ty res lists -> Expr embExpr ty res lists      -> Expr embExpr ty res lists
-  WhileE    :: Expr embExpr ty res lists -> Expr embExpr ty res lists                                   -> Expr embExpr ty res lists
-  MapE      :: Expr embExpr ty res lists-> Expr embExpr ty res lists                                    -> Expr embExpr ty res lists
+  VarE      :: Binding -> OhuaType ty res                                                                       -> Expr embExpr ty res lists
+  LitE      :: Lit embExpr ty res                                                                               -> Expr embExpr ty res lists
+  LetE      :: Pat ty res -> Expr embExpr ty res lists -> Expr embExpr ty res lists                             -> Expr embExpr ty res lists
+  AppE      :: (Traversable lists) => Expr embExpr ty res lists -> lists (Expr embExpr ty res lists)   -> Expr embExpr ty res lists
+  LamE      :: (Traversable lists) => lists (Pat ty res) -> Expr embExpr ty res lists                           -> Expr embExpr ty res lists
+  IfE       :: Expr embExpr ty res lists -> Expr embExpr ty res lists -> Expr embExpr ty res lists              -> Expr embExpr ty res lists
+  WhileE    :: Expr embExpr ty res lists -> Expr embExpr ty res lists                                           -> Expr embExpr ty res lists
+  MapE      :: Expr embExpr ty res lists-> Expr embExpr ty res lists                                            -> Expr embExpr ty res lists
   -- The function cannot be just a binding here, because it is an expression in Alang expressions
   -- and we need to "transport" the function type from the type system to the lowering
   -- StateFunE state method args
