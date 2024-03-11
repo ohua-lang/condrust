@@ -65,7 +65,7 @@ import Control.Lens.Plated
 -- | An expression in the algorithm language.
 data Expr embExpr annot ty 
     = Var (TypedBinding ty)  -- ^ Reference to a value via binding: @x@ -> @Var "x"@
-    | Lit (Lit embExpr annot ty Resolved) -- ^ A literal: @2@, @ns/func@ etc -> @Lit (NumericLit 2)@
+    | Lit (Lit embExpr ty Resolved) -- ^ A literal: @2@, @ns/func@ etc -> @Lit (NumericLit 2)@
     | Let (TypedBinding ty) (Expr embExpr annot ty) (Expr embExpr annot ty) -- ^ Create and assign a binding: @let bnd = val in expr@ -> @Let "bnd" val expr@
     | Apply (Expr embExpr annot ty) (Expr embExpr annot ty) -- ^ Function application: @function arg@ -> @Apply function arg@
     | Lambda (TypedBinding ty) (Expr embExpr annot ty) -- ^ A lambda function: @\\arg -> body@ -> @Lambda "arg" body@
@@ -184,7 +184,7 @@ instance Plated (Expr embExpr annot ty) where plate = gplate
 --     embedE = embedE . fromIntegral @Int @Integer
 -- instance Embed (Expr embExpr annot ty) Integer where
 --     embedE = embedE . NumericLit 
-instance Embed (Expr embExpr annot ty) (Lit embExpr annot ty Resolved) where
+instance Embed (Expr embExpr annot ty) (Lit embExpr ty Resolved) where
     embedE = Lit
 instance Embed (Expr embExpr annot ty) (TypedBinding ty) where
     embedE = Var

@@ -21,8 +21,8 @@ type Stmt = CS.Stmt Expr
 
 -- | This is the supported subset of the Rust language.
 data Expr
-  = Call Expr [Expr]
-  | MethodCall Expr CallRef [Expr]
+  = Call Expr [Rust.Attribute Span] [Expr]
+  | MethodCall Expr CallRef [Rust.Attribute Span] [Expr]
   | Tuple [Expr]
   | Binary BinOp Expr Expr
   | Unary UnOp Expr

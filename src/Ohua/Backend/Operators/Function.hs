@@ -36,7 +36,7 @@ data FunCall ty = Call (FunRef ty Resolved) | Tup (FunType ty Resolved) deriving
 --   5) certainly this definition of a function really is no different
 --      from the newly defined DFLang! (one more reason to move this into common.)
 
-data FusFunction sin ty embExpr
+data FusFunction sin ty embExpr annot
     = PureFusable
         [CallArg embExpr annot ty]  -- data receive
         (FunCall ty)
@@ -52,12 +52,12 @@ data FusFunction sin ty embExpr
         (NonEmpty (Result embExpr annot ty))
     deriving (Generic)
 
-deriving instance (Show (sin ty), Show ty, Show  embExpr) => Show (FusFunction sin ty embExpr) 
+deriving instance (Show (sin ty), Show ty, Show  embExpr, Show annot) => Show (FusFunction sin ty embExpr annot) 
 
 -- using a vector would have been so much nicer, but implementing Eq and Hashable
 -- manually is just a pain.
-type FusableFunction embExpr annot ty = FusFunction (Com 'Recv embExpr) ty embExpr
-type FusedFunction embExpr annot ty = FusFunction (CallArg embExpr) ty embExpr
+type FusableFunction embExpr annot ty = FusFunction (Com 'Recv embExpr annot) ty embExpr annot
+type FusedFunction embExpr annot ty = FusFunction (CallArg embExpr annot) ty embExpr annot
 
 deriving instance Hashable (FusableFunction embExpr annot ty)
 deriving instance Eq (FusableFunction embExpr annot ty)
@@ -191,7 +191,7 @@ genFused fun = genFun' (genSend fun) fun
 genFusedFun' :: (Show embExpr) => FusedFun embExpr annot ty -> TaskExpr embExpr annot ty
 genFusedFun' (FusedFun fun ct) = genFun' ct fun
 
-genFusedFun :: (Show ty, Show embExpr) => FusedFun embExpr annot ty -> TaskExpr embExpr annot ty
+genFusedFun :: (Show ty, Show embExpr, Show annot) => FusedFun embExpr annot ty -> TaskExpr embExpr annot ty
 genFusedFun f@(FusedFun fun ct) = trace ("Processing task in genFusedFun: \n" <> show fun) loop (fusedFunReceives fun) $ genFusedFun' f
 
 fusedFunReceives :: FusedFunction embExpr annot ty -> [Com 'Recv embExpr annot ty]

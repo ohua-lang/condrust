@@ -16,12 +16,11 @@ type ConvertM m = (Monad m, MonadError Error m) -- MonadState RustContext m)
 convertExpr :: ConvertM m => Rust.Expr Span -> m Sub.Expr
 convertExpr e@Box {} = error $ "Currently, we do not support the construction of boxed values. Please do so in a function." <> show e
 convertExpr e@Vec {} = error $ "Currently, we do not support array expressions. Please do so in a function.\n" <> show e
-convertExpr (Call [] fun args _) = do
+convertExpr (Call annots fun args _) = do
   fun' <- convertExpr fun
   args' <- mapM convertExpr args
-  return $ Sub.Call fun' args'
-convertExpr e@Call {} = error $ "Currently, we do not support attributes on function calls.\n" <> show e
-convertExpr (MethodCall [] receiver method args _) = do
+  return $ Sub.Call fun' annots args'
+convertExpr (MethodCall annots receiver method args _) = do
   receiver' <- convertExpr receiver
   method' <- convertLastSegment method
   let method'' = case method' of
@@ -30,8 +29,7 @@ convertExpr (MethodCall [] receiver method args _) = do
             (QualifiedBinding (makeThrow []) $ fromString n)
             ty
   args' <- mapM convertExpr args
-  return $ Sub.MethodCall receiver' method'' args'
-convertExpr e@MethodCall {} = error $ "Currently, we do not support attributes on method calls.\n" <> show e
+  return $ Sub.MethodCall receiver' method'' annots args'
 convertExpr (TupExpr [] vars _) = do
   vars' <- mapM convertExpr vars
   return $ Sub.Tuple vars'

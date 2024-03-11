@@ -19,8 +19,8 @@ import System.FilePath (takeFileName)
 serialize :: 
   ErrAndLogM m 
   => TH.Module 
-  -> Namespace (Program chan expr stmts (Rust.Expr Span) TH.RustVarType) anno (OhuaType ty 'Resolved) 
-  -> (Program chan expr stmts (Rust.Expr Span) TH.RustVarType -> Block ()) 
+  -> Namespace (Program chan expr stmts (Rust.Expr Span) (Rust.Attribute Span) TH.RustVarType) anno (OhuaType ty 'Resolved) 
+  -> (Program chan expr stmts (Rust.Expr Span) (Rust.Attribute Span) TH.RustVarType -> Block ()) 
   -> TH.Module 
   -> m (NonEmpty (FilePath, L.ByteString))
 -- REMINDER: Replace Placeholder. Output new library file

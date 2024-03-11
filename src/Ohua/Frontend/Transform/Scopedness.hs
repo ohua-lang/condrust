@@ -33,16 +33,16 @@ contextedTraversal f = go
         go _ctxt l@(LitE _ ) = return l
         -- descendM = mapMOf plate -- http://hackage.haskell.org/package/lens-3.0.6/docs/Control-Lens-Plated.html#v:descendM
         -- Recurse one level into a structure with a monadic effect. (a.k.a composOpM from Björn Bringert's compos) 
-        -- So replace decendM with bacially further decending because go intself is recursive
+        -- So replace decendM with basically further decending because go intself is recursive
         -- ToDo: Make Expr Functor/Applicative again ? -> Different for 'Resolved/'Unresolved
-        go ctxt (AppE fe args) = AppE <$> go ctxt fe <*> mapM (go ctxt) args  
+        go ctxt (AppE fe annots args) = flip AppE annots <$> go ctxt fe <*> mapM (go ctxt) args  
         go ctxt (IfE c et ef) = IfE <$> go ctxt c <*> go ctxt et <*> go ctxt ef
         go ctxt (WhileE c body) = WhileE <$> go ctxt c <*> go ctxt body
         go ctxt (MapE fe gen) = MapE <$> go ctxt fe <*> go ctxt gen 
         -- go ctxt (BindE m s args) = flip BindE s <$> go ctxt m <*> TR.mapM (go ctxt) args 
         -- Reminder: Methods used to be treated as VarE or LitE -> Not doing this any more might cause error. 
         -- In case of such errors, build ad hoc VarE's and treat them again 
-        go ctxt (StateFunE state method args) = flip StateFunE method <$> go ctxt state <*> TR.mapM (go ctxt) args
+        go ctxt (StateFunE stateV method args) = flip StateFunE method <$> go ctxt stateV <*> TR.mapM (go ctxt) args
         go ctxt (StmtE e1 e2) = StmtE <$> go ctxt e1 <*> go ctxt e2
         go ctxt (TupE es) = TupE <$> TR.mapM (go ctxt) es
 

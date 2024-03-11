@@ -11,7 +11,7 @@ import Ohua.Commons.Types.HostExpression (HostExpression(..))
 
 -- | Literals of kinds we expect any host embExpr usage to support
 
-data Lit embExpr annot ty res
+data Lit embExpr ty res
     = NumericLit !Integer -- ^ an integer literal
     | BoolLit Bool -- ^ a boolean literal
     | UnitLit -- ^ aka @()@
@@ -21,7 +21,7 @@ data Lit embExpr annot ty res
     | FunRefLit (FunRef ty res) -- ^ Reference to an external function
     deriving (Show, Generic)
 
-instance Eq (Lit embExpr annot ty res) where
+instance Eq (Lit embExpr ty res) where
   (NumericLit i1) == (NumericLit i2) = i1 == i2
   (BoolLit b1) == (BoolLit b2) = b1 == b2
   UnitLit == UnitLit = True
@@ -31,7 +31,7 @@ instance Eq (Lit embExpr annot ty res) where
   (FunRefLit r1) == (FunRefLit r2) = r1 == r2
   _ == _ = False
 
-getLitType :: Lit embExpr annot ty Resolved -> OhuaType ty Resolved 
+getLitType :: Lit embExpr ty Resolved -> OhuaType ty Resolved 
 getLitType (NumericLit _) = IType TypeNat
 getLitType (BoolLit _)    = IType TypeBool
 getLitType UnitLit        = IType TypeUnit
@@ -40,4 +40,4 @@ getLitType (HostLit _hl ty)   = ty
 getLitType (EnvRefLit _b vTy) = vTy
 getLitType (FunRefLit fRef)   = FType $ getRefType fRef
 
-instance Hashable (Lit embExpr annot ty res)
+instance Hashable (Lit embExpr ty res)

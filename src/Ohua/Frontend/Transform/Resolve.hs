@@ -72,8 +72,8 @@ resolveNS (ns', registry) =
             -- FIXME: we need to resolve this reference here against the namespace and the registry (for Globs).
             -- We can/should not rely on algorithms being function literals or having function types here
             -- So we extract references and vars that are `applied` and match them against the algorithm register later
-            HS.fromList $ [ fname |  AppE (LitE (FunRefLit (FunRef fname _fTy))) _args <- flattenU e] 
-                ++ [(QualifiedBinding (NSRef []) bnd) |  AppE (VarE bnd _ty) _args <- flattenU e]
+            HS.fromList $ [ fname |  AppE (LitE (FunRefLit (FunRef fname _fTy))) _annots _args <- flattenU e] 
+                ++ [(QualifiedBinding (NSRef []) bnd) |  AppE (VarE bnd _ty) _annots _args <- flattenU e]
         
                         
 

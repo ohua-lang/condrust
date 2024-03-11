@@ -21,7 +21,7 @@ propagateMut :: Block -> Block
 propagateMut block =
   evalState (goBlock block) HS.empty
   where
-    go e@(MethodCall (Var bnd) _ _) = do
+    go e@(MethodCall (Var bnd) _ _ _) = do
       modify $ HS.insert bnd
       return e
     go e@(Assign (Var bnd) _) = do

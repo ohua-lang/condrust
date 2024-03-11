@@ -21,24 +21,24 @@ instance (Hashable expr) => Hashable (App expr)
 
 data ComType = Channel | Recv | Send deriving (Show, Eq, Generic)
 
-data Com (f::ComType) (embExpr::Type)  (ty::Type) :: Type where
+data Com (f::ComType) (embExpr::Type) (annot:: Type) (ty::Type) :: Type where
   SChan :: Binding -> Com 'Channel embExpr annot ty
   SRecv :: OhuaType ty Resolved -> Com 'Channel embExpr annot ty -> Com 'Recv embExpr annot ty
-  SSend :: Com 'Channel embExpr annot ty -> Either Binding (Lit embExpr annot ty Resolved) -> Com 'Send embExpr annot ty
+  SSend :: Com 'Channel embExpr annot ty -> Either Binding (Lit embExpr ty Resolved) -> Com 'Send embExpr annot ty
 
-instance Eq (Com semTy eLang ty) where
+instance Eq (Com semTy embExpr annot ty) where
   SChan bnd0 == SChan bnd1 = bnd0 == bnd1
   SRecv _ chan0 == SRecv _ chan1 = chan0 == chan1
   SSend chan0 bnd0 == SSend chan1 bnd1 = chan0 == chan1 && bnd0 == bnd1
 
-instance Show (Com semTy eLang ty) where
+instance Show (Com semTy embExpr annot ty) where
   show (SChan bnd) = "Chan: " <> show bnd
   show (SRecv ty chan) = "Recv: <" <> show ty <> "> " <>show chan
   show (SSend chan bnd) = "Send: " <> show chan <> " bnd:" <> show bnd
 
 type Channel = Com 'Recv
 
-instance Hashable (Com semTy eLang ty) where
+instance Hashable (Com semTy embExpr annot ty) where
   hashWithSalt s (SChan bnd) = s `hashWithSalt` bnd
   hashWithSalt s (SRecv _ chan) = s `hashWithSalt` chan
   hashWithSalt s (SSend chan bnd) = s `hashWithSalt` chan `hashWithSalt` bnd
@@ -50,7 +50,7 @@ instance (Hashable expr) => Hashable (List expr)
 
 data TaskExpr embExpr annot ty
   = Var Binding
-  | Lit (Lit embExpr annot ty Resolved) -- true, false  etc.
+  | Lit (Lit embExpr ty Resolved) -- true, false  etc.
   | Apply (App (TaskExpr embExpr annot ty))
   | Let Binding
         (TaskExpr embExpr annot ty)
@@ -77,7 +77,7 @@ data TaskExpr embExpr annot ty
 
   | ListOp (List (TaskExpr embExpr annot ty))
 
-  | Tuple ( NonEmpty (Either Binding (Lit embExpr annot ty Resolved)))
+  | Tuple ( NonEmpty (Either Binding (Lit embExpr ty Resolved)))
   | Indexing Binding Integer
 
   | Increment Binding -- a + 1;
@@ -127,7 +127,7 @@ containsBinding (Increment bnd) b = bnd == b
 containsBinding (Decrement bnd) b = bnd == b
 containsBinding (Not expr) b = containsBinding expr b
 
-containsB:: Either Binding (Lit embExpr annot ty Resolved)-> Binding -> Bool
+containsB:: Either Binding (Lit embExpr ty Resolved)-> Binding -> Bool
 containsB v b = case v of
   Left bnd -> bnd == b
   Right _ -> False

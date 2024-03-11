@@ -17,7 +17,7 @@ import qualified Data.HashSet as HS
 import Ohua.Core.DFLang.PPrint (prettyExpr)
 
 -- Invariant in the result type: the result channel is already part of the list of channels.
-toTCLang :: (ErrAndLogM m, Show ty, Show embExpr) => NormalizedDFExpr embExpr annot ty -> m (TCProgram (Channel embExpr annot ty) (Com 'Recv embExpr annot ty) embExpr (FusableExpr embExpr annot ty))
+toTCLang :: (ErrAndLogM m, Show ty, Show embExpr, Show annot) => NormalizedDFExpr embExpr annot ty -> m (TCProgram (Channel embExpr annot ty) (Com 'Recv embExpr annot ty) embExpr (FusableExpr embExpr annot ty))
 toTCLang gr = do
     let channels = generateArcsCode gr
     (tasks, resultChan) <- generateNodesCode gr
@@ -41,7 +41,7 @@ generateNodesCode = go
           let (TBind bnd ty) = unwrapTB atBnd
           in return ([], SRecv ty $ SChan bnd) 
 
-generateFunctionCode :: forall ty embExpr a m. ErrAndLogM m => DFApp a embExpr annot ty -> LoweringM m (FusableExpr embExpr annot ty)
+generateFunctionCode :: forall ty embExpr annot a m. ErrAndLogM m => DFApp a embExpr annot ty -> LoweringM m (FusableExpr embExpr annot ty)
 generateFunctionCode = \case
     
     (PureDFFun out fn (DFEnvVar (IType TypeUnit) UnitLit:|[]) )-> do
@@ -359,7 +359,7 @@ generateNodeCode e@(RecurFun resultOut ctrlOut recArgsOuts recInitArgsIns recArg
                         Direct x' -> return $ SChan $ unwrapABnd x'
                         _ -> invariantBroken $ "Control outputs don't match:\n" <> show e
         -- directOut' Nothing = pure Nothing
-        varToChanOrLit :: DFVar bty embExpr annot ty -> Either (Com 'Recv embExpr annot ty) (Lit embExpr annot ty 'Resolved)
+        varToChanOrLit :: DFVar bty embExpr annot ty -> Either (Com 'Recv embExpr annot ty) (Lit embExpr ty 'Resolved)
         varToChanOrLit (DFVar atbnd) = Left $ asRecv atbnd
         varToChanOrLit (DFEnvVar _ l) = Right l
 

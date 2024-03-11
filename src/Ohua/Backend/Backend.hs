@@ -23,7 +23,9 @@ backend ::
         , ty ~ Type lang
         , anno ~ AlgoSrc lang
         , embExpr ~ EmbExpr lang
+        , annot ~ Annotation lang
         , Show embExpr
+        , Show annot
         )
         => FilePath
         -> Options

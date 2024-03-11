@@ -6,6 +6,7 @@ import Ohua.Commons.Prelude hiding (Type)
 import Ohua.Backend.Lang
 import qualified Data.ByteString.Lazy.Char8 as L
 import qualified Data.HashMap.Lazy as HM
+import qualified Data.Kind as DK
 
 -- data TaskType = PureTask | STTask
 
@@ -32,7 +33,7 @@ data TCProgram chan retChan embExpr expr =
         retChan -- ^ Receive on result channel
         [expr] -- TODO (NonEmpty expr) -- ^ Tasks
 
-data Program chan retChan Expr embExpr annot ty =
+data Program chan retChan expr embExpr annot ty =
     Program
         (NonEmpty chan)
         retChan
@@ -58,16 +59,17 @@ taskExpression (FullTask _ _ e) = e
 
 
 class (Show (Type lang)) => Integration lang where
-    type HostModule lang :: *
-    type Type lang :: *
-    type AlgoSrc lang :: *
-    type EmbExpr lang :: *
+    type HostModule lang :: DK.Type
+    type Type lang :: DK.Type
+    type AlgoSrc lang :: DK.Type
+    type EmbExpr lang :: DK.Type
+    type Annotation lang :: DK.Type
 
-    type Expr lang :: *
-    type Task lang :: *
+    type Expr lang :: DK.Type
+    type Task lang :: DK.Type
 
     convertExpr :: (Architecture arch, Lang arch ~ lang)
-                => arch -> TaskExpr (EmbExpr lang) (Type lang) -> Expr lang
+                => arch -> TaskExpr (EmbExpr lang) (Annotation lang) (Type lang) -> Expr lang
 
     -- TODO I believe now that this function does not belong into the interface anymore!
     lower ::
@@ -75,7 +77,8 @@ class (Show (Type lang)) => Integration lang where
       , Architecture arch
       , Lang arch ~ lang
       , ty ~ Type lang
-      , embExpr ~ EmbExpr lang)
+      , embExpr ~ EmbExpr lang
+      , annot ~ Annotation lang)
       => HostModule lang
       -> arch
       -> Namespace (Program (Channel embExpr annot ty) (Com 'Recv embExpr annot ty) (TaskExpr embExpr annot ty) embExpr annot ty) (AlgoSrc lang) (OhuaType ty 'Resolved)
@@ -86,18 +89,18 @@ class Architecture arch where
     type Chan arch :: *
     type ATask arch :: *
 
-    convertChannel    :: arch -> Channel (EmbExpr (Lang arch)) (Type (Lang arch)) -> Chan arch
-    convertRetChannel :: arch -> Channel (EmbExpr (Lang arch)) (Type (Lang arch)) -> Chan arch
+    convertChannel    :: arch -> Channel (EmbExpr (Lang arch)) (Annotation (Lang arch))  (Type (Lang arch)) -> Chan arch
+    convertRetChannel :: arch -> Channel (EmbExpr (Lang arch)) (Annotation (Lang arch))  (Type (Lang arch)) -> Chan arch
     convertRetChannel = convertChannel
     -- TODO implement for sourcing env args when process abstractions can not be closures
     --      this can just be something that works across all implementations!
     -- convertSrcChannel :: arch -> Channel (Type (Lang arch)) -> Chan arch
 
-    convertRecv    :: arch -> Com 'Recv (EmbExpr (Lang arch)) (Type (Lang arch)) -> Expr (Lang arch)
-    convertRetRecv :: arch -> Com 'Recv (EmbExpr (Lang arch)) (Type (Lang arch)) -> Expr (Lang arch)
+    convertRecv    :: arch -> Com 'Recv (EmbExpr (Lang arch)) (Annotation (Lang arch)) (Type (Lang arch)) -> Expr (Lang arch)
+    convertRetRecv :: arch -> Com 'Recv (EmbExpr (Lang arch)) (Annotation (Lang arch)) (Type (Lang arch)) -> Expr (Lang arch)
     convertRetRecv = convertRecv
 
-    convertSend:: arch -> Com 'Send (EmbExpr (Lang arch)) (Type (Lang arch)) -> Expr (Lang arch)
+    convertSend:: arch -> Com 'Send (EmbExpr (Lang arch)) (Annotation (Lang arch)) (Type (Lang arch)) -> Expr (Lang arch)
     -- TODO implement for sourcing env args when process abstractions can not be closures
     --      this can just be something that works across all implementations!
     -- convertSrcSend    :: arch -> Com 'Recv (Type (Lang arch)) -> Expr (Lang arch)
@@ -108,6 +111,7 @@ class Architecture arch where
         , ty ~ Type (Lang arch)
         , expr ~ Expr (Lang arch)
         , embExpr ~ EmbExpr (Lang arch)
+        , annot ~ Annotation (Lang arch)
         , ErrAndLogM m)
         => arch
         -> HostModule lang
@@ -121,6 +125,7 @@ class Architecture arch where
         , ty ~ Type (Lang arch)
         , expr ~ Expr (Lang arch)
         , embExpr ~ EmbExpr (Lang arch)
+        , annot ~ Annotation (Lang arch)
         )
         => arch
         -> HostModule lang -- ^ the original module  
@@ -163,8 +168,8 @@ updateTaskExprs' f ns =
 
 updateTaskExprs 
   :: (FullTask embExpr annot ty expr -> expr)
-  -> Namespace (Program (Channel embExpr annot ty) (Com 'Recv embExpr annot ty) Expr embExpr annot ty)  anno (OhuaType ty 'Resolved)
-  -> Namespace (Program (Channel embExpr annot ty) (Com 'Recv embExpr annot ty) Expr embExpr annot ty)  anno (OhuaType ty 'Resolved)
+  -> Namespace (Program (Channel embExpr annot ty) (Com 'Recv embExpr annot ty) expr embExpr annot ty) anno (OhuaType ty 'Resolved)
+  -> Namespace (Program (Channel embExpr annot ty) (Com 'Recv embExpr annot ty) expr embExpr annot ty) anno (OhuaType ty 'Resolved)
 updateTaskExprs f ns =
   ns & algos %~ map (\algo -> algo & algoCode %~ go)
   where

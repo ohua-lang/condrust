@@ -15,11 +15,11 @@ import Ohua.Frontend.TypeSystem ( toWellTyped )
 import Control.Lens.Combinators ( over )
 
 
-frontend :: forall m lang. (ErrAndLogM m, Integration lang)
+frontend :: forall m lang. (ErrAndLogM m, Integration lang, Show (Annotation lang))
          => lang
          -> CompilationScope
          -> FilePath
-         -> m ((HostModule lang, Namespace (FrLang.FuncExpr (EmbExpr lang) (Type lang)) (AlgoSrc lang) (OhuaType (Type lang) 'Resolved)) , HostModule lang)
+         -> m ((HostModule lang, Namespace (FrLang.FuncExpr (EmbExpr lang) (Annotation lang) (Type lang)) (AlgoSrc lang) (OhuaType (Type lang) 'Resolved)) , HostModule lang)
 frontend lang compScope inFile = do
         -- 1. Extract: (input file in host language,
         --              Integration.Namespace containing Integration.Algo's, Integration.Imports's and Integration.Global's of the input module,

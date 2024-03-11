@@ -14,7 +14,7 @@ type StateBnd = Binding
 
 data Fuse = Fusable | Unfusable deriving (Generic, Eq, Show)
 
-data STCLangSMap :: Fuse -> Type -> Type -> Type where
+data STCLangSMap :: Fuse -> Type -> Type ->Type -> Type where
   STCLangSMap ::
     -- | Count until state emission
     DataSizeInput embExpr annot ty ->

@@ -33,7 +33,7 @@ type ConvertM m = (Monad m, MonadState Context m)
 
 
 type PythonNamespace = Namespace 
-        (FrLang.UnresolvedExpr (Py.Expr SrcSpan) PythonVarType) 
+        (FrLang.UnresolvedExpr (Py.Expr SrcSpan) () PythonVarType) 
         (Py.Statement SrcSpan) 
         (OhuaType PythonVarType 'Resolved)
 
@@ -43,6 +43,7 @@ instance Integration (Language 'Python) where
     type Type (Language 'Python) =  PythonVarType
     type EmbExpr (Language 'Python) = Py.Expr SrcSpan
     type AlgoSrc (Language 'Python) = Py.Statement SrcSpan
+    type Annotation (Language 'Python) = ()
 
     {- | Loading a namespace means extracting
             a) function defintions to be compiled and
@@ -93,7 +94,7 @@ instance Integration (Language 'Python) where
                 extractAlgo :: ErrAndLogM m 
                     => Py.Statement SrcSpan 
                     -> [Global] 
-                    -> m (FrLang.UnresolvedExpr (Py.Expr SrcSpan) PythonVarType, OhuaType PythonVarType 'Resolved)
+                    -> m (FrLang.UnresolvedExpr (Py.Expr SrcSpan) () PythonVarType, OhuaType PythonVarType 'Resolved)
                 extractAlgo function globs = do
                     let _globArgs = map (\(Global bnd) -> VarP bnd defaultType) globs
                     -- ToDo: replace empty context with globals filled context if needed
@@ -137,11 +138,11 @@ instance Integration (Language 'Python) where
         let defaults_and_used = foldr (\(qb, ty) hm -> HM.insert qb ty hm) TH.defaultMethods methodCalls
         return defaults_and_used
         where
-            methods::ErrAndLogM m => Algo (FrLang.UnresolvedExpr (Py.Expr SrcSpan) PythonVarType) (Py.Statement SrcSpan) (OhuaType PythonVarType 'Resolved) -> m [(QualifiedBinding, FunType PythonVarType Resolved)]
+            methods::ErrAndLogM m => Algo (FrLang.UnresolvedExpr (Py.Expr SrcSpan) () PythonVarType) (Py.Statement SrcSpan) (OhuaType PythonVarType 'Resolved) -> m [(QualifiedBinding, FunType PythonVarType Resolved)]
             methods (Algo _name _ty frlangCode _inputCode ) = do 
                 mapM asMethodType $ [ (m, args) | StateFunE _obj m args <- flattenU frlangCode]
             
-            asMethodType::ErrAndLogM m =>  (MethodRepr PythonVarType 'Unresolved, [FrLang.UnresolvedExpr (Py.Expr SrcSpan) PythonVarType]) -> m (QualifiedBinding, FunType PythonVarType Resolved)
+            asMethodType::ErrAndLogM m =>  (MethodRepr PythonVarType 'Unresolved, [FrLang.UnresolvedExpr (Py.Expr SrcSpan) () PythonVarType]) -> m (QualifiedBinding, FunType PythonVarType Resolved)
             asMethodType ((MethodUnres bnd), args) = return ((asQualified bnd), (STFunType defaultType (asInputTypes args) defaultType))
 
 fullByNameOrAlias :: Py.DottedName SrcSpan -> Py.FromItem SrcSpan -> Import
@@ -152,7 +153,7 @@ globOrAlias :: Py.ImportItem SrcSpan -> Import
 globOrAlias  (Py.ImportItem dotted Nothing  _annot) = Glob . makeThrow $ toBindings dotted
 globOrAlias  (Py.ImportItem dotted (Just pyAlias) _annot) = flip Alias (toBinding  pyAlias) . makeThrow $ toBindings dotted
 
-subSuiteToIR :: ConvertM m => Sub.Suite -> m (FrLang.UnresolvedExpr (Py.Expr SrcSpan) PythonVarType)
+subSuiteToIR :: ConvertM m => Sub.Suite -> m (FrLang.UnresolvedExpr (Py.Expr SrcSpan) () PythonVarType)
 subSuiteToIR (Sub.PySuite stmts) =
     evalStateT (convertStmts stmts) =<< get
     where
@@ -166,7 +167,7 @@ subSuiteToIR (Sub.PySuite stmts) =
                 return $
                     foldr
                         (\stmt suite -> stmt suite) irLast irHeads
-        stmtToIR:: (ConvertM m) => Sub.Stmt -> m (FrLang.UnresolvedExpr (Py.Expr SrcSpan) PythonVarType -> FrLang.UnresolvedExpr (Py.Expr SrcSpan) PythonVarType)
+        stmtToIR:: (ConvertM m) => Sub.Stmt -> m (FrLang.UnresolvedExpr (Py.Expr SrcSpan) () PythonVarType -> FrLang.UnresolvedExpr (Py.Expr SrcSpan) () PythonVarType)
         stmtToIR assign@(Sub.Assign target expr) = do
             case target of
                 (Sub.Single bnd) -> modify (HM.insert bnd Sub.PythonType)
@@ -186,7 +187,7 @@ subSuiteToIR (Sub.PySuite stmts) =
 
         stmtToIR stmt = StmtE <$> subStmtToIR defaultType stmt
 
-        lastStmtToIR :: (ConvertM m) => Sub.Stmt -> m (FrLang.UnresolvedExpr (Py.Expr SrcSpan) PythonVarType)
+        lastStmtToIR :: (ConvertM m) => Sub.Stmt -> m (FrLang.UnresolvedExpr (Py.Expr SrcSpan) () PythonVarType)
         lastStmtToIR (Sub.Return maybeExpr) =
             case maybeExpr of
                 -- FIXME: We need the algo return type here
@@ -207,7 +208,7 @@ subscriptToCall (Sub.StmtExpr (Sub.Subscript bnd keyExpr)) =
     in Sub.StmtExpr (Sub.Call funRef [Sub.Arg keyExpr])
 
 
-subStmtToIR :: ConvertM m => OhuaType PythonVarType 'Unresolved ->  Sub.Stmt -> m (FrLang.UnresolvedExpr (Py.Expr SrcSpan) PythonVarType)
+subStmtToIR :: ConvertM m => OhuaType PythonVarType 'Unresolved ->  Sub.Stmt -> m (FrLang.UnresolvedExpr (Py.Expr SrcSpan) () PythonVarType)
 subStmtToIR _t (Sub.WhileStmt _expr _suite) = error "Currently we do not support while-loops. Please use a recursion while we implement it."
     {-do
     cond <- subExprToIR expr
@@ -245,7 +246,7 @@ subStmtToIR _t (Sub.StmtExpr expr) = subExprToIR defaultType expr
 subStmtToIR _t Sub.Pass = return $ LitE UnitLit
 
 
-subExprToIR :: ConvertM m => OhuaType PythonVarType 'Unresolved -> Sub.Expr -> m (FrLang.UnresolvedExpr (Py.Expr SrcSpan) PythonVarType)
+subExprToIR :: ConvertM m => OhuaType PythonVarType 'Unresolved -> Sub.Expr -> m (FrLang.UnresolvedExpr (Py.Expr SrcSpan) () PythonVarType)
 subExprToIR _t  (Sub.Var bnd) = return $ VarE bnd defaultType
 subExprToIR _t  (Sub.Int int) = return $ LitE $ NumericLit int
 subExprToIR _t  (Sub.Bool bl) = return $ LitE $ BoolLit bl
@@ -256,14 +257,14 @@ subExprToIR t (Sub.Call (Sub.Pure bnd) args) = do
     args'<- mapM (subArgToIR t) args
     let argTypes = asInputTypes args'
     funLit <- toFunRefLit bnd (argTypes, t)
-    return $ AppE funLit args'
+    return $ AppE funLit [] args'
 subExprToIR t (Sub.Call (Sub.Dotted objBnd (QualifiedBinding _nsref funBnd)) args) = do
     args' <- mapM (subArgToIR t) args
     return $ StateFunE (VarE objBnd defaultType) (MethodUnres funBnd) args'
 subExprToIR t (Sub.Call (Sub.Direct lambdaExpr) args) = do
     args' <- mapM (subArgToIR t) args
     fun <- (subExprToIR t) lambdaExpr
-    return $ AppE fun args'
+    return $ AppE fun [] args'
 subExprToIR t  (Sub.CondExpr condE trueExpr falseExpr) = do
     cond <- subExprToIR defaultType condE
     true <- subExprToIR t trueExpr
@@ -273,11 +274,11 @@ subExprToIR _t (Sub.BinaryOp binOp expr1 expr2) = do
     op' <- subBinOpToIR binOp
     expr1' <- subExprToIR defaultType expr1
     expr2' <- subExprToIR defaultType expr2
-    return $ op' `AppE` [expr1', expr2']
+    return $ AppE op' [] [expr1', expr2']
 subExprToIR _t (Sub.UnaryOp unOp expr1) = do
     op' <- subUnOpToIR unOp
     expr1' <- subExprToIR defaultType expr1
-    return $ op' `AppE` [expr1']
+    return $ AppE op' [] [expr1']
 subExprToIR t (Sub.Lambda params expr) = do
     ctxt <- get
     params' <-  mapM subParamToIR params
@@ -288,27 +289,27 @@ subExprToIR t (Sub.Lambda params expr) = do
 subExprToIR _t (Sub.Tuple exprs) = do
     exprs' <- mapM (subExprToIR defaultType) exprs
     tupleCall <- toFunRefLit TH.tupleConstructor (asInputTypes exprs', pythonTupleType exprs )
-    return $ AppE tupleCall exprs'
+    return $ AppE tupleCall [] exprs'
 subExprToIR _t (Sub.List exprs) = do
     exprs' <- mapM (subExprToIR defaultType) exprs
     listCall <- toFunRefLit TH.listConstructor (asInputTypes exprs', defaultType)
-    return $ AppE listCall exprs'
+    return $ AppE listCall [] exprs'
 -- | Mapping d = {1:2, 3:4} to d = dict(((1,2), (3,4)))
 subExprToIR t (Sub.Dict mappings) = do
     exprs' <-  mapM (\(k,v) -> subExprToIR t $ Sub.Tuple [k,v]) mappings
     dictCall <- toFunRefLit TH.dictConstructor (asInputTypes exprs', defaultType)
-    return $ AppE dictCall exprs'
+    return $ AppE dictCall [] exprs'
 subExprToIR _t (Sub.Set  exprs) = do
     exprs' <-  mapM (subExprToIR defaultType) exprs
     setCall <- toFunRefLit TH.setConstructor (asInputTypes exprs', defaultType)
-    return $ AppE setCall exprs'
+    return $ AppE setCall [] exprs'
 subExprToIR t subExpr@(Sub.Subscript _bnd _expr) = do
     -- FIXME: This is to unspecific. We can only get a StmtExpr here (because its the only Python Statement jsut wrapping and expression),
     --        yet we get a warning for incomplete patterns -> introduce a separate wrapper in the subset instead of using a StmtExpr?
     let (Sub.StmtExpr call) = subscriptToCall (Sub.StmtExpr subExpr)
     subExprToIR t call
 
-subArgToIR :: ConvertM m => OhuaType PythonVarType 'Unresolved -> Sub.Argument -> m ( FrLang.UnresolvedExpr (Py.Expr SrcSpan) PythonVarType)
+subArgToIR :: ConvertM m => OhuaType PythonVarType 'Unresolved -> Sub.Argument -> m ( FrLang.UnresolvedExpr (Py.Expr SrcSpan) () PythonVarType)
 subArgToIR t (Sub.Arg expr) = subExprToIR t expr
 
 subParamToIR :: ConvertM m => Sub.Param -> m (FrLang.Pat PythonVarType Unresolved)
@@ -324,7 +325,7 @@ subTargetToIR (Sub.Tpl (b:bnds)) =
         vars = map (\bnd -> VarP bnd defaultType) bnds
     in return $ TupP (v:| vars)
 
-subBinOpToIR :: ConvertM m => Sub.BinOp -> m ( FrLang.UnresolvedExpr (Py.Expr SrcSpan) PythonVarType)
+subBinOpToIR :: ConvertM m => Sub.BinOp -> m ( FrLang.UnresolvedExpr (Py.Expr SrcSpan) () PythonVarType)
 subBinOpToIR Sub.Plus = toFunRefLit "+" simpleBinarySignature
 subBinOpToIR Sub.Minus = toFunRefLit "-" simpleBinarySignature
 subBinOpToIR Sub.Multiply = toFunRefLit "*" simpleBinarySignature
@@ -355,7 +356,7 @@ subBinOpToIR Sub.ShiftLeft = toFunRefLit "<<" simpleBinarySignature
 subBinOpToIR Sub.ShiftRight = toFunRefLit ">>" simpleBinarySignature
 
 
-subUnOpToIR :: ConvertM m => Sub.UnOp -> m ( FrLang.UnresolvedExpr (Py.Expr SrcSpan) PythonVarType)
+subUnOpToIR :: ConvertM m => Sub.UnOp -> m ( FrLang.UnresolvedExpr (Py.Expr SrcSpan) () PythonVarType)
 subUnOpToIR Sub.Not  = toFunRefLit "not" simpleUnarySignature
 subUnOpToIR Sub.Invert = toFunRefLit "~" simpleUnarySignature
 
@@ -372,7 +373,9 @@ asInputTypes (_:xs) = Right (defaultType :| map (const defaultType) xs)
 {- | Turns given string representation into literal expression representig an untyped,
      'unscoped' (the empty list in as Binding argument) function reference
 -}
-toFunRefLit :: Monad m => Binding -> (Either () (NonEmpty (OhuaType PythonVarType Unresolved)), OhuaType PythonVarType Unresolved) -> m (FrLang.UnresolvedExpr (Py.Expr SrcSpan) PythonVarType)
+toFunRefLit :: Monad m => Binding 
+    -> (Either () (NonEmpty (OhuaType PythonVarType Unresolved)), OhuaType PythonVarType Unresolved) 
+    -> m (FrLang.UnresolvedExpr (Py.Expr SrcSpan) () PythonVarType)
 toFunRefLit funBind (argTys, retTy) =
   return $
   LitE $ FunRefLit $

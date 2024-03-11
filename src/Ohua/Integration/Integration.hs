@@ -39,6 +39,7 @@ type FullIntegration lang arch =
   , F.Type (Language lang) ~ B.Type (Language lang)
   , F.AlgoSrc (Language lang) ~ B.AlgoSrc (Language lang)
   , F.EmbExpr (Language lang) ~ B.EmbExpr (Language lang)
+  , F.Annotation (Language lang) ~ B.Annotation (Language lang)
   , B.Architecture (Architectures arch)
   , B.Lang (Architectures arch) ~ Language lang
   , B.Transform (Architectures arch)
@@ -46,17 +47,17 @@ type FullIntegration lang arch =
 
 type Compiler m a = (forall lang arch.
                      FullIntegration lang arch
-                    => Maybe (CConfig.CustomPasses (B.EmbExpr (Language lang)) (B.Type (Language lang)))
+                    => Maybe (CConfig.CustomPasses (B.EmbExpr (Language lang)) (B.Annotation (Language lang))  (B.Type (Language lang)))
                     -> Language lang
                     -> Architectures arch
                     -> m a)
 
 data Integration =
     forall (lang::Lang) (arch::Arch).
-    FullIntegration lang arch =>
+    (FullIntegration lang arch, Show (B.Annotation (Language lang))) =>
     Integration (Language lang)
         (Architectures arch)
-        (Maybe (CConfig.CustomPasses (B.EmbExpr (Language lang)) (B.Type (Language lang))))
+        (Maybe (CConfig.CustomPasses (B.EmbExpr (Language lang)) (B.Annotation (Language lang)) (B.Type (Language lang))))
 
 class Apply integration where
     apply :: ErrAndLogM m

@@ -34,7 +34,7 @@ data OutData (bType :: BindingType) (ty :: Type) :: Type  where
 -- ToDo : I think we should remove the indirection via the ATypedBinding and instead use an extended binding type
 -- i.e. BindingType = State | Data | Env to directly type DFVar
 data DFVar (semType :: BindingType) (embExpr::Type) (annot::Type) (ty :: Type) :: Type where
-  DFEnvVar :: OhuaType ty Resolved-> Lit embExpr annot ty Resolved -> DFVar 'Data embExpr annot ty
+  DFEnvVar :: OhuaType ty Resolved-> Lit embExpr ty Resolved -> DFVar 'Data embExpr annot ty
   DFVar :: ATypedBinding a ty -> DFVar a embExpr annot ty
   -- DFNatVar :: ATypedBinding a -> DFVar a (IType TypeNat ty) 
   -- DFBoolVar ::  ATypedBinding a -> DFVar a 'TypeBool
@@ -154,14 +154,14 @@ data DFApp (f :: FunANF) (embExpr :: Type) (annot::Type) (ty :: Type) :: Type wh
     DFVar 'Data embExpr annot ty ->
     DFApp 'Fun embExpr annot ty
 
-class Function (fun:: FunANF -> Type -> Type -> Type) where
-  outBindings :: fun fa elang ty -> [TypedBinding ty]
-  inBindings :: fun fa elang ty -> [TypedBinding ty]
-  funRef :: fun fa elang ty -> QualifiedBinding
+class Function (fun:: FunANF -> Type -> Type -> Type -> Type) where
+  outBindings :: fun fa elang annot ty -> [TypedBinding ty]
+  inBindings :: fun fa elang annot ty -> [TypedBinding ty]
+  funRef :: fun fa elang annot ty -> QualifiedBinding
 
 -- The fun type is a type that takes a promoted Annotation Type and the 
 -- ubiquitouse Host type 'ty' (representing the language (Rust/Python/..) we compile
-data Expr (fun :: FunANF -> Type -> Type -> Type) (embExpr :: Type) (annot::Type)(ty :: Type) :: Type where
+data Expr (fun :: FunANF -> Type -> Type -> Type -> Type) (embExpr :: Type) (annot::Type)(ty :: Type) :: Type where
   -- Question: I don't understand the order of that Let term? What are the arguments supposed to represent?
   Let :: (Show (fun fa embExpr annot ty), Function fun) => fun fa embExpr annot ty -> Expr fun embExpr annot ty -> Expr fun embExpr annot ty
   -- FIXME this also should probably have a BindingType!
@@ -340,7 +340,7 @@ deriving instance Show (DFApp embExpr annot ty a)
 
 -- deriving instance Lift (DFApp ty a)
 
-deriving instance Show (NormalizedDFExpr embExpr  ty)
+deriving instance Show (NormalizedDFExpr embExpr annot ty)
 
 -- deriving instance Eq NormalizedDFExpr
 -- deriving instance Lift NormalizedDFExpr

@@ -13,10 +13,10 @@ import qualified Ohua.Core.InternalFunctions as IFuns
 import qualified Data.List.NonEmpty as NE
 
 
-toAlang :: ErrAndLogM m => FR.FuncExpr embExpr annot ty -> m (ALang.Expr embExpr annot ty)
+toAlang :: (ErrAndLogM m, Show annot) => FR.FuncExpr embExpr annot ty -> m (ALang.Expr embExpr annot ty)
 toAlang expr =  toAlang' (definedBindings expr)  expr
 
-toAlang' :: ErrAndLogM m => HS.HashSet Binding -> FR.FuncExpr embExpr annot ty -> m (ALang.Expr embExpr annot ty)
+toAlang' :: (ErrAndLogM m, Show annot) => HS.HashSet Binding -> FR.FuncExpr embExpr annot ty -> m (ALang.Expr embExpr annot ty)
 toAlang' taken expr = runGenBndT taken $ transfrm expr
     where
         transfrm =
@@ -69,6 +69,7 @@ unstructure (valBnd, valTy) pats = go (toInteger $ length pats) (NE.toList pats)
                  LetE pat $
                  AppE
                      (nthFun valTy (FR.patType pat))
+                     [] -- empty annotations
                      (LitE (NumericLit idx) :|
                      [ LitE (NumericLit numPats)
                      , VarE valBnd valTy
@@ -84,7 +85,7 @@ seqFunSf t1 t2 = LitE $ FunRefLit $ FunRef IFuns.seqFun $ FunType (Right $ t1 :|
 
 
 -- | The function actualy lowering Frontend IR to ALang
-trans :: FR.FuncExpr embExpr annot ty -> ALang.Expr embExpr annot ty
+trans :: (Show annot) => FR.FuncExpr embExpr annot ty -> ALang.Expr embExpr annot ty
 trans =
     \case
         VarE b ty -> Var $ TBind b ty
@@ -94,7 +95,7 @@ trans =
             in trans litReplaced
         LetE p e1 e2 -> Let (patToTBind p) (trans e1) (trans e2)
 
-        AppE e1 args -> foldl Apply (trans e1) (map trans args)
+        AppE e1 annots args -> foldl Apply (trans e1) (map trans args)
         LamE p e -> case p of
                 (p0:|[]) -> Lambda (patToTBind p0) (trans e)
                 _ -> error $
@@ -141,12 +142,15 @@ trans =
              "(function arguments or let bound variables) should be single vars but " <> show p <>
              "is not. Please file a bug."
 
-    constLit:: FR.FuncExpr embExpr annot ty -> FR.FuncExpr embExpr annot ty -> FR.FuncExpr embExpr annot ty
+    constLit:: (Show annot) => FR.FuncExpr embExpr annot ty -> FR.FuncExpr embExpr annot ty -> FR.FuncExpr embExpr annot ty
     constLit eS eT =
         let pType = FR.exprType eS
             tType = FR.exprType eT 
         in  LetE (VarP "x_lit" pType) eS $
-            AppE (seqFunSf pType tType)  ((VarE "x_lit" pType) :| [eT])
+            AppE 
+                (seqFunSf pType tType) 
+                [] {-ToDo: This adds empty annotations. Check if we actually need to promote annotations here-} 
+                ((VarE "x_lit" pType) :| [eT])
 
 
 tupTypeFrom :: NonEmpty (ResolvedPat ty) -> (ResolvedType ty)

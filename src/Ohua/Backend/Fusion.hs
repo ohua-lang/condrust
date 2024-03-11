@@ -29,7 +29,7 @@ data Fusable embExpr annot ty ctrl0 ctrl1
     --  Select
     deriving (Eq, Functor, Generic)
 
-deriving instance (Show ty, Show ctrl0, Show ctrl1, Show embExpr) => Show (Fusable embExpr annot ty ctrl0 ctrl1)
+deriving instance (Show ty, Show ctrl0, Show ctrl1, Show embExpr, Show annot) => Show (Fusable embExpr annot ty ctrl0 ctrl1)
 
 instance (Hashable ctrl0, Hashable ctrl1) => Hashable (Fusable embExpr annot ty ctrl0 ctrl1)
 
@@ -45,15 +45,15 @@ instance Bifunctor (Fusable embExpr annot ty) where
 
 type FusableExpr embExpr annot ty = Fusable embExpr annot ty (VarCtrl embExpr annot ty) (LitCtrl embExpr annot ty) 
 
-fuse :: (ErrAndLogM m, Show ty, Show embExpr)
+fuse :: (ErrAndLogM m, Show ty, Show embExpr, Show annot)
      => Options
-     -> Namespace (TCProgram (Channel embExpr annot ty) (Com 'Recv embExpr annot ty)  embExpr  (Fusable  embExpr  ty (VarCtrl  embExpr  ty) (LitCtrl embExpr annot ty))) anno (OhuaType ty 'Resolved)
+     -> Namespace (TCProgram (Channel embExpr annot ty) (Com 'Recv embExpr annot ty)  embExpr  (Fusable  embExpr annot ty (VarCtrl  embExpr annot ty) (LitCtrl embExpr annot ty))) anno (OhuaType ty 'Resolved)
      -> m (Namespace (TCProgram (Channel embExpr annot ty) (Com 'Recv embExpr annot ty)  embExpr  (TaskExpr embExpr annot ty)) anno (OhuaType ty 'Resolved))
 fuse options ns =
 
     return $ ns & algos %~ map (\algo -> algo & algoCode %~ go)
     where
-        go :: (Show ty, Show embExpr) => TCProgram (Channel embExpr annot ty) (Com 'Recv embExpr annot ty)  embExpr  (Fusable embExpr annot ty (VarCtrl embExpr annot ty) (LitCtrl embExpr annot ty))
+        go :: (Show ty, Show embExpr, Show annot) => TCProgram (Channel embExpr annot ty) (Com 'Recv embExpr annot ty)  embExpr  (Fusable embExpr annot ty (VarCtrl embExpr annot ty) (LitCtrl embExpr annot ty))
            -> TCProgram (Channel embExpr annot ty) (Com 'Recv embExpr annot ty)  embExpr  (TaskExpr embExpr annot ty)
         go = evictUnusedChannels . concludeFusion . (fuseFunctions options) . fuseStateThreads . fuseSMaps
 {-
@@ -65,7 +65,7 @@ removeIdFun (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ ma
 -}
 
 
-concludeFusion ::(Show ty, Show embExpr) => TCProgram (Channel embExpr annot ty) (Com 'Recv embExpr annot ty) embExpr (Fusable embExpr annot ty (FusedFunCtrl embExpr annot ty) (FusedLitCtrl embExpr annot ty))
+concludeFusion ::(Show ty, Show embExpr, Show annot) => TCProgram (Channel embExpr annot ty) (Com 'Recv embExpr annot ty) embExpr (Fusable embExpr annot ty (FusedFunCtrl embExpr annot ty) (FusedLitCtrl embExpr annot ty))
                -> TCProgram (Channel embExpr annot ty) (Com 'Recv embExpr annot ty) embExpr (TaskExpr embExpr annot ty)
 concludeFusion (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ map go exprs
     where
@@ -87,7 +87,7 @@ evictUnusedChannels (TCProgram chans resultChan exprs) =
     in TCProgram (resultChan :| chans') resultChan exprs
 
 
-fuseFunctions ::(Show ty, Show embExpr) => Options
+fuseFunctions ::(Show ty, Show embExpr, Show annot) => Options
               -> TCProgram (Channel embExpr annot ty) (Com 'Recv embExpr annot ty) embExpr (Fusable embExpr annot ty (FusedFunCtrl embExpr annot ty) (FusedLitCtrl embExpr annot ty))
               -> TCProgram (Channel embExpr annot ty) (Com 'Recv embExpr annot ty) embExpr (Fusable embExpr annot ty (FusedFunCtrl embExpr annot ty) (FusedLitCtrl embExpr annot ty))
 fuseFunctions Options{stateInitFusion=False} t = t
@@ -126,12 +126,12 @@ fuseFunctions Options{stateInitFusion=True} (TCProgram chans resultChan exprs) =
                      Just g' -> (Just g', gs)
                      Nothing -> second ([g] ++ ) $ fuseFunction f gs
 
-fuseStateThreads :: (Show embExpr) => 
+fuseStateThreads :: (Show embExpr, Show annot) => 
                 TCProgram (Channel embExpr annot ty) (Com 'Recv embExpr annot ty) embExpr (Fusable embExpr annot ty (VarCtrl embExpr annot ty) (LitCtrl embExpr annot ty))
                 -> TCProgram (Channel embExpr annot ty) (Com 'Recv embExpr annot ty) embExpr (Fusable embExpr annot ty (FusedFunCtrl embExpr annot ty) (FusedLitCtrl embExpr annot ty))
 fuseStateThreads = fuseSTCLang . fuseCtrls . mergeCtrls
 
-mergeCtrls :: forall ty embExpr . (Show embExpr) => 
+mergeCtrls :: forall ty embExpr annot. (Show embExpr, Show annot) => 
               TCProgram (Channel embExpr annot ty) (Com 'Recv embExpr annot ty) embExpr (Fusable embExpr annot ty (VarCtrl embExpr annot ty) (LitCtrl embExpr annot ty))
            -> TCProgram (Channel embExpr annot ty) (Com 'Recv embExpr annot ty) embExpr (Fusable embExpr annot ty (FunCtrl embExpr annot ty) (LitCtrl embExpr annot ty))
 mergeCtrls (TCProgram chans resultChan exprs) =
@@ -189,7 +189,7 @@ mergeCtrls (TCProgram chans resultChan exprs) =
         ctrls :: [(OutputChannel embExpr annot ty, VarCtrl embExpr annot ty)]
         ctrls = mapMaybe findCtrl exprs
 
-fuseCtrls :: forall ty embExpr. (Show embExpr) => 
+fuseCtrls :: forall ty embExpr annot. (Show embExpr, Show annot) => 
              TCProgram (Channel embExpr annot ty) (Com 'Recv embExpr annot ty) embExpr (Fusable embExpr annot ty (FunCtrl embExpr annot ty) (LitCtrl embExpr annot ty))
           -> TCProgram (Channel embExpr annot ty) (Com 'Recv embExpr annot ty) embExpr (Fusable embExpr annot ty (FusedFunCtrl embExpr annot ty) (FusedLitCtrl embExpr annot ty))
 fuseCtrls (TCProgram chans resultChan exprs) =
@@ -274,7 +274,7 @@ fuseCtrls (TCProgram chans resultChan exprs) =
         isTarget _ _ = False
 
 
-fuseSTCLang :: forall ty embExpr.
+fuseSTCLang :: forall ty embExpr annot.
                TCProgram (Channel embExpr annot ty) (Com 'Recv embExpr annot ty) embExpr (Fusable embExpr annot ty (FusedFunCtrl embExpr annot ty) (FusedLitCtrl embExpr annot ty))
             -> TCProgram (Channel embExpr annot ty) (Com 'Recv embExpr annot ty) embExpr (Fusable embExpr annot ty (FusedFunCtrl embExpr annot ty) (FusedLitCtrl embExpr annot ty))
 fuseSTCLang (TCProgram chans resultChan exprs) = TCProgram chans resultChan $ go exprs

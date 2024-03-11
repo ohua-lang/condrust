@@ -6,9 +6,9 @@ import Ohua.Frontend.Lang
 
 noEmptyArgs :: ResolvedExpr embExpr annot ty -> FuncExpr embExpr annot ty
 noEmptyArgs e =  case e of
-            AppE fun args -> case args of
-                []      -> AppE (noEmptyArgs fun) (LitE UnitLit :| [])
-                (a:as)  -> AppE (noEmptyArgs fun) (map noEmptyArgs (a:| as))
+            AppE fun annots args -> case args of
+                []      -> AppE (noEmptyArgs fun) annots (LitE UnitLit :| [])
+                (a:as)  -> AppE (noEmptyArgs fun) annots (map noEmptyArgs (a:| as))
             LamE pats fn -> case pats of 
                 []      -> LamE (VarP "_" (IType TypeUnit) :| []) (noEmptyArgs fn)
                 (p:ps)  -> LamE (p:|ps) (noEmptyArgs fn)

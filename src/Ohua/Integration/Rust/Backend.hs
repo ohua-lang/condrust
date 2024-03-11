@@ -16,10 +16,18 @@ import Ohua.Commons.Prelude
 import Ohua.Commons.Types.Vector (intToNat)
 
 
-type RustProgram t = Program (Channel (EmbExpr (Language 'Rust)) RustVarType) (Com 'Recv (EmbExpr (Language 'Rust)) RustVarType) t (EmbExpr (Language 'Rust)) RustVarType
+type RustProgram t = 
+  Program 
+    (Channel (EmbExpr (Language 'Rust)) (Annotation (Language 'Rust)) RustVarType) 
+    (Com 'Recv (EmbExpr (Language 'Rust)) (Annotation (Language 'Rust)) RustVarType) 
+    t 
+    (EmbExpr (Language 'Rust)) 
+    (Rust.Attribute Span)
+    RustVarType
+
 convertIntoBlock :: (Architecture arch, Lang arch ~ Language 'Rust) 
   => arch
-  -> TaskExpr (Rust.Expr Span) RustVarType 
+  -> TaskExpr (Rust.Expr Span) (Rust.Attribute Span) RustVarType 
   -> Sub.Block
 convertIntoBlock arch expr =
   let expr' = convertExpr arch expr
@@ -32,6 +40,7 @@ instance Integration (Language 'Rust) where
   type Type (Language 'Rust) = RustVarType
   type AlgoSrc (Language 'Rust) = Item Span
   type EmbExpr (Language 'Rust) = Rust.Expr Span
+  type Annotation (Language 'Rust) = Rust.Attribute Span
 
   type Expr (Language 'Rust) = Sub.Expr
   type Task (Language 'Rust) = Sub.Block
@@ -44,7 +53,7 @@ instance Integration (Language 'Rust) where
       , Lang arch ~ Language 'Rust)
       => HostModule (Language 'Rust)
       -> arch
-      -> Namespace (RustProgram (TaskExpr (EmbExpr (Language 'Rust)) RustVarType)) (AlgoSrc (Language 'Rust)) (OhuaType RustVarType 'Resolved)  
+      -> Namespace (RustProgram (TaskExpr (EmbExpr (Language 'Rust)) (Annotation (Language 'Rust)) RustVarType)) (AlgoSrc (Language 'Rust)) (OhuaType RustVarType 'Resolved)  
       -> m (Namespace (RustProgram (Task (Language 'Rust))) (AlgoSrc (Language 'Rust)) (OhuaType RustVarType 'Resolved)) 
   lower (Module _path (SourceFile _ _ _)) arch ns' =
     return $
@@ -57,12 +66,12 @@ instance Integration (Language 'Rust) where
           $ map (convertIntoBlock arch . convertEnvs <$>) tasks
 
 
-      convertEnvs :: TCLang.TaskExpr (Rust.Expr Span) RustVarType -> TCLang.TaskExpr (Rust.Expr Span) RustVarType
+      convertEnvs :: TCLang.TaskExpr (Rust.Expr Span) (Rust.Attribute Span) RustVarType -> TCLang.TaskExpr (Rust.Expr Span) (Rust.Attribute Span) RustVarType
       convertEnvs = cata $ \case
         LitF (EnvRefLit arg _ty) -> Var arg
         e -> embed e
 
-  convertExpr :: (Architecture arch, Lang arch ~ Language 'Rust) => arch -> TCLang.TaskExpr (Rust.Expr Span) RustVarType -> Sub.Expr
+  convertExpr :: (Architecture arch, Lang arch ~ Language 'Rust) => arch -> TCLang.TaskExpr (Rust.Expr Span) (Rust.Attribute Span) RustVarType -> Sub.Expr
   convertExpr _ (TCLang.Var b) = Sub.Var b
   convertExpr _ (TCLang.Lit l) = Sub.Lit l
   convertExpr arch (Apply (Stateless bnd args)) = convertFunCall arch bnd args
@@ -70,6 +79,7 @@ instance Integration (Language 'Rust) where
     Sub.MethodCall
       (convertExpr arch stateExpr)
       (Sub.CallRef f Nothing)
+      []
       (map (convertExpr arch) args)
   convertExpr arch (Let bnd stmt cont) =
     let stmtExpr =
@@ -150,7 +160,7 @@ mkFunRefUnqual = QualifiedBinding (makeThrow [])
 convertFunCall :: (Architecture arch, Lang arch ~ Language 'Rust) 
   => arch 
   -> QualifiedBinding 
-  -> [TCLang.TaskExpr (Rust.Expr Span) RustVarType] 
+  -> [TCLang.TaskExpr (Rust.Expr Span) (Rust.Attribute Span) RustVarType] 
   -> Sub.Expr
 convertFunCall arch f args =
   case (binOp f, args) of
@@ -158,7 +168,7 @@ convertFunCall arch f args =
     _ -> case (unOp f, args) of
       (Just uOp, [arg]) -> Sub.Unary uOp (convertExpr arch arg)
       _ ->
-        Sub.Call (Sub.CallRef f Nothing) $ map (convertExpr arch) args
+        Sub.Call (Sub.CallRef f Nothing) [] $ map (convertExpr arch) args
   where
     binOp = \case
       UnqualFun "+" -> Just Sub.Add

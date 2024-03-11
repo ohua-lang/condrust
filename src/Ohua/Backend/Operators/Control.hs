@@ -21,14 +21,14 @@ instance Hashable (CtrlInput embExpr annot ty)
 -- annotations
 data CtrlAnno = Variable | Fun | CtxtLit deriving (Eq, Show, Generic)
 
-data Ctrl (anno::CtrlAnno) (embExpr::Type) (ty::Type) :: Type where
+data Ctrl (anno::CtrlAnno) (embExpr::Type) (annot::Type)  (ty::Type) :: Type where
     VarCtrl ::  CtrlInput embExpr annot ty -> (OutputChannel embExpr annot ty, Com 'Recv embExpr annot ty) -> Ctrl 'Variable embExpr annot ty
     -- TODO this is not the right type! It does not transport the 
     -- invariant that all output channels have the same target.
     -- This is what `merge` establishes.
     -- Is this again something that can be created with LiquidHaskell?
     FunCtrl ::  CtrlInput embExpr annot ty -> NonEmpty (OutputChannel embExpr annot ty, Com 'Recv embExpr annot ty) -> Ctrl 'Fun embExpr annot ty
-    LitCtrl ::  CtrlInput embExpr annot ty -> (OutputChannel embExpr annot ty, Lit embExpr annot ty Resolved) -> Ctrl 'CtxtLit embExpr annot ty
+    LitCtrl ::  CtrlInput embExpr annot ty -> (OutputChannel embExpr annot ty, Lit embExpr ty Resolved) -> Ctrl 'CtxtLit embExpr annot ty
 
 deriving instance Eq (Ctrl semTy embExpr annot ty)
 deriving instance Show (Ctrl semTy embExpr annot ty)
@@ -50,11 +50,11 @@ toFunCtrl (VarCtrl ctrlVar var) = FunCtrl ctrlVar (var:|[])
 
 data FusedCtrlAnno = Function | Literal deriving (Eq, Show, Generic)
 
-data FusedCtrl (anno::FusedCtrlAnno) (embExpr::Type) (ty::Type) :: Type where
+data FusedCtrl (anno::FusedCtrlAnno) (embExpr::Type) (annot::Type) (ty::Type) :: Type where
     -- there is another assumption here that needs to be enforced:
     -- state inputs in NonEmpty VarReceive map to state outputs in [Send]!
-    FusedFunCtrl ::  CtrlInput embExpr  ty -> [VarReceive embExpr annot ty] -> TaskExpr embExpr annot ty -> [Com 'Send embExpr annot ty] -> FusedCtrl 'Function embExpr annot ty
-    FusedLitCtrl ::  CtrlInput embExpr  ty -> (OutputChannel embExpr  ty, Lit embExpr annot ty Resolved) -> Either (FusedFunCtrl embExpr annot ty) (F.FusableFunction  embExpr annot ty) -> FusedCtrl 'Literal embExpr annot ty
+    FusedFunCtrl ::  CtrlInput embExpr annot ty -> [VarReceive embExpr annot ty] -> TaskExpr embExpr annot ty -> [Com 'Send embExpr annot ty] -> FusedCtrl 'Function embExpr annot ty
+    FusedLitCtrl ::  CtrlInput embExpr annot ty -> (OutputChannel embExpr annot ty, Lit embExpr ty Resolved) -> Either (FusedFunCtrl embExpr annot ty) (F.FusableFunction  embExpr annot ty) -> FusedCtrl 'Literal embExpr annot ty
 
 deriving instance Eq (FusedCtrl semTy embExpr annot ty)
 
@@ -357,7 +357,7 @@ genCtrl' ctrlInput initVars comp cont =
 
 -- | A context control marks the end of a fusion chain. It is the very last control
 --   and therefore can only be fused into.
-mkLittedCtrl :: Com 'Recv embExpr annot ty -> Lit embExpr annot ty Resolved -> Com 'Channel embExpr annot ty -> LitCtrl embExpr annot ty
+mkLittedCtrl :: Com 'Recv embExpr annot ty -> Lit embExpr ty Resolved -> Com 'Channel embExpr annot ty -> LitCtrl embExpr annot ty
 mkLittedCtrl ctrl lit out =
     LitCtrl (CtrlInput ctrl) (OutputChannel out, lit)
 

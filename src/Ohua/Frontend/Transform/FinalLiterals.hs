@@ -29,7 +29,7 @@ noFunLitReturns (LitE _) = return ()
   <> show e
   <>"\nIn the host program this meant that it depends on the previous statements. This compiler does not yet support creating this dependency implicity. Hence, we kindly ask you to add it explicitly to your code."-}
 noFunLitReturns (LetE _p f cont) = noFunLitReturns f >> noFunLitReturns cont
-noFunLitReturns (AppE e1 e2) = mapM_ noFunLitReturns (e1 : toList e2)
+noFunLitReturns (AppE e1 _annots e2) = mapM_ noFunLitReturns (e1 : toList e2)
 noFunLitReturns (LamE _ e) = noFunLitReturns e
 noFunLitReturns (IfE e1 e2 e3) = noFunLitReturns e1 >> noFunLitReturns e2 >> noFunLitReturns e3
 noFunLitReturns (WhileE e1 e2) = noFunLitReturns e1 >> noFunLitReturns e2

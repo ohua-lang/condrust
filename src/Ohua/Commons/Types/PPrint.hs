@@ -11,7 +11,7 @@ import Prettyprinter as PP
 prettyFunRef :: FunRef ty res -> Doc ann
 prettyFunRef (FunRef sf ty) = pretty sf <> angles (pretty ty)
 
-prettyLit :: Lit embExpr annot ty res -> Doc ann
+prettyLit :: Lit embExpr ty res -> Doc ann
 prettyLit =
     \case
         FunRefLit funRef -> pretty funRef
@@ -48,5 +48,5 @@ instance Pretty (FunType ty res) where
 instance Pretty (FunRef ty res) where
     pretty = prettyFunRef
 
-instance Pretty (Lit embExpr annot ty res) where
+instance Pretty (Lit embExpr ty res) where
     pretty = prettyLit

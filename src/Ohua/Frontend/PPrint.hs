@@ -46,7 +46,7 @@ instance Pretty (Expr embExpr annot ty res []) where
         , align (pretty cont)
         ]
 
-    pretty (AppE x xs) = pretty x <> align (tupled $ toList $  map pretty xs)
+    pretty (AppE x _annots xs) = pretty x <> align (tupled $ toList $  map pretty xs)
     pretty (LamE ps b) = sep ["λ" <+>
                     align
                         (sep [ sep (map pretty (toList ps) <> ["->"])
@@ -90,7 +90,7 @@ instance Pretty (Expr embExpr annot ty res NonEmpty) where
         , align (pretty cont)
         ]
 
-    pretty (AppE x xs) = pretty x <> align (tupled $ toList $  map pretty xs)
+    pretty (AppE x _annots xs) = pretty x <> align (tupled $ toList $  map pretty xs)
     pretty (LamE ps b) = sep ["λ" <+>
                     align
                         (sep [ sep (map pretty (toList ps) <> ["->"])

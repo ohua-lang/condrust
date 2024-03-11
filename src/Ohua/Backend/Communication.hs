@@ -12,7 +12,8 @@ lowerRetCom ::
         , ty ~ Type (Lang arch)
         , task ~ Task (Lang arch)
         , retChan ~ Expr (Lang arch)
-        , embExpr ~ EmbExpr (Lang arch))
+        , embExpr ~ EmbExpr (Lang arch)
+        , annot ~ Annotation (Lang arch))
         => arch
         -> Namespace (Program (Chan arch) (Com 'Recv embExpr annot ty) task embExpr annot ty) anno (OhuaType ty 'Resolved)
         -> Namespace (Program (Chan arch) retChan                task embExpr annot ty) anno (OhuaType ty 'Resolved)
@@ -31,7 +32,8 @@ lowerChannels ::
         ( Architecture arch
         , ty ~ Type (Lang arch)
         , task ~ Task (Lang arch)
-        , embExpr ~ EmbExpr (Lang arch))
+        , embExpr ~ EmbExpr (Lang arch)
+        , annot ~ Annotation (Lang arch))
         => arch
         -> Namespace (Program (Channel embExpr annot ty) (Com 'Recv embExpr annot ty) task embExpr annot ty) anno (OhuaType ty 'Resolved)
         -> Namespace (Program (Chan arch)  (Com 'Recv embExpr annot ty) task embExpr annot ty) anno (OhuaType ty 'Resolved)

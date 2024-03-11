@@ -14,7 +14,7 @@ data RecFun embExpr annot ty where
     Maybe (Com 'Channel embExpr annot ty) ->
     -- I'm loosing the type info here because getting the instances below is a pain otherwise :(
     [Com 'Channel embExpr annot ty] ->
-    [Either (Com 'Recv embExpr annot ty) (Lit embExpr annot ty Resolved)] ->
+    [Either (Com 'Recv embExpr annot ty) (Lit embExpr ty Resolved)] ->
     [Com 'Recv embExpr annot ty] ->
     Com 'Recv embExpr annot ty ->
     Com 'Recv embExpr annot ty ->

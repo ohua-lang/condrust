@@ -24,8 +24,8 @@ liftCollectType (RT.Normal t) =
     $ AngleBracketed [TypeArg $ RustType t]
 liftCollectType t = t
 
-
-spawnCall = MethodCall (Var runtime) (CallRef (mkFunRefUnqual "spawn") Nothing) [Var "work"]
+spawnAnnotations = []
+spawnCall = MethodCall (Var runtime) (CallRef (mkFunRefUnqual "spawn") Nothing) spawnAnnotations [Var "work"]
 
 getInitializers :: Architectures 'SharedMemory -> Block -> Maybe (Stmt, Stmt)
 getInitializers (SSharedMemory Options{..}) block =
@@ -40,27 +40,33 @@ getInitializers (SSharedMemory Options{..}) block =
                 Local (IdentP $ IdentPat Immutable rt_arc) Nothing $
                   Call
                    (CallRef "std.sync.Arc/new" Nothing)
+                   [] -- empty Annotations
                    [ MethodCall
                      ( MethodCall
                        ( MethodCall
                          ( MethodCall
-                           (Call (CallRef "tokio.runtime.Builder/new" Nothing) [])
+                           (Call (CallRef "tokio.runtime.Builder/new" Nothing) [] {-empty Annotations-} [])
                            (CallRef (mkFunRefUnqual "threaded_scheduler") Nothing)
+                           [] -- empty Annotations
                            []
                          )
                          (CallRef (mkFunRefUnqual "core_threads") Nothing)
+                         [] -- empty Annotations
                          [Lit $ NumericLit parNum]
                        )
                        (CallRef (mkFunRefUnqual "build") Nothing)
+                       [] 
                        []
                      )
                      (CallRef (mkFunRefUnqual "unwrap") Nothing)
+                     []
                      []
                    ]
             rt_stmt = Local rt Nothing $
                         MethodCall
                           (Var rt_arc)
                           (CallRef (mkFunRefUnqual "clone") Nothing)
+                          [] -- empty Annotations
                           []
           in Just (rt_arc_stmt, rt_stmt)
         False -> Nothing
@@ -94,17 +100,19 @@ spawnWork (SSharedMemory Options{..}) block =
       in RustBlock unsafety blockExpr'
     Nothing -> block
   where
+    -- ToDo: I'm forwarding annotations to generated functions here -> Validate if this is appropriate
     -- (fun:rt:args') -> -- would be cleaner
-    go (Call (CallRef f _) (Lit (FunRefLit (FunRef qb _)) : args))
+    go (Call (CallRef f _) annots (Lit (FunRefLit (FunRef qb _)) : args))
       | f == spawnFuture = do
         modify $ const True
-        return $ BlockExpr $ RustBlock Normal $ spawnComp $ Call (CallRef qb Nothing) args
-    go (Call (CallRef f _) [future])
+        return $ BlockExpr $ RustBlock Normal $ spawnComp $ Call (CallRef qb Nothing) annots args
+    go (Call (CallRef f _) annots [future])
       | f == joinFuture =
         pure $
           MethodCall
-            (MethodCall future (CallRef (mkFunRefUnqual "recv") Nothing) [])
+            (MethodCall future (CallRef (mkFunRefUnqual "recv") Nothing) annots [])
             (CallRef (mkFunRefUnqual "unwrap") Nothing)
+            annots
             []
     go e = pure e
 
@@ -116,15 +124,16 @@ spawnWork (SSharedMemory Options{..}) block =
     -- }
     spawnComp comp =
       [ Local (TupP [IdentPat Immutable "tx", IdentPat Immutable "rx"]) Nothing $
-          Call (CallRef "std.sync.mpsc/channel" Nothing) [],
+          Call (CallRef "std.sync.mpsc/channel" Nothing) [] [],
         Local (IdentP $ IdentPat Immutable "work") Nothing $
           Async $
             RustBlock
               Normal
               [ NoSemi $
                   MethodCall
-                    (MethodCall (Var "tx") (CallRef (mkFunRefUnqual "send") Nothing) [comp])
+                    (MethodCall (Var "tx") (CallRef (mkFunRefUnqual "send") Nothing) [] [comp])
                     (CallRef (mkFunRefUnqual "unwrap") Nothing)
+                    []
                     []
               ],
         Semi $ spawnCall,
@@ -134,7 +143,8 @@ spawnWork (SSharedMemory Options{..}) block =
 amorphous :: Block -> Block
 amorphous = transformExprInBlock go
   where
-    go (Call (CallRef f _) [v, n])
+    -- ToDo: I propagate annotiations of the transformed functino calls here: please validate if thats generally appropriate.
+    go (Call (CallRef f _) annots [v, n])
       | f == takeN =
         BlockExpr $
           RustBlock
@@ -143,17 +153,17 @@ amorphous = transformExprInBlock go
                 (IdentP $ IdentPat Immutable "sp")
                 Nothing
                 ( If
-                    (Binary Lt (MethodCall v (CallRef (mkFunRefUnqual "len") Nothing) []) n)
-                    (RustBlock Normal [NoSemi $ MethodCall v (CallRef (mkFunRefUnqual "len") Nothing) []])
+                    (Binary Lt (MethodCall v (CallRef (mkFunRefUnqual "len") Nothing) annots []) n)
+                    (RustBlock Normal [NoSemi $ MethodCall v (CallRef (mkFunRefUnqual "len") Nothing) annots []])
                     $ Just n
                 ),
               Local
                 (IdentP $ IdentPat Immutable "chunk")
                 Nothing
-                (MethodCall v (CallRef (mkFunRefUnqual "split_off") Nothing) [Var "sp"]),
+                (MethodCall v (CallRef (mkFunRefUnqual "split_off") Nothing) annots [Var "sp"]),
               NoSemi (Tuple [v, Var "chunk"])
             ]
-    go (Call (CallRef f _) [results, rest])
+    go (Call (CallRef f _) annots [results, rest])
       | f == concat =
         BlockExpr $
           RustBlock
@@ -162,7 +172,8 @@ amorphous = transformExprInBlock go
                 MethodCall
                   results
                   (CallRef (mkFunRefUnqual "extend") Nothing)
-                  [MethodCall rest (CallRef (mkFunRefUnqual "into_iter") Nothing) []], -- assumes Vec
+                  annots
+                  [MethodCall rest (CallRef (mkFunRefUnqual "into_iter") Nothing) annots []], -- assumes Vec
               NoSemi results
             ]
     go e = e

@@ -33,7 +33,7 @@ import Ohua.Integration.Rust.Backend.Passes (propagateMut)
 import Data.Text (unpack, unlines)
 import Ohua.Integration.Rust.Architecture.SharedMemory (convertToRustType)
 
-convertChan :: Sub.BindingMode -> Channel (Rust.Expr Span) TH.RustVarType -> Rust.Stmt ()
+convertChan :: Sub.BindingMode -> Channel (Rust.Expr Span) (Rust.Attribute Span) TH.RustVarType -> Rust.Stmt ()
 convertChan rxMutability (SRecv _ty (SChan bnd)) =
     let channel = noSpan <$ [expr| channel() |]
      in Rust.Local
@@ -48,7 +48,7 @@ convertChan rxMutability (SRecv _ty (SChan bnd)) =
           []
           noSpan
 
-convertReceive :: Binding -> Com 'Recv (Rust.Expr Span) TH.RustVarType -> Sub.Expr
+convertReceive :: Binding -> Com 'Recv (Rust.Expr Span) (Rust.Attribute Span) TH.RustVarType -> Sub.Expr
 convertReceive suffix (SRecv argType (SChan channel)) =
   let ty' = case argType of
               (HType (HostType( TH.Self ty _ _mut)) ) -> noSpan <$ ty
@@ -61,6 +61,7 @@ convertReceive suffix (SRecv argType (SChan channel)) =
         Sub.MethodCall
           (Sub.Var $ channel <> suffix)
           (Sub.CallRef (asQualBind "recv") $ Just $ Sub.AngleBracketed [Sub.TypeArg $ Sub.RustType ty'])
+          []
           []
   in rcv
 
@@ -77,6 +78,7 @@ instance Architecture (Architectures 'M3) where
     Sub.MethodCall
       (convertReceive "_rx" r)
       (Sub.CallRef (asQualBind "expect") Nothing)
+      [] -- empty Annotation
       [Sub.Lit $ StringLit $ unpack $ unlines
         ["The retrieval of the result value failed."
         ,"Ohua turned your sequential program into a distributed one."
@@ -98,7 +100,7 @@ instance Architecture (Architectures 'M3) where
     where
       asMethodCall item =
         Sub.Try
-              (Sub.MethodCall (Sub.Var $ channel <> "_child_tx") (Sub.CallRef (asQualBind "send") Nothing) [item])
+              (Sub.MethodCall (Sub.Var $ channel <> "_child_tx") (Sub.CallRef (asQualBind "send") Nothing) [] [item])
 
   build SM3{} (TH.Module _ (Rust.SourceFile _ _ _items)) ns =
     return $ ns & algos %~ map (\algo -> algo & algoCode %~ createTasksAndRetChan)
@@ -110,9 +112,9 @@ instance Architecture (Architectures 'M3) where
 
       createActivity' (FullTask sends recvs taskE) =
         let
-          extractSend :: Com 'Send (Rust.Expr Span) ty -> Binding
+          extractSend :: Com 'Send (Rust.Expr Span) (Rust.Attribute Span) ty -> Binding
           extractSend (SSend (SChan c) _) = c
-          extractRecv :: Com 'Recv (Rust.Expr Span) ty -> Binding
+          extractRecv :: Com 'Recv (Rust.Expr Span) (Rust.Attribute Span) ty -> Binding
           extractRecv (SRecv _ (SChan c)) = c
           closureParams vars ty extract =
             map (\v ->
@@ -135,7 +137,7 @@ instance Architecture (Architectures 'M3) where
               (last,heads) = case stmtsRev of
                               [] -> (hd, [])
                               (l:h) -> (l, hd : reverse h)
-              last' = (\l -> Sub.Call (Sub.CallRef (asQualBind "Ok") Nothing) [l]) <$> last
+              last' = (\l -> Sub.Call (Sub.CallRef (asQualBind "Ok") Nothing) [] {-empty Annotation-} [l]) <$> last
             in
               CSub.RustBlock u $ heads ++ [last']
           taskCode = Rust.BlockExpr [] (convertBlock (monadicTaskCode taskE)) Nothing noSpan
@@ -174,7 +176,7 @@ instance Architecture (Architectures 'M3) where
           activation = flip Rust.Semi noSpan
             $ convertExp
             $ Sub.Try
-            $ Sub.MethodCall retChan (Sub.CallRef (asQualBind "activate") Nothing) []
+            $ Sub.MethodCall retChan (Sub.CallRef (asQualBind "activate") Nothing) [] {-empty Annotation-} []
           -- TODO activate source channels (once they are in place)
           -- TODO wait for activity completion
           resultStmt = Rust.NoSemi (convertExp resultExpr) noSpan

@@ -55,7 +55,8 @@ Delta ... associates function literals to a type
 -}
 
 
-toWellTyped :: forall embExpr annot ty m. ErrAndLogM m => Delta ty 'Resolved -> [Import] -> UnresolvedExpr embExpr annot ty -> m (ResolvedExpr embExpr annot ty)
+toWellTyped :: forall embExpr annot ty m. (Show annot, ErrAndLogM m) 
+  => Delta ty 'Resolved -> [Import] -> UnresolvedExpr embExpr annot ty -> m (ResolvedExpr embExpr annot ty)
 toWellTyped delta modImports e@(LamE pats expr) =
   let
     gamma = HM.fromList $ freeVars e
@@ -124,7 +125,7 @@ typeExpr :: (ErrAndLogM m, TypeErrorM m embExpr annot ty)
 -- Also Type Checking of Lambda expressions will not add parameter types to the context Gamma.
 -- That means for any parameter x of an algo, we won't be able to resolve it's type unless we make an exception about
 -- adding Lambda parameters to Gamma during type checking ... That's why we do it here.
-typeExpr delta imports gamma e = local ( <> (e:|[])) $ typeSystem delta imports gamma e
+typeExpr delta modImports gamma e = local ( <> (e:|[])) $ typeSystem delta modImports gamma e
 
 
 
@@ -185,7 +186,7 @@ typeSystem delta imports gamma = \case
   ===================================================================================
                   Delta, Gamma |– fun t1 t2 ... tn : Tf
   -}
-  (AppE fun args) -> do
+  (AppE fun annots args) -> do
       -- First we type the function
       (gamma', fun', funTy, imports' ) <- typeExpr delta imports gamma fun
       -- Then we type it's args
@@ -205,7 +206,7 @@ typeSystem delta imports gamma = \case
               -- FIXME: assocArgWithType should realy just be an assertion as long as we do not allow partial function application 
               -- (i.e. as long as we do not support a host language with that concept and introduce a proper way to handle potentially resulting type errors)
               (_:_)  -> wfError $ "Too few arguments in function application. Remaining argTypes" <> show pendingArgsTy -- return $ FType  (FunType (Right $ x:|xs) out)
-        FType (STFunType sin ins out) -> do
+        FType (STFunType _sin ins out) -> do
             -- What is the result type of applying a stateful function? It's the new state of the state and the result of the function. 
             -- However, we only introduce state threads i.e. the explicit handling of new states as a result of stateful calls downstream in the compiler
             -- So at this point, the result of a stateful call should just be the result type of the method.
@@ -218,7 +219,7 @@ typeSystem delta imports gamma = \case
       
       -- traceM $ "Found return type to be " <> show resTy
       -- traceM $  renderStrict $ layoutSmart defaultLayoutOptions $ pretty $ HM.toList gamma''
-      return (gamma'', AppE fun' args', resTy, imports')
+      return (gamma'', AppE fun' annots args', resTy, imports')
       where  
         assocArgWithType :: (ErrAndLogM m, TypeErrorM m embExpr annot ty) => [OhuaType ty Resolved] -> [OhuaType ty Resolved] -> m [OhuaType ty Resolved]
         -- We must not have more arguments than argument types in the declaration

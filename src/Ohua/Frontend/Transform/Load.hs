@@ -30,8 +30,8 @@ loadDeps :: forall m lang.
     (ErrAndLogM m, Integration lang)
     => lang 
     -> CompilationScope 
-    -> Namespace (UnresolvedExpr (EmbExpr lang) (Type lang)) (AlgoSrc lang) (OhuaType (Type lang) 'Resolved) 
-    -> m (NamespaceRegistry (EmbExpr lang) (Type lang))
+    -> Namespace (UnresolvedExpr (EmbExpr lang) (Annotation lang) (Type lang)) (AlgoSrc lang) (OhuaType (Type lang) 'Resolved) 
+    -> m (NamespaceRegistry (EmbExpr lang) (Annotation lang) (Type lang))
 loadDeps lang scope (Namespace _name imps globs algs) = do
     let currentNs = Namespace (makeThrow []) imps globs algs
     let registry' = registerAlgos HM.empty currentNs
@@ -64,8 +64,8 @@ loadAlgosAndImports :: forall m lang.
     -> CompilationScope 
     -> FilePath
     -> m (  HostModule lang, 
-            Namespace (UnresolvedExpr (EmbExpr lang) (Type lang)) (AlgoSrc lang) (OhuaType (Type lang) 'Resolved),
-            NamespaceRegistry (EmbExpr lang) (Type lang), 
+            Namespace (UnresolvedExpr (EmbExpr lang) (Annotation lang) (Type lang)) (AlgoSrc lang) (OhuaType (Type lang) 'Resolved),
+            NamespaceRegistry (EmbExpr lang) (Annotation lang) (Type lang), 
             HostModule lang)
 loadAlgosAndImports  lang scope inFile = do
     -- logDebugN $ "Loading module: " <> show inFile <> "..."

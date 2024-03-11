@@ -33,7 +33,7 @@ instance Architecture (Architectures 'SharedMemory) where
   type Chan (Architectures 'SharedMemory) = Sub.Stmt
   type ATask (Architectures 'SharedMemory) = [Rust.Stmt ()]
 
-  convertChannel :: Architectures 'SharedMemory -> Channel (Rust.Expr Span) TH.RustVarType -> Chan (Architectures 'SharedMemory)
+  convertChannel :: Architectures 'SharedMemory -> Channel (Rust.Expr Span) (Rust.Attribute Span) TH.RustVarType -> Chan (Architectures 'SharedMemory)
   convertChannel SSharedMemory{} (SRecv argTy (SChan bnd)) =
     let chanTy =
           case convertToRustType argTy of
@@ -52,6 +52,7 @@ instance Architecture (Architectures 'SharedMemory) where
                 (QualifiedBinding (makeThrow ["std", "sync", "mpsc"]) "channel")
                 chanTy
             )
+            [] -- empty Annotations
             []
 
   convertRecv SSharedMemory{} (SRecv _type (SChan channel)) =
@@ -59,6 +60,7 @@ instance Architecture (Architectures 'SharedMemory) where
       Sub.MethodCall
         (Sub.Var $ channel <> "_rx")
         (Sub.CallRef (mkFunRefUnqual "recv") Nothing)
+        [] -- empty Annotations
         []
   convertSend SSharedMemory{} (SSend (SChan channel) d) = case d of
     Left bnd -> trySend $ Sub.Var bnd
@@ -74,6 +76,7 @@ instance Architecture (Architectures 'SharedMemory) where
                     Sub.MethodCall
                     (Sub.Var $ channel <> "_tx")
                     (Sub.CallRef (mkFunRefUnqual "send") Nothing)
+                    [] -- empty Annotations
                     [bnd]
 
   build arch@SSharedMemory{} (TH.Module _ (Rust.SourceFile _ _ _items)) ns =

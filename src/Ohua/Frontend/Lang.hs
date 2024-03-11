@@ -77,7 +77,7 @@ patTyBnds = \case
 type Expr :: Type -> Type -> Type -> Resolution -> (Type -> Type) -> Type
 data Expr embExpr annot ty res lists where
   VarE      :: Binding -> OhuaType ty res                                                          -> Expr embExpr annot ty res lists
-  LitE      :: Lit embExpr annot ty res                                                            -> Expr embExpr annot ty res lists
+  LitE      :: Lit embExpr ty res                                                            -> Expr embExpr annot ty res lists
   LetE      :: Pat ty res -> Expr embExpr annot ty res lists -> Expr embExpr annot ty res lists    -> Expr embExpr annot ty res lists
   AppE      :: (Traversable lists) => 
                 Expr embExpr annot ty res lists 
@@ -105,7 +105,7 @@ data MethodRepr ty res where
     MethodRes   :: QualifiedBinding -> FunType ty 'Resolved -> MethodRepr ty 'Resolved 
 
 deriving instance Show (MethodRepr ty res)
-deriving instance (Show (lists (Expr embExpr annot ty res lists)), Show (lists (Pat ty res))) => Show (Expr embExpr annot ty res lists) 
+deriving instance (Show (lists (Expr embExpr annot ty res lists)), Show (lists (Pat ty res)), Show annot) => Show (Expr embExpr annot ty res lists) 
 
 type UnresolvedExpr embExpr annot ty = Expr embExpr annot ty Unresolved [] 
 type ResolvedExpr embExpr annot ty = Expr  embExpr annot ty Resolved []
@@ -125,10 +125,10 @@ preWalkM f e = case e of
           e1' <- preWalkM  f e1
           e2' <- preWalkM  f e2
           f (LetE p e1' e2')
-      AppE fun args ->  do
+      AppE fun annots args ->  do
           fun' <- preWalkM f fun
           args' <- mapM (preWalkM f) args
-          f (AppE fun' args')
+          f (AppE fun' annots args')
       LamE pats body ->  do
           body' <- preWalkM f body
           f (LamE pats body')
@@ -182,7 +182,7 @@ patternFromUExpr e = case e of
 -}
 
 -- | We need this function to insert sequencing (formerly known as Seq-expression) before lowering to Alang
-exprType :: FuncExpr embExpr annot ty -> ResolvedType ty
+exprType ::(Show annot) => FuncExpr embExpr annot ty -> ResolvedType ty
 exprType = \case
     (VarE _b ty) -> ty
     (LitE  lit) -> getLitType lit
@@ -198,12 +198,12 @@ exprType = \case
     (StateFunE _st (MethodRes _ fty) _args) -> getReturnType (FType fty)
     (TupE es) -> TType (NE.map exprType es)
 
-returnType :: FuncExpr embExpr annot ty -> ResolvedType ty
+returnType :: (Show annot) => FuncExpr embExpr annot ty -> ResolvedType ty
 returnType e = case funType e of
     Just fty -> getReturnType fty
     Nothing -> exprType e
 
-funType :: FuncExpr embExpr annot ty -> Maybe (ResolvedType ty)
+funType :: (Show annot) => FuncExpr embExpr annot ty -> Maybe (ResolvedType ty)
 funType e = case e of
         (VarE _bnd (FType fTy))          -> Just (FType fTy)
         (LitE (FunRefLit fRef))          -> Just $ FType (getRefType fRef)
@@ -240,7 +240,7 @@ freeVars e = go HS.empty e
     go _ctxt (VarE bnd ty) = [(bnd, ty)]
     go _ctxt (LitE _) = []
     go  ctxt (LetE p e1 e2) = go ctxt e1 ++ (go (foldl (flip HS.insert) ctxt $ patBnd p) e2)
-    go  ctxt (AppE f xs) = go ctxt f ++ foldl (\vs e1 -> vs ++ go ctxt e1) [] xs
+    go  ctxt (AppE f annots xs) = go ctxt f ++ foldl (\vs e1 -> vs ++ go ctxt e1) [] xs
     go  ctxt (LamE ps e1) = go (foldl (flip HS.insert) ctxt $ concat $ map (NE.toList . patBnd) ps) e1
     go  ctxt (IfE e1 e2 e3) = go ctxt e1 ++ go ctxt e2 ++ go ctxt e3
     go  ctxt (WhileE e1 e2) = go ctxt e1 ++ go ctxt e2
@@ -257,7 +257,7 @@ flattenU e = case e of
         (VarE _ _ ) -> [e]
         (LitE _) -> [e]
         (LetE _p e1 e2) -> [e] ++ flattenU e1 ++ flattenU e2 
-        (AppE f xs)-> [e] ++ flattenU f ++ concatMap flattenU xs  
+        (AppE f annots xs)-> [e] ++ flattenU f ++ concatMap flattenU xs  
         -- (AppEU f xs)-> [e] ++ flattenU f ++ concatMap flattenU  xs  
         (LamE _ps lbody)-> [e] ++ flattenU lbody  
         -- (LamEU _ps lbody )->  [e] ++ flattenU lbody
@@ -296,10 +296,10 @@ preWalkE f e = case e of
           let e1' = preWalkE  f e1
               e2' = preWalkE  f e2
           in f (LetE p e1' e2')
-      AppE fun args -> 
+      AppE fun annots args -> 
           let fun' = preWalkE f fun
               args' = map (preWalkE f) args
-          in f (AppE fun' args')
+          in f (AppE fun' annots args')
       LamE pats body -> 
           let body' = preWalkE f body
           in f (LamE pats body')

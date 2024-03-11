@@ -51,14 +51,14 @@ compile inFile compScope coreOpts beConf integConf outDir =
         (compilation inFile compScope coreOpts beConf outDir)
 
 compilation :: forall (lang::Lang) (arch::Arch) m.
-    (ErrAndLogM m, FullIntegration lang arch)
+    (ErrAndLogM m, FullIntegration lang arch, Show (BT.Annotation (Language lang)))
     => FilePath
     -> CompilationScope
     -> CoreEnv.Options
     -> BConfig.Options
 
     -> FilePath
-    -> Maybe (CConfig.CustomPasses (BT.EmbExpr (Language lang)) (BT.Type (Language lang)))
+    -> Maybe (CConfig.CustomPasses (BT.EmbExpr (Language lang)) (BT.Annotation (Language lang)) (BT.Type (Language lang)))
     -> Language lang
     -> Architectures arch
     -> m ()

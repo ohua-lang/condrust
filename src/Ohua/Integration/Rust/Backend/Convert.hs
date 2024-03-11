@@ -38,13 +38,13 @@ convertExp (Sub.Lit (FunRefLit (FunRef qBnd _type))) =
   PathExpr [] Nothing (convertQualBnd qBnd) noSpan
 convertExp (Sub.Call cr attrs args) =
   Call
-    attrs
+    (map deSpan attrs)
     (convertCallRef cr)
     (map convertExp args)
     noSpan
 convertExp (Sub.MethodCall stateExpr (Sub.CallRef (QualifiedBinding _ bnd) ty) attrs args) =
   MethodCall
-    attrs
+    (map deSpan attrs)
     (convertExp stateExpr)
     (PathSegment (mkIdent $ unpack $ unwrap bnd) (convertGenericArgs <$> ty) noSpan)
     (map convertExp args)
