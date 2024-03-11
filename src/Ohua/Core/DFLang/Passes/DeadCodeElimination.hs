@@ -9,19 +9,19 @@ import Ohua.Core.DFLang.Lang as L
 import Ohua.Core.Prelude
 import qualified Ohua.Commons.Types.Vector as V
 
-eliminate :: (MonadOhua m) => NormalizedDFExpr embExpr ty -> m (NormalizedDFExpr embExpr ty)
+eliminate :: (MonadOhua m) => NormalizedDFExpr embExpr annot ty -> m (NormalizedDFExpr embExpr annot ty)
 eliminate expr = do
   expr' <- (eliminateExprs . eliminateOuts) expr
   (if L.countBindings expr == L.countBindings expr' then pure expr' else eliminate expr')
 
-eliminateExprs :: forall m embExpr ty. (MonadOhua m) => NormalizedDFExpr embExpr ty -> m (NormalizedDFExpr embExpr ty)
+eliminateExprs :: forall m embExpr annot ty. (MonadOhua m) => NormalizedDFExpr embExpr annot ty -> m (NormalizedDFExpr embExpr annot ty)
 eliminateExprs expr = do
   expr' <- eliminateDeadExprs expr
   (if L.length expr == L.length expr' then pure expr' else eliminateExprs expr')
   where
     eliminateDeadExprs = transformExprM f
 
-    f :: NormalizedDFExpr embExpr ty -> m (NormalizedDFExpr embExpr ty)
+    f :: NormalizedDFExpr embExpr annot ty -> m (NormalizedDFExpr embExpr annot ty)
     f (Let app@(PureDFFun out (FunRef fun _) _) cont) = do
       (if isUsed out then pure $ Let app cont else warn fun >> return cont)
     f e = pure e
@@ -36,10 +36,10 @@ eliminateExprs expr = do
     warning :: QualifiedBinding -> m ()
     warning fun = liftIO $ T.putStrLn $ "[WARNING] The output of pure function '" <> show fun <> "' is not used. As such, it will be deleted. If the function contains side-effects then this function actually wants to be stateful!"
 
-eliminateOuts :: forall embExpr ty. NormalizedDFExpr embExpr ty -> NormalizedDFExpr embExpr ty
+eliminateOuts :: forall embExpr annot ty. NormalizedDFExpr embExpr annot ty -> NormalizedDFExpr embExpr annot ty
 eliminateOuts expr = mapFuns go expr
   where
-    go :: forall (f::FunANF). DFApp f embExpr ty -> DFApp f embExpr ty
+    go :: forall (f::FunANF). DFApp f embExpr annot ty -> DFApp f embExpr annot ty
     go (RecurFun c ctrlOut outArgs initArgs inArgs cond result) = do
       let ctrlOut' = filterOutData =<< ctrlOut
       case V.zip3 outArgs initArgs inArgs of

@@ -25,7 +25,7 @@ For example:
 @
 Here, f has side-effects to a and we sequence further execution.
 -}
-literalsToFunctions :: MonadOhua m => Expr embExpr ty -> m (Expr embExpr ty)
+literalsToFunctions :: MonadOhua m => Expr embExpr annot ty -> m (Expr embExpr annot ty)
 literalsToFunctions e =
     flip transformM e $ \case
         Let v (Lit lit) ie ->

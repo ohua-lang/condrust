@@ -35,16 +35,16 @@ import Ohua.Core.Prelude
 import Ohua.Core.ALang.PPrint ()
 
 
-smapSfFun :: OhuaType ty Resolved -> OhuaType ty Resolved -> Expr embExpr ty
+smapSfFun :: OhuaType ty Resolved -> OhuaType ty Resolved -> Expr embExpr annot ty
 -- Takes a collection and returns (contained Dt, control signal, Nat)
 -- I can get the data type from the input type of the function
 smapSfFun collTy elemTy = Lit $ FunRefLit $ FunRef IFuns.smapFun $ FunType (Right $ collTy :| []) (TType (elemTy :| [controlSignalType, IType TypeNat]))
 
-collectSf :: OhuaType ty Resolved -> Expr embExpr ty
+collectSf :: OhuaType ty Resolved -> Expr embExpr annot ty
 -- Takes a nat and the return type t of the function and returns [t]
 collectSf outTy = Lit $ FunRefLit $ FunRef IFuns.collect $ FunType (Right $ IType TypeNat :| [outTy]) (IType $ TypeList outTy)
 
-smapRewrite :: (Monad m, MonadGenBnd m, Show embExpr) => Expr embExpr ty -> m (Expr embExpr ty)
+smapRewrite :: (Monad m, MonadGenBnd m, Show embExpr) => Expr embExpr annot ty -> m (Expr embExpr annot ty)
 smapRewrite =
     rewriteM $ \case
         PureFunctionTy fnName fnTy `Apply` lamExpr `Apply` dataGen

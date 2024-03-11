@@ -12,7 +12,7 @@ import Ohua.Commons.Prelude
 -- | This function loads the following transformations:
 --   * It activates an optimization in core such that state can be fused properly (see Ohua.Core.DFLang.Passes.State.intoFusable).
 --   * [Optional] data parallelism
-passes :: Options -> (ty -> ty) -> CustomPasses embExpr ty
+passes :: Options -> (ty -> ty) -> CustomPasses embExpr annot ty
 passes opts = StateDFL.load . dataPar opts
 
 -- | Rust wants all __mutable__ variables to be tagged.

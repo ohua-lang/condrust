@@ -4,7 +4,7 @@ import Ohua.Commons.Prelude
 
 import Ohua.Frontend.Lang
 
-noEmptyArgs :: ResolvedExpr embExpr ty -> FuncExpr embExpr ty
+noEmptyArgs :: ResolvedExpr embExpr annot ty -> FuncExpr embExpr annot ty
 noEmptyArgs e =  case e of
             AppE fun args -> case args of
                 []      -> AppE (noEmptyArgs fun) (LitE UnitLit :| [])

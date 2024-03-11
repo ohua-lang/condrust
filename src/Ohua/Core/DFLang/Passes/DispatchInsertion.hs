@@ -19,7 +19,7 @@ data Record where
   Record :: NonEmpty UsageSite -> SNat ('Succ n) -> Record
 type FreeVars ty = HM.HashMap (TypedBinding ty) Record
 
-fromApp :: DFApp fTy embExpr ty -> UsageSite
+fromApp :: DFApp fTy embExpr annot ty -> UsageSite
 fromApp PureDFFun{} = Pure
 fromApp StateDFFun{} = StateThread
 fromApp SMapFun{} = SMap
@@ -48,10 +48,10 @@ instance Semigroup Record where
 -- | This inserts dispatches only for control data.
 --   Core delegates the decision of cloning or not cloning to the language integration.
 -- TODO add proper documentation
-insertDispatch :: forall m embExpr ty. MonadGenBnd m => MonadOhua m => NormalizedDFExpr embExpr ty -> m (NormalizedDFExpr embExpr ty)
+insertDispatch :: forall m embExpr annot ty. MonadGenBnd m => MonadOhua m => NormalizedDFExpr embExpr annot ty -> m (NormalizedDFExpr embExpr annot ty)
 insertDispatch e = evalStateT (transformExprM go e) HM.empty
   where
-    go :: NormalizedDFExpr embExpr ty -> StateT (FreeVars ty) m (NormalizedDFExpr embExpr ty)
+    go :: NormalizedDFExpr embExpr annot ty -> StateT (FreeVars ty) m (NormalizedDFExpr embExpr annot ty)
     go l@(Let app cont) = do
       l' <- case app of
         (SMapFun (dOut, ctrlOut, sizeOut) dIn) -> do
@@ -88,15 +88,15 @@ insertDispatch e = evalStateT (transformExprM go e) HM.empty
       let initial = Record (fromApp app :| []) $ SSucc SZero
       in   mapM_ (\tbnd -> modify $ HM.insertWith (<>) tbnd initial) $ insDFApp app
 
-    maybeDispatch :: NormalizedDFExpr embExpr ty -> Maybe (OutData bndType ty) -> StateT (FreeVars ty) m (NormalizedDFExpr embExpr ty, Maybe (OutData bndType ty))
+    maybeDispatch :: NormalizedDFExpr embExpr annot ty -> Maybe (OutData bndType ty) -> StateT (FreeVars ty) m (NormalizedDFExpr embExpr annot ty, Maybe (OutData bndType ty))
     maybeDispatch cont dOut =
-      let f :: OutData bndType ty -> StateT (FreeVars ty) m (NormalizedDFExpr embExpr ty, Maybe (OutData bndType ty))
+      let f :: OutData bndType ty -> StateT (FreeVars ty) m (NormalizedDFExpr embExpr annot ty, Maybe (OutData bndType ty))
           f out = do
             (c', out') <- dispatchOutput cont out
             return (c', Just out')
        in maybeM (return (cont, dOut)) f $ return dOut
 
-    dispatchOutput :: NormalizedDFExpr embExpr ty -> OutData bndType ty -> StateT (FreeVars ty) m (NormalizedDFExpr embExpr ty, OutData bndType ty)
+    dispatchOutput :: NormalizedDFExpr embExpr annot ty -> OutData bndType ty -> StateT (FreeVars ty) m (NormalizedDFExpr embExpr annot ty, OutData bndType ty)
     dispatchOutput cont (Direct o) = do
       (cont', o') <- checkAndDispatch cont o
       return
@@ -128,7 +128,7 @@ insertDispatch e = evalStateT (transformExprM go e) HM.empty
           outs
       return (cont'', Dispatch out'')
 
-    checkAndDispatch :: NormalizedDFExpr embExpr ty -> ATypedBinding bndTy ty -> StateT (FreeVars ty) m (NormalizedDFExpr embExpr ty, NonEmpty (ATypedBinding bndTy ty))
+    checkAndDispatch :: NormalizedDFExpr embExpr annot ty -> ATypedBinding bndTy ty -> StateT (FreeVars ty) m (NormalizedDFExpr embExpr annot ty, NonEmpty (ATypedBinding bndTy ty))
     checkAndDispatch cont o = do
       condIns <- get
       case HM.lookup (unwrapTB o) condIns of
@@ -137,7 +137,7 @@ insertDispatch e = evalStateT (transformExprM go e) HM.empty
           return (cont', bnds)
         _ -> return (cont, o :| [])
 
-    insertDispatch' :: NormalizedDFExpr embExpr ty -> ATypedBinding bndTy ty -> SNat ('Succ n) -> m (NormalizedDFExpr embExpr ty, NonEmpty (ATypedBinding bndTy ty))
+    insertDispatch' :: NormalizedDFExpr embExpr annot ty -> ATypedBinding bndTy ty -> SNat ('Succ n) -> m (NormalizedDFExpr embExpr annot ty, NonEmpty (ATypedBinding bndTy ty))
     insertDispatch' cont b (SSucc n) = do
       let oldB@(TBind bnd ty) = unwrapTB b
       bnd' <- generateBindingWith bnd

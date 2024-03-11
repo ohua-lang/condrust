@@ -5,7 +5,7 @@ import Ohua.Commons.Prelude
 import Ohua.Frontend.Lang
 
 {-
-noFunLitReturns :: (ErrAndLogM m) => UnresolvedExpr embExpr ty -> m (UnresolvedExpr embExpr ty)
+noFunLitReturns :: (ErrAndLogM m) => UnresolvedExpr embExpr annot ty -> m (UnresolvedExpr embExpr annot ty)
 noFunLitReturns e = preWalkM replaceLitReturn e
   where 
       replaceLitReturn = \case 
@@ -21,7 +21,7 @@ noFunLitReturns e = preWalkM replaceLitReturn e
         SeqE (VarE "x") e2
 -}
 
-noFunLitReturns :: (ErrAndLogM m) => UnresolvedExpr embExpr ty -> m ()
+noFunLitReturns :: (ErrAndLogM m) => UnresolvedExpr embExpr annot ty -> m ()
 noFunLitReturns (VarE _ _) = return ()
 noFunLitReturns (LitE _) = return ()
 {-noFunLitReturns e@(LetE _p _f l@LitE{}) = 

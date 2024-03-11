@@ -41,6 +41,6 @@ frontend lang compScope inFile = do
         nsLetRoot                       <- updateExprs nsWellTypd (return . noEmptyArgs)
         return  ((langNs, nsLetRoot), placeholder)
     where
-        trans :: ErrAndLogM m => FrLang.UnresolvedExpr embExpr ty -> m (FrLang.UnresolvedExpr embExpr ty)
+        trans :: ErrAndLogM m => FrLang.UnresolvedExpr embExpr annot ty -> m (FrLang.UnresolvedExpr embExpr annot ty)
         --FIXME: remove this when we're sure it's doing nothing anymore
         trans e = noFunLitReturns e >> pure e

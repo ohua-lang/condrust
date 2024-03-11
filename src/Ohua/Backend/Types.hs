@@ -32,28 +32,28 @@ data TCProgram chan retChan embExpr expr =
         retChan -- ^ Receive on result channel
         [expr] -- TODO (NonEmpty expr) -- ^ Tasks
 
-data Program chan retChan expr embExpr ty =
+data Program chan retChan Expr embExpr annot ty =
     Program
         (NonEmpty chan)
         retChan
-        [FullTask embExpr ty expr]
+        [FullTask embExpr annot ty expr]
 
-data FullTask embExpr ty expr =
+data FullTask embExpr annot ty expr =
     FullTask
-        [Com 'Send embExpr ty]
-        [Com 'Recv embExpr ty] -- TODO Do not unwrap the binding to understand where state comes from!
+        [Com 'Send embExpr annot ty]
+        [Com 'Recv embExpr annot ty] -- TODO Do not unwrap the binding to understand where state comes from!
         expr
     deriving (Functor)
 
 
-createFullTask :: TaskExpr embExpr ty -> FullTask embExpr ty (TaskExpr embExpr ty)
+createFullTask :: TaskExpr embExpr annot ty -> FullTask embExpr annot ty (TaskExpr embExpr annot ty)
 createFullTask taskExpr =
     FullTask
         [s | SendData s <- universe taskExpr]
         [r | ReceiveData r <- universe taskExpr]
         taskExpr
 
-taskExpression :: FullTask embExpr ty expr -> expr
+taskExpression :: FullTask embExpr annot ty expr -> expr
 taskExpression (FullTask _ _ e) = e
 
 
@@ -78,8 +78,8 @@ class (Show (Type lang)) => Integration lang where
       , embExpr ~ EmbExpr lang)
       => HostModule lang
       -> arch
-      -> Namespace (Program (Channel embExpr ty) (Com 'Recv embExpr ty) (TaskExpr embExpr ty) embExpr ty) (AlgoSrc lang) (OhuaType ty 'Resolved)
-      -> m (Namespace (Program (Channel embExpr ty) (Com 'Recv embExpr ty) (Task lang) embExpr ty) (AlgoSrc lang) (OhuaType ty 'Resolved)) 
+      -> Namespace (Program (Channel embExpr annot ty) (Com 'Recv embExpr annot ty) (TaskExpr embExpr annot ty) embExpr annot ty) (AlgoSrc lang) (OhuaType ty 'Resolved)
+      -> m (Namespace (Program (Channel embExpr annot ty) (Com 'Recv embExpr annot ty) (Task lang) embExpr annot ty) (AlgoSrc lang) (OhuaType ty 'Resolved)) 
 
 class Architecture arch where
     type Lang arch :: *
@@ -111,8 +111,8 @@ class Architecture arch where
         , ErrAndLogM m)
         => arch
         -> HostModule lang
-        -> Namespace (Program (Chan arch) expr (Task lang) embExpr ty) (AlgoSrc lang) (OhuaType ty 'Resolved)
-        -> m (Namespace (Program (Chan arch) expr (ATask arch) embExpr ty) (AlgoSrc lang) (OhuaType ty 'Resolved))
+        -> Namespace (Program (Chan arch) expr (Task lang) embExpr annot ty) (AlgoSrc lang) (OhuaType ty 'Resolved)
+        -> m (Namespace (Program (Chan arch) expr (ATask arch) embExpr annot ty) (AlgoSrc lang) (OhuaType ty 'Resolved))
 
     serialize ::
         ( ErrAndLogM m
@@ -125,7 +125,7 @@ class Architecture arch where
         => arch
         -> HostModule lang -- ^ the original module  
         -> HostModule lang -- ^ a helper module encapsulating code we could not copile
-        -> Namespace (Program (Chan arch) expr (ATask arch) embExpr ty) (AlgoSrc lang) (OhuaType ty 'Resolved)
+        -> Namespace (Program (Chan arch) expr (ATask arch) embExpr annot ty) (AlgoSrc lang) (OhuaType ty 'Resolved)
         -> m (NonEmpty (FilePath, L.ByteString))
 
 
@@ -137,8 +137,8 @@ class (Architecture arch) => Transform arch where
                        )
                     => HostModule lang
                     -> arch
-                    -> FullTask embExpr ty (TaskExpr embExpr ty)
-                    -> TaskExpr embExpr ty
+                    -> FullTask embExpr annot ty (TaskExpr embExpr annot ty)
+                    -> TaskExpr embExpr annot ty
   transformTaskExpr _ _ (FullTask _ _ e) = e
 
   transformTask :: ( Lang arch ~ lang
@@ -153,8 +153,8 @@ class (Architecture arch) => Transform arch where
   transformTask _ _ = id
 
 updateTaskExprs' :: (expr1 -> expr2)
-                 -> Namespace (Program chan recv expr1 embExpr ty)  anno (OhuaType ty 'Resolved)
-                 -> Namespace (Program chan recv expr2 embExpr ty)  anno (OhuaType ty 'Resolved)
+                 -> Namespace (Program chan recv expr1 embExpr annot ty)  anno (OhuaType ty 'Resolved)
+                 -> Namespace (Program chan recv expr2 embExpr annot ty)  anno (OhuaType ty 'Resolved)
 updateTaskExprs' f ns =
   ns & algos %~ map (\algo -> algo & algoCode %~ go)
   where
@@ -162,9 +162,9 @@ updateTaskExprs' f ns =
       Program chans resultChan $ map (f <$>) exprs
 
 updateTaskExprs 
-  :: (FullTask embExpr ty expr -> expr)
-  -> Namespace (Program (Channel embExpr ty) (Com 'Recv embExpr ty) expr embExpr ty)  anno (OhuaType ty 'Resolved)
-  -> Namespace (Program (Channel embExpr ty) (Com 'Recv embExpr ty) expr embExpr ty)  anno (OhuaType ty 'Resolved)
+  :: (FullTask embExpr annot ty expr -> expr)
+  -> Namespace (Program (Channel embExpr annot ty) (Com 'Recv embExpr annot ty) Expr embExpr annot ty)  anno (OhuaType ty 'Resolved)
+  -> Namespace (Program (Channel embExpr annot ty) (Com 'Recv embExpr annot ty) Expr embExpr annot ty)  anno (OhuaType ty 'Resolved)
 updateTaskExprs f ns =
   ns & algos %~ map (\algo -> algo & algoCode %~ go)
   where
@@ -175,8 +175,8 @@ updateTaskExprs f ns =
         Program chans resultChan tasks'
 
 updateTasks :: (expr1 -> expr2)
-            -> Namespace (Program chan recv expr1 embExpr ty)  anno (OhuaType ty 'Resolved)
-            -> Namespace (Program chan recv expr2 embExpr ty)  anno (OhuaType ty 'Resolved)
+            -> Namespace (Program chan recv expr1 embExpr annot ty)  anno (OhuaType ty 'Resolved)
+            -> Namespace (Program chan recv expr2 embExpr annot ty)  anno (OhuaType ty 'Resolved)
 updateTasks f ns =
   ns & algos %~ map (\algo -> algo & algoCode %~ go)
   where

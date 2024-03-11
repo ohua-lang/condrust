@@ -38,13 +38,13 @@ import qualified Data.Text as T
 --   @let fun = 'inlined function' in@
 --   @     let x = fun arg@
 
-resolveNS :: forall embExpr ty m anno.(MonadError Error m)
-          => (Namespace (UnresolvedExpr embExpr ty) anno (OhuaType ty 'Resolved), NamespaceRegistry embExpr ty)
-          -> m (Namespace (UnresolvedExpr embExpr ty) anno (OhuaType ty 'Resolved))
+resolveNS :: forall embExpr annot ty m anno.(MonadError Error m)
+          => (Namespace (UnresolvedExpr embExpr annot ty) anno (OhuaType ty 'Resolved), NamespaceRegistry embExpr annot ty)
+          -> m (Namespace (UnresolvedExpr embExpr annot ty) anno (OhuaType ty 'Resolved))
 resolveNS (ns', registry) =
     return $ over algos (map (\algo -> over algoCode (work (view algoName algo) ) algo)) ns'
     where
-        work :: Binding -> UnresolvedExpr embExpr ty -> UnresolvedExpr embExpr ty
+        work :: Binding -> UnresolvedExpr embExpr annot ty -> UnresolvedExpr embExpr annot ty
         work algoNm algoExpr =
             let
                 calledFunctions = collectCalledAlgos algoNm registry algoExpr
@@ -52,7 +52,7 @@ resolveNS (ns', registry) =
                 algoExpr' = resolveExpr expr
             in algoExpr'
 
-        collectCalledAlgos :: Binding -> NamespaceRegistry embExpr ty -> UnresolvedExpr embExpr ty  -> HS.HashSet QualifiedBinding
+        collectCalledAlgos :: Binding -> NamespaceRegistry embExpr annot ty -> UnresolvedExpr embExpr annot ty  -> HS.HashSet QualifiedBinding
         collectCalledAlgos algoNm availableAlgos expr  =
             let funsExceptAlgo = HS.filter (\funName -> funName /= QualifiedBinding (makeThrow []) algoNm) .  collectFunctionRefs $ expr
                 
@@ -67,7 +67,7 @@ resolveNS (ns', registry) =
                 $ funsExceptAlgo
             
 
-        collectFunctionRefs :: UnresolvedExpr embExpr ty  -> HS.HashSet QualifiedBinding
+        collectFunctionRefs :: UnresolvedExpr embExpr annot ty  -> HS.HashSet QualifiedBinding
         collectFunctionRefs e =
             -- FIXME: we need to resolve this reference here against the namespace and the registry (for Globs).
             -- We can/should not rely on algorithms being function literals or having function types here
@@ -81,7 +81,7 @@ resolveNS (ns', registry) =
         pathToVar (QualifiedBinding ns' bnd) =
             (makeThrow . T.intercalate ".") $ map unwrap $ unwrap ns' ++ [bnd]
 
-        addExpr :: QualifiedBinding -> UnresolvedExpr embExpr ty  -> UnresolvedExpr embExpr ty 
+        addExpr :: QualifiedBinding -> UnresolvedExpr embExpr annot ty  -> UnresolvedExpr embExpr annot ty 
         addExpr otherAlgo (LamE vars body) = LamE vars $ addExpr otherAlgo body
         addExpr otherAlgo e =
             -- (trace $ "Inlining Algo: "<> quickRender otherAlgo <> "\nwith type "<> show ty)
@@ -95,12 +95,12 @@ resolveNS (ns', registry) =
                     e
 
         -- turns the function literal into a simple (var) binding
-        replaceFunLit :: UnresolvedExpr embExpr ty -> UnresolvedExpr embExpr ty
+        replaceFunLit :: UnresolvedExpr embExpr annot ty -> UnresolvedExpr embExpr annot ty
         replaceFunLit = \case
             -- If the algorithm was a function literal before we need to replace it with a variable since it is bound in a local 
             -- let expression now, if it was a variable anyway, we have to do nothing
             LitE (FunRefLit (FunRef fName funTy)) | HM.member fName registry -> VarE (pathToVar fName) (FType funTy)
             e -> e
 
-        resolveExpr :: UnresolvedExpr embExpr ty -> UnresolvedExpr embExpr ty
+        resolveExpr :: UnresolvedExpr embExpr annot ty -> UnresolvedExpr embExpr annot ty
         resolveExpr = preWalkE replaceFunLit

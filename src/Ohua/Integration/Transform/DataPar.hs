@@ -25,7 +25,7 @@ import Ohua.Core.Feature.TailRec.Passes.ALang as TR (y)
 import Ohua.Core.Prelude hiding (concat, rewrite)
 
 
-dataPar :: forall embExpr ty. IOpt.Options -> (ty -> ty) -> CustomPasses embExpr ty
+dataPar :: forall embExpr annot ty. IOpt.Options -> (ty -> ty) -> CustomPasses embExpr annot ty
 dataPar (IOpt.Options dpar amorph) dparLift =
   CustomPasses
   pure
@@ -131,13 +131,13 @@ unsupported s = throwError $ "Not supported: " <> s
 
 -- |
 -- Ideally, SMap would be defined in DFLang as follows:
-data SMap embExpr ty
+data SMap embExpr annot ty
   = SMap
-      (DFApp 'Fun embExpr ty)
+      (DFApp 'Fun embExpr annot ty)
       -- ^ smapFun
-      (NormalizedDFExpr embExpr ty)
+      (NormalizedDFExpr embExpr annot ty)
       -- ^ body
-      (DFApp 'Fun embExpr ty)
+      (DFApp 'Fun embExpr annot ty)
       -- ^ collect
 
 spawnFuture :: QualifiedBinding
@@ -146,13 +146,13 @@ spawnFuture = "ohua.lang/spawnFuture"
 joinFuture :: QualifiedBinding
 joinFuture = "ohua.lang/collectFuture"
 
-liftPureFunctions :: forall embExpr ty.
+liftPureFunctions :: forall embExpr annot ty.
                      (ty -> ty)
-                  -> NormalizedDFExpr embExpr ty 
-                  -> OhuaM (NormalizedDFExpr embExpr ty)
+                  -> NormalizedDFExpr embExpr annot ty 
+                  -> OhuaM (NormalizedDFExpr embExpr annot ty)
 liftPureFunctions liftCollectTy = rewriteSMap
   where
-    rewriteSMap :: NormalizedDFExpr embExpr ty -> OhuaM (NormalizedDFExpr embExpr ty)
+    rewriteSMap :: NormalizedDFExpr embExpr annot ty -> OhuaM (NormalizedDFExpr embExpr annot ty)
     rewriteSMap (DFL.Let app cont) =
       case app of
         SMapFun{} ->
@@ -170,8 +170,8 @@ liftPureFunctions liftCollectTy = rewriteSMap
     rewriteSMap v = pure v
 
     -- collects the body of an smap for processing
-    collectSMap :: NormalizedDFExpr embExpr ty 
-      ->  OhuaM (NormalizedDFExpr embExpr ty, DFApp 'Fun embExpr ty, NormalizedDFExpr embExpr ty)
+    collectSMap :: NormalizedDFExpr embExpr annot ty 
+      ->  OhuaM (NormalizedDFExpr embExpr annot ty, DFApp 'Fun embExpr annot ty, NormalizedDFExpr embExpr annot ty)
     collectSMap DFL.Var {} =
       invariantBroken
         "Found an smap expression not delimited by a collect"
@@ -190,12 +190,12 @@ liftPureFunctions liftCollectTy = rewriteSMap
           (contBody, coll, cont') <- collectSMap cont
           return (DFL.Let app contBody, coll, cont')
 
-rewrite :: forall embExpr ty. (ty -> ty) -> SMap embExpr ty -> OhuaM (SMap embExpr ty)
+rewrite :: forall embExpr annot ty. (ty -> ty) -> SMap embExpr annot ty -> OhuaM (SMap embExpr annot ty)
 rewrite liftCollectTy (SMap smapF body collectF) = do
   body' <- transformExprM rewriteBody body
   return $ SMap smapF body' collectF
   where
-    rewriteBody :: NormalizedDFExpr embExpr ty -> OhuaM (NormalizedDFExpr embExpr ty)
+    rewriteBody :: NormalizedDFExpr embExpr annot ty -> OhuaM (NormalizedDFExpr embExpr annot ty)
     rewriteBody (DFL.Let fun@PureDFFun {} cont)
       | not (isIgnorable $ funRef fun) = do
         outTy <- findOutTy fun cont
@@ -205,7 +205,7 @@ rewrite liftCollectTy (SMap smapF body collectF) = do
     
     -- Question: Can we get rid of this having the type annotation of the bound variable
     -- Yes just pattern match on the function type FunType :: [OhuaType ty Resolved] -> OhuaType ty Resolved -> FunType ty
-    findOutTy :: DFApp 'Fun embExpr ty -> NormalizedDFExpr embExpr ty -> OhuaM (OhuaType ty Resolved)
+    findOutTy :: DFApp 'Fun embExpr annot ty -> NormalizedDFExpr embExpr annot ty -> OhuaM (OhuaType ty Resolved)
     findOutTy fun cont = 
         case DFL.outsDFApp fun of
             -- make this a mathc on ty being 'TypeVar' which should error or any type which is the type we want
@@ -214,7 +214,7 @@ rewrite liftCollectTy (SMap smapF body collectF) = do
                         (t:_) -> return t
             _ -> unsupported "Multiple outputs to pure fun."
     
-    findOutTy' :: Binding -> NormalizedDFExpr embExpr ty -> [OhuaType ty Resolved]
+    findOutTy' :: Binding -> NormalizedDFExpr embExpr annot ty -> [OhuaType ty Resolved]
     findOutTy' bnd cont = [ ty | DFL.Let app _c <- universe' cont
                               , (TBind b ty) <- insAndTypesDFApp app
                               , b == bnd] 
@@ -223,9 +223,9 @@ rewrite liftCollectTy (SMap smapF body collectF) = do
     liftOutTy (HType (HostType t)) = HType (HostType (liftCollectTy t)) 
     liftOutTy t = t
 
-appendExpr :: NormalizedDFExpr embExpr ty 
-  -> NormalizedDFExpr embExpr ty
-  -> NormalizedDFExpr embExpr ty
+appendExpr :: NormalizedDFExpr embExpr annot ty 
+  -> NormalizedDFExpr embExpr annot ty
+  -> NormalizedDFExpr embExpr annot ty
 appendExpr (DFL.Let app cont) rest = DFL.Let app $ appendExpr cont rest
 appendExpr DFL.Var {} rest = rest
 
@@ -233,12 +233,12 @@ isIgnorable :: QualifiedBinding -> Bool
 isIgnorable (QualifiedBinding (NSRef ["ohua", "lang"]) _) = True
 isIgnorable _ = False
 
-liftFunction :: forall embExpr ty.
+liftFunction :: forall embExpr annot ty.
                 OhuaType ty Resolved
              -> OhuaType ty Resolved
-             -> DFApp 'Fun embExpr ty
-             -> NormalizedDFExpr embExpr ty 
-             -> OhuaM (NormalizedDFExpr embExpr ty)
+             -> DFApp 'Fun embExpr annot ty
+             -> NormalizedDFExpr embExpr annot ty 
+             -> OhuaM (NormalizedDFExpr embExpr annot ty)
 liftFunction collectTy retTy (PureDFFun out fun inp) cont = do
   let funTy = getRefType fun
   futuresATBnd <- DataBinding . flip TBind collectTy <$> generateBindingWith "futures"
@@ -246,7 +246,7 @@ liftFunction collectTy retTy (PureDFFun out fun inp) cont = do
   let spawned = handleFun futuresATBnd funTy
   return $ DFL.Let spawned outBound
   where
-    handleOutputSide :: ATypedBinding 'Data ty -> OhuaM (NormalizedDFExpr embExpr ty)
+    handleOutputSide :: ATypedBinding 'Data ty -> OhuaM (NormalizedDFExpr embExpr annot ty)
     handleOutputSide futuresATBnd =
       return $
       DFL.Let
@@ -257,7 +257,7 @@ liftFunction collectTy retTy (PureDFFun out fun inp) cont = do
         )
         cont
 
-    handleFun :: ATypedBinding 'Data ty -> FunType ty Resolved -> DFApp 'Fun embExpr ty
+    handleFun :: ATypedBinding 'Data ty -> FunType ty Resolved -> DFApp 'Fun embExpr annot ty
     handleFun futuresBnd funTy =
       PureDFFun
         (Direct futuresBnd)
@@ -274,13 +274,13 @@ liftFunction collectTy retTy (PureDFFun out fun inp) cont = do
 -- |
 -- All that the language and backend requires to support this transformations are
 -- the implementations of the below functions.
-lowerTaskPar :: forall lang arch embExpr ty. 
+lowerTaskPar :: forall lang arch embExpr annot ty. 
   ( ty      ~ BT.Type (BT.Lang arch)
   , embExpr ~ BT.EmbExpr (BT.Lang arch))
   => lang 
   -> arch 
-  -> FullTask embExpr ty (B.TaskExpr embExpr ty) 
-  -> B.TaskExpr embExpr ty
+  -> FullTask embExpr annot ty (B.TaskExpr embExpr annot ty) 
+  -> B.TaskExpr embExpr annot ty
 lowerTaskPar _ _arch = go
     where
         go (FullTask _sends _recvs taskE) =
@@ -290,7 +290,7 @@ lowerTaskPar _ _arch = go
         -- This implementation does not need this state return anymore.
         -- I leave it in nevertheless to show how to work with cataA.
         go'  = flip runState False . cataA go''
-        go'' :: B.TaskExprF embExpr ty (State Bool (B.TaskExpr embExpr ty)) -> (State Bool (B.TaskExpr embExpr ty))
+        go'' :: B.TaskExprF embExpr annot ty (State Bool (B.TaskExpr embExpr annot ty)) -> (State Bool (B.TaskExpr embExpr annot ty))
         go'' = \case
                 -- we need to do this on the Rust level because
                 -- it would be hard to construct this call.
@@ -304,13 +304,13 @@ lowerTaskPar _ _arch = go
 takeN :: QualifiedBinding
 takeN = "ohua.lang/takeN"
 
-takeNLit :: OhuaType ty 'Resolved -> AL.Expr embExpr ty
+takeNLit :: OhuaType ty 'Resolved -> AL.Expr embExpr annot ty
 takeNLit ty = Lit $ FunRefLit $ FunRef takeN $ FunType  (Right (ty :| [IType TypeNat])) ty
 
 concat :: QualifiedBinding
 concat = "ohua.lang/concat"
 
-concatLit :: OhuaType ty 'Resolved -> AL.Expr embExpr ty
+concatLit :: OhuaType ty 'Resolved -> AL.Expr embExpr annot ty
 concatLit ty = Lit $ FunRefLit $ FunRef concat  $ FunType (Right (ty :| [ty])) ty
 
 -- | This transformation adds a limit on the tries per round and therewith provides
@@ -351,7 +351,7 @@ concatLit ty = Lit $ FunRefLit $ FunRef concat  $ FunType (Right (ty :| [ty])) t
 --             then f state' inputs' a
 --             else state'
 -- @
-amorphous :: Integer -> AL.Expr embExpr ty -> OhuaM (AL.Expr embExpr ty)
+amorphous :: Integer -> AL.Expr embExpr annot ty -> OhuaM (AL.Expr embExpr annot ty)
 amorphous numRetries = transformM go
   where
     -- TODO: Verify the correctness of the whole transformation
@@ -463,7 +463,7 @@ amorphous numRetries = transformM go
     gatherArgs (Apply a (AL.Var b)) = gatherArgs a ++ [b]
     gatherArgs _ = []
 
-    findFreeStateVars :: AL.Expr embExpr ty -> [TypedBinding ty]
+    findFreeStateVars :: AL.Expr embExpr annot ty -> [TypedBinding ty]
     findFreeStateVars e =
       let fv = findFreeBindings e
           fv' = filter (`isUsedState'` e) fv
@@ -580,7 +580,7 @@ snd3   (_,b,_) = b
 third3 :: (a, b, c) -> c
 third3 (_,_,c) = c
 
-typeAmorphous :: NormalizedDFExpr embExpr ty -> OhuaM (NormalizedDFExpr embExpr ty)
+typeAmorphous :: NormalizedDFExpr embExpr annot ty -> OhuaM (NormalizedDFExpr embExpr annot ty)
 typeAmorphous = return . mapFuns go
     where
         go (PureDFFun outs (FunRef f (FunType (Right (a:|b:c)) retTy) ) ins) | f == concat =

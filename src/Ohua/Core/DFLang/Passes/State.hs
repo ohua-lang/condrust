@@ -15,13 +15,13 @@ import Ohua.Core.Compile.Configuration
 --   created while there are still the senders which now use a channel that is not being
 --   created anymore. Doing it here at DFLang level will allow the dead code elimination to
 --   take care of the senders.
-intoFusable :: Monad m => NormalizedDFExpr embExpr ty -> m (NormalizedDFExpr embExpr ty)
+intoFusable :: Monad m => NormalizedDFExpr embExpr annot ty -> m (NormalizedDFExpr embExpr annot ty)
 intoFusable = mapFunsM (pure . f)
   where
     f (PureDFFun out r@(FunRef fun _) (_:| [sIn]))
       | fun == IFuns.runSTCLangSMap = PureDFFun out r (sIn :| [])
     f e = e
 
-load :: CustomPasses embExpr ty -> CustomPasses embExpr ty
+load :: CustomPasses embExpr annot ty -> CustomPasses embExpr annot ty
 load (CustomPasses alang alangNorm dfLang) =
   CustomPasses alang alangNorm (dfLang >=> intoFusable)

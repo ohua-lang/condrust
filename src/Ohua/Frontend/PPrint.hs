@@ -29,7 +29,7 @@ instance Pretty (Pat ty res) where
     pretty (VarP b ty) = pretty b <> "::" <> pretty ty
     pretty (TupP pats) = align $ tupled $ map pretty (NE.toList pats)
 
-instance Pretty (Expr embExpr ty res []) where
+instance Pretty (Expr embExpr annot ty res []) where
     pretty (VarE bnd _ty) = pretty bnd
     pretty (LitE l) = pretty l
     pretty (LetE p app cont) =
@@ -73,7 +73,7 @@ instance Pretty (Expr embExpr ty res []) where
     pretty (StmtE e c) = vsep $ hsep [pretty e, ";"] : [pretty c]
     pretty (TupE (e:|es)) = hsep [align $ tupled $ map pretty (e:es)]
 
-instance Pretty (Expr embExpr ty res NonEmpty) where
+instance Pretty (Expr embExpr annot ty res NonEmpty) where
     pretty (VarE bnd _ty) = pretty bnd
     pretty (LitE l) = pretty l
     pretty (LetE p app cont) =

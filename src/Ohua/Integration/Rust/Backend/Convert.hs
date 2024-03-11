@@ -36,15 +36,15 @@ convertExp (Sub.Lit (EnvRefLit _hostExpr _ty)) =
   error "Host expression encountered! This is a compiler error. Please report!"
 convertExp (Sub.Lit (FunRefLit (FunRef qBnd _type))) =
   PathExpr [] Nothing (convertQualBnd qBnd) noSpan
-convertExp (Sub.Call cr args) =
+convertExp (Sub.Call cr attrs args) =
   Call
-    []
+    attrs
     (convertCallRef cr)
     (map convertExp args)
     noSpan
-convertExp (Sub.MethodCall stateExpr (Sub.CallRef (QualifiedBinding _ bnd) ty) args) =
+convertExp (Sub.MethodCall stateExpr (Sub.CallRef (QualifiedBinding _ bnd) ty) attrs args) =
   MethodCall
-    []
+    attrs
     (convertExp stateExpr)
     (PathSegment (mkIdent $ unpack $ unwrap bnd) (convertGenericArgs <$> ty) noSpan)
     (map convertExp args)

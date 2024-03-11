@@ -75,24 +75,29 @@ patTyBnds = \case
 -- 4. The type of lists of arguments and parameters because at some point in the frontend, we need to add Unit arguments/parameters 
 --    to calls/lambdas to satisfy compiler invariants
 type Expr :: Type -> Type -> Type -> Resolution -> (Type -> Type) -> Type
-data Expr embExpr ty res lists where
-  VarE      :: Binding -> OhuaType ty res                                                                       -> Expr embExpr ty res lists
-  LitE      :: Lit embExpr ty res                                                                               -> Expr embExpr ty res lists
-  LetE      :: Pat ty res -> Expr embExpr ty res lists -> Expr embExpr ty res lists                             -> Expr embExpr ty res lists
-  AppE      :: (Traversable lists) => Expr embExpr ty res lists -> lists (Expr embExpr ty res lists)   -> Expr embExpr ty res lists
-  LamE      :: (Traversable lists) => lists (Pat ty res) -> Expr embExpr ty res lists                           -> Expr embExpr ty res lists
-  IfE       :: Expr embExpr ty res lists -> Expr embExpr ty res lists -> Expr embExpr ty res lists              -> Expr embExpr ty res lists
-  WhileE    :: Expr embExpr ty res lists -> Expr embExpr ty res lists                                           -> Expr embExpr ty res lists
-  MapE      :: Expr embExpr ty res lists-> Expr embExpr ty res lists                                            -> Expr embExpr ty res lists
+data Expr embExpr annot ty res lists where
+  VarE      :: Binding -> OhuaType ty res                                                          -> Expr embExpr annot ty res lists
+  LitE      :: Lit embExpr annot ty res                                                            -> Expr embExpr annot ty res lists
+  LetE      :: Pat ty res -> Expr embExpr annot ty res lists -> Expr embExpr annot ty res lists    -> Expr embExpr annot ty res lists
+  AppE      :: (Traversable lists) => 
+                Expr embExpr annot ty res lists 
+                -> [annot] 
+                -> lists (Expr embExpr annot ty res lists)                                          -> Expr embExpr annot ty res lists
+  LamE      :: (Traversable lists) => lists (Pat ty res) -> Expr embExpr annot ty res lists         -> Expr embExpr annot ty res lists
+  IfE       :: Expr embExpr annot ty res lists 
+                -> Expr embExpr annot ty res lists 
+                -> Expr embExpr annot ty res lists                                                  -> Expr embExpr annot ty res lists
+  WhileE    :: Expr embExpr annot ty res lists -> Expr embExpr annot ty res lists                   -> Expr embExpr annot ty res lists
+  MapE      :: Expr embExpr annot ty res lists-> Expr embExpr annot ty res lists                    -> Expr embExpr annot ty res lists
   -- The function cannot be just a binding here, because it is an expression in Alang expressions
   -- and we need to "transport" the function type from the type system to the lowering
   -- StateFunE state method args
   StateFunE :: (Traversable lists) 
-                => Expr embExpr ty res lists 
+                => Expr embExpr annot ty res lists 
                 -> MethodRepr ty res 
-                -> lists (Expr embExpr ty res lists)                                                    -> Expr embExpr ty res lists
-  StmtE     :: Expr embExpr ty res lists -> Expr embExpr ty res lists                                   -> Expr embExpr ty res lists
-  TupE      :: NonEmpty (Expr embExpr ty res lists)                                                     -> Expr embExpr ty res lists
+                -> lists (Expr embExpr annot ty res lists)                                          -> Expr embExpr annot ty res lists
+  StmtE     :: Expr embExpr annot ty res lists -> Expr embExpr annot ty res lists                   -> Expr embExpr annot ty res lists
+  TupE      :: NonEmpty (Expr embExpr annot ty res lists)                                           -> Expr embExpr annot ty res lists
 
 
 data MethodRepr ty res where
@@ -100,11 +105,11 @@ data MethodRepr ty res where
     MethodRes   :: QualifiedBinding -> FunType ty 'Resolved -> MethodRepr ty 'Resolved 
 
 deriving instance Show (MethodRepr ty res)
-deriving instance (Show (lists (Expr embExpr ty res lists)), Show (lists (Pat ty res))) => Show (Expr embExpr ty res lists) 
+deriving instance (Show (lists (Expr embExpr annot ty res lists)), Show (lists (Pat ty res))) => Show (Expr embExpr annot ty res lists) 
 
-type UnresolvedExpr embExpr ty = Expr  embExpr ty Unresolved [] 
-type ResolvedExpr embExpr ty = Expr  embExpr ty Resolved []
-type FuncExpr embExpr ty = Expr embExpr ty Resolved NonEmpty
+type UnresolvedExpr embExpr annot ty = Expr embExpr annot ty Unresolved [] 
+type ResolvedExpr embExpr annot ty = Expr  embExpr annot ty Resolved []
+type FuncExpr embExpr annot ty = Expr embExpr annot ty Resolved NonEmpty
 
 type UnresolvedType ty = OhuaType ty Unresolved
 type ResolvedType ty = OhuaType ty Resolved
@@ -112,7 +117,7 @@ type ResolvedType ty = OhuaType ty Resolved
 type UnresolvedPat ty = Pat ty Unresolved
 type ResolvedPat ty = Pat ty Resolved
 
-preWalkM :: (Monad m, Traversable lists) =>  (Expr embExpr ty res lists -> m (Expr embExpr ty res lists)) -> Expr embExpr ty res lists -> m (Expr embExpr ty res lists)
+preWalkM :: (Monad m, Traversable lists) =>  (Expr embExpr annot ty res lists -> m (Expr embExpr annot ty res lists)) -> Expr embExpr annot ty res lists -> m (Expr embExpr annot ty res lists)
 preWalkM f e = case e of 
       VarE _ _ -> f e
       LitE _ -> f e 
@@ -162,7 +167,7 @@ accu l e = l ++ [e]
  -- Question: Traversing traversables gives Elements: How to get the actual type i.e.
     Pat ty res from Element (lists (Pat ty res))???
     
-    patternFromExpr ::(Traversable lists) =>  Expr embExpr ty res lists ->  [Pat ty res]
+    patternFromExpr ::(Traversable lists) =>  Expr embExpr annot ty res lists ->  [Pat ty res]
     patternFromExpr e = case e of 
     LamE lPats _body -> toList lPats
     LetE p _e1 _e2 -> [p]
@@ -177,12 +182,12 @@ patternFromUExpr e = case e of
 -}
 
 -- | We need this function to insert sequencing (formerly known as Seq-expression) before lowering to Alang
-exprType :: FuncExpr embExpr ty -> ResolvedType ty
+exprType :: FuncExpr embExpr annot ty -> ResolvedType ty
 exprType = \case
     (VarE _b ty) -> ty
     (LitE  lit) -> getLitType lit
     (LetE _p _e cont) -> exprType cont
-    (AppE fun args) -> returnType fun
+    (AppE fun _annot _args) -> returnType fun
     (LamE ps term) -> FType $ FunType (Right $ map patType ps) (exprType term)
     (IfE c t1 t2) -> exprType t1 
     (WhileE c body) -> IType TypeUnit 
@@ -193,12 +198,12 @@ exprType = \case
     (StateFunE _st (MethodRes _ fty) _args) -> getReturnType (FType fty)
     (TupE es) -> TType (NE.map exprType es)
 
-returnType :: FuncExpr embExpr ty -> ResolvedType ty
+returnType :: FuncExpr embExpr annot ty -> ResolvedType ty
 returnType e = case funType e of
     Just fty -> getReturnType fty
     Nothing -> exprType e
 
-funType :: FuncExpr embExpr ty -> Maybe (ResolvedType ty)
+funType :: FuncExpr embExpr annot ty -> Maybe (ResolvedType ty)
 funType e = case e of
         (VarE _bnd (FType fTy))          -> Just (FType fTy)
         (LitE (FunRefLit fRef))          -> Just $ FType (getRefType fRef)
@@ -207,14 +212,14 @@ funType e = case e of
 
    
 
-patternFromExpr :: Expr embExpr ty res NonEmpty ->  [Pat ty res]
+patternFromExpr :: Expr embExpr annot ty res NonEmpty ->  [Pat ty res]
 patternFromExpr e = case e of 
     LamE lPats _body -> NE.toList lPats
     LetE p _e1 _e2 -> [p]
     _e -> []
 
 -- preorder list expressions
-universeReplace :: (Traversable lists) => Expr embExpr ty res lists -> [Expr embExpr ty res lists]
+universeReplace :: (Traversable lists) => Expr embExpr annot ty res lists -> [Expr embExpr annot ty res lists]
 universeReplace expr =  preWalkM (accu []) expr
 
 {-
@@ -223,14 +228,14 @@ universeReplaceRes expr =  preWalkMR (accu []) expr
 -}
 
 -- We currently only use this with resolved (Func) expressions
-universePats :: Expr embExpr ty res NonEmpty -> [Pat ty res]
+universePats :: Expr embExpr annot ty res NonEmpty -> [Pat ty res]
 universePats expr = concatMap patternFromExpr (flattenR expr) 
 
 -- We currently only use this with unresolved expressions
-freeVars :: Expr embExpr ty res [] -> [(Binding, OhuaType ty res)]
+freeVars :: Expr embExpr annot ty res [] -> [(Binding, OhuaType ty res)]
 freeVars e = go HS.empty e
   where
-    go :: HS.HashSet Binding -> Expr embExpr ty res [] -> [(Binding, OhuaType ty res)]
+    go :: HS.HashSet Binding -> Expr embExpr annot ty res [] -> [(Binding, OhuaType ty res)]
     go  ctxt (VarE bnd _) | HS.member bnd ctxt = []
     go _ctxt (VarE bnd ty) = [(bnd, ty)]
     go _ctxt (LitE _) = []
@@ -247,7 +252,7 @@ freeVars e = go HS.empty e
 
 -- FIXME: Same problem as with pattern extraction. Making the function generic over lists 
 --        turns the type of elements into Elements and I don't know how to handle them
-flattenU :: Expr embExpr ty res [] -> [Expr embExpr ty res []]
+flattenU :: Expr embExpr annot ty res [] -> [Expr embExpr annot ty res []]
 flattenU e = case e of 
         (VarE _ _ ) -> [e]
         (LitE _) -> [e]
@@ -266,12 +271,12 @@ flattenU e = case e of
         (StmtE e1 e2)-> [e] ++ flattenU e1 ++ flattenU e2
         (TupE es)-> [e] ++ concatMap flattenU es
 
-flattenR :: Expr embExpr ty res NonEmpty -> [Expr embExpr ty res NonEmpty]
+flattenR :: Expr embExpr annot ty res NonEmpty -> [Expr embExpr annot ty res NonEmpty]
 flattenR e = case e of 
         (VarE _ _ ) -> [e]
         (LitE _) -> [e]
         (LetE _p e1 e2) -> [e] ++ flattenR e1 ++ flattenR e2 
-        (AppE f xs)-> [e] ++ flattenR f ++ concatMap flattenR xs  
+        (AppE f a xs)-> [e] ++ flattenR f ++ concatMap flattenR xs  
         -- (AppEU f xs)-> [e] ++ flattenR f ++ concatMap flattenR  xs  
         (LamE _ps lbody)-> [e] ++ flattenR lbody  
         -- (LamEU _ps lbody )->  [e] ++ flattenR lbody
@@ -283,7 +288,7 @@ flattenR e = case e of
         (StmtE e1 e2)-> [e] ++ flattenR e1 ++ flattenR e2
         (TupE es)-> [e] ++ concatMap flattenR es
 
-preWalkE :: (Traversable lists) => (Expr embExpr ty res lists -> Expr embExpr ty res lists) -> Expr embExpr ty res lists -> Expr embExpr ty res lists
+preWalkE :: (Traversable lists) => (Expr embExpr annot ty res lists -> Expr embExpr annot ty res lists) -> Expr embExpr annot ty res lists -> Expr embExpr annot ty res lists
 preWalkE f e = case e of 
       VarE _ _ -> f e
       LitE _ -> f e 

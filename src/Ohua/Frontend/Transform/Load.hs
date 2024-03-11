@@ -39,9 +39,9 @@ loadDeps lang scope (Namespace _name imps globs algs) = do
     let registry'' = foldl registerAlgos registry' modules
     return registry''
     where
-        registerAlgos :: NamespaceRegistry embExpr ty 
-            -> Namespace (UnresolvedExpr embExpr ty) anno (OhuaType ty 'Resolved) 
-            -> NamespaceRegistry embExpr ty
+        registerAlgos :: NamespaceRegistry embExpr annot ty 
+            -> Namespace (UnresolvedExpr embExpr annot ty) anno (OhuaType ty 'Resolved) 
+            -> NamespaceRegistry embExpr annot ty
         registerAlgos registry aNs =
             foldl
                 (\reg algo ->

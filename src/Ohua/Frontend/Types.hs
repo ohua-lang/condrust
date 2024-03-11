@@ -15,23 +15,24 @@ class (Show (Type lang), Show (EmbExpr lang)) => Integration lang where
     type HostModule lang :: DK.Type
     type Type lang :: DK.Type
     type EmbExpr lang :: DK.Type
+    type Annotation lang :: DK.Type
     type AlgoSrc lang :: DK.Type
 
     loadNs :: ErrAndLogM m
            => lang
            -> FilePath
-           -> m (HostModule lang, Namespace (UnresolvedExpr (EmbExpr lang) (Type lang)) (AlgoSrc lang) (OhuaType (Type lang) 'Resolved), HostModule lang)
+           -> m (HostModule lang, Namespace (UnresolvedExpr (EmbExpr lang) (Annotation lang) (Type lang)) (AlgoSrc lang) (OhuaType (Type lang) 'Resolved), HostModule lang)
 
     loadTypes :: ErrAndLogM m
               => lang -> HostModule lang
-              -> Namespace (UnresolvedExpr (EmbExpr lang) (Type lang)) (AlgoSrc lang) (OhuaType (Type lang) 'Resolved)
+              -> Namespace (UnresolvedExpr (EmbExpr lang) (Annotation lang) (Type lang)) (AlgoSrc lang) (OhuaType (Type lang) 'Resolved)
               -> m (Delta (Type lang) Resolved)
 
 type LanguageFileSuffix = Text
 type CompilationScope = HM.HashMap NSRef LanguageFileSuffix
 
 -- | This registers all algos used in a given namespace with their qualified names.
-type NamespaceRegistry embExpr ty = HM.HashMap QualifiedBinding (UnresolvedExpr embExpr ty, OhuaType ty 'Resolved)
+type NamespaceRegistry embExpr annot ty = HM.HashMap QualifiedBinding (UnresolvedExpr embExpr annot ty, OhuaType ty 'Resolved)
 
 {-
 class Someclass a where

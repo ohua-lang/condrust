@@ -15,7 +15,7 @@ import qualified Data.List.NonEmpty as NE
 -- | This function filters the inputs by checking whether the outputs
 --   have the same channel reference. If they do then clearly we can drop it from the list of
 --   inputs such that no receive code is being generated.
-filterData :: [Com 'Channel embExpr ty] -> [VarReceive embExpr ty] -> [VarReceive embExpr ty]
+filterData :: [Com 'Channel embExpr annot ty] -> [VarReceive embExpr annot ty] -> [VarReceive embExpr annot ty]
 filterData [] ins0 = ins0
 filterData outs ins0 =
   filter
@@ -25,10 +25,10 @@ filterData outs ins0 =
   ins0
 
 forPure :: (DF.Foldable t, Functor t)
-        => t (F.Result embExpr ty)
-        -> Maybe (Com 'Channel embExpr ty)
-        -> [VarReceive embExpr ty]
-        -> ([VarReceive embExpr ty], (t (F.Result embExpr ty), Maybe (Com 'Channel embExpr ty)))
+        => t (F.Result embExpr annot ty)
+        -> Maybe (Com 'Channel embExpr annot ty)
+        -> [VarReceive embExpr annot ty]
+        -> ([VarReceive embExpr annot ty], (t (F.Result embExpr annot ty), Maybe (Com 'Channel embExpr annot ty)))
 forPure out upstreamStateOut downstreamIns =
   let
     outAsList = DF.toList out

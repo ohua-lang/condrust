@@ -40,7 +40,7 @@ import qualified Ohua.Core.InternalFunctions as IFuns
 import Ohua.Core.Stage
 
 
-runCorePasses :: (MonadOhua m, Show embExpr) => Expr embExpr ty -> m (Expr embExpr ty)
+runCorePasses :: (MonadOhua m, Show embExpr) => Expr embExpr annot ty -> m (Expr embExpr annot ty)
 runCorePasses expr = do
     litE <- literalsToFunctions expr
     stage literalsALang expr
@@ -70,7 +70,7 @@ runCorePasses expr = do
 
 -- | Inline all references to lambdas.
 -- Aka `let f = (\a -> E) in f N` -> `(\a -> E) N`
-inlineLambdaRefs :: MonadOhua m => Expr embExpr ty -> m (Expr embExpr ty)
+inlineLambdaRefs :: MonadOhua m => Expr embExpr annot ty -> m (Expr embExpr annot ty)
 inlineLambdaRefs = flip runReaderT mempty . para go
   where
     go (LetF b (Lambda _ _, l) (_, body)) =
@@ -81,7 +81,7 @@ inlineLambdaRefs = flip runReaderT mempty . para go
 -- | Reduce lambdas by simulating application
 -- Aka `(\a -> E) N` -> `let a = N in E`
 -- Assumes lambda refs have been inlined
-inlineLambda :: Expr embExpr ty -> Expr embExpr ty
+inlineLambda :: Expr embExpr annot ty -> Expr embExpr annot ty
 inlineLambda =
     cata $ \case
         e@(ApplyF func argument) ->
@@ -97,24 +97,24 @@ inlineLambda =
 -- recursively performs the substitution
 --
 -- let x = (let y = M in A) in E[x] -> let y = M in let x = A in E[x]
-reduceLetA :: Expr embExpr ty -> Expr embExpr ty
+reduceLetA :: Expr embExpr annot ty -> Expr embExpr annot ty
 reduceLetA =
     \case
         Let assign (Let assign2 val expr3) expr ->
             Let assign2 val $ reduceLetA $ Let assign expr3 expr
         e -> e
 
-reduceLetCWith :: (Expr embExpr ty -> Expr embExpr ty) -> Expr embExpr ty -> Expr embExpr ty
+reduceLetCWith :: (Expr embExpr annot ty -> Expr embExpr annot ty) -> Expr embExpr annot ty -> Expr embExpr annot ty
 reduceLetCWith f =
     \case
         Apply (Let assign val expr) argument ->
             Let assign val $ reduceLetCWith f $ Apply expr argument
         e -> f e
 
-reduceLetC :: Expr embExpr ty -> Expr embExpr ty
+reduceLetC :: Expr embExpr annot ty -> Expr embExpr annot ty
 reduceLetC = reduceLetCWith id
 
-reduceAppArgument :: Expr embExpr ty -> Expr embExpr ty
+reduceAppArgument :: Expr embExpr annot ty -> Expr embExpr annot ty
 reduceAppArgument =
     \case
         Apply function (Let assign val expr) ->
@@ -128,13 +128,13 @@ reduceAppArgument =
 -- and then
 --
 -- A (let x = M in N) -> let x = M in A N
-reduceApplication :: Expr embExpr ty -> Expr embExpr ty
+reduceApplication :: Expr embExpr annot ty -> Expr embExpr annot ty
 reduceApplication = reduceLetCWith reduceAppArgument
 
 -- | Lift all nested lets to the top level
 -- Aka `let x = let y = E in N in M` -> `let y = E in let x = N in M`
 -- and `(let x = E in F) a` -> `let x = E in F a`
-letLift :: Expr embExpr ty -> Expr embExpr ty
+letLift :: Expr embExpr annot ty -> Expr embExpr annot ty
 letLift =
     cata $ \e ->
         let f =
@@ -146,7 +146,7 @@ letLift =
 
 -- -- | Inline all direct reassignments.
 -- -- Aka `let x = E in let y = x in y` -> `let x = E in x`
-inlineReassignments :: Expr embExpr ty -> Expr embExpr ty
+inlineReassignments :: Expr embExpr annot ty -> Expr embExpr annot ty
 inlineReassignments = flip runReader HM.empty . cata go
   where
     go (LetF bnd val body) =
@@ -163,11 +163,11 @@ inlineReassignments = flip runReader HM.empty . cata go
 -- Aka `let x = E in some/sf a` -> `let x = E in let y = some/sf a in y`
 --
 -- EDIT: Now also does the same for any residual lambdas
-ensureFinalLet :: MonadOhua m => Expr embExpr ty -> m (Expr embExpr ty)
+ensureFinalLet :: MonadOhua m => Expr embExpr annot ty -> m (Expr embExpr annot ty)
 ensureFinalLet = ensureFinalLetInLambdas >=> ensureFinalLet'
 
 -- | Transforms the final expression into a let expression with the result variable as body.
-ensureFinalLet' :: MonadOhua m => Expr embExpr ty -> m (Expr embExpr ty)
+ensureFinalLet' :: MonadOhua m => Expr embExpr annot ty -> m (Expr embExpr annot ty)
 ensureFinalLet' =
     para $ \case
         LetF b (oldV, _) (_, recB) -> Let b oldV <$> recB -- Recurse only into let body, not the bound value
@@ -185,13 +185,13 @@ ensureFinalLet' =
             LambdaF {} -> True
             _ -> False
 
-ensureFinalLetInLambdas :: MonadOhua m => Expr embExpr ty -> m (Expr embExpr ty)
+ensureFinalLetInLambdas :: MonadOhua m => Expr embExpr annot ty -> m (Expr embExpr annot ty)
 ensureFinalLetInLambdas =
     cata $ \case
         LambdaF bnd body -> Lambda bnd <$> (ensureFinalLet' =<< body)
         a -> embed <$> sequence a
 
-ensureAtLeastOneCall :: MonadGenBnd m => Expr embExpr ty -> m (Expr embExpr ty)
+ensureAtLeastOneCall :: MonadGenBnd m => Expr embExpr annot ty -> m (Expr embExpr annot ty)
 ensureAtLeastOneCall e@(Var (TBind _bnd ety)) = do
     newBnd <- generateBinding
     pure $ Let (TBind newBnd ety) (pureFunction IFuns.id (FunType (Right $ ety :| []) ety )`Apply` e) $ Var (TBind newBnd ety)
@@ -212,7 +212,7 @@ ensureAtLeastOneCall e = cata f e
 -- This is actually not safe becuase sfn invocations may have side effects
 -- and therefore cannot be removed.
 -- Assumes ssa for simplicity
-removeUnusedBindings :: Expr embExpr ty -> Expr embExpr ty
+removeUnusedBindings :: Expr embExpr annot ty -> Expr embExpr annot ty
 removeUnusedBindings = fst . runWriter . cata go
   where
     go (VarF (TBind val ty)) = tell (HS.singleton val) >> return (Var (TBind val ty))
@@ -272,9 +272,9 @@ lookupTouchState (TBind bnd _ty) (MonoidCombineHashMap m) =
 -- left behind which indicates the source expression was not
 -- fulfilling all its invariants.
 removeCurrying ::
-       forall m embExpr ty. MonadError Error m
-    => Expr embExpr ty
-    -> m (Expr embExpr ty)
+       forall m embExpr annot ty. MonadError Error m
+    => Expr embExpr annot ty
+    -> m (Expr embExpr annot ty)
 removeCurrying e = fst <$> evalRWST (para inlinePartials e) mempty ()
   where
     inlinePartials (LetF tBnd (_, val) (_, body)) = do
@@ -301,7 +301,7 @@ removeCurrying e = fst <$> evalRWST (para inlinePartials e) mempty ()
 
 -- | Ensures the expression is a sequence of let statements terminated
 -- with a local variable.
-hasFinalLet :: MonadOhua m => Expr embExpr ty -> m ()
+hasFinalLet :: MonadOhua m => Expr embExpr annot ty -> m ()
 hasFinalLet =
     cata $ \case
         LetF _ _ body -> body
@@ -311,7 +311,7 @@ hasFinalLet =
 
 {-
 -- | Ensures all of the optionally provided stateful function ids are unique.
-noDuplicateIds :: MonadError Error m => Expr embExpr ty -> m ()
+noDuplicateIds :: MonadError Error m => Expr embExpr annot ty -> m ()
 noDuplicateIds = flip evalStateT mempty . cata go
   where
     go (PureFunctionF _ (Just funid)) = do
@@ -324,7 +324,7 @@ noDuplicateIds = flip evalStateT mempty . cata go
 -- | Checks that no apply to a local variable is performed.  This is a
 -- simple check and it will pass on complex expressions even if they
 -- would reduce to an apply to a local variable.
-applyToPureFunction :: MonadOhua m => Expr embExpr ty -> m ()
+applyToPureFunction :: MonadOhua m => Expr embExpr annot ty -> m ()
 applyToPureFunction =
     para $ \case
         ApplyF (Var bnd, _) _ ->
@@ -334,7 +334,7 @@ applyToPureFunction =
 -- | Checks that all local bindings are defined before use.
 -- Scoped. Aka bindings are only visible in their respective scopes.
 -- Hence the expression does not need to be in SSA form.
-noUndefinedBindings :: MonadOhua m => Expr embExpr ty -> m ()
+noUndefinedBindings :: MonadOhua m => Expr embExpr annot ty -> m ()
 noUndefinedBindings = flip runReaderT mempty . cata go
   where
     go (LetF tb val body) = val >> registerBinding (asBnd tb) body
@@ -350,7 +350,7 @@ noUndefinedBindings = flip runReaderT mempty . cata go
     --go e = sequence_ e
     registerBinding b = (local . HS.insert) b
 
-checkProgramValidity :: MonadOhua m => Expr embExpr ty -> m ()
+checkProgramValidity :: MonadOhua m => Expr embExpr annot ty -> m ()
 checkProgramValidity e = do
     hasFinalLet e
     -- noDuplicateIds e
@@ -358,7 +358,7 @@ checkProgramValidity e = do
     noUndefinedBindings e
 
 -- | Lifts something like @if (f x) a b@ to @let x0 = f x in if x0 a b@
-liftApplyToLetArgsIn :: MonadOhua m => Expr embExpr ty -> m (Expr embExpr ty)
+liftApplyToLetArgsIn :: MonadOhua m => Expr embExpr annot ty -> m (Expr embExpr annot ty)
 liftApplyToLetArgsIn =
     lrPrewalkExprM $ \case
         Apply fn arg@(Apply _ _) -> do
@@ -367,7 +367,7 @@ liftApplyToLetArgsIn =
             return $ Let (TBind bnd argTy) arg $ Apply fn (Var (TBind bnd argTy))
         a -> return a
 
--- normalizeBind :: (MonadError Error m, MonadGenBnd m) => Expr embExpr ty -> m (Expr embExpr ty)
+-- normalizeBind :: (MonadError Error m, MonadGenBnd m) => Expr embExpr annot ty -> m (Expr embExpr annot ty)
 -- normalizeBind =
 --     rewriteM $ \case
 --         BindState e2 e1@(PureFunction _ _) ->
@@ -396,7 +396,7 @@ printND =
 
 -- The canonical composition of the above transformations to create a
 -- program with the invariants we expect.
-normalize :: MonadOhua m => Expr embExpr ty -> m (Expr embExpr ty)
+normalize :: MonadOhua m => Expr embExpr annot ty -> m (Expr embExpr annot ty)
 normalize e =
     (inlineReassignments <$>
     (reduceLambdas (letLift e) >>=

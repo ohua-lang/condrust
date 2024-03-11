@@ -6,14 +6,14 @@ import Ohua.Backend.Types
 import Ohua.Commons.Prelude hiding (First)
 
 normalize ::
-  Namespace (Program chan recv (TaskExpr embExpr ty) embExpr ty) anno (OhuaType ty 'Resolved) ->
-  Namespace (Program chan recv (TaskExpr embExpr ty) embExpr ty) anno (OhuaType ty 'Resolved)
+  Namespace (Program chan recv (TaskExpr embExpr annot ty) embExpr annot ty) anno (OhuaType ty 'Resolved) ->
+  Namespace (Program chan recv (TaskExpr embExpr annot ty) embExpr annot ty) anno (OhuaType ty 'Resolved)
 normalize = updateTaskExprs' normalizeTaskExpr
 
-normalizeTaskExpr :: TaskExpr embExpr ty -> TaskExpr embExpr ty
+normalizeTaskExpr :: TaskExpr embExpr annot ty -> TaskExpr embExpr annot ty
 normalizeTaskExpr = normalizeLits . normalizeIndirect
 
-transformWithState :: (TaskExpr embExpr ty -> TaskExpr embExpr ty) -> TaskExpr embExpr ty -> TaskExpr embExpr ty
+transformWithState :: (TaskExpr embExpr annot ty -> TaskExpr embExpr annot ty) -> TaskExpr embExpr annot ty -> TaskExpr embExpr annot ty
 transformWithState f = (`evalState` HS.empty) . transformM go
   where
     -- This restricts the whole transformation to stateful functions only! Why?!
@@ -38,7 +38,7 @@ transformWithState f = (`evalState` HS.empty) . transformM go
 -- @
 --   [x |-> y]t
 -- @
-normalizeIndirect :: TaskExpr embExpr ty -> TaskExpr embExpr ty
+normalizeIndirect :: TaskExpr embExpr annot ty -> TaskExpr embExpr annot ty
 normalizeIndirect = transformWithState go
   where
     go (Let x y@Var {} ct) =
@@ -66,14 +66,14 @@ normalizeIndirect = transformWithState go
 --   [x |-> 5]t
 -- @
 -- for every literal.
-normalizeLits :: TaskExpr embExpr ty -> TaskExpr embExpr ty
+normalizeLits :: TaskExpr embExpr annot ty -> TaskExpr embExpr annot ty
 normalizeLits = transformWithState go
   where
     go (Let bnd l@Lit {} ct) = substitute (bnd, l) ct
     go e = e
 
 -- | Substitution function: [x |-> y]t
-substitute :: (Binding, TaskExpr embExpr ty) -> TaskExpr embExpr ty -> TaskExpr embExpr ty
+substitute :: (Binding, TaskExpr embExpr annot ty) -> TaskExpr embExpr annot ty -> TaskExpr embExpr annot ty
 substitute (bnd, e) = transform go
   where
     go v@Var {} = updateVar v
@@ -111,7 +111,7 @@ substitute (bnd, e) = transform go
                                e' -> undefined
     replaceEither e' = e'
 
-    replaceWhenVar :: Binding -> TaskExpr embExpr ty -> Binding
+    replaceWhenVar :: Binding -> TaskExpr embExpr annot ty -> Binding
     replaceWhenVar _b (Var newBnd) = newBnd
     replaceWhenVar _b (Lit (EnvRefLit newBnd _ )) = newBnd
     replaceWhenVar b _ = b

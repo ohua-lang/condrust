@@ -27,7 +27,7 @@ import System.FilePath (takeFileName)
 -- import Language.Python.Common (ImportRelative(import_relative_dots))
 import Data.List (nub)
 
--- data Program chan retChan expr embExpr ty 
+-- data Program chan retChan Expr embExpr annot ty 
 type FullyPyProgram = Program (Py.Statement SrcSpan) (Py.Expr SrcSpan) (Py.Statement SrcSpan) (Py.Expr SrcSpan) PythonVarType
 
 

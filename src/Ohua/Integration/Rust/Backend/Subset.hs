@@ -25,12 +25,12 @@ type Block = CSTypes.Block Expr
 type Stmt = CSTypes.Stmt Expr
 
 data Expr
-  = Lit (Lit (Rust.Expr Span) RustVarType Resolved)
+  = Lit (Lit (Rust.Expr Span) RustVarType (Rust.Attribute Span) Resolved)
   | Var Binding
   -- ToDO: If we only support Variables as bound objects and if we keep the BindE expression
   -- in the frontend the way it is, the receiver of a MethodCall should also only be a binding
-  | MethodCall Expr CallRef [Expr]
-  | Call CallRef [Expr]
+  | MethodCall Expr CallRef [Rust.Attribute Span] [Expr]
+  | Call CallRef [Rust.Attribute Span] [Expr]
   | Binary BinOp Expr Expr
   | Unary UnOp Expr
   | Assign Expr Expr

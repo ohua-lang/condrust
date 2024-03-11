@@ -13,10 +13,10 @@ import qualified Ohua.Core.InternalFunctions as IFuns
 import qualified Data.List.NonEmpty as NE
 
 
-toAlang :: ErrAndLogM m => FR.FuncExpr embExpr ty -> m (ALang.Expr embExpr ty)
+toAlang :: ErrAndLogM m => FR.FuncExpr embExpr annot ty -> m (ALang.Expr embExpr annot ty)
 toAlang expr =  toAlang' (definedBindings expr)  expr
 
-toAlang' :: ErrAndLogM m => HS.HashSet Binding -> FR.FuncExpr embExpr ty -> m (ALang.Expr embExpr ty)
+toAlang' :: ErrAndLogM m => HS.HashSet Binding -> FR.FuncExpr embExpr annot ty -> m (ALang.Expr embExpr annot ty)
 toAlang' taken expr = runGenBndT taken $ transfrm expr
     where
         transfrm =
@@ -27,7 +27,7 @@ toAlang' taken expr = runGenBndT taken $ transfrm expr
 -- | In the frontend we represent algos as Lamda expressions to capture the input and return types
 --   However ALang still expects them to be Let expressions (which is the "second layer" of each algo)
 --   so we just unwrap them here until we get consistency among the representations
-unwrapAlgo :: FR.FuncExpr embExpr ty -> FR.FuncExpr embExpr ty
+unwrapAlgo :: FR.FuncExpr embExpr annot ty -> FR.FuncExpr embExpr annot ty
 unwrapAlgo (LamE pats innerAlgo) = addAssignments (NE.toList pats) innerAlgo
    where 
     addAssignments ((VarP x xty): xs) body =
@@ -45,7 +45,7 @@ unwrapAlgo e = e
 --   Let newName = fun()
 --       in Let a = nth(newName, 0) 
 --       in Let b = nth(newName, 1)
-removeDestructuring :: MonadGenBnd m => FR.FuncExpr embExpr ty -> m (FR.FuncExpr embExpr ty)
+removeDestructuring :: MonadGenBnd m => FR.FuncExpr embExpr annot ty -> m (FR.FuncExpr embExpr annot ty)
 removeDestructuring = 
     FR.preWalkM $ \case
         LetE (TupP pats) e1 e2 -> do
@@ -59,7 +59,7 @@ removeDestructuring =
         e -> pure e
 
 
-unstructure :: (Binding, ResolvedType ty) -> NonEmpty (FR.ResolvedPat ty) -> FR.FuncExpr embExpr ty -> FR.FuncExpr embExpr ty
+unstructure :: (Binding, ResolvedType ty) -> NonEmpty (FR.ResolvedPat ty) -> FR.FuncExpr embExpr annot ty -> FR.FuncExpr embExpr annot ty
 unstructure (valBnd, valTy) pats = go (toInteger $ length pats) (NE.toList pats)
   where
     go numPats =
@@ -76,15 +76,15 @@ unstructure (valBnd, valTy) pats = go (toInteger $ length pats) (NE.toList pats)
         zip [0 ..]
 
 -- ToDo: Replace by Alang definition
-nthFun :: ResolvedType ty -> ResolvedType ty -> FR.FuncExpr embExpr ty
+nthFun :: ResolvedType ty -> ResolvedType ty -> FR.FuncExpr embExpr annot ty
 nthFun collTy elemTy = LitE $ FunRefLit $ FunRef IFuns.nth $ FunType (Right $ IType TypeNat :| [IType TypeNat, collTy]) elemTy
 
-seqFunSf ::  ResolvedType ty -> ResolvedType ty -> FR.FuncExpr embExpr ty
+seqFunSf ::  ResolvedType ty -> ResolvedType ty -> FR.FuncExpr embExpr annot ty
 seqFunSf t1 t2 = LitE $ FunRefLit $ FunRef IFuns.seqFun $ FunType (Right $ t1 :| [t2]) t2
 
 
 -- | The function actualy lowering Frontend IR to ALang
-trans :: FR.FuncExpr embExpr ty -> ALang.Expr embExpr ty
+trans :: FR.FuncExpr embExpr annot ty -> ALang.Expr embExpr annot ty
 trans =
     \case
         VarE b ty -> Var $ TBind b ty
@@ -141,7 +141,7 @@ trans =
              "(function arguments or let bound variables) should be single vars but " <> show p <>
              "is not. Please file a bug."
 
-    constLit:: FR.FuncExpr embExpr ty -> FR.FuncExpr embExpr ty -> FR.FuncExpr embExpr ty
+    constLit:: FR.FuncExpr embExpr annot ty -> FR.FuncExpr embExpr annot ty -> FR.FuncExpr embExpr annot ty
     constLit eS eT =
         let pType = FR.exprType eS
             tType = FR.exprType eT 
@@ -161,7 +161,7 @@ tupTypeFrom pats = TType $ NE.map getPType pats
         getPType (TupP _ ) = error $ "Encountered a nested tuple pattern, like \"let (a, (b, c)) = ...\". This is currently not supported"
 
 
-definedBindings :: FR.FuncExpr embExpr ty -> HS.HashSet Binding
+definedBindings :: FR.FuncExpr embExpr annot ty -> HS.HashSet Binding
 definedBindings olang =
     HS.fromList $
     [v | VarE v _ty <- FR.flattenR olang] <>
@@ -183,7 +183,7 @@ _ensureLambdaInSmap =
 -}
 
 -- | Ensures every lambda takes at most one argument.
-mkLamSingleArgument :: FR.FuncExpr embExpr ty -> FR.FuncExpr embExpr ty
+mkLamSingleArgument :: FR.FuncExpr embExpr annot ty -> FR.FuncExpr embExpr annot ty
 mkLamSingleArgument =
     FR.preWalkE $ \case
         LamE (x1:|(x2:xs)) b -> LamE (x1 :| []) $ LamE (x2 :| xs) b
@@ -214,7 +214,7 @@ mkLamSingleArgument =
 --           We do not care (at all) for invalid Code of the input language, and should treat 
 --           more general problems that affect also recursions downstream.
 
-whileToRecursion :: MonadGenBnd m =>  FR.FuncExpr embExpr ty -> m (FR.FuncExpr embExpr ty)
+whileToRecursion :: MonadGenBnd m =>  FR.FuncExpr embExpr annot ty -> m (FR.FuncExpr embExpr annot ty)
 whileToRecursion = return 
 {-
     rewriteM $ \case

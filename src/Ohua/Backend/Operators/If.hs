@@ -12,7 +12,7 @@ type CondInput = Com 'Recv
 type CtrlTrueOutput = Com 'Channel
 type CtrlFalseOutput = Com 'Channel
 
-ifFun :: CondInput embExpr ty -> NonEmpty (CtrlTrueOutput embExpr ty, CtrlFalseOutput embExpr ty) -> TaskExpr embExpr ty
+ifFun :: CondInput embExpr annot ty -> NonEmpty (CtrlTrueOutput embExpr annot ty, CtrlFalseOutput embExpr annot ty) -> TaskExpr embExpr annot ty
 ifFun condInput ctrlOuts =
     Let "branchSelection" (ReceiveData condInput) $
     Cond
@@ -45,7 +45,7 @@ type TrueBranchInput = Com 'Recv
 type FalseBranchInput = Com 'Recv
 type ResultOutput = Com 'Channel
 
-select :: CondInput embExpr ty -> TrueBranchInput embExpr ty -> FalseBranchInput embExpr ty -> ResultOutput embExpr ty -> TaskExpr embExpr ty
+select :: CondInput embExpr annot ty -> TrueBranchInput embExpr annot ty -> FalseBranchInput embExpr annot ty -> ResultOutput embExpr annot ty -> TaskExpr embExpr annot ty
 select condInput trueBranchInput falseBranchInput resultOut =
     Let "branchSelection" (ReceiveData condInput) $
         Cond

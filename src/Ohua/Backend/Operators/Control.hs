@@ -14,26 +14,26 @@ import qualified Data.List.NonEmpty as NE
 import qualified Data.HashSet as HS
 import qualified Data.Foldable as DF
 
-newtype  CtrlInput embExpr ty = CtrlInput (Com 'Recv embExpr ty) deriving (Eq, Show, Generic)
+newtype  CtrlInput embExpr annot ty = CtrlInput (Com 'Recv embExpr annot ty) deriving (Eq, Show, Generic)
 
-instance Hashable (CtrlInput embExpr ty)
+instance Hashable (CtrlInput embExpr annot ty)
 
 -- annotations
 data CtrlAnno = Variable | Fun | CtxtLit deriving (Eq, Show, Generic)
 
 data Ctrl (anno::CtrlAnno) (embExpr::Type) (ty::Type) :: Type where
-    VarCtrl ::  CtrlInput embExpr ty -> (OutputChannel embExpr ty, Com 'Recv embExpr ty) -> Ctrl 'Variable embExpr ty
+    VarCtrl ::  CtrlInput embExpr annot ty -> (OutputChannel embExpr annot ty, Com 'Recv embExpr annot ty) -> Ctrl 'Variable embExpr annot ty
     -- TODO this is not the right type! It does not transport the 
     -- invariant that all output channels have the same target.
     -- This is what `merge` establishes.
     -- Is this again something that can be created with LiquidHaskell?
-    FunCtrl ::  CtrlInput embExpr ty -> NonEmpty (OutputChannel embExpr ty, Com 'Recv embExpr ty) -> Ctrl 'Fun embExpr ty
-    LitCtrl ::  CtrlInput embExpr ty -> (OutputChannel embExpr ty, Lit embExpr ty Resolved) -> Ctrl 'CtxtLit embExpr ty
+    FunCtrl ::  CtrlInput embExpr annot ty -> NonEmpty (OutputChannel embExpr annot ty, Com 'Recv embExpr annot ty) -> Ctrl 'Fun embExpr annot ty
+    LitCtrl ::  CtrlInput embExpr annot ty -> (OutputChannel embExpr annot ty, Lit embExpr annot ty Resolved) -> Ctrl 'CtxtLit embExpr annot ty
 
-deriving instance Eq (Ctrl semTy embExpr ty)
-deriving instance Show (Ctrl semTy embExpr ty)
+deriving instance Eq (Ctrl semTy embExpr annot ty)
+deriving instance Show (Ctrl semTy embExpr annot ty)
 
-instance Hashable (Ctrl semTy embExpr ty) where
+instance Hashable (Ctrl semTy embExpr annot ty) where
     hashWithSalt s (VarCtrl cInp inOut) = s `hashWithSalt` cInp `hashWithSalt` inOut
     hashWithSalt s (FunCtrl cInp inOut) = s `hashWithSalt` cInp `hashWithSalt` inOut
     hashWithSalt s (LitCtrl cInp inOut) = s `hashWithSalt` cInp `hashWithSalt` inOut
@@ -42,10 +42,10 @@ type VarCtrl = Ctrl 'Variable
 type FunCtrl = Ctrl 'Fun
 type LitCtrl = Ctrl 'CtxtLit
 
-ctrlReceives :: FunCtrl embExpr ty -> NonEmpty (Com 'Recv embExpr ty)
+ctrlReceives :: FunCtrl embExpr annot ty -> NonEmpty (Com 'Recv embExpr annot ty)
 ctrlReceives (FunCtrl _ vars) = map snd vars
 
-toFunCtrl :: VarCtrl embExpr ty -> FunCtrl embExpr ty
+toFunCtrl :: VarCtrl embExpr annot ty -> FunCtrl embExpr annot ty
 toFunCtrl (VarCtrl ctrlVar var) = FunCtrl ctrlVar (var:|[])
 
 data FusedCtrlAnno = Function | Literal deriving (Eq, Show, Generic)
@@ -53,21 +53,21 @@ data FusedCtrlAnno = Function | Literal deriving (Eq, Show, Generic)
 data FusedCtrl (anno::FusedCtrlAnno) (embExpr::Type) (ty::Type) :: Type where
     -- there is another assumption here that needs to be enforced:
     -- state inputs in NonEmpty VarReceive map to state outputs in [Send]!
-    FusedFunCtrl ::  CtrlInput embExpr  ty -> [VarReceive embExpr ty] -> TaskExpr embExpr ty -> [Com 'Send embExpr ty] -> FusedCtrl 'Function embExpr ty
-    FusedLitCtrl ::  CtrlInput embExpr  ty -> (OutputChannel embExpr  ty, Lit embExpr ty Resolved) -> Either (FusedFunCtrl embExpr ty) (F.FusableFunction  embExpr ty) -> FusedCtrl 'Literal embExpr ty
+    FusedFunCtrl ::  CtrlInput embExpr  ty -> [VarReceive embExpr annot ty] -> TaskExpr embExpr annot ty -> [Com 'Send embExpr annot ty] -> FusedCtrl 'Function embExpr annot ty
+    FusedLitCtrl ::  CtrlInput embExpr  ty -> (OutputChannel embExpr  ty, Lit embExpr annot ty Resolved) -> Either (FusedFunCtrl embExpr annot ty) (F.FusableFunction  embExpr annot ty) -> FusedCtrl 'Literal embExpr annot ty
 
-deriving instance Eq (FusedCtrl semTy embExpr ty)
+deriving instance Eq (FusedCtrl semTy embExpr annot ty)
 
 type FusedFunCtrl = FusedCtrl 'Function
 type FusedLitCtrl = FusedCtrl 'Literal
 
-instance Hashable (FusedCtrl anno embExpr ty) where
+instance Hashable (FusedCtrl anno embExpr annot ty) where
     hashWithSalt s (FusedFunCtrl cInp inOut comp stateOuts) =
         s `hashWithSalt` cInp `hashWithSalt` inOut `hashWithSalt` comp `hashWithSalt` stateOuts
     hashWithSalt s (FusedLitCtrl cInp inOut comp) =
         s `hashWithSalt` cInp `hashWithSalt` inOut `hashWithSalt` comp
 
-fuseSTCSMap :: STCLangSMap 'Fusable embExpr ty -> FusedFunCtrl embExpr ty -> FusedFunCtrl embExpr ty
+fuseSTCSMap :: STCLangSMap 'Fusable embExpr annot ty -> FusedFunCtrl embExpr annot ty -> FusedFunCtrl embExpr annot ty
 fuseSTCSMap
     (FusableSTCLangSMap (SRecv _ stateReceive) stateOut)
     (FusedFunCtrl ctrlInput vars comp stateOuts)
@@ -91,7 +91,7 @@ fuseSTCSMap
 --     | ctrl --> ctrl |
 --     +---------------+
 --
-fuseCtrl :: forall embExpr ty.FunCtrl embExpr ty -> FusedFunCtrl embExpr ty -> FusedFunCtrl embExpr ty
+fuseCtrl :: forall embExpr annot ty.FunCtrl embExpr annot ty -> FusedFunCtrl embExpr annot ty -> FusedFunCtrl embExpr annot ty
 fuseCtrl
     (FunCtrl ctrlInput vars) -- from
     (FusedFunCtrl ctrlInput' vars' comp' stateOuts) -- to
@@ -140,7 +140,7 @@ fuseCtrl
 --     +--------------+
 --
 --   As a result, the control takes care of the output.
-fuseCtrlIntoFun :: forall embExpr ty. F.FusableFunction embExpr ty -> FusedFunCtrl embExpr ty -> F.FusedFun embExpr ty
+fuseCtrlIntoFun :: forall embExpr annot ty. F.FusableFunction embExpr annot ty -> FusedFunCtrl embExpr annot ty -> F.FusedFun embExpr annot ty
 fuseCtrlIntoFun fun (FusedFunCtrl ctrlIn ins expr outs) =
     case fun of
         (F.PureFusable recvs qb out) ->
@@ -155,11 +155,11 @@ fuseCtrlIntoFun fun (FusedFunCtrl ctrlIn ins expr outs) =
             forPure' (F.IdFusable recv . fst) out Nothing []
    where
      forPure' :: {-forall t embExpr.-} (DF.Foldable t, Functor t) =>
-       ((t (F.Result embExpr ty), Maybe (Com 'Channel embExpr ty)) -> F.FusedFunction embExpr ty)
-       -> t (F.Result embExpr ty)
-       -> Maybe (Com 'Channel embExpr ty)
-        -> [VarReceive embExpr ty]
-        -> F.FusedFun embExpr ty
+       ((t (F.Result embExpr annot ty), Maybe (Com 'Channel embExpr annot ty)) -> F.FusedFunction embExpr annot ty)
+       -> t (F.Result embExpr annot ty)
+       -> Maybe (Com 'Channel embExpr annot ty)
+        -> [VarReceive embExpr annot ty]
+        -> F.FusedFun embExpr annot ty
      forPure' upstream usOuts usStateOut dsIns =
           let (downstreamIns, upstreamOuts) = forPure usOuts usStateOut dsIns
               upstream' = upstream upstreamOuts
@@ -182,7 +182,7 @@ fuseCtrlIntoFun fun (FusedFunCtrl ctrlIn ins expr outs) =
 --     +--------------+
 --
 --   As a result, the function takes care of the output.
-fuseFun :: Show embExpr => FunCtrl embExpr ty -> F.FusableFunction embExpr ty -> FusedFunCtrl embExpr ty
+fuseFun :: Show embExpr => FunCtrl embExpr annot ty -> F.FusableFunction embExpr annot ty -> FusedFunCtrl embExpr annot ty
 fuseFun (FunCtrl ctrlInput vars) =
     \case
         (F.PureFusable args app res) ->
@@ -235,7 +235,7 @@ fuseFun (FunCtrl ctrlInput vars) =
             propagateTypeFromArg =
               propagateType . mapMaybe (\case (F.Arg s) -> Just s; _ -> Nothing)
 
-fuseSMap :: FunCtrl embExpr ty -> SMap.Op embExpr ty -> FusedFunCtrl embExpr ty
+fuseSMap :: FunCtrl embExpr annot ty -> SMap.Op embExpr annot ty -> FusedFunCtrl embExpr annot ty
 fuseSMap (FunCtrl ctrlInput (( o, inData):|[])) smap = -- invariant
   FusedFunCtrl
     ctrlInput
@@ -244,7 +244,7 @@ fuseSMap (FunCtrl ctrlInput (( o, inData):|[])) smap = -- invariant
     []
 fuseSMap other _ = error $ "Compiler Invariant broken. Trying to fuse SMap for " <> show other
 
-propagateType :: [Com 'Recv embExpr ty] -> (OutputChannel embExpr ty, Com 'Recv embExpr ty) -> (OutputChannel embExpr ty, Com 'Recv embExpr ty)
+propagateType :: [Com 'Recv embExpr annot ty] -> (OutputChannel embExpr annot ty, Com 'Recv embExpr annot ty) -> (OutputChannel embExpr annot ty, Com 'Recv embExpr annot ty)
 propagateType args (o@(OutputChannel outChan), r@(SRecv _ rChan)) =
     foldl (\s out -> case out of
                         (SRecv t chan) | chan == outChan -> (o, SRecv t rChan)
@@ -254,10 +254,10 @@ propagateType args (o@(OutputChannel outChan), r@(SRecv _ rChan)) =
         (o,r)
         args
 
-fuseLitCtrlIntoCtrl :: LitCtrl embExpr ty ->  FusedFunCtrl embExpr ty -> FusedLitCtrl embExpr ty
+fuseLitCtrlIntoCtrl :: LitCtrl embExpr annot ty ->  FusedFunCtrl embExpr annot ty -> FusedLitCtrl embExpr annot ty
 fuseLitCtrlIntoCtrl (LitCtrl ctrlInp inOut) = FusedLitCtrl ctrlInp inOut . Left
 
-fuseLitCtrlIntoFun :: LitCtrl embExpr ty -> F.FusableFunction embExpr ty -> FusedLitCtrl embExpr ty
+fuseLitCtrlIntoFun :: LitCtrl embExpr annot ty -> F.FusableFunction embExpr annot ty -> FusedLitCtrl embExpr annot ty
 fuseLitCtrlIntoFun (LitCtrl ctrlInp outIn) = FusedLitCtrl ctrlInp outIn . Right
 
 {-|
@@ -292,14 +292,14 @@ becomes:
   That really just means that I'm removing all signaling code because it is already there.
 -}
 -- Assumption: _sigSource == _sigSource'
-merge :: VarCtrl embExpr ty -> Either (VarCtrl embExpr ty) (FunCtrl embExpr ty) -> FunCtrl embExpr ty
+merge :: VarCtrl embExpr annot ty -> Either (VarCtrl embExpr annot ty) (FunCtrl embExpr annot ty) -> FunCtrl embExpr annot ty
 merge (VarCtrl ctrlIn var) (Left (VarCtrl _ctrlIn' var')) = FunCtrl ctrlIn [var, var']
 merge (VarCtrl ctrlIn var) (Right (FunCtrl _ctrlIn' vars)) = FunCtrl ctrlIn $ var NE.<| vars
 
-genFused ::  FusedFunCtrl embExpr ty -> TaskExpr embExpr ty
+genFused ::  FusedFunCtrl embExpr annot ty -> TaskExpr embExpr annot ty
 genFused = EndlessLoop . genFused'
 
-genFused' ::  FusedFunCtrl embExpr ty -> TaskExpr embExpr ty
+genFused' ::  FusedFunCtrl embExpr annot ty -> TaskExpr embExpr annot ty
 genFused' (FusedFunCtrl ctrlInput vars comp stateOuts) =
     genCtrl' ctrlInput initVarsExpr' comp $ Just stateOuts'
     where
@@ -307,7 +307,7 @@ genFused' (FusedFunCtrl ctrlInput vars comp stateOuts) =
         stateOuts' =
             foldr (Stmt . SendData) (Lit UnitLit) stateOuts
 
-genCtrl :: FunCtrl embExpr ty -> TaskExpr embExpr ty
+genCtrl :: FunCtrl embExpr annot ty -> TaskExpr embExpr annot ty
 genCtrl (FunCtrl ctrlInput vars) =
     EndlessLoop $
         genCtrl' ctrlInput initVarsExpr' sendCode Nothing
@@ -318,7 +318,7 @@ genCtrl (FunCtrl ctrlInput vars) =
             foldr (\(bnd, OutputChannel ch) c -> Stmt (SendData $ SSend ch $ Left bnd) c) (Lit UnitLit) sendVars
         sendVars = NE.map (bimap (("var_" <>) . show) fst) $ NE.zip [0..] vars
 
-genLitCtrl :: (Show ty, Show embExpr) => FusedLitCtrl embExpr ty -> TaskExpr embExpr ty
+genLitCtrl :: (Show ty, Show embExpr) => FusedLitCtrl embExpr annot ty -> TaskExpr embExpr annot ty
 genLitCtrl (FusedLitCtrl ctrlInput (OutputChannel (SChan output), input) comp) =
     EndlessLoop $
         genCtrl' ctrlInput (Let output (Lit input)) (genComp comp) Nothing
@@ -337,7 +337,7 @@ genLitCtrl (FusedLitCtrl ctrlInput (OutputChannel (SChan output), input) comp) =
       f e  = e
 
 
-genCtrl' ::  CtrlInput embExpr ty -> (TaskExpr embExpr ty -> TaskExpr embExpr ty) -> TaskExpr embExpr ty -> Maybe (TaskExpr embExpr ty) -> TaskExpr embExpr ty
+genCtrl' ::  CtrlInput embExpr annot ty -> (TaskExpr embExpr annot ty -> TaskExpr embExpr annot ty) -> TaskExpr embExpr annot ty -> Maybe (TaskExpr embExpr annot ty) -> TaskExpr embExpr annot ty
 genCtrl' ctrlInput initVars comp cont =
     sigStateInit "renew" $
     initVars $
@@ -357,26 +357,26 @@ genCtrl' ctrlInput initVars comp cont =
 
 -- | A context control marks the end of a fusion chain. It is the very last control
 --   and therefore can only be fused into.
-mkLittedCtrl :: Com 'Recv embExpr ty -> Lit embExpr ty Resolved -> Com 'Channel embExpr ty -> LitCtrl embExpr ty
+mkLittedCtrl :: Com 'Recv embExpr annot ty -> Lit embExpr annot ty Resolved -> Com 'Channel embExpr annot ty -> LitCtrl embExpr annot ty
 mkLittedCtrl ctrl lit out =
     LitCtrl (CtrlInput ctrl) (OutputChannel out, lit)
 
-mkCtrl :: Com 'Recv embExpr ty -> Com 'Recv embExpr ty -> Com 'Channel embExpr ty -> VarCtrl embExpr ty
+mkCtrl :: Com 'Recv embExpr annot ty -> Com 'Recv embExpr annot ty -> Com 'Channel embExpr annot ty -> VarCtrl embExpr annot ty
 mkCtrl ctrlInput input output =
     VarCtrl (CtrlInput ctrlInput) (OutputChannel output, input)
 
-sigStateInit :: Binding -> TaskExpr embExpr ty -> TaskExpr embExpr ty
+sigStateInit :: Binding -> TaskExpr embExpr annot ty -> TaskExpr embExpr annot ty
 sigStateInit bnd = Let bnd (Lit $ BoolLit False)
 
-sigStateRecv ::  CtrlInput embExpr ty -> TaskExpr embExpr ty -> TaskExpr embExpr ty
+sigStateRecv ::  CtrlInput embExpr annot ty -> TaskExpr embExpr annot ty -> TaskExpr embExpr annot ty
 sigStateRecv (CtrlInput ctrlInput) cont =
     Let "sig" (ReceiveData ctrlInput) $
     Let "count" (L.secondIndexing "sig") cont
 
-ctxtLoop :: TaskExpr embExpr ty -> TaskExpr embExpr ty
+ctxtLoop :: TaskExpr embExpr annot ty -> TaskExpr embExpr annot ty
 ctxtLoop = Repeat $ Left "count"
 
-sigStateRenew :: Binding -> TaskExpr embExpr ty
+sigStateRenew :: Binding -> TaskExpr embExpr annot ty
 sigStateRenew bnd =
     Let "renew_next_time" (L.firstIndexing "sig") $
     Assign bnd $ Var "renew_next_time"

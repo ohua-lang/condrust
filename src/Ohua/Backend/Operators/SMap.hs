@@ -16,47 +16,47 @@ import qualified Ohua.Backend.Lang as L ( TaskExpr( Var ) )
 import Ohua.Backend.Operators.Common
 
 type Input = Com 'Recv
-type DataOut embExpr ty = Maybe (Com 'Channel embExpr ty)
-type CtrlOut embExpr ty = [Com 'Channel embExpr ty]
-type CollectOut embExpr ty = [Com 'Channel embExpr ty]
+type DataOut embExpr annot ty = Maybe (Com 'Channel embExpr annot ty)
+type CtrlOut embExpr annot ty = [Com 'Channel embExpr annot ty]
+type CollectOut embExpr annot ty = [Com 'Channel embExpr annot ty]
 
 type SizeInput = Com 'Recv
 type DataInput = Com 'Recv
 type CollectedOutput = Com 'Channel
 
-data DataIn embExpr ty = Var Binding | Receive (Input embExpr ty) | Expr (TaskExpr embExpr ty)
+data DataIn embExpr annot ty = Var Binding | Receive (Input embExpr annot ty) | Expr (TaskExpr embExpr annot ty)
   deriving (Generic,Eq, Show)
 
-deriving instance Hashable (DataIn embExpr ty)
+deriving instance Hashable (DataIn embExpr annot ty)
 
 
 -- This could easily be turned into something more general.
-data Op embExpr ty
-  = SMap (DataIn embExpr ty) (DataOut embExpr ty) (CtrlOut embExpr ty) (CollectOut embExpr ty)
-  | Collect (DataIn embExpr ty) (SizeInput embExpr ty) (CollectedOutput embExpr ty)
+data Op embExpr annot ty
+  = SMap (DataIn embExpr annot ty) (DataOut embExpr annot ty) (CtrlOut embExpr annot ty) (CollectOut embExpr annot ty)
+  | Collect (DataIn embExpr annot ty) (SizeInput embExpr annot ty) (CollectedOutput embExpr annot ty)
   deriving (Generic,Eq)
 
-deriving instance Hashable (Op embExpr ty)
+deriving instance Hashable (Op embExpr annot ty)
 
-deriving instance Show (Op embExpr ty)
+deriving instance Show (Op embExpr annot ty)
 
-smapFun :: DataIn embExpr ty -> DataOut embExpr ty -> CtrlOut embExpr ty -> CollectOut embExpr ty -> Op embExpr ty
+smapFun :: DataIn embExpr annot ty -> DataOut embExpr annot ty -> CtrlOut embExpr annot ty -> CollectOut embExpr annot ty -> Op embExpr annot ty
 smapFun = SMap
 
-collect :: DataInput embExpr ty -> SizeInput embExpr ty -> CollectedOutput embExpr ty -> Op embExpr ty
+collect :: DataInput embExpr annot ty -> SizeInput embExpr annot ty -> CollectedOutput embExpr annot ty -> Op embExpr annot ty
 collect dataInput = Collect (Receive dataInput)
 
-getInput :: Op embExpr ty -> Maybe (Input embExpr ty)
+getInput :: Op embExpr annot ty -> Maybe (Input embExpr annot ty)
 getInput (SMap (Receive r) _ _ _) = Just r
 getInput (Collect (Receive r) _ _) = Just r
 getInput _ = Nothing
 
-gen :: Op embExpr ty -> TaskExpr embExpr ty
+gen :: Op embExpr annot ty -> TaskExpr embExpr annot ty
 gen smap = case getInput smap of
              Just _ -> EndlessLoop $ gen' smap
              _ -> gen' smap
 
-gen' :: Op embExpr ty -> TaskExpr embExpr ty
+gen' :: Op embExpr annot ty -> TaskExpr embExpr annot ty
 gen' (SMap input dataOut ctrlOut collectOut) =
   Let "data" (genInput input) $
   Let "hasSize" (HasSize "data") $
@@ -106,11 +106,11 @@ gen' (Collect dataInput sizeInput collectedOutput) =
   SendData $ SSend collectedOutput $ Left "collection"
 
 
-genInput :: DataIn embExpr ty -> TaskExpr embExpr ty
+genInput :: DataIn embExpr annot ty -> TaskExpr embExpr annot ty
 genInput (Var bnd)   = L.Var bnd
 genInput (Receive r) = ReceiveData r
 genInput (Expr t)    = t
 
-fuse :: Binding -> Op embExpr ty -> Op embExpr ty
+fuse :: Binding -> Op embExpr annot ty -> Op embExpr annot ty
 fuse var (SMap _ a b c)  = SMap (Var var) a b c
 fuse var (Collect _ a b) = Collect (Var var) a b

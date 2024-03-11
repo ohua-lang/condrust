@@ -55,7 +55,7 @@ Delta ... associates function literals to a type
 -}
 
 
-toWellTyped :: forall embExpr ty m. ErrAndLogM m => Delta ty 'Resolved -> [Import] -> UnresolvedExpr embExpr ty -> m (ResolvedExpr embExpr ty)
+toWellTyped :: forall embExpr annot ty m. ErrAndLogM m => Delta ty 'Resolved -> [Import] -> UnresolvedExpr embExpr annot ty -> m (ResolvedExpr embExpr annot ty)
 toWellTyped delta modImports e@(LamE pats expr) =
   let
     gamma = HM.fromList $ freeVars e
@@ -84,39 +84,39 @@ toWellTyped delta modImports e@(LamE pats expr) =
     return (LamE resolvedPats e')
 toWellTyped _ _ e = throwError $ "Algorithm was not a lambda expression. Please file a bug. " <> show e
 
-type TypeErrorM m embExpr ty = MonadReader (NonEmpty (UnresolvedExpr embExpr ty)) m
+type TypeErrorM m embExpr annot ty = MonadReader (NonEmpty (UnresolvedExpr embExpr annot ty)) m
 
-throwErrorWithTrace :: forall m embExpr ty a.
-                       (ErrAndLogM m, TypeErrorM m embExpr ty)
+throwErrorWithTrace :: forall m embExpr annot ty a.
+                       (ErrAndLogM m, TypeErrorM m embExpr annot ty)
                     => Text
                     -> m a
 throwErrorWithTrace m = do
   exprs <- ask
   throwError $ m <> exprTrace (NE.reverse exprs) exprTraceDepth
   where
-    exprTrace :: NonEmpty (UnresolvedExpr embExpr ty) -> Nat -> Text
+    exprTrace :: NonEmpty (UnresolvedExpr embExpr annot ty) -> Nat -> Text
     exprTrace (e:|_ ) Zero = "\nIn expr:\n" <> prettyExpr e
     exprTrace (e:|[]) _    = "\nIn expr:\n" <> prettyExpr e
     exprTrace (e:|(es:ess)) (Succ n) = "\nIn expr:\n" <> prettyExpr e <> exprTrace (es:|ess) n
 
-invariantBroken :: (ErrAndLogM m, TypeErrorM m embExpr ty) => Text -> m a
+invariantBroken :: (ErrAndLogM m, TypeErrorM m embExpr annot ty) => Text -> m a
 invariantBroken m = throwErrorWithTrace $ "Invariant broken: " <> m
 
-wfError :: (ErrAndLogM m, TypeErrorM m embExpr ty) => Text -> m a
+wfError :: (ErrAndLogM m, TypeErrorM m embExpr annot ty) => Text -> m a
 wfError m = throwErrorWithTrace $ "Wellformedness error: " <> m
 
-typeError :: (ErrAndLogM m, TypeErrorM m embExpr ty) => Text -> m a
+typeError :: (ErrAndLogM m, TypeErrorM m embExpr annot ty) => Text -> m a
 typeError m = throwErrorWithTrace $ "Type error: " <> m
 
-symResError :: (ErrAndLogM m, TypeErrorM m embExpr ty) => Text -> m a
+symResError :: (ErrAndLogM m, TypeErrorM m embExpr annot ty) => Text -> m a
 symResError m = throwErrorWithTrace $ "Symbol resolution error: " <> m
 
-typeExpr :: (ErrAndLogM m, TypeErrorM m embExpr ty)
+typeExpr :: (ErrAndLogM m, TypeErrorM m embExpr annot ty)
             => Delta ty Resolved
             -> [Import]
             -> Gamma ty Unresolved
-            -> UnresolvedExpr embExpr ty
-            -> m (Gamma ty Resolved , ResolvedExpr embExpr ty, OhuaType ty Resolved, [Import])
+            -> UnresolvedExpr embExpr annot ty
+            -> m (Gamma ty Resolved , ResolvedExpr embExpr annot ty, OhuaType ty Resolved, [Import])
 -- typeExpr delta imports gamma e = local ( <> (e:|[])) $ typeSystem delta imports gamma e
 -- We need to solve the following problem here:
 -- We get a Lambda expression representing an algorithm. Because it's a Lamda, it doesn't have a function reference attached
@@ -128,13 +128,13 @@ typeExpr delta imports gamma e = local ( <> (e:|[])) $ typeSystem delta imports 
 
 
 
-typeSystem :: forall embExpr ty m
-           .  (ErrAndLogM m, TypeErrorM m embExpr ty)
+typeSystem :: forall embExpr annot ty m
+           .  (ErrAndLogM m, TypeErrorM m embExpr annot ty)
            => Delta ty Resolved
            -> [Import]
            -> Gamma ty Unresolved
-           -> UnresolvedExpr embExpr ty
-           -> m (Gamma ty Resolved, ResolvedExpr embExpr ty, OhuaType ty Resolved, [Import])
+           -> UnresolvedExpr embExpr annot ty
+           -> m (Gamma ty Resolved, ResolvedExpr embExpr annot ty, OhuaType ty Resolved, [Import])
 typeSystem delta imports gamma = \case
   {-
     Delta, Gamma |– e1: T1     Delta, Gamma, x:(max X T1) |– e2: T2
@@ -220,7 +220,7 @@ typeSystem delta imports gamma = \case
       -- traceM $  renderStrict $ layoutSmart defaultLayoutOptions $ pretty $ HM.toList gamma''
       return (gamma'', AppE fun' args', resTy, imports')
       where  
-        assocArgWithType :: (ErrAndLogM m, TypeErrorM m embExpr ty) => [OhuaType ty Resolved] -> [OhuaType ty Resolved] -> m [OhuaType ty Resolved]
+        assocArgWithType :: (ErrAndLogM m, TypeErrorM m embExpr annot ty) => [OhuaType ty Resolved] -> [OhuaType ty Resolved] -> m [OhuaType ty Resolved]
         -- We must not have more arguments than argument types in the declaration
         assocArgWithType [] (_:_) =  wfError "Too many arguments in function application."
         -- We could have less arguments than types because function application could be partial. 
@@ -522,7 +522,7 @@ typeSystem delta imports gamma = \case
               symResError $ "Symbol import ambiguity detected.\n" <> foldl (\str pot_import -> str <> quickRender pot_import <> ",\n ") "" qbs
 
 
-addStateToNS ::(ErrAndLogM m, TypeErrorM m embExpr ty) => Either Binding QualifiedBinding -> Binding -> m QualifiedBinding
+addStateToNS ::(ErrAndLogM m, TypeErrorM m embExpr annot ty) => Either Binding QualifiedBinding -> Binding -> m QualifiedBinding
 addStateToNS stateTyBnd  bnd = do
     let new_ns = case stateTyBnd of 
             -- This will give a path like std::something ++ Arc
@@ -531,7 +531,7 @@ addStateToNS stateTyBnd  bnd = do
     return (QualifiedBinding new_ns bnd)
 
 
-typePat :: (ErrAndLogM m, TypeErrorM m embExpr ty) => UnresolvedPat ty -> OhuaType ty Resolved -> m (ResolvedPat ty)
+typePat :: (ErrAndLogM m, TypeErrorM m embExpr annot ty) => UnresolvedPat ty -> OhuaType ty Resolved -> m (ResolvedPat ty)
 typePat pat newTy = do
   let oldTy = patType pat
   newTy' <- maxType oldTy newTy
@@ -541,7 +541,7 @@ typePat pat newTy = do
     go (TupP (p:|ps)) (TType (pTy:|psTy)) = (\x xs -> TupP $ x:|xs) <$> go p pTy <*> (mapM (uncurry go) $ zip ps psTy)
     go (TupP _) _ = invariantBroken "Tuple pattern with zero sub-patterns encountered. Please file a bug"
 
-maxType :: (ErrAndLogM m, TypeErrorM m embExpr ty) => OhuaType ty Unresolved -> OhuaType ty Resolved -> m (OhuaType ty Resolved)
+maxType :: (ErrAndLogM m, TypeErrorM m embExpr annot ty) => OhuaType ty Unresolved -> OhuaType ty Resolved -> m (OhuaType ty Resolved)
 maxType (HType t1) (HType t2)  | t1 == t2 = return $ HType t2 
 -- ^ unequal host types -> for know thats an error, but actually we need to resort to Rust here e.g Self vs ActualType => ActuaType
 maxType (HType t1) (HType t2 ) | t1 <= t2 = return $ HType t1 
@@ -580,7 +580,7 @@ maxType t1@(FType _)    t2                  = typeError $ "Comparing incompatibl
 maxType t1              t2@(FType _)        = typeError $ "Comparing incompatible types:\n " <> show t1 <> "\n and: \n " <> show t2
 
 
-maxFunType :: (ErrAndLogM m, TypeErrorM m embExpr ty) => FunType ty Unresolved -> FunType ty Resolved -> m (FunType ty Resolved)
+maxFunType :: (ErrAndLogM m, TypeErrorM m embExpr annot ty) => FunType ty Unresolved -> FunType ty Resolved -> m (FunType ty Resolved)
 maxFunType (FunType ins out) (FunType rIns rout) = do
   max_intypes <- maxInputs ins rIns
   FunType max_intypes <$> maxType out rout
@@ -593,7 +593,7 @@ maxFunType fun otherfun = typeError $ "Comparing stateful to stateless function 
 -- On the other hand, if we knew the function type we want to compare each input type with the resolved type
 -- So we check, if input types are convertible to resolved types and if so compare them to our resolution
 -- Otherwise we just take the resolution
-maxInputs ::  (ErrAndLogM m, TypeErrorM m embExpr ty) => Either () (NonEmpty (OhuaType ty 'Unresolved)) -> Either () (NonEmpty (OhuaType ty 'Resolved)) -> m (Either () (NonEmpty (OhuaType ty 'Resolved)))
+maxInputs ::  (ErrAndLogM m, TypeErrorM m embExpr annot ty) => Either () (NonEmpty (OhuaType ty 'Unresolved)) -> Either () (NonEmpty (OhuaType ty 'Resolved)) -> m (Either () (NonEmpty (OhuaType ty 'Resolved)))
 maxInputs ins rIns = do  
     let expectedInsU = expectedInputTypesUnresolved ins
     let expectedInsR = expectedInputTypesUnresolved rIns

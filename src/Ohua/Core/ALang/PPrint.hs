@@ -41,7 +41,7 @@ needParens prec = (, prec)
 discardParens :: WPrec a -> Doc a
 discardParens = fst
 
-prettyExpr :: Expr embExpr ty -> Doc a
+prettyExpr :: Expr embExpr annot ty -> Doc a
 prettyExpr = fst . histo worker
   where
     worker =
@@ -83,7 +83,7 @@ prettyExpr = fst . histo worker
             (tailF -> LambdaF assign (_, (assigns, e))) -> (assign : assigns, e)
             (headF -> other) -> ([], other)
 
-instance Pretty (Expr embExpr ty) where
+instance Pretty (Expr embExpr annot ty) where
     pretty = prettyExpr
 
 instance Pretty SomeBinding where

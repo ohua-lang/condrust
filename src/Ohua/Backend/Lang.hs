@@ -22,9 +22,9 @@ instance (Hashable expr) => Hashable (App expr)
 data ComType = Channel | Recv | Send deriving (Show, Eq, Generic)
 
 data Com (f::ComType) (embExpr::Type)  (ty::Type) :: Type where
-  SChan :: Binding -> Com 'Channel embExpr ty
-  SRecv :: OhuaType ty Resolved -> Com 'Channel embExpr ty -> Com 'Recv embExpr ty
-  SSend :: Com 'Channel embExpr ty -> Either Binding (Lit embExpr ty Resolved) -> Com 'Send embExpr ty
+  SChan :: Binding -> Com 'Channel embExpr annot ty
+  SRecv :: OhuaType ty Resolved -> Com 'Channel embExpr annot ty -> Com 'Recv embExpr annot ty
+  SSend :: Com 'Channel embExpr annot ty -> Either Binding (Lit embExpr annot ty Resolved) -> Com 'Send embExpr annot ty
 
 instance Eq (Com semTy eLang ty) where
   SChan bnd0 == SChan bnd1 = bnd0 == bnd1
@@ -48,58 +48,58 @@ data List expr = Create | Append Binding expr
 
 instance (Hashable expr) => Hashable (List expr)
 
-data TaskExpr embExpr ty
+data TaskExpr embExpr annot ty
   = Var Binding
-  | Lit (Lit embExpr ty Resolved) -- true, false  etc.
-  | Apply (App (TaskExpr embExpr ty))
+  | Lit (Lit embExpr annot ty Resolved) -- true, false  etc.
+  | Apply (App (TaskExpr embExpr annot ty))
   | Let Binding
-        (TaskExpr embExpr ty)
-        (TaskExpr embExpr ty) -- cont
+        (TaskExpr embExpr annot ty)
+        (TaskExpr embExpr annot ty) -- cont
   | Stmt
-      (TaskExpr embExpr ty)
-      (TaskExpr embExpr ty) -- cont
+      (TaskExpr embExpr annot ty)
+      (TaskExpr embExpr annot ty) -- cont
   | Assign -- side-effect
       Binding
-      (TaskExpr embExpr ty)
-  | ReceiveData (Com 'Recv embExpr ty)
-  | SendData (Com 'Send embExpr ty)
+      (TaskExpr embExpr annot ty)
+  | ReceiveData (Com 'Recv embExpr annot ty)
+  | SendData (Com 'Send embExpr annot ty)
 
   -- specific control flow:
-  | EndlessLoop (TaskExpr embExpr ty)
-  | ForEach Binding Binding (TaskExpr embExpr ty) -- ^ a.k.a. map
-  | Repeat (Either Binding Int) (TaskExpr embExpr ty)
-  | While (TaskExpr embExpr ty) (TaskExpr embExpr ty)
-  | Cond (TaskExpr embExpr ty) (TaskExpr embExpr ty) (TaskExpr embExpr ty)
+  | EndlessLoop (TaskExpr embExpr annot ty)
+  | ForEach Binding Binding (TaskExpr embExpr annot ty) -- ^ a.k.a. map
+  | Repeat (Either Binding Int) (TaskExpr embExpr annot ty)
+  | While (TaskExpr embExpr annot ty) (TaskExpr embExpr annot ty)
+  | Cond (TaskExpr embExpr annot ty) (TaskExpr embExpr annot ty) (TaskExpr embExpr annot ty)
 
   -- specific functions:
   | HasSize Binding -- :: [a] -> Bool
   | Size Binding -- :: [a] -> Int
 
-  | ListOp (List (TaskExpr embExpr ty))
+  | ListOp (List (TaskExpr embExpr annot ty))
 
-  | Tuple ( NonEmpty (Either Binding (Lit embExpr ty Resolved)))
+  | Tuple ( NonEmpty (Either Binding (Lit embExpr annot ty Resolved)))
   | Indexing Binding Integer
 
   | Increment Binding -- a + 1;
   | Decrement Binding -- a - 1;
-  | Not (TaskExpr embExpr ty)
+  | Not (TaskExpr embExpr annot ty)
 
   deriving (Show,Eq,Generic)
 
-instance Hashable (TaskExpr embExpr ty)
+instance Hashable (TaskExpr embExpr annot ty)
 
 -- To ease adaption of code sites using the former First and Second
 -- TODO: Obviously doing it this way we loose the 'type-control' of indexing
 -- maybe we can restore that later using Singletons? 
-firstIndexing:: Binding -> TaskExpr embExpr ty
+firstIndexing:: Binding -> TaskExpr embExpr annot ty
 firstIndexing bnd = Indexing bnd 0
 
-secondIndexing:: Binding -> TaskExpr embExpr ty
+secondIndexing:: Binding -> TaskExpr embExpr annot ty
 secondIndexing bnd = Indexing bnd 1
 
 
 -- FIXME remove this code ASAP
-containsBinding :: TaskExpr embExpr ty -> Binding -> Bool
+containsBinding :: TaskExpr embExpr annot ty -> Binding -> Bool
 containsBinding (Var bnd ) b = b == bnd
 containsBinding Lit{} _ = False
 containsBinding (Apply app) b = case app of
@@ -127,7 +127,7 @@ containsBinding (Increment bnd) b = bnd == b
 containsBinding (Decrement bnd) b = bnd == b
 containsBinding (Not expr) b = containsBinding expr b
 
-containsB:: Either Binding (Lit embExpr ty Resolved)-> Binding -> Bool
+containsB:: Either Binding (Lit embExpr annot ty Resolved)-> Binding -> Bool
 containsB v b = case v of
   Left bnd -> bnd == b
   Right _ -> False
@@ -139,4 +139,4 @@ containsB v b = case v of
 makeBaseFunctor ''App
 makeBaseFunctor ''TaskExpr
 
-instance Plated (TaskExpr embExpr ty) where plate = gplate
+instance Plated (TaskExpr embExpr annot ty) where plate = gplate

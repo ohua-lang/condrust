@@ -8,29 +8,29 @@ import Ohua.Backend.Lang
 import Ohua.Commons.Prelude
 import Ohua.Backend.Operators.Common (ctrlTuple)
 
-data RecFun embExpr ty where
+data RecFun embExpr annot ty where
   RecFun ::
-    Com 'Channel embExpr ty ->
-    Maybe (Com 'Channel embExpr ty) ->
+    Com 'Channel embExpr annot ty ->
+    Maybe (Com 'Channel embExpr annot ty) ->
     -- I'm loosing the type info here because getting the instances below is a pain otherwise :(
-    [Com 'Channel embExpr ty] ->
-    [Either (Com 'Recv embExpr ty) (Lit embExpr ty Resolved)] ->
-    [Com 'Recv embExpr ty] ->
-    Com 'Recv embExpr ty ->
-    Com 'Recv embExpr ty ->
-    RecFun embExpr ty
+    [Com 'Channel embExpr annot ty] ->
+    [Either (Com 'Recv embExpr annot ty) (Lit embExpr annot ty Resolved)] ->
+    [Com 'Recv embExpr annot ty] ->
+    Com 'Recv embExpr annot ty ->
+    Com 'Recv embExpr annot ty ->
+    RecFun embExpr annot ty
 
-deriving instance Generic (RecFun embExpr ty)
+deriving instance Generic (RecFun embExpr annot ty)
 
-deriving instance Eq (RecFun embExpr ty)
+deriving instance Eq (RecFun embExpr annot ty)
 
-deriving instance Hashable (RecFun embExpr ty)
+deriving instance Hashable (RecFun embExpr annot ty)
 
-deriving instance Show (RecFun embExpr ty)
+deriving instance Show (RecFun embExpr annot ty)
 
 finalResult = "finalResult"
 
-mkRecFun :: RecFun embExpr ty -> TaskExpr embExpr ty
+mkRecFun :: RecFun embExpr annot ty -> TaskExpr embExpr annot ty
 mkRecFun (RecFun resultOut ctrlOut recArgsOuts recInitArgsIns recArgsIns recCondIn recResultIn) =
   let innerBody =
         dispatchCtrlSig contSig $
@@ -105,7 +105,7 @@ mkRecFun (RecFun resultOut ctrlOut recArgsOuts recInitArgsIns recArgsIns recCond
       foldr (\(o, v) c' -> Stmt (SendData $ SSend o $ Left v) c') c $
         zip recArgsOuts $
           map fst loopArgsRecv
-    dedupChans :: [Com 'Recv embExpr ty] -> [Com 'Recv embExpr ty] -> [Com 'Recv embExpr ty]
+    dedupChans :: [Com 'Recv embExpr annot ty] -> [Com 'Recv embExpr annot ty] -> [Com 'Recv embExpr annot ty]
     dedupChans [] _ = []
     dedupChans (x : xs) ys
       | x `elem` ys = dedupChans xs ys

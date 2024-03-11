@@ -23,12 +23,12 @@ prettyExpr = renderLazy . layoutSmart ohuaDefaultLayoutOpts . pretty
 prettyExprM :: Pretty a => a -> IO ()
 prettyExprM = LT.putStr . prettyExpr
 
-instance Pretty (NormalizedDFExpr embExpr ty) where
+instance Pretty (NormalizedDFExpr embExpr annot ty) where
     pretty = \case
         (Let app cont) -> vsep $ hsep ["let", pretty app, "in"] : [pretty cont]
         (Var atBnd ) -> vsep [pretty atBnd]
 
-instance Pretty (NormalizedExpr embExpr ty) where
+instance Pretty (NormalizedExpr embExpr annot ty) where
     pretty = \case
         (Let app cont) -> vsep $ hsep [pretty app, "in"] : [pretty cont]
         (Var atBnd) -> vsep [pretty atBnd]
@@ -38,7 +38,7 @@ instance Pretty (ATypedBinding a ty) where
         let tb = unwrapTB atb
         in hsep [pretty $ asBnd tb, "::", pretty $ asType tb] 
 
-instance Pretty (App fTy embExpr ty) where
+instance Pretty (App fTy embExpr annot ty) where
     pretty (PureFun output fun inps) =
         hsep $
             [ align $ pretty output
@@ -55,7 +55,7 @@ instance Pretty (App fTy embExpr ty) where
             (pure . brackets . pretty) stateIn <>
             [align $ tupled $ toList $ map pretty inps]
 
-instance Pretty (DFApp fTy embExpr ty) where
+instance Pretty (DFApp fTy embExpr annot ty) where
     pretty (PureDFFun output fun inps) =
         hsep $
             [ align $ pretty output
@@ -120,7 +120,7 @@ instance Pretty (OutData bTy ty) where
     pretty (Destruct ds) = align $ tupled $ map pretty $ toList ds
     pretty (Dispatch ds) = align $ tupled $ map pretty $ toList ds
 
-instance Pretty (DFVar bTy embExpr ty) where
+instance Pretty (DFVar bTy embExpr annot ty) where
     pretty = \case
         DFEnvVar _ he -> pretty he
         DFVar atb -> pretty atb

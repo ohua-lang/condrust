@@ -17,7 +17,7 @@ import qualified Data.HashSet as HS
 import Ohua.Core.DFLang.PPrint (prettyExpr)
 
 -- Invariant in the result type: the result channel is already part of the list of channels.
-toTCLang :: (ErrAndLogM m, Show ty, Show embExpr) => NormalizedDFExpr embExpr ty -> m (TCProgram (Channel embExpr ty) (Com 'Recv embExpr ty) embExpr (FusableExpr embExpr ty))
+toTCLang :: (ErrAndLogM m, Show ty, Show embExpr) => NormalizedDFExpr embExpr annot ty -> m (TCProgram (Channel embExpr annot ty) (Com 'Recv embExpr annot ty) embExpr (FusableExpr embExpr annot ty))
 toTCLang gr = do
     let channels = generateArcsCode gr
     (tasks, resultChan) <- generateNodesCode gr
@@ -28,10 +28,10 @@ type LoweringM m a = m a
 invariantBroken :: ErrAndLogM m => Text -> LoweringM m a
 invariantBroken msg = throwError $ "Compiler invariant broken! " <> msg
 
-generateNodesCode :: (ErrAndLogM m, Show (FusableExpr embExpr ty)) => NormalizedDFExpr embExpr ty ->  LoweringM m ([FusableExpr embExpr ty], Com 'Recv embExpr ty)
+generateNodesCode :: (ErrAndLogM m, Show (FusableExpr embExpr annot ty)) => NormalizedDFExpr embExpr annot ty ->  LoweringM m ([FusableExpr embExpr annot ty], Com 'Recv embExpr annot ty)
 generateNodesCode = go
     where
-        go :: (ErrAndLogM m, Show (FusableExpr embExpr ty)) => NormalizedDFExpr embExpr ty -> LoweringM m ([FusableExpr embExpr ty], Com 'Recv embExpr ty)
+        go :: (ErrAndLogM m, Show (FusableExpr embExpr annot ty)) => NormalizedDFExpr embExpr annot ty -> LoweringM m ([FusableExpr embExpr annot ty], Com 'Recv embExpr annot ty)
         go (DFLang.Let app cont) = do
             task <- generateNodeCode app
             -- traceM $"Generated Task :\n" <> show task <> "\n"
@@ -41,7 +41,7 @@ generateNodesCode = go
           let (TBind bnd ty) = unwrapTB atBnd
           in return ([], SRecv ty $ SChan bnd) 
 
-generateFunctionCode :: forall ty embExpr a m. ErrAndLogM m => DFApp a embExpr ty -> LoweringM m (FusableExpr embExpr ty)
+generateFunctionCode :: forall ty embExpr a m. ErrAndLogM m => DFApp a embExpr annot ty -> LoweringM m (FusableExpr embExpr annot ty)
 generateFunctionCode = \case
     
     (PureDFFun out fn (DFEnvVar (IType TypeUnit) UnitLit:|[]) )-> do
@@ -83,7 +83,7 @@ generateFunctionCode = \case
       toDirect _ Nothing = return Nothing
       toDirect fn e = throwError $ "Unsupported multiple outputs for state on stateful function " <> show fn <> ": " <> show e
 
-pureOut :: (ErrAndLogM m, Show a) => a -> OutData bty ty -> LoweringM m (NonEmpty (Ops.Result embExpr ty))
+pureOut :: (ErrAndLogM m, Show a) => a -> OutData bty ty -> LoweringM m (NonEmpty (Ops.Result embExpr annot ty))
 pureOut _ (Direct out) = return ((Ops.SendResult $ SChan (unwrapABnd out)) :| [])
 pureOut _ (Destruct outs) = do 
   send_results <- mapM directToSendResult outs
@@ -95,19 +95,19 @@ pureOut _ (Dispatch outs) = return $ (Ops.DispatchResult $ map (SChan . unwrapAB
 -- Basically the same as the above, but will error on non-directs for now, to not support
 -- nested outputs 
 -- ToDo: Check if restriction is needed
-directToSendResult :: (ErrAndLogM m ) => OutData bty ty -> m ( Ops.Result embExpr ty)
+directToSendResult :: (ErrAndLogM m ) => OutData bty ty -> m ( Ops.Result embExpr annot ty)
 directToSendResult  (Direct out) = return (Ops.SendResult $ SChan (unwrapABnd out))
 directToSendResult  e = throwError $ "Unsupported output configuration on: " <> show e
 
 
-generateReceive :: DFVar bty embExpr ty -> Ops.CallArg embExpr ty
+generateReceive :: DFVar bty embExpr annot ty -> Ops.CallArg embExpr annot ty
 generateReceive (DFVar atBnd) = 
   let (TBind argBnd argTy) = unwrapTB atBnd
   in Ops.Arg $ SRecv argTy $ SChan argBnd
 -- Question: (Regarding FIXME) Wha and what can we do about it?
 generateReceive (DFEnvVar _t l) = Ops.Converted $ Lit l -- FIXME looses type info!
 
-generateArcsCode :: NormalizedDFExpr embExpr ty -> NonEmpty (Channel embExpr ty)
+generateArcsCode :: NormalizedDFExpr embExpr annot ty -> NonEmpty (Channel embExpr annot ty)
 generateArcsCode = go
     where
         go (DFLang.Let app cont) =
@@ -120,10 +120,10 @@ generateArcsCode = go
             let (TBind bnd ty) = unwrapTB atBnd
             in SRecv ty (SChan bnd) :|[] -- result channel
 
-        manuallyDedup :: [Com 'Recv embExpr ty] -> [Com 'Recv embExpr ty]
+        manuallyDedup :: [Com 'Recv embExpr annot ty] -> [Com 'Recv embExpr annot ty]
         manuallyDedup = foldr (\x acc -> if x `elem` acc then acc else x : acc) []
 -- FIXME see sertel/ohua-core#7: all these errors would immediately go away
-generateNodeCode :: ErrAndLogM m => DFApp bty embExpr ty ->  LoweringM m (FusableExpr embExpr ty)
+generateNodeCode :: ErrAndLogM m => DFApp bty embExpr annot ty ->  LoweringM m (FusableExpr embExpr annot ty)
 generateNodeCode e@(SMapFun (dOut,ctrlOut,sizeOut) inp) = do
     let input =
           case inp of
@@ -137,13 +137,13 @@ generateNodeCode e@(SMapFun (dOut,ctrlOut,sizeOut) inp) = do
     sizeOut' <- maybe [] toList <$> intoChan sizeOut
     return $ SMap $ Ops.smapFun input dOut'' ctrlOut' sizeOut'
     where
-      intoChan :: ErrAndLogM m => Maybe (OutData bty ty ) -> m (Maybe (NonEmpty (Com 'Channel embExpr ty)))
+      intoChan :: ErrAndLogM m => Maybe (OutData bty ty ) -> m (Maybe (NonEmpty (Com 'Channel embExpr annot ty)))
       intoChan o = do
         o' <- sequence (serializeOut <$> o)
         let o'' = map (SChan. asBnd) <$> o'
         return o''
 
-      serializeDataOut :: ErrAndLogM m => NonEmpty (Com 'Channel embExpr ty) -> m (Com 'Channel embExpr ty)
+      serializeDataOut :: ErrAndLogM m => NonEmpty (Com 'Channel embExpr annot ty) -> m (Com 'Channel embExpr annot ty)
       serializeDataOut (a :| []) = pure a
       serializeDataOut _ = throwError "We currently do not support destructuring and dispatch for loop data."
 
@@ -354,12 +354,12 @@ generateNodeCode e@(RecurFun resultOut ctrlOut recArgsOuts recInitArgsIns recArg
         -- stronger typing needed on OutData to prevent this error handling here.
         -- (as a matter of fact it might be possible for some output to be destructured etc.
         --  we need a function here that turns such a thing into the appropriate backend code!)
-        directOut :: ErrAndLogM m => OutData bty ty -> LoweringM m (Com 'Channel embExpr ty)
+        directOut :: ErrAndLogM m => OutData bty ty -> LoweringM m (Com 'Channel embExpr annot ty)
         directOut x = case x of
                         Direct x' -> return $ SChan $ unwrapABnd x'
                         _ -> invariantBroken $ "Control outputs don't match:\n" <> show e
         -- directOut' Nothing = pure Nothing
-        varToChanOrLit :: DFVar bty embExpr ty -> Either (Com 'Recv embExpr ty) (Lit embExpr ty 'Resolved)
+        varToChanOrLit :: DFVar bty embExpr annot ty -> Either (Com 'Recv embExpr annot ty) (Lit embExpr annot ty 'Resolved)
         varToChanOrLit (DFVar atbnd) = Left $ asRecv atbnd
         varToChanOrLit (DFEnvVar _ l) = Right l
 
@@ -371,12 +371,12 @@ generateNodeCode e@(RecurFun resultOut ctrlOut recArgsOuts recInitArgsIns recArg
 
 generateNodeCode e = generateFunctionCode e
 
-asRecv :: ATypedBinding bty ty -> Com 'Recv embExpr ty
+asRecv :: ATypedBinding bty ty -> Com 'Recv embExpr annot ty
 asRecv  atBnd = 
   let (TBind bnd ty) = unwrapTB atBnd
   in SRecv ty $ SChan bnd 
 
-asSend :: ATypedBinding bty ty -> Com 'Send embExpr ty
+asSend :: ATypedBinding bty ty -> Com 'Send embExpr annot ty
 asSend  atBnd = 
   let (TBind bnd _ty) = unwrapTB atBnd
   in SSend (SChan bnd) (Left bnd) 

@@ -23,7 +23,7 @@ This way, we can now contextify the execution of f.
 (Otherwise, this would not have been possible because in the imperative
 host language, these functions do not take an argument.)
 -}
-mkUnitFunctionsExplicit :: Expr embExpr ty -> Expr embExpr ty
+mkUnitFunctionsExplicit :: Expr embExpr annot ty -> Expr embExpr annot ty
 mkUnitFunctionsExplicit e =
     flip transform e $ \case
         Let v (Apply (Lit (FunRefLit fun@(FunRef _bnd  fTy))) u@(Lit UnitLit)) ie ->
