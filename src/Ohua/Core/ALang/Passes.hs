@@ -84,13 +84,13 @@ inlineLambdaRefs = flip runReaderT mempty . para go
 inlineLambda :: Expr embExpr annot ty -> Expr embExpr annot ty
 inlineLambda =
     cata $ \case
-        e@(ApplyF func argument) ->
+        e@(ApplyF anno func argument) ->
             case func of
                 Lambda assignment body -> Let assignment argument body
-                Apply _ _ -> reduceLetCWith f func
+                Apply _ _ _ -> reduceLetCWith f func
                     where f (Lambda assignment body) =
                               Let assignment argument body
-                          f v0 = Apply v0 argument
+                          f v0 = Apply anno v0 argument
                 _ -> embed e
         e -> embed e
 
@@ -107,8 +107,8 @@ reduceLetA =
 reduceLetCWith :: (Expr embExpr annot ty -> Expr embExpr annot ty) -> Expr embExpr annot ty -> Expr embExpr annot ty
 reduceLetCWith f =
     \case
-        Apply (Let assign val expr) argument ->
-            Let assign val $ reduceLetCWith f $ Apply expr argument
+        Apply anno (Let assign val expr) argument ->
+            Let assign val $ reduceLetCWith f $ Apply anno expr argument
         e -> f e
 
 reduceLetC :: Expr embExpr annot ty -> Expr embExpr annot ty
@@ -117,8 +117,8 @@ reduceLetC = reduceLetCWith id
 reduceAppArgument :: Expr embExpr annot ty -> Expr embExpr annot ty
 reduceAppArgument =
     \case
-        Apply function (Let assign val expr) ->
-            Let assign val $ reduceApplication $ Apply function expr
+        Apply anno function (Let assign val expr) ->
+            Let assign val $ reduceApplication $ Apply anno function expr
         e -> e
 
 -- recursively performs the substitution
@@ -140,7 +140,7 @@ letLift =
         let f =
                 case e of
                     LetF{} -> reduceLetA
-                    ApplyF _ _ -> reduceApplication
+                    ApplyF _ _ _ -> reduceApplication
                     _ -> id
          in f $ embed e
 
@@ -194,7 +194,7 @@ ensureFinalLetInLambdas =
 ensureAtLeastOneCall :: MonadGenBnd m => Expr embExpr annot ty -> m (Expr embExpr annot ty)
 ensureAtLeastOneCall e@(Var (TBind _bnd ety)) = do
     newBnd <- generateBinding
-    pure $ Let (TBind newBnd ety) (pureFunction IFuns.id (FunType (Right $ ety :| []) ety )`Apply` e) $ Var (TBind newBnd ety)
+    pure $ Let (TBind newBnd ety) (Apply [] (pureFunction IFuns.id (FunType (Right $ ety :| []) ety )) e) $ Var (TBind newBnd ety)
 ensureAtLeastOneCall e = cata f e
   where
     f (LambdaF tbnd body) =
@@ -203,7 +203,7 @@ ensureAtLeastOneCall e = cata f e
                 newBnd <- generateBinding
                 pure $
                     Lambda tbnd $
-                    Let (TBind newBnd vty) (pureFunction IFuns.id (FunType (Right $ vty :| []) vty ) `Apply` v) $
+                    Let (TBind newBnd vty) (Apply  [] (pureFunction IFuns.id (FunType (Right $ vty :| []) vty )) v) $
                     Var (TBind newBnd vty)
             eInner -> pure $ Lambda tbnd eInner
     f eInner = embed <$> sequence eInner
@@ -286,10 +286,10 @@ removeCurrying e = fst <$> evalRWST (para inlinePartials e) mempty ()
                 "Binding was used as function and value " <> show tBnd
             (Yes, _) -> pure body'
             _ -> pure $ Let tBnd val' body'
-    inlinePartials (ApplyF (Var tbnd, _) (_, arg)) = do
+    inlinePartials (ApplyF annos (Var tbnd, _) (_, arg)) = do
         tell $ wasTouchedAsFunction tbnd
         val <- asks (HM.lookup $ asBnd tbnd)
-        Apply <$>
+        Apply annos <$>
             maybe
                 (failWith $ "No suitable value found for binding " <> show tbnd <> 
                     "\n   in expression:\n" <> show  e)
@@ -327,7 +327,7 @@ noDuplicateIds = flip evalStateT mempty . cata go
 applyToPureFunction :: MonadOhua m => Expr embExpr annot ty -> m ()
 applyToPureFunction =
     para $ \case
-        ApplyF (Var bnd, _) _ ->
+        ApplyF _ (Var bnd, _) _ ->
             failWith $ "Illegal Apply to local var " <> show bnd
         e -> mapM_ snd e
 
@@ -344,7 +344,7 @@ noUndefinedBindings = flip runReaderT mempty . cata go
         
     go (LambdaF tb body) = registerBinding (asBnd tb) body
     go e@(LitF _a ) = sequence_ e
-    go e@(ApplyF _a _b ) = sequence_ e
+    go e@(ApplyF _ans _a _b ) = sequence_ e
     go e@(BindStateF _a _b ) = sequence_ e 
     -- go (Li)
     --go e = sequence_ e
@@ -361,10 +361,10 @@ checkProgramValidity e = do
 liftApplyToLetArgsIn :: MonadOhua m => Expr embExpr annot ty -> m (Expr embExpr annot ty)
 liftApplyToLetArgsIn =
     lrPrewalkExprM $ \case
-        Apply fn arg@(Apply _ _) -> do
+        Apply fn_annots fn arg@(Apply _ _ _) -> do
             bnd <- generateBinding
             let argTy = exprType arg    
-            return $ Let (TBind bnd argTy) arg $ Apply fn (Var (TBind bnd argTy))
+            return $ Let (TBind bnd argTy) arg $ Apply fn_annots fn (Var (TBind bnd argTy))
         a -> return a
 
 -- normalizeBind :: (MonadError Error m, MonadGenBnd m) => Expr embExpr annot ty -> m (Expr embExpr annot ty)

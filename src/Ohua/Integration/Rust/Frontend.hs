@@ -260,14 +260,13 @@ instance ConvertExpr Sub.Expr where
   convertExpr (Sub.Call fun annots args) = do
     fun' <- convertExpr fun
     args' <- mapM convertExpr args
-    return $ AppE fun' annots args'
+    let wrapped_annots = map HostAnnotation annots
+    return $ AppE fun' wrapped_annots args'
   -- ToDo: I don't think we should pass the receiver just as a binding, losing potential type information and
   convertExpr (Sub.MethodCall objE (Sub.CallRef (QualifiedBinding _nsRef funName) _) annots args) = do
     objE' <- convertExpr objE
     args' <- mapM convertExpr args
-    -- FIXME: Currently annotations are part of AppE expression so either I need a way to lift them out
-    --        StateFunE's or I need to also add them to StatefunE's
-    return $ StateFunE objE' (MethodUnres funName) args'
+    return $ StateFunE (map HostAnnotation annots) objE' (MethodUnres funName) args'
   convertExpr (Sub.Tuple []) = return (LitE UnitLit)
   convertExpr (Sub.Tuple (v:vars)) = do
     v'<- convertExpr v

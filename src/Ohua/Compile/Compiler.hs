@@ -51,7 +51,7 @@ compile inFile compScope coreOpts beConf integConf outDir =
         (compilation inFile compScope coreOpts beConf outDir)
 
 compilation :: forall (lang::Lang) (arch::Arch) m.
-    (ErrAndLogM m, FullIntegration lang arch, Show (BT.Annotation (Language lang)))
+    (ErrAndLogM m, FullIntegration lang arch)
     => FilePath
     -> CompilationScope
     -> CoreEnv.Options

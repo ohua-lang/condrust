@@ -67,7 +67,7 @@ data Expr embExpr annot ty
     = Var (TypedBinding ty)  -- ^ Reference to a value via binding: @x@ -> @Var "x"@
     | Lit (Lit embExpr ty Resolved) -- ^ A literal: @2@, @ns/func@ etc -> @Lit (NumericLit 2)@
     | Let (TypedBinding ty) (Expr embExpr annot ty) (Expr embExpr annot ty) -- ^ Create and assign a binding: @let bnd = val in expr@ -> @Let "bnd" val expr@
-    | Apply (Expr embExpr annot ty) (Expr embExpr annot ty) -- ^ Function application: @function arg@ -> @Apply function arg@
+    | Apply [HostAnnotation annot] (Expr embExpr annot ty)  (Expr embExpr annot ty) -- ^ Function application: @function arg@ -> @Apply function arg@
     | Lambda (TypedBinding ty) (Expr embExpr annot ty) -- ^ A lambda function: @\\arg -> body@ -> @Lambda "arg" body@
     | BindState (Expr embExpr annot ty) (Expr embExpr annot ty) -- ^ Binding a state value @state#method@ -> @BindState state method@
     deriving (Show, Eq, Generic)
@@ -86,7 +86,7 @@ exprType e = case e of
     -- Obviously we should typecheck AND with generic functions T2 could depend on T1.
     -- However we consider generics in the host language a problem of the host languange i.e.
     -- if the frontend integration allows for generics, than the backend should accept them .. we don't do the derivation
-    Apply funE _argE -> returnType funE
+    Apply _annots funE  _argE -> returnType funE
     -- Type of an abstraction (\x:T1. term:T2) should be T1 -> T2
     Lambda _argE termE -> exprType termE
     -- Type of a method Bind obj:TO (\x:T1. term:T2) is actually (TO, T2), but we mean the type it should
@@ -205,7 +205,7 @@ lrPrewalkExprM f e =
     f e >>= \case
         Let bnd val body ->
             Let bnd <$> lrPrewalkExprM f val <*> lrPrewalkExprM f body
-        Apply fn arg -> Apply <$> lrPrewalkExprM f fn <*> lrPrewalkExprM f arg
+        Apply annots fn arg -> Apply annots <$> lrPrewalkExprM f fn <*> lrPrewalkExprM f arg
         Lambda assign body -> Lambda assign <$> lrPrewalkExprM f body
         e' -> return e'
 
@@ -220,7 +220,7 @@ lrPostwalkExprM f e =
     case e of
         Let assign val body ->
             Let assign <$> lrPostwalkExprM f val <*> lrPostwalkExprM f body
-        Apply fn arg -> Apply <$> lrPostwalkExprM f fn <*> lrPostwalkExprM f arg
+        Apply annots fn arg -> Apply annots <$> lrPostwalkExprM f fn <*> lrPostwalkExprM f arg
         Lambda assign body -> Lambda assign <$> lrPostwalkExprM f body
         _ -> return e
 

@@ -47,7 +47,7 @@ collectSf outTy = Lit $ FunRefLit $ FunRef IFuns.collect $ FunType (Right $ ITyp
 smapRewrite :: (Monad m, MonadGenBnd m, Show embExpr) => Expr embExpr annot ty -> m (Expr embExpr annot ty)
 smapRewrite =
     rewriteM $ \case
-        PureFunctionTy fnName fnTy `Apply` lamExpr `Apply` dataGen
+        Apply _ (Apply _ (PureFunctionTy fnName fnTy) lamExpr) dataGen
             | fnName == IFuns.smap -> Just <$> do
                 lamExpr' <- smapRewrite lamExpr
     -- post traversal optimization
@@ -86,11 +86,11 @@ smapRewrite =
                 let resultList = TBind resultListB (IType $ TypeList (IType TypeUnit))
 
                 return $
-                    Let ctrls (Apply (smapSfFun collectionType innerFunInput) dataGen) $
+                    Let ctrls (Apply [] (smapSfFun collectionType innerFunInput) dataGen) $
                     mkDestructured [d, ctrlVar, size] ctrls $
                     Let result expr' $
                     Let
                         resultList
-                        (Apply (Apply (collectSf innerFunRet) $ Var size) $ Var result) $
+                        (Apply [] (Apply [] (collectSf innerFunRet) $ Var size) $ Var result) $
                     Var resultList
         _ -> pure Nothing

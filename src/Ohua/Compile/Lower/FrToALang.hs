@@ -13,10 +13,10 @@ import qualified Ohua.Core.InternalFunctions as IFuns
 import qualified Data.List.NonEmpty as NE
 
 
-toAlang :: (ErrAndLogM m, Show annot) => FR.FuncExpr embExpr annot ty -> m (ALang.Expr embExpr annot ty)
+toAlang :: ErrAndLogM m => FR.FuncExpr embExpr annot ty -> m (ALang.Expr embExpr annot ty)
 toAlang expr =  toAlang' (definedBindings expr)  expr
 
-toAlang' :: (ErrAndLogM m, Show annot) => HS.HashSet Binding -> FR.FuncExpr embExpr annot ty -> m (ALang.Expr embExpr annot ty)
+toAlang' :: ErrAndLogM m => HS.HashSet Binding -> FR.FuncExpr embExpr annot ty -> m (ALang.Expr embExpr annot ty)
 toAlang' taken expr = runGenBndT taken $ transfrm expr
     where
         transfrm =
@@ -85,7 +85,7 @@ seqFunSf t1 t2 = LitE $ FunRefLit $ FunRef IFuns.seqFun $ FunType (Right $ t1 :|
 
 
 -- | The function actualy lowering Frontend IR to ALang
-trans :: (Show annot) => FR.FuncExpr embExpr annot ty -> ALang.Expr embExpr annot ty
+trans :: FR.FuncExpr embExpr annot ty -> ALang.Expr embExpr annot ty
 trans =
     \case
         VarE b ty -> Var $ TBind b ty
@@ -95,28 +95,37 @@ trans =
             in trans litReplaced
         LetE p e1 e2 -> Let (patToTBind p) (trans e1) (trans e2)
 
-        AppE e1 annots args -> foldl Apply (trans e1) (map trans args)
+        AppE e1 annots args -> foldl (Apply annots) (trans e1) (map trans args)
         LamE p e -> case p of
                 (p0:|[]) -> Lambda (patToTBind p0) (trans e)
                 _ -> error $
                     "Invariant broken: Found multi apply or destructure lambda: " <>
                     show p
         IfE cont then_ else_ ->
-            ALang.ifBuiltin
-                (ALang.exprType  (trans then_))
-                `Apply` (trans cont)
-                    `Apply` Lambda (TBind "_" $ IType TypeUnit) (trans then_)
-                    `Apply` Lambda (TBind "_" $ IType TypeUnit) (trans else_)
+                Apply []
+                    (Apply []
+                        ( Apply [] 
+                            (ALang.ifBuiltin (ALang.exprType  (trans then_))) 
+                            (trans cont)
+                        )
+                        (Lambda (TBind "_" $ IType TypeUnit) (trans then_))
+                    )
+                    (Lambda (TBind "_" $ IType TypeUnit) (trans else_))
         MapE function coll ->
             let function' = trans function
                 coll' = trans coll
             in  case ALang.funType function' of
-                Just fTy -> (ALang.smapBuiltin (FType fTy) (ALang.exprType coll') (IType $ TypeList (IType TypeUnit))) `Apply` function' `Apply` coll'
+                Just fTy -> Apply [] 
+                                (Apply [] 
+                                    (ALang.smapBuiltin (FType fTy) (ALang.exprType coll') (IType $ TypeList (IType TypeUnit))) 
+                                    function'
+                                 ) 
+                                 coll'
                 Nothing -> error $ "Function type is not available for expression:\n "<> show function <> "\n Please report this error."
 
-        StateFunE stateE (MethodRes mName fty) args -> 
+        StateFunE annots stateE (MethodRes mName fty) args -> 
             let method' = BindState (trans stateE) (Lit $ FunRefLit (FunRef mName fty) )
-            in foldl Apply method' (map trans args)
+            in foldl (Apply annots) method' (map trans args)
 
         StmtE e1 e2@LitE{} -> 
             let litReplaced = constLit e1 e2 
@@ -127,7 +136,7 @@ trans =
             let alExprs = NE.map trans exprs
                 exprTys = NE.map ALang.exprType alExprs
             in foldl 
-                    Apply 
+                    ( Apply [])
                     (pureFunction IFuns.mkTuple (FunType (Right exprTys) (TType exprTys))) 
                     alExprs
                  
@@ -142,7 +151,7 @@ trans =
              "(function arguments or let bound variables) should be single vars but " <> show p <>
              "is not. Please file a bug."
 
-    constLit:: (Show annot) => FR.FuncExpr embExpr annot ty -> FR.FuncExpr embExpr annot ty -> FR.FuncExpr embExpr annot ty
+    constLit:: FR.FuncExpr embExpr annot ty -> FR.FuncExpr embExpr annot ty -> FR.FuncExpr embExpr annot ty
     constLit eS eT =
         let pType = FR.exprType eS
             tType = FR.exprType eT 

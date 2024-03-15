@@ -26,11 +26,14 @@ host language, these functions do not take an argument.)
 mkUnitFunctionsExplicit :: Expr embExpr annot ty -> Expr embExpr annot ty
 mkUnitFunctionsExplicit e =
     flip transform e $ \case
-        Let v (Apply (Lit (FunRefLit fun@(FunRef _bnd  fTy))) u@(Lit UnitLit)) ie ->
+        Let v (Apply [] (Lit (FunRefLit fun@(FunRef _bnd  fTy))) u@(Lit UnitLit)) ie ->
             Let
                 v
-                ((Lit $ FunRefLit $ FunRef unitFun $ FunType (Right $ FType fTy :| [IType TypeUnit]) (FType fTy) ) `Apply`
-                 (Lit $ FunRefLit fun) `Apply`
+                ( Apply []
+                    (Apply [] 
+                        (Lit $ FunRefLit $ FunRef unitFun $ FunType (Right $ FType fTy :| [IType TypeUnit]) (FType fTy) )
+                        (Lit $ FunRefLit fun)
+                    )
                  u)
                 ie
         other -> other

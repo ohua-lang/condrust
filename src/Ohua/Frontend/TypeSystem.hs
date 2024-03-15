@@ -55,7 +55,7 @@ Delta ... associates function literals to a type
 -}
 
 
-toWellTyped :: forall embExpr annot ty m. (Show annot, ErrAndLogM m) 
+toWellTyped :: forall embExpr annot ty m. ErrAndLogM m 
   => Delta ty 'Resolved -> [Import] -> UnresolvedExpr embExpr annot ty -> m (ResolvedExpr embExpr annot ty)
 toWellTyped delta modImports e@(LamE pats expr) =
   let
@@ -293,7 +293,7 @@ typeSystem delta imports gamma = \case
   ========================================================================
                 Delta, Gamma |- Bind state method : Tm
   -}
-  (StateFunE stateVar (MethodUnres methodB) args) -> do
+  (StateFunE annots stateVar (MethodUnres methodB) args) -> do
     -- traceM $ "Typing statefull call " <> show e <> ". Gamma is " <> show gamma
     -- We need to get the state type before the method type, because the type of the method depends on the
     -- type of the state i.e. obj.clone() -->  Arc::clone ? String::clone ? 
@@ -328,7 +328,7 @@ typeSystem delta imports gamma = \case
     -- ToDO: ArgTys should match function tys
     -- traceM $ "Gamma after typing Statefu function " <> show gamma_merged
 
-    return (gamma_merged, StateFunE stateVar' (MethodRes methodQB fty) args', ty, imports'')
+    return (gamma_merged, StateFunE annots stateVar' (MethodRes methodQB fty) args', ty, imports'')
 
   {-
       Delta, Gamma |- cond : Bool    Delta, Gamma |- tTrue : T   Delta, Gamma |- tFalse : T

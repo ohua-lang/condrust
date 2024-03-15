@@ -31,6 +31,7 @@ module Ohua.Commons.Types.Types
     , getLitType
     , Unit(..)
     , HostExpression(..)
+    , HostAnnotation(..)
     , module Ohua.Commons.Types.Computation
     , module Ohua.Commons.Types.Classes
     , module Ohua.Commons.Types.Error
@@ -59,3 +60,4 @@ import Ohua.Commons.Types.Reference
 import Ohua.Commons.Types.Bindings
 import Ohua.Commons.Types.HostTypes
 import Ohua.Commons.Types.HostExpression
+import Ohua.Commons.Types.HostAnnotation

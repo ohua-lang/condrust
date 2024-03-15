@@ -245,12 +245,12 @@ splitCtrls = transform go
                   ( \(bound@(TBind _n ty), varIn) c ->
                       Let
                         bound
-                        ( Lit
-                            ( FunRefLit $
-                                FunRef op $ FunType (Right $ controlSignalType :| [ty]) ty
-                            )
-                            `Apply` ctrlSig
-                            `Apply` varIn
+                        ( Apply []
+                          (Apply []
+                            ( Lit $ FunRefLit $ FunRef op $ FunType (Right $ controlSignalType :| [ty]) ty)
+                            ctrlSig
+                          )
+                          varIn
                         )
                         c
                   )
@@ -291,7 +291,7 @@ uniqueCtrls = transformM go
   where
     go :: MonadGenBnd m => Expr embExpr annot ty -> m (Expr embExpr annot ty)
     -- this pattern works because now every control has this form due to the above transformation (TODO reflect this in the type)
-    go e@(Let v ctrl@((PureFunction op `Apply` _ctrlSig) `Apply` _ctrled) cont)
+    go e@(Let v ctrl@(Apply _ (Apply _ (PureFunction op) _ctrlSig) _ctrled) cont)
       | op == IFuns.ctrl =
         let usages =
               [ bnd | Var bnd <- universe cont, bnd == v

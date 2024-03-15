@@ -35,7 +35,7 @@ import Ohua.Commons.Prelude
 
 import qualified Data.List.NonEmpty as NE
 import qualified Data.HashSet as HS
-
+import Ohua.Commons.Types.HostAnnotation (HostAnnotation(..))
 
 type Pat :: Type -> Resolution -> Type
 data Pat ty res where
@@ -77,11 +77,11 @@ patTyBnds = \case
 type Expr :: Type -> Type -> Type -> Resolution -> (Type -> Type) -> Type
 data Expr embExpr annot ty res lists where
   VarE      :: Binding -> OhuaType ty res                                                          -> Expr embExpr annot ty res lists
-  LitE      :: Lit embExpr ty res                                                            -> Expr embExpr annot ty res lists
+  LitE      :: Lit embExpr ty res                                                                  -> Expr embExpr annot ty res lists
   LetE      :: Pat ty res -> Expr embExpr annot ty res lists -> Expr embExpr annot ty res lists    -> Expr embExpr annot ty res lists
   AppE      :: (Traversable lists) => 
                 Expr embExpr annot ty res lists 
-                -> [annot] 
+                -> [HostAnnotation annot] 
                 -> lists (Expr embExpr annot ty res lists)                                          -> Expr embExpr annot ty res lists
   LamE      :: (Traversable lists) => lists (Pat ty res) -> Expr embExpr annot ty res lists         -> Expr embExpr annot ty res lists
   IfE       :: Expr embExpr annot ty res lists 
@@ -93,7 +93,8 @@ data Expr embExpr annot ty res lists where
   -- and we need to "transport" the function type from the type system to the lowering
   -- StateFunE state method args
   StateFunE :: (Traversable lists) 
-                => Expr embExpr annot ty res lists 
+                => [HostAnnotation annot]
+                -> Expr embExpr annot ty res lists 
                 -> MethodRepr ty res 
                 -> lists (Expr embExpr annot ty res lists)                                          -> Expr embExpr annot ty res lists
   StmtE     :: Expr embExpr annot ty res lists -> Expr embExpr annot ty res lists                   -> Expr embExpr annot ty res lists
@@ -105,7 +106,7 @@ data MethodRepr ty res where
     MethodRes   :: QualifiedBinding -> FunType ty 'Resolved -> MethodRepr ty 'Resolved 
 
 deriving instance Show (MethodRepr ty res)
-deriving instance (Show (lists (Expr embExpr annot ty res lists)), Show (lists (Pat ty res)), Show annot) => Show (Expr embExpr annot ty res lists) 
+deriving instance (Show (lists (Expr embExpr annot ty res lists)), Show (lists (Pat ty res))) => Show (Expr embExpr annot ty res lists) 
 
 type UnresolvedExpr embExpr annot ty = Expr embExpr annot ty Unresolved [] 
 type ResolvedExpr embExpr annot ty = Expr  embExpr annot ty Resolved []
@@ -145,11 +146,11 @@ preWalkM f e = case e of
           e1' <- preWalkM f e1
           e2' <- preWalkM f e2
           f (MapE e1' e2')
-      StateFunE st meth args -> do 
+      StateFunE annots st meth args -> do 
           -- meth' <- preWalkM f meth
           st' <- preWalkM f st
           args' <- mapM (preWalkM f) args
-          f (StateFunE st' meth args')
+          f (StateFunE annots st' meth args')
       StmtE e1 e2 ->  do
           e1' <- preWalkM f e1
           e2' <- preWalkM f e2
@@ -182,7 +183,7 @@ patternFromUExpr e = case e of
 -}
 
 -- | We need this function to insert sequencing (formerly known as Seq-expression) before lowering to Alang
-exprType ::(Show annot) => FuncExpr embExpr annot ty -> ResolvedType ty
+exprType :: FuncExpr embExpr annot ty -> ResolvedType ty
 exprType = \case
     (VarE _b ty) -> ty
     (LitE  lit) -> getLitType lit
@@ -195,20 +196,20 @@ exprType = \case
     -- and therefor will use the internal list type to represent c 
     (MapE fun container) -> IType $ TypeList (returnType fun)
     (StmtE e1 e2) -> IType TypeUnit
-    (StateFunE _st (MethodRes _ fty) _args) -> getReturnType (FType fty)
+    (StateFunE _annots _st (MethodRes _ fty) _args) -> getReturnType (FType fty)
     (TupE es) -> TType (NE.map exprType es)
 
-returnType :: (Show annot) => FuncExpr embExpr annot ty -> ResolvedType ty
+returnType :: FuncExpr embExpr annot ty -> ResolvedType ty
 returnType e = case funType e of
     Just fty -> getReturnType fty
     Nothing -> exprType e
 
-funType :: (Show annot) => FuncExpr embExpr annot ty -> Maybe (ResolvedType ty)
+funType :: FuncExpr embExpr annot ty -> Maybe (ResolvedType ty)
 funType e = case e of
         (VarE _bnd (FType fTy))          -> Just (FType fTy)
         (LitE (FunRefLit fRef))          -> Just $ FType (getRefType fRef)
         (LamE pats body)                 -> Just $ FType (FunType (Right $ map patType pats) (exprType body))
-        other                            -> trace ("funtype called with " <> show other) Nothing
+        other                            -> {-trace ("funtype called with " <> show other)-} Nothing
 
    
 
@@ -246,7 +247,7 @@ freeVars e = go HS.empty e
     go  ctxt (WhileE e1 e2) = go ctxt e1 ++ go ctxt e2
     go  ctxt (MapE e1 e2) = go ctxt e1 ++ go ctxt e2
     -- Question: Can a method be a free variable ? 
-    go  ctxt (StateFunE s _method args ) = go ctxt s {-++ go ctxt method -} ++ foldl (\vs e1 -> vs ++ go ctxt e1) [] args
+    go  ctxt (StateFunE _annots s _method args ) = go ctxt s {-++ go ctxt method -} ++ foldl (\vs e1 -> vs ++ go ctxt e1) [] args
     go  ctxt (StmtE e1 e2) = go ctxt e1 ++ go ctxt e2
     go  ctxt (TupE es) = foldl (\vs e1 -> vs ++ go ctxt e1) [] es
 
@@ -267,7 +268,7 @@ flattenU e = case e of
         -- (BindE s _ xs)-> [e] ++ flattenU s ++ concatMap flattenU xs 
         -- Reminder: We take the methods out of the expression list here. That will require changes in
         --           the way code using this function acts on StateFunE
-        (StateFunE s _method args)-> [e] ++ flattenU s {- ++ flattenU method -} ++ concatMap flattenU args
+        (StateFunE _annots s _method args)-> [e] ++ flattenU s {- ++ flattenU method -} ++ concatMap flattenU args
         (StmtE e1 e2)-> [e] ++ flattenU e1 ++ flattenU e2
         (TupE es)-> [e] ++ concatMap flattenU es
 
@@ -284,7 +285,7 @@ flattenR e = case e of
         (WhileE e1 e2)-> [e] ++ flattenR e1 ++ flattenR e2
         (MapE e1 e2)-> [e] ++ flattenR e1 ++ flattenR e2
         -- (BindE s _ xs)-> [e] ++ flattenR s ++ concatMap flattenR xs 
-        (StateFunE s _method args)-> [e] ++ flattenR s {- ++ flattenR method-} ++ concatMap flattenR args
+        (StateFunE _annots s _method args)-> [e] ++ flattenR s {- ++ flattenR method-} ++ concatMap flattenR args
         (StmtE e1 e2)-> [e] ++ flattenR e1 ++ flattenR e2
         (TupE es)-> [e] ++ concatMap flattenR es
 
@@ -316,10 +317,10 @@ preWalkE f e = case e of
           let e1' = preWalkE f e1
               e2' = preWalkE f e2
           in  f (MapE e1' e2')
-      StateFunE st meth args ->
+      StateFunE annots st meth args ->
           let st' = preWalkE f st
               args' = map (preWalkE f) args
-          in f (StateFunE st' meth args')
+          in f (StateFunE annots st' meth args')
       StmtE e1 e2 -> 
           let e1' = preWalkE f e1
               e2' = preWalkE f e2

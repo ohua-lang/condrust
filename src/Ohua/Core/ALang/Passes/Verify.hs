@@ -11,7 +11,7 @@ ensureNthStructure e =
         (failWith .
          ("Missing total length argument to nth call bound to " <>) . show)
         [ x
-        | Let x (Apply (Lit (FunRefLit (FunRef "ohua.lang/nth" _))) _e1) _ <-
+        | Let x (Apply _ (Lit (FunRefLit (FunRef "ohua.lang/nth" _))) _e1) _ <-
               universe e
         ]
 

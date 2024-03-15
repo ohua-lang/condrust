@@ -63,7 +63,7 @@ prettyExpr = fst . histo worker
                           "in"
                         , align (discardParens cont)
                         ]
-            ApplyF (extract -> fun) (extract -> arg) ->
+            ApplyF _annots (extract -> fun) (extract -> arg) ->
                 needParens AppPrec $
                 hang argumentIndent $
                 sep [parenthesize AppPrec fun, parenthesize VarPrec arg]

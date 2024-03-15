@@ -88,7 +88,7 @@ checkHigherOrderFunctionSupport (ALang.Let _ e rest) = do
     void $ checkNestedExpr e
     checkHigherOrderFunctionSupport rest
   where
-    checkNestedExpr (Apply f arg) = do
+    checkNestedExpr (Apply _anno f arg) = do
         supportsHOF <- checkNestedExpr f
         when (isLambda arg && not supportsHOF) $
             failWith $

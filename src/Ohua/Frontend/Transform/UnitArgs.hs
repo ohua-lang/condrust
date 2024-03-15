@@ -12,9 +12,9 @@ noEmptyArgs e =  case e of
             LamE pats fn -> case pats of 
                 []      -> LamE (VarP "_" (IType TypeUnit) :| []) (noEmptyArgs fn)
                 (p:ps)  -> LamE (p:|ps) (noEmptyArgs fn)
-            StateFunE st meth args -> case args of 
-                []      -> StateFunE (noEmptyArgs st) meth (LitE UnitLit :| []) 
-                (a:as)  -> StateFunE (noEmptyArgs st) meth (map noEmptyArgs (a:| as))
+            StateFunE annots st meth args -> case args of 
+                []      -> StateFunE annots (noEmptyArgs st) meth (LitE UnitLit :| []) 
+                (a:as)  -> StateFunE annots (noEmptyArgs st) meth (map noEmptyArgs (a:| as))
 
             VarE b t -> VarE b t
             LitE l -> LitE l

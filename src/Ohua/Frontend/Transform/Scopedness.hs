@@ -42,7 +42,7 @@ contextedTraversal f = go
         -- go ctxt (BindE m s args) = flip BindE s <$> go ctxt m <*> TR.mapM (go ctxt) args 
         -- Reminder: Methods used to be treated as VarE or LitE -> Not doing this any more might cause error. 
         -- In case of such errors, build ad hoc VarE's and treat them again 
-        go ctxt (StateFunE stateV method args) = flip StateFunE method <$> go ctxt stateV <*> TR.mapM (go ctxt) args
+        go ctxt (StateFunE annots stateV method args) = flip (StateFunE annots) method <$> go ctxt stateV <*> TR.mapM (go ctxt) args
         go ctxt (StmtE e1 e2) = StmtE <$> go ctxt e1 <*> go ctxt e2
         go ctxt (TupE es) = TupE <$> TR.mapM (go ctxt) es
 

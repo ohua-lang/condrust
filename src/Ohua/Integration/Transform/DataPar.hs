@@ -355,8 +355,8 @@ amorphous :: Integer -> AL.Expr embExpr annot ty -> OhuaM (AL.Expr embExpr annot
 amorphous numRetries = transformM go
   where
     -- TODO: Verify the correctness of the whole transformation
-    go (Apply r@(PureFunction recurF) body)
-      | recurF == TR.y = Apply r <$> rewriteIrregularApp body
+    go (Apply r_anntos r@(PureFunction recurF) body)
+      | recurF == TR.y = Apply r_anntos r <$> rewriteIrregularApp body
     go e = pure e
 
     rewriteIrregularApp lam =
@@ -420,11 +420,11 @@ amorphous numRetries = transformM go
                   else pure lam
 
     findResult body =
-      [ s | (AL.Let _ cond (AL.Var _)) <- universe body, ( Apply
-                                                             (Apply (Apply (PureFunction ifTE) _) _)
+      [ s | (AL.Let _ cond (AL.Var _)) <- universe body, ( Apply _
+                                                             (Apply _ (Apply _ (PureFunction ifTE) _) _)
                                                              ( AL.Lambda
                                                                  _
-                                                                 (AL.Let _ (Apply (PureFunction idF) (AL.Var s)) _)
+                                                                 (AL.Let _ (Apply _ (PureFunction idF) (AL.Var s)) _)
                                                                )
                                                            ) <-
                                                            universe cond, ifTE == IFuns.ifThenElse && idF == IFuns.id
@@ -446,21 +446,21 @@ amorphous numRetries = transformM go
            _ -> do
 --             logInfoN $ "You passing the following parameter twice into the recursion: "
 --                      <> show x
---                      <> " \nDo you really have to do that? (Aborting amorphous transaformation.) ".
+--                      <> " \nDo you really have to do that? (Aborting amorphous transformation.) ".
              pure Nothing
 
     findRecursionCallArgs body =
       let calls =
             [ recursion
               | (AL.Let _ cond (AL.Var _)) <- universe body,
-                (Apply (Apply (PureFunction ifTE) _t) recursion) <- universe cond,
+                (Apply _ (Apply _ (PureFunction ifTE) _t) recursion) <- universe cond,
                 ifTE == IFuns.ifThenElse
             ]
       in case calls of
             [AL.Lambda _ (AL.Let _ recCall _)] -> return $ gatherArgs recCall
             _ -> throwError "invariant broken. recursion is not well-formed."
 
-    gatherArgs (Apply a (AL.Var b)) = gatherArgs a ++ [b]
+    gatherArgs (Apply _ a (AL.Var b)) = gatherArgs a ++ [b]
     gatherArgs _ = []
 
     findFreeStateVars :: AL.Expr embExpr annot ty -> [TypedBinding ty]
@@ -472,7 +472,7 @@ amorphous numRetries = transformM go
     isUsedState' bnd body =
       not $
         null
-          [ s | (Apply (StatefulFunction _ (AL.Var s)) (AL.Var _)) <- universe body, s == bnd
+          [ s | (Apply _ (StatefulFunction _ (AL.Var s)) (AL.Var _)) <- universe body, s == bnd
           ]
 
     {-isUsedState bnd body =
@@ -489,7 +489,7 @@ amorphous numRetries = transformM go
 
     findLoops body =
       [ (smapBody, inp, cont)
-        | (AL.Let _ (Apply (Apply (PureFunction smapF) smapBody) (AL.Var inp)) cont) <- universe body,
+        | (AL.Let _ (Apply _ (Apply _ (PureFunction smapF) smapBody) (AL.Var inp)) cont) <- universe body,
           smapF == IFuns.smap
       ]
 
@@ -498,7 +498,8 @@ amorphous numRetries = transformM go
       w@(TBind wl' _wty)
       ( AL.Let
           v
-          (Apply f@(Apply
+          (Apply f_annots f@(Apply
+                    _smap_annots
                     (PureFunctionTy smapF (FunType (Right (inpTy :| _)) _retTy ) )
                     _)
                  (AL.Var loopInp'))
@@ -514,16 +515,16 @@ amorphous numRetries = transformM go
           return $
             AL.Let
               taken
-              ( Apply
-                  (Apply (takeNLit inpTy) $ AL.Var loopIn)
+              ( Apply []
+                  (Apply [] (takeNLit inpTy) $ AL.Var loopIn)
                   $ Lit $ NumericLit numRetries
               )
               $ destructure (AL.Var taken) [takenInp, rest] $
 
-                AL.Let v (Apply f $ AL.Var takenInp) $
+                AL.Let v (Apply f_annots f $ AL.Var takenInp) $
                   AL.Let
                     pendingWork
-                    (Apply (Apply (concatLit inpTy) $ AL.Var w ) $ AL.Var rest)
+                    (Apply [] (Apply [] (concatLit inpTy) $ AL.Var w ) $ AL.Var rest)
                     (substitute wl' (AL.Var pendingWork) cont)
     rewriteAfterLoop _ _ e = pure e
 
@@ -532,7 +533,8 @@ amorphous numRetries = transformM go
       rest
       ( AL.Let
           v
-           (Apply f@(Apply
+           (Apply f_annots f@(Apply
+                    _smap_annots
                     (PureFunctionTy smapF (FunType (Right (inpTy :| _)) _retTy ))
                     _)
                  (AL.Var loopInp'))
@@ -545,12 +547,12 @@ amorphous numRetries = transformM go
           return $
             AL.Let
               taken
-              ( Apply
-                  (Apply (takeNLit inpTy) $ AL.Var loopIn)
+              ( Apply []
+                  (Apply [] (takeNLit inpTy) $ AL.Var loopIn)
                   $ Lit $ NumericLit numRetries
               )
               $ destructure (AL.Var taken) [takenInp, rest] $ -- TODO take the value from the specification of lang (maybe via a type class)
-                AL.Let v (Apply f $ AL.Var takenInp) cont
+                AL.Let v (Apply f_annots f $ AL.Var takenInp) cont
     takeNRewrite _ _ e = pure e
 
     concatRewrite wl' rest
@@ -568,7 +570,7 @@ amorphous numRetries = transformM go
       pendingWork <- flip TBind workedTy <$> generateBindingWith workedB
       return $
         AL.Let pendingWork
-        (Apply (Apply (concatLit workedTy ) $ AL.Var worked) $ AL.Var rest)
+        (Apply [] (Apply [] (concatLit workedTy ) $ AL.Var worked) $ AL.Var rest)
         (substitute workedB (AL.Var pendingWork) cont)
 
 fst3 :: (a, b, c) -> a 

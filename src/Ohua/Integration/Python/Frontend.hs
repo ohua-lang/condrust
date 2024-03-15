@@ -140,7 +140,7 @@ instance Integration (Language 'Python) where
         where
             methods::ErrAndLogM m => Algo (FrLang.UnresolvedExpr (Py.Expr SrcSpan) () PythonVarType) (Py.Statement SrcSpan) (OhuaType PythonVarType 'Resolved) -> m [(QualifiedBinding, FunType PythonVarType Resolved)]
             methods (Algo _name _ty frlangCode _inputCode ) = do 
-                mapM asMethodType $ [ (m, args) | StateFunE _obj m args <- flattenU frlangCode]
+                mapM asMethodType $ [ (m, args) | StateFunE [] _obj m args <- flattenU frlangCode]
             
             asMethodType::ErrAndLogM m =>  (MethodRepr PythonVarType 'Unresolved, [FrLang.UnresolvedExpr (Py.Expr SrcSpan) () PythonVarType]) -> m (QualifiedBinding, FunType PythonVarType Resolved)
             asMethodType ((MethodUnres bnd), args) = return ((asQualified bnd), (STFunType defaultType (asInputTypes args) defaultType))
@@ -260,7 +260,7 @@ subExprToIR t (Sub.Call (Sub.Pure bnd) args) = do
     return $ AppE funLit [] args'
 subExprToIR t (Sub.Call (Sub.Dotted objBnd (QualifiedBinding _nsref funBnd)) args) = do
     args' <- mapM (subArgToIR t) args
-    return $ StateFunE (VarE objBnd defaultType) (MethodUnres funBnd) args'
+    return $ StateFunE [] (VarE objBnd defaultType) (MethodUnres funBnd) args'
 subExprToIR t (Sub.Call (Sub.Direct lambdaExpr) args) = do
     args' <- mapM (subArgToIR t) args
     fun <- (subExprToIR t) lambdaExpr

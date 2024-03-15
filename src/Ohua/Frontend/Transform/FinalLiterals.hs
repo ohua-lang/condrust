@@ -35,7 +35,7 @@ noFunLitReturns (IfE e1 e2 e3) = noFunLitReturns e1 >> noFunLitReturns e2 >> noF
 noFunLitReturns (WhileE e1 e2) = noFunLitReturns e1 >> noFunLitReturns e2
 noFunLitReturns (MapE e1 e2) = noFunLitReturns e1 >> noFunLitReturns e2
 -- noFunLitReturns (BindE m _s args) = mapM_ noFunLitReturns (m: toList args) 
-noFunLitReturns (StateFunE e1 _state e2) = noFunLitReturns e1 >> concatMapM noFunLitReturns e2
+noFunLitReturns (StateFunE _annots e1 _state e2) = noFunLitReturns e1 >> concatMapM noFunLitReturns e2
 -- noFunLitReturns e@(StmtE _f l@LitE{}) =  throwError $ "The literal [" <> show l <> "] does not depend on a previously computed value in the expression \n" 
 --   <> show e
 --   <>"\nIn the host program this meant that it depends on the previous statements. This compiler does not yet support creating this dependency implicity. Hence, we kindly ask you to add it explicitly to your code."

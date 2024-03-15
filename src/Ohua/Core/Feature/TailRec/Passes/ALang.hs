@@ -280,13 +280,13 @@ findRecCall (Let bound expr inExpr) algosInScope
         then do
             let (TBind bnd ty) = bound
             bnd' <- generateBindingWith bnd
-            return (iFound, Let (TBind bnd' ty) e $ Let bound (Apply (ySf ty)  (Var (TBind bnd' ty))) iExpr)
+            return (iFound, Let (TBind bnd' ty) e $ Let bound (Apply [] (ySf ty) (Var (TBind bnd' ty))) iExpr)
         else  
             return (HS.union found iFound , Let bound e iExpr)
 -- findRecCall (Let bound expr inExpr) algosInScope = do
 --     (iFound, iExpr) <- findRecCall inExpr algosInScope
 --     return (iFound, Let bound expr iExpr)
-findRecCall (Apply (Var tbnd) a) algosInScope
+findRecCall (Apply annots (Var tbnd) a) algosInScope
     | HS.member tbnd algosInScope
      -- no recursion here because if the expression is correct then these can be only nested APPLY statements
      =  do
@@ -294,12 +294,12 @@ findRecCall (Apply (Var tbnd) a) algosInScope
         unlessM ask $
             throwErrorDebugS
                 "Detected recursion although tail recursion support is not enabled!"
-        return (HS.insert tbnd HS.empty, Apply (recurSf $ exprType a) a)
+        return (HS.insert tbnd HS.empty, Apply annots (recurSf $ exprType a) a)
             -- else error $ "Detected recursion (" ++ (show binding) ++ ") although tail recursion support is not enabled!"
-findRecCall (Apply a b) algosInScope =  do
+findRecCall (Apply annots a b) algosInScope =  do
     (aFound, aExpr) <- findRecCall a algosInScope
     (bFound, bExpr) <- findRecCall b algosInScope
-    return (HS.union aFound bFound, Apply aExpr bExpr)
+    return (HS.union aFound bFound, Apply annots aExpr bExpr)
 findRecCall (Lambda a e) algosInScope = do
     (eFound, eExpr) <- findRecCall e algosInScope
     return (eFound, Lambda a eExpr)
@@ -326,9 +326,9 @@ verifyTailRecursion expr
     -- failOnRecur (Let _ e ie) | isCall recur e || isCall recur ie = error "Recursion is not tail recursive!"
     failOnRecur (Let _ e ie) = failOnRecur e >> failOnRecur ie
     failOnRecur (Lambda _v e) = failOnRecur e -- TODO maybe throw a better error message when this happens
-    failOnRecur (Apply (PureFunction _recur) _) =
+    failOnRecur (Apply _ (PureFunction _recur) _) =
         error "Recursion is not tail recursive!"
-    failOnRecur (Apply _ _) = return ()
+    failOnRecur (Apply _ _ _) = return ()
     failOnRecur e = error $ "Invariant broken! Found pattern: " <> show e
     checkIf e
         | isCall "ohua.lang/if" e
@@ -381,8 +381,8 @@ rewriteAll = rewriteM $ \case
     _ -> pure Nothing
 
 isCall :: QualifiedBinding -> Expr embExpr annot ty -> Bool
-isCall f (Apply (PureFunction f') _) | f == f' = True
-isCall f (Apply e@(Apply _ _) _) = isCall f e
+isCall f (Apply _ (PureFunction f') _) | f == f' = True
+isCall f (Apply _ e@(Apply _ _ _) _) = isCall f e
 isCall _ _ = False
 
 rewriteCallExpr :: forall m embExpr annot ty.
@@ -441,7 +441,7 @@ rewriteCallExpr e = do
     -- implementing this correctly however is going to require some effort, thus
     -- I think we should do so later.
     rewriteCond :: Expr embExpr annot ty -> Expr embExpr annot ty
-    rewriteCond fullExpr@(Apply (Apply (Apply (PureFunction f0) cond) (Lambda _ trueB)) (Lambda _ falseB)) | f0 == IFuns.ifThenElse =
+    rewriteCond fullExpr@(Apply _a1 (Apply _a2 (Apply _a3 (PureFunction f0) cond) (Lambda _ trueB)) (Lambda _ falseB)) | f0 == IFuns.ifThenElse =
         let trueB' = rewriteBranch trueB
             falseB' = rewriteBranch falseB
             (fixRef, recurVars) =
@@ -459,7 +459,7 @@ rewriteCallExpr e = do
             "invariant broken: recursive function does not have the proper structure."
     rewriteBranch :: Expr embExpr annot ty -> Either (Expr embExpr annot ty) [Expr embExpr annot ty]
     -- normally this is "fix" instead of `id`
-    rewriteBranch (Let _v (Apply (PureFunction "ohua.lang/id") result) _) = Left result
+    rewriteBranch (Let _v (Apply _annots (PureFunction "ohua.lang/id") result) _) = Left result
     rewriteBranch (Let _v ex _)
         | isCall recur ex = (Right . snd . fromApplyToList) ex
     rewriteBranch ex = error $ "invariant broken: " <> quickRender ex

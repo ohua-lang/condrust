@@ -133,7 +133,7 @@ ifSf vty = Lit $ FunRefLit $ FunRef IFuns.ifThenElse $ FunType (Right $ IType Ty
 --             a transformM though.
 ifRewrite :: (Monad m, MonadGenBnd m, MonadError Error m, Show embExpr) => Expr embExpr annot ty -> m (Expr embExpr annot ty)
 ifRewrite = transformM $ \case
-    Lit (FunRefLit (FunRef f _)) `Apply` cond `Apply` trueBranch `Apply` falseBranch
+    Apply _ (Apply _ (Apply _ (Lit (FunRefLit (FunRef f _))) cond) trueBranch) falseBranch
         | f == IFuns.ifThenElse -> do
             case (trueBranch,falseBranch) of
               (Lambda trueIn trueBody, Lambda falseIn falseBody) | isUnit trueIn && isUnit falseIn -> do
@@ -160,13 +160,13 @@ ifRewrite = transformM $ \case
 
                 return $
                
-                    Let ctrls (Apply ifFunSf cond) $
+                    Let ctrls (Apply [] ifFunSf cond) $
                     mkDestructured [ctrlTrue, ctrlFalse] ctrls $
                     Let trueResult trueBranch' $
                     Let falseResult falseBranch' $
                     Let
                     result
-                    (Apply (Apply (Apply (selectSf typeTrue) cond) $ Var trueResult) $
+                    (Apply [] (Apply [] (Apply [] (selectSf typeTrue) cond) $ Var trueResult) $
                      Var falseResult) $
                     Var result
               _ -> throwError $ "Found if with unexpected, non-unit-lambda branch(es)\ntrue:\n " <> show trueBranch <> "\nfalse:\n" <> show falseBranch

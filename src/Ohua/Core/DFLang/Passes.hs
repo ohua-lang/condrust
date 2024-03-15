@@ -190,7 +190,7 @@ handleDefinitionalExpr' :: forall embExpr annot ty m.
   ALang.Expr embExpr annot ty ->
   ALang.Expr embExpr annot ty ->
   m (NormalizedExpr embExpr annot ty -> NormalizedExpr embExpr annot ty)
-handleDefinitionalExpr' assign l@(Apply _ _) cont = do
+handleDefinitionalExpr' assign l@(Apply _ _ _) cont = do
   (fn, s, args) <- handleApplyExpr l
   args' <- mapM (uncurry expectVar) args
   case s of
@@ -252,11 +252,11 @@ handleApplyExpr ::
   (MonadOhua m) =>
   ALang.Expr embExpr annot ty ->
   m (FunRef ty Resolved, Maybe (ATypedBinding 'State ty), NonEmpty (OhuaType ty Resolved, ALang.Expr embExpr annot ty))
-handleApplyExpr (Apply fn a) = go (a :| []) fn
+handleApplyExpr (Apply _annots fn a) = go (a :| []) fn
   where
     go args e =
       case e of
-        Apply f arg -> do
+        Apply _an f arg -> do
           go (arg NE.<| args) f
         Lit (FunRefLit fr@(FunRef f  (FunType argTypes retTy))) -> do
           let expInpTypes = expectedInputTypesResolved argTypes

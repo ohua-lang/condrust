@@ -94,7 +94,7 @@ transformFundamentalStateThreads = transformM f
     stBndForStatefulFun (StatefulFunction _ (Var tBnd@(TBind bnd ty))) = do Just . (\newBnd -> (tBnd, TBind newBnd ty)) <$> generateBindingWith bnd
     -- FIXME Once again, this stupid over-generalization of the language is a pain!
     stBndForStatefulFun e@(StatefulFunction {}) = error $ "state should have been var: " <> show e
-    stBndForStatefulFun (e1 `Apply` _)            = stBndForStatefulFun e1
+    stBndForStatefulFun (Apply annots e1 _)            = stBndForStatefulFun e1
     stBndForStatefulFun _                         = return Nothing
 
     g result app cont (TBind stateIn sty, stateOut) = do
@@ -169,7 +169,7 @@ transformFundamentalStateThreads = transformM f
 transformControlStateThreads :: MonadGenBnd m => Expr embExpr annot ty -> m (Expr embExpr annot ty)
 transformControlStateThreads = transformM f
   where
-    f (Let v (fun@(PureFunction op) `Apply` trueBranch `Apply` falseBranch) cont)
+    f (Let v (fun@(Apply [] (Apply [] (PureFunction op) trueBranch) falseBranch)) cont)
       | op == IFuns.ifThenElse =
           let
             trueBranchStates = HS.fromList $ collectStates trueBranch
@@ -181,8 +181,9 @@ transformControlStateThreads = transformM f
               HS.foldr
               (\missingState c ->
                  Let missingState
-                 (pureFunction IFuns.id (FunType (Right $ asType missingState :| []) (asType missingState))
-                   `Apply` Var missingState)
+                 (Apply [] 
+                    (pureFunction IFuns.id (FunType (Right $ asType missingState :| []) (asType missingState)))
+                    (Var missingState))
                  c)
             trueBranch' = applyToBody (`addMissing` trueBranchStatesMissing) trueBranch
             falseBranch' = applyToBody (`addMissing` falseBranchStatesMissing) falseBranch
@@ -195,10 +196,10 @@ transformControlStateThreads = transformM f
             ctxtOutBnd <- generateBindingWith "ctxt_out"
             let ctxtOut = TBind ctxtOutBnd stateThreadingReTy 
             return $
-              Let ctxtOut (fun `Apply` trueBranch'' `Apply` falseBranch'') $
+              Let ctxtOut (Apply [] (Apply [] fun trueBranch'') falseBranch'') $
               mkDestructured (v:allStates) ctxtOut
               cont
-    f (Let v (fun@(PureFunction op) `Apply` lam `Apply` ds) cont)
+    f (Let v (fun@(Apply [] (Apply [] (PureFunction op) lam) ds)) cont)
       | op == IFuns.smap =
           let (args, expr) = lambdaArgsAndBody lam
               states = filter (not . (`HS.member` HS.fromList args)) $ collectStates expr
@@ -210,7 +211,7 @@ transformControlStateThreads = transformM f
                 ctxtOut = TBind ctxtOutBnd (TType resAndStatesTys)
                 lam' = mkLambda args expr'
             return $
-              Let ctxtOut (fun `Apply` lam' `Apply` ds) $
+              Let ctxtOut (Apply [] (Apply [] fun lam') ds) $
               mkDestructured (v:states) ctxtOut
               cont
     f expr = return expr
@@ -252,7 +253,7 @@ transformCtxtExits = evictOrphanedDestructured . f
         -- FIXME This does not work because the ctxtExit has a variable number of arguments! So for two arguments it actually is (Apply (Apply f x) y). Once more this is a problem of our weak definition!
 --        f (Let v e@(PureFunction op _ `Apply` _) cont)
 --            | op == ctxtExit =
-        f l@(Let v e@(Apply _ _) cont) =
+        f l@(Let v e@(Apply _ _ _) cont) =
            case fromApplyToList' e of
              (FunRef op _, Nothing, compOut:stateArgs) | op == ctxtExit ->
                let g' = g v compOut stateArgs
@@ -262,7 +263,7 @@ transformCtxtExits = evictOrphanedDestructured . f
         f e = descend f e
 
         g :: TypedBinding ty -> Expr embExpr annot ty -> [Expr embExpr annot ty] -> Expr embExpr annot ty -> Expr embExpr annot ty
-        g compound compOut stateArgs l@(Let v e@(Apply _ _) cont) =
+        g compound compOut stateArgs l@(Let v e@(Apply _ _ _) cont) =
            case fromApplyToList' e of
              -- Must be a conditional (second ctxtExit)
              (FunRef op _, Nothing, compOut':stateArgs') | op == ctxtExit ->
@@ -275,11 +276,11 @@ transformCtxtExits = evictOrphanedDestructured . f
                    stateExits ct =
                      foldr
                        (\(s',s) c ->
-                          Let s' (runSTCLangSMapFun (exprType s) `Apply` size `Apply` s) c)
+                          Let s' (Apply [] (Apply [] (runSTCLangSMapFun (exprType s)) size) s) c)
                        ct
                        $ zip stateOuts' stateArgs
                in
-                 Let compOut' (Lit (FunRefLit fun) `Apply` size `Apply` compOut) $
+                 Let compOut' (Apply [] (Apply [] (Lit (FunRefLit fun)) size) compOut) $
                  stateExits
                  cont
              _ -> descend (g compound compOut stateArgs) l
@@ -290,7 +291,7 @@ transformCtxtExits = evictOrphanedDestructured . f
           -> Expr embExpr annot ty
           -> Expr embExpr annot ty
         h compound compOut stateOuts _compound' compOut' stateOuts'
-            (Let v (fun@(PureFunction op) `Apply` cond `Apply` Var trueBranch `Apply` _falseBranch) cont)
+            (Let v (fun@(Apply [] (Apply [] (Apply [] (PureFunction op) cond) (Var trueBranch)) _falseBranch)) cont)
             | op == IFuns.select =
                 let (tbCompOut, tbStateArgs, fbCompOut, fbStateArgs) =
                         if compound == trueBranch
@@ -300,12 +301,12 @@ transformCtxtExits = evictOrphanedDestructured . f
                     stateExits ct =
                         foldr
                             (\(s', (ts,fs)) c ->
-                                Let s' (runSTCLangIfFun (exprType ts)`Apply` cond `Apply` ts `Apply` fs) c)
+                                Let s'(Apply [] (Apply [] (Apply [] (runSTCLangIfFun (exprType ts)) cond) ts) fs) c)
                             ct $
                             zip stateOuts'' $
                             zip tbStateArgs fbStateArgs
                 in stateExits $
-                    Let compOut'' (fun `Apply` cond `Apply` tbCompOut `Apply` fbCompOut) $
+                    Let compOut'' (Apply [] (Apply [] (Apply [] fun cond) tbCompOut) fbCompOut) $
                     descend f cont
         h co c s co' c' s' e = descend (h co c s co' c' s') e
 

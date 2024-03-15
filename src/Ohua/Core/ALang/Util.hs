@@ -48,10 +48,17 @@ destructure source bnds =
     map (\(idx, tbnd) -> Let tbnd $ mkNthExpr idx source (asType tbnd)) (zip [0 ..] bnds)
   where
     mkNthExpr idx source0 bTy =
-        pureFunction IFuns.nth (FunType (Right $ IType TypeNat :| [IType TypeNat, bTy]) bTy) `Apply` (Lit $ NumericLit idx) `Apply`
-        (Lit $ NumericLit $ toInteger $ length bnds) `Apply`
-        source0
-
+        {-pureFunction IFuns.nth (FunType (Right $ IType TypeNat :| [IType TypeNat, bTy]) bTy) `Apply []` (Lit $ NumericLit idx) 
+        `Apply []` (Lit $ NumericLit $ toInteger $ length bnds) 
+        `Apply []` source0-}
+        Apply []
+            (Apply [] 
+                (Apply [] 
+                    (pureFunction IFuns.nth (FunType (Right $ IType TypeNat :| [IType TypeNat, bTy]) bTy)) 
+                    (Lit $ NumericLit idx))
+                (Lit $ NumericLit $ toInteger $ length bnds)
+            )
+            source0
 
 lambdaLifting :: forall embExpr annot ty m.
        (MonadGenBnd m, Show embExpr) => Expr embExpr annot ty -> m (Expr embExpr annot ty, [Expr embExpr annot ty])
@@ -233,8 +240,8 @@ areAllLits =
 mkApply :: Expr embExpr annot ty -> [Expr embExpr annot ty] -> Expr embExpr annot ty
 mkApply f args = go $ reverse args
   where
-    go [v] = Apply f v
-    go (v:vs) = Apply (go vs) v
+    go [v] = Apply [] f v
+    go (v:vs) = Apply [] (go vs) v
     go [] = f
 
 fromListToApply :: FunRef ty Resolved -> [Expr embExpr annot ty] -> Expr embExpr annot ty
@@ -260,7 +267,7 @@ fromApplyToList e =
 fromApplyToList' :: HasCallStack => Expr embExpr annot ty -> (FunRef ty Resolved , Maybe (Expr embExpr annot ty), [Expr embExpr annot ty])
 fromApplyToList' =
     para $ \case
-        ApplyF (extract -> (f, s, args)) (arg, _) -> (f, s, args ++ [arg])
+        ApplyF _annots (extract -> (f, s, args)) (arg, _) -> (f, s, args ++ [arg])
         LitF (FunRefLit f) -> (f, Nothing, [])
         BindStateF (stateExpr, _) (method, _) ->
             case method of
@@ -289,10 +296,16 @@ findDestructured expr tbnd = map (\(v,_,_) -> v) $ findDestructuredWithExpr expr
             sortOn (\(i,_,_,_) -> i)
                 [ (i,v,l,c) 
                 | l@(Let v 
-                    (PureFunction "ohua.lang/nth" `Apply` 
-                        Lit (NumericLit i) `Apply` 
-                        _ `Apply` 
-                        Var tbnd')
+                    (Apply [] 
+                        (Apply [] 
+                            ( Apply [] 
+                                (PureFunction "ohua.lang/nth")
+                                (Lit (NumericLit i))
+                            ) 
+                            _ 
+                        ) 
+                        (Var tbnd')
+                    )
                     c)  
                     <- universe e
                 , tbnd == tbnd']
@@ -304,7 +317,7 @@ replaceExpr (old,new) = transform f
         f expr = expr
 
 pattern NthFunction :: TypedBinding ty -> Expr embExpr annot ty
-pattern NthFunction tbnd <- PureFunction "ohua.lang/nth" `Apply` _ `Apply` _ `Apply` Var tbnd
+pattern NthFunction tbnd <- Apply [] (Apply [] (Apply [] (PureFunction "ohua.lang/nth") _) _) (Var tbnd)
 
 evictOrphanedDestructured :: Expr embExpr annot ty -> Expr embExpr annot ty
 evictOrphanedDestructured e = 
