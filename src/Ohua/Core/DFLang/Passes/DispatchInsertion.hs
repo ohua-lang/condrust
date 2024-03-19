@@ -64,18 +64,18 @@ insertDispatch e = evalStateT (transformExprM go e) HM.empty
           (cont', trueOut') <- dispatchOutput cont trueOut
           (cont'', falseOut') <- dispatchOutput cont' falseOut
           return $ Let (IfFun (trueOut', falseOut') dIn) cont''
-        (PureDFFun _ (FunRef f _) _)
+        (PureDFFun _ _ (FunRef f _) _)
           | f == IFuns.ctrl
             || f == IFuns.select
             || f == IFuns.collect
             -> collect app >> return l
-        (PureDFFun o f i) -> do
+        (PureDFFun annots o f i) -> do
           (cont', o') <- dispatchOutput cont o
-          return $ Let (PureDFFun o' f i) cont'
-        (StateDFFun (sOut, dOut) f sIn dIn) -> do
+          return $ Let (PureDFFun annots o' f i) cont'
+        (StateDFFun annots (sOut, dOut) f sIn dIn) -> do
           (cont', dOut') <- maybeDispatch cont dOut
           (cont'', sOut') <- maybeDispatch cont' sOut
-          return $ Let (StateDFFun (sOut', dOut') f sIn dIn) cont''
+          return $ Let (StateDFFun annots (sOut', dOut') f sIn dIn) cont''
         (RecurFun fOut ctrlOut recArgsOut initIns recIns recCondIn fIn) -> do
           (cont', ctrlOut') <- maybeDispatch cont ctrlOut
           return $ Let (RecurFun fOut ctrlOut' recArgsOut initIns recIns recCondIn fIn) cont'

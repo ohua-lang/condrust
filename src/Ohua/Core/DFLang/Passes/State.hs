@@ -18,8 +18,8 @@ import Ohua.Core.Compile.Configuration
 intoFusable :: Monad m => NormalizedDFExpr embExpr annot ty -> m (NormalizedDFExpr embExpr annot ty)
 intoFusable = mapFunsM (pure . f)
   where
-    f (PureDFFun out r@(FunRef fun _) (_:| [sIn]))
-      | fun == IFuns.runSTCLangSMap = PureDFFun out r (sIn :| [])
+    f (PureDFFun annots out r@(FunRef fun _) (_:| [sIn])) | fun == IFuns.runSTCLangSMap 
+      = PureDFFun annots out r (sIn :| [])
     f e = e
 
 load :: CustomPasses embExpr annot ty -> CustomPasses embExpr annot ty

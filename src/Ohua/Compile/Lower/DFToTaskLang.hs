@@ -44,7 +44,7 @@ generateNodesCode = go
 generateFunctionCode :: forall ty embExpr annot a m. ErrAndLogM m => DFApp a embExpr annot ty -> LoweringM m (FusableExpr embExpr annot ty)
 generateFunctionCode = \case
     
-    (PureDFFun out fn (DFEnvVar (IType TypeUnit) UnitLit:|[]) )-> do
+    (PureDFFun  annots out fn (DFEnvVar (IType TypeUnit) UnitLit:|[]) )-> do
         out' <- pureOut fn out
         return $ Fusion.Fun $ Ops.PureFusable [] (Ops.Call fn) out'
      -- Question: UnitLits can sneak in, in different forms but we never want them to appear in the output
@@ -54,11 +54,11 @@ generateFunctionCode = \case
         out' <- pureOut fn out
         return $ Fusion.Fun $ Ops.PureFusable [] (Ops.Call fn) out'-}
     
-    (PureDFFun out fn inp) -> do
+    (PureDFFun annots out fn inp) -> do
         let args = toList $ map generateReceive inp
         out' <- pureOut fn out
         return $ Fusion.Fun $ Ops.PureFusable args (Ops.Call fn) out'
-    (StateDFFun out fn (DFVar atBnd) inp) -> do
+    (StateDFFun annots out fn (DFVar atBnd) inp) -> do
         let args = toList $ map generateReceive inp
             (TBind stateBnd stateTy) = unwrapTB atBnd
         (sOut, dataOut) <- stateOut fn out
@@ -151,7 +151,7 @@ generateNodeCode e@(SMapFun (dOut,ctrlOut,sizeOut) inp) = do
       serializeOut Destruct{} = throwError $ "We currently do not support destructuring on loop data: " <> show e
       serializeOut o = pure $ toOutBnds o
 
-generateNodeCode e@(PureDFFun out (FunRef funName  _fType) inp) | funName == collect = do
+generateNodeCode e@(PureDFFun annot out (FunRef funName  _fType) inp) | funName == collect = do
     (sizeIn, dataIn) <-
         case inp of
             (DFVar stateTBind :| [DFVar dataTBind]) ->
@@ -182,7 +182,7 @@ generateNodeCode e@(IfFun out inp) = do
         EndlessLoop $
             Ops.ifFun condIn outs
 
-generateNodeCode e@(PureDFFun out (FunRef funName  _fType) inp) | funName == select = do
+generateNodeCode e@(PureDFFun annot out (FunRef funName  _fType) inp) | funName == select = do
     (condIn, trueIn, falseIn) <-
         case inp of
             (DFVar xATBnd :| [DFVar yATBnd, DFVar zATBnd]) ->
@@ -202,7 +202,7 @@ generateNodeCode e@(PureDFFun out (FunRef funName  _fType) inp) | funName == sel
         EndlessLoop $
             Ops.select condIn trueIn falseIn out'
 
-generateNodeCode e@(PureDFFun out (FunRef fun _) inp) | fun == IFuns.seqFun = do
+generateNodeCode e@(PureDFFun annots out (FunRef fun _) inp) | fun == IFuns.seqFun = do
   out' <- case out of
            Direct x -> return $ SChan $ unwrapABnd x
            _ -> invariantBroken $ "Seq must only have one output:\n" <> show e
@@ -217,7 +217,7 @@ generateNodeCode e@(PureDFFun out (FunRef fun _) inp) | fun == IFuns.seqFun = do
     _ -> invariantBroken $
             "Seq must have two inputs where the second is a literal:\n" <> show e
 
-generateNodeCode e@(PureDFFun out (FunRef funName _fType) inp) | funName == IFuns.runSTCLangSMap = do
+generateNodeCode e@(PureDFFun annots out (FunRef funName _fType) inp) | funName == IFuns.runSTCLangSMap = do
 --    (sizeIn, stateIn) <-
     out' <-
         case out of
@@ -254,7 +254,7 @@ generateNodeCode e@(PureDFFun out (FunRef funName _fType) inp) | funName == IFun
 --                     ins
 --                     out
 
-generateNodeCode e@(PureDFFun out (FunRef funName _fType) inp) | funName == ctrl = do
+generateNodeCode e@(PureDFFun annots out (FunRef funName _fType) inp) | funName == ctrl = do
     out' <-
         case out of
             Direct x -> return $ SChan $ unwrapABnd x
@@ -272,7 +272,7 @@ generateNodeCode e@(PureDFFun out (FunRef funName _fType) inp) | funName == ctrl
                 Ops.mkLittedCtrl (asRecv ctrlATBnd) lit out' -- FIXME loosing the semantic type here!
         _ -> invariantBroken $ "Control arguments don't match:\n" <> show e
 
-generateNodeCode e@(PureDFFun out (FunRef funName  _fType) inp) | funName == IFuns.seqFun = do
+generateNodeCode e@(PureDFFun annots out (FunRef funName  _fType) inp) | funName == IFuns.seqFun = do
   out' <- case out of
            Direct x -> return $ SChan $ unwrapABnd x
            _ -> invariantBroken $ "Seq must only have one output:\n" <> show e
@@ -286,21 +286,21 @@ generateNodeCode e@(PureDFFun out (FunRef funName  _fType) inp) | funName == IFu
     _ -> invariantBroken $
             "Seq must have two inputs where the second is a literal:\n" <> show e
 
-generateNodeCode e@(PureDFFun out (FunRef funName  _fType) inp) | funName == IFuns.unitFun = do
+generateNodeCode e@(PureDFFun annots out (FunRef funName  _fType) inp) | funName == IFuns.unitFun = do
   case inp of
    DFEnvVar _t (FunRefLit f@(FunRef p _)) :| [v] | p == IFuns.id ->
-     generateNodeCode $ PureDFFun out f (v:|[])
+     generateNodeCode $ PureDFFun annots out f (v:|[])
 
    (DFEnvVar _t (FunRefLit pr@(FunRef _n  _ty)) :| [v]) -> -- FIXME this feels like a bug to me. why do we take this detour via unitFun???
      -- For some reason the added UnitLit argument might arive here as DFVar or DFEnvVar 
      -- so we can either repace both by one of theme here to catch only one case in 'generateFunctionCode', or catch both patterns later 
      -- I prefer the second option, since I Don't know if there's any other way a UnitLit can sneak in as an argument and it is always wrong to
       -- kepp them
-     generateFunctionCode $ PureDFFun out pr (v:|[])
+     generateFunctionCode $ PureDFFun annots out pr (v:|[])
      
    _ -> invariantBroken $ "unknown function as first argument or wrong number of arguments (expected 2) to unitFun:\n" <> show e
 
-generateNodeCode (PureDFFun out (FunRef funName _fType) (inp:|[])) | funName == IFuns.id = do
+generateNodeCode (PureDFFun annots out (FunRef funName _fType) (inp:|[])) | funName == IFuns.id = do
   out' <- pureOut funName out
   case inp of
     DFEnvVar _t l ->
@@ -312,7 +312,7 @@ generateNodeCode (PureDFFun out (FunRef funName _fType) (inp:|[])) | funName == 
       Fusion.Fun $
       Ops.IdFusable (Ops.Arg $ asRecv atbnd) out'
 
-generateNodeCode (PureDFFun out fn@(FunRef funName  funTy) inp) | funName == IFuns.tupleFun = do
+generateNodeCode (PureDFFun annots out fn@(FunRef funName  funTy) inp) | funName == IFuns.tupleFun = do
   let args = toList $ map generateReceive inp
   out' <- pureOut fn out
   return $ Fusion.Fun $ Ops.PureFusable args (Ops.Tup funTy) out'

@@ -36,10 +36,7 @@ data OutData (bType :: BindingType) (ty :: Type) :: Type  where
 data DFVar (semType :: BindingType) (embExpr::Type) (annot::Type) (ty :: Type) :: Type where
   DFEnvVar :: OhuaType ty Resolved-> Lit embExpr ty Resolved -> DFVar 'Data embExpr annot ty
   DFVar :: ATypedBinding a ty -> DFVar a embExpr annot ty
-  -- DFNatVar :: ATypedBinding a -> DFVar a (IType TypeNat ty) 
-  -- DFBoolVar ::  ATypedBinding a -> DFVar a 'TypeBool
-  -- DFStateVar :: ATypedBinding 'State ty -> DFVar 'State ty
-
+ 
 -- | Annotations for functions
 data FunANF :: Type where
   -- | a pure function
@@ -67,24 +64,36 @@ data App (f :: FunANF) (embExpr :: Type) (annot::Type) (ty :: Type) :: Type wher
   --      Then this should propagate through the type system an make sure that this state is used only
   --      as a state. Currently, we really only tag the types of an app with almost no implication on the
   --      whole expression. This would then immediately remove the unwrapABnd function.
-  PureFun :: DFVar bTy embExpr annot ty -> FunRef ty  Resolved -> NonEmpty (DFVar 'Data embExpr annot ty) -> App 'Fun embExpr annot ty
+  PureFun :: 
+    [HostAnnotation annot] 
+    -> DFVar bTy embExpr annot ty 
+    -> FunRef ty Resolved 
+    -> NonEmpty (DFVar 'Data embExpr annot ty) 
+    -> App 'Fun embExpr annot ty
   StateFun ::
-    (Maybe (ATypedBinding 'State ty), ATypedBinding 'Data ty) ->
-    FunRef ty  Resolved->
-    DFVar 'State embExpr annot ty ->
-    NonEmpty (DFVar 'Data embExpr annot ty) ->
-    App 'ST embExpr annot ty
+    [HostAnnotation annot]
+    -> (Maybe (ATypedBinding 'State ty), ATypedBinding 'Data ty) 
+    -> FunRef ty  Resolved 
+    -> DFVar 'State embExpr annot ty 
+    -> NonEmpty (DFVar 'Data embExpr annot ty) 
+    -> App 'ST embExpr annot ty
 
 -- | The applicative normal form with the ops resolved.
 --   (a function with output destructuring and dispatched result)
 data DFApp (f :: FunANF) (embExpr :: Type) (annot::Type) (ty :: Type) :: Type where
-  PureDFFun :: OutData b ty -> FunRef ty  Resolved-> NonEmpty (DFVar 'Data embExpr annot ty) -> DFApp 'Fun embExpr annot ty
+  PureDFFun ::
+    [HostAnnotation annot]  
+    -> OutData b ty 
+    -> FunRef ty  Resolved 
+    -> NonEmpty (DFVar 'Data embExpr annot ty) 
+    -> DFApp 'Fun embExpr annot ty
   StateDFFun ::
-    (Maybe (OutData 'State ty ), Maybe (OutData 'Data ty)) ->
-    FunRef ty  Resolved->
-    DFVar 'State embExpr annot ty ->
-    NonEmpty (DFVar 'Data embExpr annot ty) ->
-    DFApp 'ST embExpr annot ty
+    [HostAnnotation annot]
+    -> (Maybe (OutData 'State ty ), Maybe (OutData 'Data ty)) 
+    -> FunRef ty  Resolved 
+    -> DFVar 'State embExpr annot ty 
+    -> NonEmpty (DFVar 'Data embExpr annot ty) 
+    -> DFApp 'ST embExpr annot ty
 
   RecurFun :: --(n ~ 'Succ m) =>
   -- (final) result out
@@ -161,11 +170,11 @@ class Function (fun:: FunANF -> Type -> Type -> Type -> Type) where
 
 -- The fun type is a type that takes a promoted Annotation Type and the 
 -- ubiquitouse Host type 'ty' (representing the language (Rust/Python/..) we compile
-data Expr (fun :: FunANF -> Type -> Type -> Type -> Type) (embExpr :: Type) (annot::Type)(ty :: Type) :: Type where
-  -- Question: I don't understand the order of that Let term? What are the arguments supposed to represent?
-  Let :: (Show (fun fa embExpr annot ty), Function fun) => fun fa embExpr annot ty -> Expr fun embExpr annot ty -> Expr fun embExpr annot ty
-  -- FIXME this also should probably have a BindingType!
-  -- Well it should first of all have a Type type :-/
+data Expr (fun :: FunANF -> Type -> Type -> Type -> Type) (embExpr :: Type) (annot::Type) (ty :: Type) :: Type where
+  Let :: (Show (fun fa embExpr annot ty), Function fun) 
+          => fun fa embExpr annot ty 
+          -> Expr fun embExpr annot ty 
+          -> Expr fun embExpr annot ty
   Var :: ATypedBinding b ty -> Expr fun embExpr annot ty
 
 ----------------------------
@@ -178,16 +187,16 @@ renameABnd bnew (DataBinding (TBind _bnd _ty)) = DataBinding bnew
 renameABnd bnew (StateBinding (TBind _bnd _ty)) = StateBinding bnew
 
 outsApp :: App fty embExpr annot ty -> NonEmpty (TypedBinding ty)
-outsApp (PureFun out _ _) = unwrapVarTB out :| []
-outsApp (StateFun (Nothing, out) _ _ _) = unwrapTB out :| []
-outsApp (StateFun (Just stateOut, out) _ _ _) = unwrapTB stateOut :| [unwrapTB out]
+outsApp (PureFun _ out _ _) = unwrapVarTB out :| []
+outsApp (StateFun _ (Nothing, out) _ _ _) = unwrapTB out :| []
+outsApp (StateFun _ (Just stateOut, out) _ _ _) = unwrapTB stateOut :| [unwrapTB out]
 
 outsDFApp :: DFApp fty embExpr annot ty -> [TypedBinding ty]
-outsDFApp (PureDFFun out _ _) = NE.toList $ toOutBnds out
-outsDFApp (StateDFFun (Nothing, Nothing) _ _ _) = []
-outsDFApp (StateDFFun (Nothing, Just out) _ _ _) = NE.toList $ toOutBnds out
-outsDFApp (StateDFFun (Just stateOut, Nothing) _ _ _) = NE.toList $ toOutBnds stateOut
-outsDFApp (StateDFFun (Just stateOut, Just out) _ _ _) = NE.toList $ toOutBnds stateOut <> toOutBnds out
+outsDFApp (PureDFFun _  out _ _) = NE.toList $ toOutBnds out
+outsDFApp (StateDFFun _ (Nothing, Nothing) _ _ _) = []
+outsDFApp (StateDFFun _ (Nothing, Just out) _ _ _) = NE.toList $ toOutBnds out
+outsDFApp (StateDFFun _ (Just stateOut, Nothing) _ _ _) = NE.toList $ toOutBnds stateOut
+outsDFApp (StateDFFun _ (Just stateOut, Just out) _ _ _) = NE.toList $ toOutBnds stateOut <> toOutBnds out
 outsDFApp (RecurFun result recCtrl recurs _ _ _ _) =
   let (x :| xs) = toOutBnds result
    in ( NE.toList $
@@ -209,14 +218,14 @@ toOutBnds (Dispatch bnds) = NE.map unwrapTB bnds
 toOutBnds (Direct bnd) = unwrapTB bnd :| []
 
 insApp :: App fty embExpr annot ty -> [TypedBinding ty]
-insApp (PureFun _ _ i) = extractBndsFromInputs $ NE.toList i
-insApp (StateFun _ _ (DFVar tbnd) i) = unwrapTB tbnd : extractBndsFromInputs (NE.toList i)
+insApp (PureFun _ _ _ i) = extractBndsFromInputs $ NE.toList i
+insApp (StateFun _ _ _ (DFVar tbnd) i) = unwrapTB tbnd : extractBndsFromInputs (NE.toList i)
 
 
 
 insDFApp :: DFApp fty embExpr annot ty -> [TypedBinding ty]
-insDFApp (PureDFFun _ _ i) = extractBndsFromInputs $ NE.toList i
-insDFApp (StateDFFun _ _ (DFVar atBnd) i) = unwrapTB atBnd : extractBndsFromInputs (NE.toList i)
+insDFApp (PureDFFun _ _ _ i) = extractBndsFromInputs $ NE.toList i
+insDFApp (StateDFFun _ _ _ (DFVar atBnd) i) = unwrapTB atBnd : extractBndsFromInputs (NE.toList i)
 insDFApp (RecurFun _ _ _ initIns recurs cond result) =
   extractBndsFromInputs (V.toList initIns)
     <> extractBndsFromInputs (V.toList recurs)
@@ -234,8 +243,8 @@ extractBndsFromInputs =
 
 
 insAndTypesDFApp :: DFApp fty embExpr annot ty -> [TypedBinding ty]
-insAndTypesDFApp (PureDFFun _ _ i) = extractBndsAndTypesFromInputs $ NE.toList i
-insAndTypesDFApp (StateDFFun _ _ stateIn i) = unwrapVarTB stateIn : extractBndsAndTypesFromInputs (NE.toList i)
+insAndTypesDFApp (PureDFFun _ _ _ i) = extractBndsAndTypesFromInputs $ NE.toList i
+insAndTypesDFApp (StateDFFun _ _ _ stateIn i) = unwrapVarTB stateIn : extractBndsAndTypesFromInputs (NE.toList i)
 insAndTypesDFApp (RecurFun _ _ _ initIns recurs cond result) =
   extractBndsAndTypesFromInputs (V.toList initIns)
     <> extractBndsAndTypesFromInputs (V.toList recurs)
@@ -252,8 +261,8 @@ extractBndsAndTypesFromInputs =
   mapMaybe (\case (DFVar atbnd) -> Just $ unwrapTB atbnd; _ -> Nothing)
 
 fnApp :: App fty embExpr annot ty -> QualifiedBinding
-fnApp (PureFun _ (FunRef f _) _) = f
-fnApp (StateFun _ (FunRef f _) _ _) = f
+fnApp (PureFun _ _ (FunRef f _) _) = f
+fnApp (StateFun _ _ (FunRef f _) _ _) = f
 
 unwrapTB :: ATypedBinding bty ty -> TypedBinding ty
 unwrapTB (DataBinding tbnd) = tbnd
@@ -305,9 +314,11 @@ deriving instance Show (App fn embExpr annot ty)
 --         out == out' && fn == fn' && stateIn == stateIn' && inp == inp'
 -- So we remove the compile-time safety here and resort entirely to the runtime check:
 instance Eq (App fn embExpr annot ty) where
-  (PureFun out fn inp) == (PureFun out' fn' inp') = unwrapVarBnd out == unwrapVarBnd out' && fn == fn' && inp == inp'
-  (StateFun out fn stateIn inp) == (StateFun out' fn' stateIn' inp') =
-    out == out' && fn == fn' && stateIn == stateIn' && inp == inp'
+  (PureFun _annots out fn inp) == (PureFun _annots' out' fn' inp') = 
+      unwrapVarBnd out == unwrapVarBnd out' && fn == fn' && inp == inp'
+  
+  (StateFun _annots out fn stateIn inp) == (StateFun _annots' out' fn' stateIn' inp') =
+      out == out' && fn == fn' && stateIn == stateIn' && inp == inp'
 
 -- We should think about these implications a little harder though!
 -- deriving instance Lift (App a)
@@ -319,11 +330,11 @@ type NormalizedDFExpr embExpr annot ty = Expr DFApp embExpr annot ty
 deriving instance Show (NormalizedExpr embExpr annot ty)
 
 -- deriving instance Eq (NormalizedExpr ty)
---deriving instance Lift (NormalizedExpr ty)
---makeBaseFunctor ''NormalizedExpr
+-- deriving instance Lift (NormalizedExpr ty)
+-- makeBaseFunctor ''NormalizedExpr
 -- deriving instance Lift a => Lift (NormalizedExprF a)
 
---instance Plated NormalizedExpr where plate = gplate
+-- instance Plated NormalizedExpr where plate = gplate
 
 deriving instance Show (DFApp embExpr annot ty a)
 
@@ -370,8 +381,8 @@ instance Function DFApp where
   inBindings = insDFApp
   funRef f =
     case f of
-      (PureDFFun _ (FunRef fr _) _) -> fr
-      (StateDFFun _ (FunRef fr _) _ _) -> fr
+      (PureDFFun _ _ (FunRef fr _) _) -> fr
+      (StateDFFun _ _ (FunRef fr _) _ _) -> fr
       RecurFun {} -> IFuns.recurFun
       SMapFun {} -> IFuns.smapFun
       IfFun {} -> IFuns.ifFun
@@ -441,8 +452,8 @@ substitute :: forall embExpr annot ty. SubstitutionStrategy -> (TypedBinding ty,
 substitute strat (from,to) e = evalState (mapFunsM go e) False
   where
     go :: DFApp fTy embExpr annot ty -> State Bool (DFApp fTy embExpr annot ty)
-    go (PureDFFun o f dIns) = check =<< PureDFFun o f <$> mapM replace dIns
-    go (StateDFFun o f sIn dIns) = check =<< StateDFFun o f sIn <$> mapM replace dIns
+    go (PureDFFun annots o f dIns) = check =<< PureDFFun annots o f <$> mapM replace dIns
+    go (StateDFFun annots o f sIn dIns) = check =<< StateDFFun annots o f sIn <$> mapM replace dIns
     go r@RecurFun{} = return r -- we do not replace these because RecurFun has variables that not yet defined.
                                -- we need a better representation for these.
     go (SMapFun o i) = check =<< SMapFun o <$> replace i

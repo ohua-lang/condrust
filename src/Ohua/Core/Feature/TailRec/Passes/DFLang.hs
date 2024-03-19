@@ -27,7 +27,7 @@ recurLowering expr
       recurStartToRecurFun :: NormalizedDFExpr embExpr annot ty -> m (NormalizedDFExpr embExpr annot ty)
       -- TODO What was the assumption here that recurStart can only have one argument?!
       -- recurStartToRecurFun (Let app@(PureDFFun (Destruct [_, _]) fun inp) rest)
-      recurStartToRecurFun (Let app@(PureDFFun Destruct{} _fun inp) rest)
+      recurStartToRecurFun (Let app@(PureDFFun annots Destruct{} _fun inp) rest)
         | funRef app == ALangPass.recurStartMarker = do
             outs <- case outsANew app of
                       [] -> error $ "invariant broken: the recur start marker does not have outputs"

@@ -72,9 +72,9 @@ removeNth expr = do
                -> State
                (HM.HashMap (TypedBinding ty) (NonEmpty (Integer, TypedBinding ty)))
                (Maybe (DFApp a embExpr annot ty))
-    toDFAppFun (PureFun tgt (FunRef "ohua.lang/nth" _) (DFEnvVar _ (NumericLit i) :| [_, DFVar srcATB ]) ) =
+    toDFAppFun (PureFun annots tgt (FunRef "ohua.lang/nth" _) (DFEnvVar _ (NumericLit i) :| [_, DFVar srcATB ]) ) =
       modify (HM.insertWith (<>) (unwrapTB srcATB) ((i, unwrapVarTB tgt) :| [])) >> pure Nothing
-    toDFAppFun (PureFun out (FunRef fr _) ins) | fr == IFuns.ifFun = do
+    toDFAppFun (PureFun annots out (FunRef fr _) ins) | fr == IFuns.ifFun = do
       hm <- get
       let out' =
             case toDFOuts (unwrapVarTB out) DataBinding hm of
@@ -84,7 +84,7 @@ removeNth expr = do
                   (d :| []) -> d
                   _ -> error $ "Invariant broken: IfFun has wrong input:" <> show ins
       return $ Just $ IfFun out' dIn
-    toDFAppFun (PureFun out (FunRef fr _) ins) | fr == IFuns.smapFun = do
+    toDFAppFun (PureFun annots out (FunRef fr _) ins) | fr == IFuns.smapFun = do
       hm <- get
       let out' =
             case toDFOuts (unwrapVarTB out) DataBinding hm of
@@ -94,15 +94,15 @@ removeNth expr = do
                   (d :| []) -> d
                   _ -> error $ "Invariant broken: SMap has wrong input:" <> show ins
       return $ Just $ SMapFun out' dIn
-    toDFAppFun (PureFun out fun ins) = do
+    toDFAppFun (PureFun annots out fun ins) = do
       hm <- get
       let out' = toDFOuts (unwrapVarTB out) DataBinding hm
-      return $ Just $ PureDFFun out' fun ins
-    toDFAppFun (StateFun (stateOut, out) fun stateIn ins) = do
+      return $ Just $ PureDFFun annots out' fun ins
+    toDFAppFun (StateFun annots (stateOut, out) fun stateIn ins) = do
       hm <- get
       let out' = toDFOuts (unwrapTB out) DataBinding hm
       let stateOut' = (\s -> toDFOuts (unwrapTB s) StateBinding hm) <$> stateOut
-      return $ Just $ StateDFFun (stateOut', Just out') fun stateIn ins
+      return $ Just $ StateDFFun annots (stateOut', Just out') fun stateIn ins
     toDFOuts :: TypedBinding ty -> (TypedBinding ty -> ATypedBinding b ty) -> HM.HashMap (TypedBinding ty) (NonEmpty (Integer, TypedBinding ty)) -> OutData b ty
     toDFOuts out bndFun =
       maybe
@@ -190,24 +190,32 @@ handleDefinitionalExpr' :: forall embExpr annot ty m.
   ALang.Expr embExpr annot ty ->
   ALang.Expr embExpr annot ty ->
   m (NormalizedExpr embExpr annot ty -> NormalizedExpr embExpr annot ty)
-handleDefinitionalExpr' assign l@(Apply _ _ _) cont = do
+handleDefinitionalExpr' assign l@(Apply annots _ _) cont = do
   (fn, s, args) <- handleApplyExpr l
   args' <- mapM (uncurry expectVar) args
   case s of
-    Just stateBnd -> DFLang.Let <$> st fn stateBnd args'
-    Nothing -> return $ DFLang.Let $ fun fn assign args'
+    Just stateBnd -> DFLang.Let <$> st fn annots stateBnd args'
+    Nothing -> return $ DFLang.Let $ fun fn annots assign args'
   where
     st ::
-      (MonadState (HS.HashSet (TypedBinding ty)) m) =>
-      FunRef ty Resolved ->
-      ATypedBinding 'State ty ->
-      NonEmpty (DFVar 'Data embExpr annot ty) ->
-      m (App 'ST embExpr annot ty)
-    st fn stateATBnd args' =
-      (\outs -> StateFun outs fn (DFVar stateATBnd) args')
+      (MonadState (HS.HashSet (TypedBinding ty)) m) 
+      => FunRef ty Resolved
+      -> [HostAnnotation annot] 
+      -> ATypedBinding 'State ty 
+      -> NonEmpty (DFVar 'Data embExpr annot ty) 
+      -> m (App 'ST embExpr annot ty)
+    st fn annots stateATBnd args' =
+      (\outs -> StateFun annots outs fn (DFVar stateATBnd) args')
         <$> findSTOuts assign
-    fun :: FunRef ty Resolved -> TypedBinding ty -> NonEmpty (DFVar 'Data embExpr annot ty) -> App 'Fun embExpr annot ty
-    fun fn tbnd args' = PureFun (DFVar $ DataBinding tbnd) fn args'
+    
+    fun :: 
+      FunRef ty Resolved
+      -> [HostAnnotation annot] 
+      -> TypedBinding ty 
+      -> NonEmpty (DFVar 'Data embExpr annot ty) 
+      -> App 'Fun embExpr annot ty
+    fun fn annots tbnd args' = PureFun annots (DFVar $ DataBinding tbnd) fn args'
+    
     findSTOuts ::
       (MonadState (HS.HashSet (TypedBinding ty)) m) =>
       TypedBinding ty ->

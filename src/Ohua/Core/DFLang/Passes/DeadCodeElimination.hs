@@ -22,7 +22,7 @@ eliminateExprs expr = do
     eliminateDeadExprs = transformExprM f
 
     f :: NormalizedDFExpr embExpr annot ty -> m (NormalizedDFExpr embExpr annot ty)
-    f (Let app@(PureDFFun out (FunRef fun _) _) cont) = do
+    f (Let app@(PureDFFun _ out (FunRef fun _) _) cont) = do
       (if isUsed out then pure $ Let app cont else warn fun >> return cont)
     f e = pure e
 
@@ -54,8 +54,9 @@ eliminateOuts expr = mapFuns go expr
           ctrlOut' = filterOutData =<< ctrlOut
           sizeOut' = filterOutData =<< sizeOut
        in SMapFun (dOut', ctrlOut', sizeOut') dIn
-    go (StateDFFun (stateOut, dataOut) fun sIn dIn) =
+    go (StateDFFun annots (stateOut, dataOut) fun sIn dIn) =
       StateDFFun
+        annots
         (filterOutData =<< stateOut, filterOutData =<< dataOut)
         fun
         sIn

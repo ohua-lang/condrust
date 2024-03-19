@@ -39,14 +39,14 @@ instance Pretty (ATypedBinding a ty) where
         in hsep [pretty $ asBnd tb, "::", pretty $ asType tb] 
 
 instance Pretty (App fTy embExpr annot ty) where
-    pretty (PureFun output fun inps) =
+    pretty (PureFun _annots output fun inps) =
         hsep $
             [ align $ pretty output
             , "="
             , pretty fun
             ] <>
             [align $ tupled $ toList $ map pretty inps]
-    pretty (StateFun (stateOut, out) fun stateIn inps) =
+    pretty (StateFun _annots (stateOut, out) fun stateIn inps) =
         hsep $
             [ align $ tupled [maybe "_" pretty stateOut, pretty out]
             , "="
@@ -56,14 +56,14 @@ instance Pretty (App fTy embExpr annot ty) where
             [align $ tupled $ toList $ map pretty inps]
 
 instance Pretty (DFApp fTy embExpr annot ty) where
-    pretty (PureDFFun output fun inps) =
+    pretty (PureDFFun _annots output fun inps) =
         hsep $
             [ align $ pretty output
             , "="
             , pretty fun
             ] <>
             [align $ tupled $ toList $ map pretty inps]
-    pretty (StateDFFun (stateOut, out) fun stateIn inps) =
+    pretty (StateDFFun _annots (stateOut, out) fun stateIn inps) =
         hsep $
             [ align $ tupled [maybe "_" pretty stateOut, pretty out]
             , "="

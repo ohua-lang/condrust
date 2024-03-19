@@ -178,7 +178,7 @@ liftPureFunctions liftCollectTy = rewriteSMap
     collectSMap (DFL.Let app cont) =
       case app of
         -- loop body has ended
-        (PureDFFun _ (FunRef fn _) (_ :| [DFVar atb@(DataBinding (TBind result _rty))]))
+        (PureDFFun _annots _ (FunRef fn _) (_ :| [DFVar atb@(DataBinding (TBind result _rty))]))
           | fn == IFuns.collect ->
             pure (DFL.Var atb, app, cont)
             -- I don't know if this should happen and if we should learn anything from the parameter being a state here but
@@ -239,11 +239,11 @@ liftFunction :: forall embExpr annot ty.
              -> DFApp 'Fun embExpr annot ty
              -> NormalizedDFExpr embExpr annot ty 
              -> OhuaM (NormalizedDFExpr embExpr annot ty)
-liftFunction collectTy retTy (PureDFFun out fun inp) cont = do
+liftFunction collectTy retTy (PureDFFun annots out fun inp) cont = do
   let funTy = getRefType fun
   futuresATBnd <- DataBinding . flip TBind collectTy <$> generateBindingWith "futures"
   outBound <- handleOutputSide futuresATBnd
-  let spawned = handleFun futuresATBnd funTy
+  let spawned = handleFun futuresATBnd funTy annots
   return $ DFL.Let spawned outBound
   where
     handleOutputSide :: ATypedBinding 'Data ty -> OhuaM (NormalizedDFExpr embExpr annot ty)
@@ -251,18 +251,19 @@ liftFunction collectTy retTy (PureDFFun out fun inp) cont = do
       return $
       DFL.Let
         ( PureDFFun
+            [] {-ToDo: I do not propagate the original function call annotation to the collect function here. Check if this is valid-}
             out
             (FunRef joinFuture (FunType (Right $ collectTy :| []) retTy))
             (DFVar futuresATBnd :| [])
         )
         cont
 
-    handleFun :: ATypedBinding 'Data ty -> FunType ty Resolved -> DFApp 'Fun embExpr annot ty
-    handleFun futuresBnd funTy =
+    handleFun :: ATypedBinding 'Data ty -> FunType ty Resolved -> [HostAnnotation annot] -> DFApp 'Fun embExpr annot ty
+    handleFun futuresBnd funTy annots =
       PureDFFun
+        annots
         (Direct futuresBnd)
         (FunRef spawnFuture  $ getSpawnFunType fun funTy)
-
         (DFEnvVar (FType funTy) (FunRefLit fun) NE.<| inp)
 
 
@@ -585,8 +586,8 @@ third3 (_,_,c) = c
 typeAmorphous :: NormalizedDFExpr embExpr annot ty -> OhuaM (NormalizedDFExpr embExpr annot ty)
 typeAmorphous = return . mapFuns go
     where
-        go (PureDFFun outs (FunRef f (FunType (Right (a:|b:c)) retTy) ) ins) | f == concat =
-            PureDFFun outs (FunRef f (FunType (Right ((IType $ TypeList a) :| (IType $ TypeList b) : c )) retTy)) ins
-        go (PureDFFun outs (FunRef f (FunType (Right (a :| b)) retTy ) ) ins) | f == takeN =
-            PureDFFun outs (FunRef f (FunType (Right ((IType $ TypeList a ) :| b)) retTy) ) ins
+        go (PureDFFun annots outs (FunRef f (FunType (Right (a:|b:c)) retTy) ) ins) | f == concat =
+            PureDFFun annots outs (FunRef f (FunType (Right ((IType $ TypeList a) :| (IType $ TypeList b) : c )) retTy)) ins
+        go (PureDFFun annots outs (FunRef f (FunType (Right (a :| b)) retTy ) ) ins) | f == takeN =
+            PureDFFun annots outs (FunRef f (FunType (Right ((IType $ TypeList a ) :| b)) retTy) ) ins
         go a = a
