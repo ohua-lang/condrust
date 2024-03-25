@@ -78,8 +78,8 @@ instance Integration (Language 'Python) where
         (QualifiedBinding (NSRef []) bnd) -> wrapSubExpr (Sub.Var bnd)
         (QualifiedBinding refNames bnd)  -> wrapSubExpr $ Sub.Var $ dotConcat refNames bnd
 
-    convertExpr arch (Apply (Stateless bnd args)) = convertFunCall arch bnd args
-    convertExpr arch (Apply sOp@(Stateful stateBnd funBnd args)) = case funBnd of
+    convertExpr arch (Apply annots (Stateless bnd args)) = convertFunCall arch bnd annots  args
+    convertExpr arch (Apply annots sOp@(Stateful stateBnd funBnd args)) = case funBnd of
         TH.SetItemFunction -> transformToSubscript arch sOp
         TH.GetItemFunction -> transformToSubscript arch sOp
         _any_statefull_function ->  wrapSubExpr $
@@ -145,13 +145,13 @@ instance Integration (Language 'Python) where
                 (Sub.Bool False)
 
     convertExpr arch (TCLang.Size bnd) =
-        convertFunCall arch (toQualBinding "len") [Var bnd]
+        convertFunCall arch (toQualBinding "len") [] [Var bnd]
 
     convertExpr arch (TCLang.ListOp Create) =
-        convertFunCall arch (toQualBinding TH.listConstructor) []
+        convertFunCall arch (toQualBinding TH.listConstructor) [] []
 
     convertExpr arch (TCLang.ListOp (Append bnd expr)) =
-        convertExpr arch $ Apply $ Stateful (Var bnd) (toQualBinding "append") [expr]
+        convertExpr arch $ Apply [] $ Stateful (Var bnd) (toQualBinding "append") [expr]
     
     convertExpr arch (TCLang.Tuple itms) =
         let conv =  unwrapSubStmt . convertExpr arch . either TCLang.Var TCLang.Lit
@@ -167,10 +167,10 @@ instance Integration (Language 'Python) where
 -}
     convertExpr arch (TCLang.Increment bnd) =
         convertExpr arch $
-            Apply $ Stateless (toQualBinding "+") [Var bnd, TCLang.Lit $ NumericLit 1]
+            Apply [] $ Stateless (toQualBinding "+") [Var bnd, TCLang.Lit $ NumericLit 1]
     convertExpr arch (TCLang.Decrement bnd) =
         convertExpr arch $
-            Apply $ Stateless (toQualBinding "-") [Var bnd, TCLang.Lit $ NumericLit 1]
+            Apply [] $ Stateless (toQualBinding "-") [Var bnd, TCLang.Lit $ NumericLit 1]
     convertExpr arch (TCLang.Not expr) =  wrapSubExpr $
         Sub.UnaryOp  Sub.Not ( unwrapSubStmt $ convertExpr arch expr)
 
@@ -196,9 +196,13 @@ transformToSubscript _arch _ = error "Try to transform a function other than __g
 
 
 
-convertFunCall ::(Architecture arch, Lang arch ~ Language 'Python) =>
-        arch -> QualifiedBinding -> [TCLang.TaskExpr (Py.Expr SrcSpan) () PythonVarType] -> Sub.Stmt
-convertFunCall arch op [arg1, arg2] | isJust $ binOp op =
+convertFunCall ::(Architecture arch, Lang arch ~ Language 'Python) 
+    => arch 
+    -> QualifiedBinding
+    -> [HostAnnotation ()] -- currently we have no annotations in Python but for reasons of consistency and later use we thread them through 
+    -> [TCLang.TaskExpr (Py.Expr SrcSpan) () PythonVarType] 
+    -> Sub.Stmt
+convertFunCall arch op _ [arg1, arg2] | isJust $ binOp op =
     wrapSubExpr $ Sub.BinaryOp (fromJust $ binOp op) firstArg secondArg
     where
         firstArg =  unwrapSubStmt $ convertExpr arch arg1
@@ -235,24 +239,23 @@ convertFunCall arch op [arg1, arg2] | isJust $ binOp op =
             _ -> Nothing
 
 
-convertFunCall arch TH.ListConstructor args =
+convertFunCall arch TH.ListConstructor _ args =
     wrapSubExpr $ Sub.List items
     where items = map (unwrapSubStmt . convertExpr arch) args
 
-convertFunCall arch TH.DictConstructor args =
+convertFunCall arch TH.DictConstructor _ args =
     wrapSubExpr $ Sub.Dict items
     where items = map (convertDictItem arch) args
 
-convertFunCall arch TH.TupleConstructor args =
+convertFunCall arch TH.TupleConstructor _ args =
     wrapSubExpr $ Sub.Tuple items
     where items = map (unwrapSubStmt . convertExpr arch) args
 
-convertFunCall arch TH.SetConstructor args =
+convertFunCall arch TH.SetConstructor _ args =
     wrapSubExpr $ Sub.Set items
     where items = map (unwrapSubStmt . convertExpr arch) args
 
-convertFunCall arch op [arg]
-    | isJust $ unOp op =
+convertFunCall arch op _ [arg] | isJust $ unOp op =
         wrapSubExpr $ Sub.UnaryOp (fromJust $ unOp op) arg'
         where
             arg' =  unwrapSubStmt $ convertExpr arch arg
@@ -261,7 +264,7 @@ convertFunCall arch op [arg]
                 FunRepresentationOf "~" -> Just Sub.Invert
                 _ -> Nothing
 
-convertFunCall arch funRef args =
+convertFunCall arch funRef _ args =
     let args' = case args of
                     [TCLang.Lit UnitLit] -> []
                     _ -> map (convertArgument arch) args
@@ -270,8 +273,10 @@ convertFunCall arch funRef args =
         Sub.Call ( unwrapSubStmt $ convertExpr arch $ asFunctionLiteral funRef (length args)) args'
 
 
-convertArgument :: (Architecture arch, Lang arch ~ Language 'Python) =>
-    arch -> TaskExpr (Py.Expr SrcSpan) () PythonVarType  -> Sub.Argument
+convertArgument :: (Architecture arch, Lang arch ~ Language 'Python) 
+    =>  arch 
+    -> TaskExpr (Py.Expr SrcSpan) () PythonVarType  
+    -> Sub.Argument
 -- TODO: If I could translate args and kwargs at the frontend I'd maybe just prepend their names with '*'/'**'
 -- > Check if translating this back just using normal args yields same behaviour
 -- > Currently original type annotation and default are lost in translation (no pun intended) anyways, otherwise
@@ -280,8 +285,10 @@ convertArgument :: (Architecture arch, Lang arch ~ Language 'Python) =>
 -- TODO: Keyword Arguments... Would be nice not to loose this information.
 convertArgument arch arg = Sub.Arg ( unwrapSubStmt (convertExpr arch arg))
 
-convertDictItem :: (Architecture arch, Lang arch ~ Language 'Python) =>
-    arch -> TaskExpr (Py.Expr SrcSpan) () PythonVarType  -> (Sub.Expr, Sub.Expr)
+convertDictItem :: (Architecture arch, Lang arch ~ Language 'Python) 
+    => arch 
+    -> TaskExpr (Py.Expr SrcSpan) () PythonVarType 
+    -> (Sub.Expr, Sub.Expr)
 convertDictItem arch item =
     let item' = unwrapSubStmt $ convertExpr arch item
     in

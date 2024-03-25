@@ -71,15 +71,18 @@ instance Integration (Language 'Rust) where
         LitF (EnvRefLit arg _ty) -> Var arg
         e -> embed e
 
-  convertExpr :: (Architecture arch, Lang arch ~ Language 'Rust) => arch -> TCLang.TaskExpr (Rust.Expr Span) (Rust.Attribute Span) RustVarType -> Sub.Expr
+  convertExpr :: (Architecture arch, Lang arch ~ Language 'Rust) 
+    => arch 
+    -> TCLang.TaskExpr (Rust.Expr Span) (Rust.Attribute Span) RustVarType 
+    -> Sub.Expr
   convertExpr _ (TCLang.Var b) = Sub.Var b
   convertExpr _ (TCLang.Lit l) = Sub.Lit l
-  convertExpr arch (Apply (Stateless bnd args)) = convertFunCall arch bnd args
-  convertExpr arch (Apply (Stateful stateExpr f args)) =
+  convertExpr arch (Apply annots (Stateless bnd args)) = convertFunCall arch bnd annots args
+  convertExpr arch (Apply annots (Stateful stateExpr f args)) =
     Sub.MethodCall
       (convertExpr arch stateExpr)
       (Sub.CallRef f Nothing)
-      []
+      (map (\(HostAnnotation a) -> a) annots)
       (map (convertExpr arch) args)
   convertExpr arch (Let bnd stmt cont) =
     let stmtExpr =
@@ -119,11 +122,11 @@ instance Integration (Language 'Rust) where
       (convertExpr arch condExpr)
       (convertIntoBlock arch trueBranch)
       (Just $ convertExpr arch falseBranch)
-  convertExpr arch (TCLang.ListOp Create) = convertExpr arch $ Apply $ Stateless "Vec/new" []
+  convertExpr arch (TCLang.ListOp Create) = convertExpr arch $ Apply [] $ Stateless "Vec/new" []
   convertExpr arch (TCLang.ListOp (Append bnd expr)) =
-    convertExpr arch $ Apply $ Stateful (Var bnd) (mkFunRefUnqual "push") [expr]
+    convertExpr arch $ Apply [] $ Stateful (Var bnd) (mkFunRefUnqual "push") [expr]
   convertExpr arch (TCLang.Size bnd) =
-    convertExpr arch $ Apply $ Stateful (Var bnd) (mkFunRefUnqual "len") []
+    convertExpr arch $ Apply [] $ Stateful (Var bnd) (mkFunRefUnqual "len") []
 
   convertExpr arch (TCLang.Tuple itms) =
       let conv =  convertExpr arch . either TCLang.Var TCLang.Lit
@@ -133,18 +136,18 @@ instance Integration (Language 'Rust) where
 
   convertExpr arch (TCLang.Increment bnd) =
     convertExpr arch $
-      Apply $ Stateless (mkFunRefUnqual "+") [Var bnd, TCLang.Lit $ NumericLit 1]
+      Apply [] $ Stateless (mkFunRefUnqual "+") [Var bnd, TCLang.Lit $ NumericLit 1]
   convertExpr arch (TCLang.Decrement bnd) =
     convertExpr arch $
-      Apply $ Stateless (mkFunRefUnqual "-") [Var bnd, TCLang.Lit $ NumericLit 1]
-  convertExpr arch (TCLang.Not expr) = convertExpr arch $ Apply $ Stateless (mkFunRefUnqual "!") [expr]
+      Apply [] $ Stateless (mkFunRefUnqual "-") [Var bnd, TCLang.Lit $ NumericLit 1]
+  convertExpr arch (TCLang.Not expr) = convertExpr arch $ Apply [] $ Stateless (mkFunRefUnqual "!") [expr]
   convertExpr arch (TCLang.HasSize bnd) =
     let intermediate = toBinding "tmp_has_size"
     in convertExpr arch $ 
       Let intermediate (
-        Apply $ Stateful (Apply $ Stateful (Var bnd) (mkFunRefUnqual "iter") []) 
+        Apply [] $ Stateful (Apply [] $ Stateful (Var bnd) (mkFunRefUnqual "iter") []) 
         (mkFunRefUnqual "size_hint") []) 
-        (Apply $ Stateful (secondIndexing intermediate) (mkFunRefUnqual "is_some") [])
+        (Apply [] $ Stateful (secondIndexing intermediate) (mkFunRefUnqual "is_some") [])
 
 -- In the old runtime this was implemented using the `size_hint` function in Rust
 -- What I want here:
@@ -160,15 +163,16 @@ mkFunRefUnqual = QualifiedBinding (makeThrow [])
 convertFunCall :: (Architecture arch, Lang arch ~ Language 'Rust) 
   => arch 
   -> QualifiedBinding 
+  -> [HostAnnotation (Rust.Attribute Span)]
   -> [TCLang.TaskExpr (Rust.Expr Span) (Rust.Attribute Span) RustVarType] 
   -> Sub.Expr
-convertFunCall arch f args =
+convertFunCall arch f annots args =
   case (binOp f, args) of
     (Just bOp, [arg1, arg2]) -> Sub.Binary bOp (convertExpr arch arg1) (convertExpr arch arg2)
     _ -> case (unOp f, args) of
       (Just uOp, [arg]) -> Sub.Unary uOp (convertExpr arch arg)
       _ ->
-        Sub.Call (Sub.CallRef f Nothing) [] $ map (convertExpr arch) args
+        Sub.Call (Sub.CallRef f Nothing) (map (\(HostAnnotation a) -> a) annots) $ map (convertExpr arch) args
   where
     binOp = \case
       UnqualFun "+" -> Just Sub.Add
@@ -181,3 +185,4 @@ convertFunCall arch f args =
       UnqualFun "-" -> Just Sub.Neg
       UnqualFun "*" -> Just Sub.Deref
       _ -> Nothing
+    

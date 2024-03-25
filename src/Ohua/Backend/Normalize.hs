@@ -17,7 +17,7 @@ transformWithState :: (TaskExpr embExpr annot ty -> TaskExpr embExpr annot ty) -
 transformWithState f = (`evalState` HS.empty) . transformM go
   where
     -- This restricts the whole transformation to stateful functions only! Why?!
-    go e@(Apply (Stateful (Var _v) _ _)) = do
+    go e@(Apply _ (Stateful (Var _v) _ _)) = do
       return $ f e
     go e@(Assign b _) = do
       modify $ HS.insert b
@@ -78,9 +78,9 @@ substitute (bnd, e) = transform go
   where
     go v@Var {} = updateVar v
 
-    go (Apply (Stateless fn args)) = Apply $ Stateless fn $ map (transform go) args
-    go (Apply (Stateful state' fn args)) =
-      Apply $ Stateful (transform go state') fn $ map (transform go) args
+    go (Apply annots (Stateless fn args)) = Apply annots $ Stateless fn $ map (transform go) args
+    go (Apply annots (Stateful state' fn args)) =
+      Apply annots $ Stateful (transform go state') fn $ map (transform go) args
 
     go (SendData (SSend chan (Left sbnd))) | sbnd == bnd = case e of
       -- Also rename outbound variables _if_ we replace with a variable. If replacing with something else we'd need to think about another solution

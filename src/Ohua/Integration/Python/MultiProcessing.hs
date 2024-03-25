@@ -42,7 +42,7 @@ instance Architecture (Architectures 'MultiProcessing) where
          that instantiates the according process communication channel
     -}
     convertChannel a@SMultiProc{} (SRecv _argTy( SChan bnd))=
-        let expr = unwrapSubStmt $ convertExpr a $ Apply $ Stateless (QualifiedBinding (makeThrow []) "mp.Pipe") []
+        let expr = unwrapSubStmt $ convertExpr a $ Apply [] $ Stateless (QualifiedBinding (makeThrow []) "mp.Pipe") []
             send = unwrapSubStmt $ convertExpr a $ TCLang.Var $ bnd <> "_sender"
             recv = unwrapSubStmt $ convertExpr a $ TCLang.Var $ bnd <> "_receiver"
         in Sub.Assign [Sub.Tuple [send, recv]] expr
@@ -56,7 +56,7 @@ instance Architecture (Architectures 'MultiProcessing) where
     convertRecv a@SMultiProc{}  (SRecv _type (SChan channel)) =
      -- currently this will yield $channel_reciever.recv()           
         convertExpr a $
-            Apply $ Stateful (TCLang.Var $ channel <> "_receiver") (toQualBinding "recv") []
+            Apply [] $ Stateful (TCLang.Var $ channel <> "_receiver") (toQualBinding "recv") []
 
     {- | Converts the 'outgoing edge' of a backend channel into an expression of the target architecture
          to send the result of the node computation to a process communication channel 
@@ -69,7 +69,7 @@ instance Architecture (Architectures 'MultiProcessing) where
                 Left varBnd -> TCLang.Var varBnd
                 Right literal -> TCLang.Lit literal
         in convertExpr a $
-            Apply $ Stateful (TCLang.Var $ chnlName <> "_sender") (toQualBinding "send") [sendItem]
+            Apply [] $ Stateful (TCLang.Var $ chnlName <> "_sender") (toQualBinding "send") [sendItem]
 
 
     {- | Wraps the tasks i.e. codeblocks of host language function calls and 'wiring' to send and

@@ -51,7 +51,7 @@ instance (Hashable expr) => Hashable (List expr)
 data TaskExpr embExpr annot ty
   = Var Binding
   | Lit (Lit embExpr ty Resolved) -- true, false  etc.
-  | Apply (App (TaskExpr embExpr annot ty))
+  | Apply [HostAnnotation annot] (App (TaskExpr embExpr annot ty))
   | Let Binding
         (TaskExpr embExpr annot ty)
         (TaskExpr embExpr annot ty) -- cont
@@ -102,7 +102,7 @@ secondIndexing bnd = Indexing bnd 1
 containsBinding :: TaskExpr embExpr annot ty -> Binding -> Bool
 containsBinding (Var bnd ) b = b == bnd
 containsBinding Lit{} _ = False
-containsBinding (Apply app) b = case app of
+containsBinding (Apply _annots app) b = case app of
   (Stateless _ exprs) -> any (`containsBinding` b) exprs
   (Stateful e _ exprs) -> containsBinding e b || any (`containsBinding` b) exprs
 containsBinding (Let bnd expr cont) b = bnd == b || containsBinding expr b || containsBinding cont b

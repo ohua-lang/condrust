@@ -132,7 +132,7 @@ genFun' ct = \case
         let varsAndReceives = zipWith (curry generateReceiveCode) [0 ..] receives
             call = case f of
                      (Call (FunRef app ty)) ->
-                       Apply $ Stateless app $ getCallArgs Var ty varsAndReceives
+                       Apply [] $ Stateless app $ getCallArgs Var ty varsAndReceives
                      (Tup ty) ->
                        case getCallArgs id ty varsAndReceives of
                          [] -> Lit UnitLit
@@ -145,7 +145,7 @@ genFun' ct = \case
               NE.zipWith (curry generateReceiveCode) (0 :| [1 ..]) $ stateRecv :| receives
             callArgs = getCallArgs Var funTy $ NE.tail varsAndReceives
             stateArg = (\(_,v,_) -> v) $ NE.head varsAndReceives
-            call = (Apply $ Stateful (Var stateArg) app callArgs)
+            call = (Apply [] $ Stateful (Var stateArg) app callArgs)
         in flip letReceives (toList varsAndReceives) $
            callWithResult sendRes call ct
     (IdFusable i o) ->

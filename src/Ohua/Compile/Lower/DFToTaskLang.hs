@@ -17,7 +17,9 @@ import qualified Data.HashSet as HS
 import Ohua.Core.DFLang.PPrint (prettyExpr)
 
 -- Invariant in the result type: the result channel is already part of the list of channels.
-toTCLang :: (ErrAndLogM m, Show ty, Show embExpr, Show annot) => NormalizedDFExpr embExpr annot ty -> m (TCProgram (Channel embExpr annot ty) (Com 'Recv embExpr annot ty) embExpr (FusableExpr embExpr annot ty))
+toTCLang :: (ErrAndLogM m, Show ty, Show embExpr, Show annot) 
+  => NormalizedDFExpr embExpr annot ty 
+  -> m (TCProgram (Channel embExpr annot ty) (Com 'Recv embExpr annot ty) embExpr (FusableExpr embExpr annot ty))
 toTCLang gr = do
     let channels = generateArcsCode gr
     (tasks, resultChan) <- generateNodesCode gr

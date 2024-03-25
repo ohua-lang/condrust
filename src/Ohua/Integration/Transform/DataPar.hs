@@ -295,11 +295,11 @@ lowerTaskPar _ _arch = go
         go'' = \case
                 -- we need to do this on the Rust level because
                 -- it would be hard to construct this call.
-                e@(B.ApplyF (B.Stateless qb _args)) | qb == spawnFuture -> embed <$> sequence e
+                e@(B.ApplyF _annots (B.Stateless qb _args)) | qb == spawnFuture -> embed <$> sequence e
 
                 -- there is nothing to be done here.
                 -- because we can implement this function easily in Rust.
-                e@(B.ApplyF (B.Stateless qb _args)) | qb == joinFuture -> do { put True; embed <$> sequence e }
+                e@(B.ApplyF _annots (B.Stateless qb _args)) | qb == joinFuture -> do { put True; embed <$> sequence e }
                 e -> embed <$> sequence e
 
 takeN :: QualifiedBinding
