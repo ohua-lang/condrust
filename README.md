@@ -127,3 +127,13 @@ The following are some notes on using `Universum`, assembled for your convenienc
 
 For more information on universum check out [the GitHUb
 repository](https://github.com/serokell/universum).
+
+
+## Acknowledgements
+
+`dfg-mlir` has been supported throughout its history by the following projects.
+
+European Union projects:
+
+- Grant agreement ID 957269 **EVEREST** – dEsign enVironmEnt foR Extreme-Scale big data analytics on heterogeneous platforms
+
